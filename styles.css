@@ -9,7 +9,7 @@
   --green:#7A8F6E;--red-soft:#9E5E5E;
   --nav-bg:rgba(12,11,9,0.92);--overlay:rgba(12,11,9,0.95);
   --shadow:rgba(0,0,0,0.4);--card-shadow:rgba(0,0,0,0.3);
-  --hero-gradient:linear-gradient(180deg,rgba(12,11,9,0.15) 0%,rgba(12,11,9,0) 30%,rgba(12,11,9,0.5) 70%,rgba(12,11,9,0.95) 100%);
+  --hero-gradient:linear-gradient(180deg,rgba(12,11,9,0.3) 0%,rgba(12,11,9,0.1) 30%,rgba(12,11,9,0.55) 70%,rgba(12,11,9,0.95) 100%);
   --toggle-bg:var(--surface);--toggle-icon:'☽';
 }
 
@@ -24,7 +24,7 @@
   --green:#5A7A4E;--red-soft:#9E5E5E;
   --nav-bg:rgba(248,246,241,0.92);--overlay:rgba(248,246,241,0.97);
   --shadow:rgba(0,0,0,0.08);--card-shadow:rgba(0,0,0,0.06);
-  --hero-gradient:linear-gradient(180deg,rgba(0,0,0,0.25) 0%,rgba(0,0,0,0.1) 30%,rgba(0,0,0,0.4) 70%,rgba(0,0,0,0.85) 100%);
+  --hero-gradient:linear-gradient(180deg,rgba(0,0,0,0.1) 0%,rgba(0,0,0,0) 30%,rgba(0,0,0,0.25) 70%,rgba(0,0,0,0.65) 100%);
   --toggle-bg:var(--surface);--toggle-icon:'☀';
 }
 
@@ -55,6 +55,10 @@ ul{list-style:none}
    NAVIGATION
    ═══════════════════════════════════════════════════════ */
 .nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:1.25rem 3rem;display:flex;align-items:center;justify-content:space-between;transition:all 0.5s;background:transparent}
+.nav::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;z-index:-1;transition:opacity 0.5s;pointer-events:none}
+.nav:not(.scrolled)::before{opacity:1;background:linear-gradient(180deg,rgba(12,11,9,0.6) 0%,rgba(12,11,9,0.3) 50%,transparent 100%)}
+[data-theme="light"] .nav:not(.scrolled)::before{background:linear-gradient(180deg,rgba(255,255,255,0.5) 0%,rgba(255,255,255,0.2) 50%,transparent 100%)}
+.nav.scrolled::before{opacity:0}
 .nav.scrolled{background:var(--nav-bg);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);padding:0.85rem 3rem;border-bottom:1px solid var(--border)}
 .nav-logo{display:flex;align-items:center;gap:1.25rem;text-decoration:none}
 .nav-logo-text{display:flex;flex-direction:column;line-height:1.1;gap:0.15rem}
@@ -105,21 +109,21 @@ ul{list-style:none}
 }
 
 
-/* Light mode nav — keep text light on transparent, dark when scrolled */
-[data-theme="light"] .nav:not(.scrolled) .nav-logo-name{color:#F5F0E8}
-[data-theme="light"] .nav:not(.scrolled) .nav-logo-name span{color:var(--gold-light)}
-[data-theme="light"] .nav:not(.scrolled) .nav-logo-sub{color:rgba(245,240,232,0.5)}
-[data-theme="light"] .nav:not(.scrolled) .nav-center a{color:rgba(245,240,232,0.55)}
-[data-theme="light"] .nav:not(.scrolled) .nav-center a:hover{color:var(--gold-light)}
-[data-theme="light"] .nav:not(.scrolled) .nav-phone{color:rgba(245,240,232,0.7)}
-[data-theme="light"] .nav:not(.scrolled) .nav-phone svg{stroke:var(--gold-light)}
-[data-theme="light"] .nav:not(.scrolled) .nav-kw{filter:none}
-[data-theme="light"] .nav:not(.scrolled) .nav-divider{background:rgba(245,240,232,0.15)}
-[data-theme="light"] .nav:not(.scrolled) .theme-toggle{background:rgba(12,11,9,0.5)}
-[data-theme="light"] .nav:not(.scrolled) .nav-toggle span{background:#F5F0E8}
+/* Light mode nav — dark text over light gradient on hero */
+[data-theme="light"] .nav:not(.scrolled) .nav-logo-name{color:#1A1815}
+[data-theme="light"] .nav:not(.scrolled) .nav-logo-name span{color:var(--gold-dark)}
+[data-theme="light"] .nav:not(.scrolled) .nav-logo-sub{color:rgba(26,24,21,0.5)}
+[data-theme="light"] .nav:not(.scrolled) .nav-center a{color:rgba(26,24,21,0.55)}
+[data-theme="light"] .nav:not(.scrolled) .nav-center a:hover{color:var(--gold)}
+[data-theme="light"] .nav:not(.scrolled) .nav-phone{color:rgba(26,24,21,0.7)}
+[data-theme="light"] .nav:not(.scrolled) .nav-phone svg{stroke:var(--gold)}
+[data-theme="light"] .nav:not(.scrolled) .nav-kw{filter:invert(1)}
+[data-theme="light"] .nav:not(.scrolled) .nav-divider{background:rgba(26,24,21,0.15)}
+[data-theme="light"] .nav:not(.scrolled) .theme-toggle{background:rgba(248,246,241,0.6)}
+[data-theme="light"] .nav:not(.scrolled) .nav-toggle span{background:#1A1815}
 
-[data-theme="light"] .hero-scroll span{color:rgba(245,240,232,0.4)}
-[data-theme="light"] .hero-scroll .scroll-line{background:rgba(245,240,232,0.2)}
+[data-theme="light"] .hero-scroll span{color:rgba(26,24,21,0.4)}
+[data-theme="light"] .hero-scroll .scroll-line{background:rgba(26,24,21,0.2)}
 
 /* Mobile nav */
 .nav-toggle{display:none;flex-direction:column;gap:5px;padding:5px;z-index:1001}
@@ -129,32 +133,33 @@ ul{list-style:none}
 .mobile-menu a{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.8rem;font-weight:300;color:var(--cream);letter-spacing:0.05em}
 
 
-/* Light mode hero — keep text light since gradient is subtle */
-[data-theme="light"] .hero-content .hero-badge,
-[data-theme="light"] .hero-content .hero-title,
-[data-theme="light"] .hero-content .hero-sub,
-[data-theme="light"] .hero .btn-secondary{color:#F5F0E8;border-color:rgba(245,240,232,0.25)}
-[data-theme="light"] .hero .btn-secondary:hover{color:var(--gold-light);border-color:var(--gold-light)}
-[data-theme="light"] .hero-badge img{filter:none}
+/* Light mode hero — dark text over bright image with light gradient */
+[data-theme="light"] .hero-content .hero-badge{color:var(--gold-dark)}
+[data-theme="light"] .hero-content .hero-title{color:#1A1815;text-shadow:0 2px 12px rgba(255,255,255,0.4),0 1px 3px rgba(255,255,255,0.3)}
+[data-theme="light"] .hero-content .hero-title em{color:var(--gold-dark)}
+[data-theme="light"] .hero-content .hero-sub{color:rgba(26,24,21,0.75);text-shadow:0 1px 8px rgba(255,255,255,0.3)}
+[data-theme="light"] .hero .btn-secondary{color:#1A1815;border-color:rgba(26,24,21,0.25)}
+[data-theme="light"] .hero .btn-secondary:hover{color:var(--gold);border-color:var(--gold)}
+[data-theme="light"] .hero-badge img{filter:invert(1)}
 [data-theme="light"] .hero-search-bar{
-  background:rgba(12,11,9,0.55);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-  border:1px solid rgba(196,176,140,0.2);
+  background:rgba(255,255,255,0.7);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border:1px solid rgba(120,100,70,0.15);
 }
-[data-theme="light"] .hero .hs-field{border-right:1px solid rgba(196,176,140,0.1)}
-[data-theme="light"] .hero .hs-label{color:rgba(245,240,232,0.5)}
+[data-theme="light"] .hero .hs-field{border-right:1px solid rgba(120,100,70,0.1)}
+[data-theme="light"] .hero .hs-label{color:rgba(26,24,21,0.5)}
 [data-theme="light"] .hero .hs-select,
-[data-theme="light"] .hero .hs-input{color:#F5F0E8}
-[data-theme="light"] .hero .hs-input::placeholder{color:rgba(245,240,232,0.35)}
-[data-theme="light"] .hero .hs-tab{color:rgba(245,240,232,0.5)}
-[data-theme="light"] .hero .hs-tab.active{background:rgba(196,176,140,0.15);color:#F5F0E8}
-[data-theme="light"] .hero .hp-trigger{color:#F5F0E8}
-[data-theme="light"] .hero .hp-trigger .hp-placeholder{color:rgba(245,240,232,0.35)}
+[data-theme="light"] .hero .hs-input{color:#1A1815}
+[data-theme="light"] .hero .hs-input::placeholder{color:rgba(26,24,21,0.35)}
+[data-theme="light"] .hero .hs-tab{color:rgba(26,24,21,0.5)}
+[data-theme="light"] .hero .hs-tab.active{background:rgba(120,100,70,0.12);color:#1A1815}
+[data-theme="light"] .hero .hp-trigger{color:#1A1815}
+[data-theme="light"] .hero .hp-trigger .hp-placeholder{color:rgba(26,24,21,0.35)}
 [data-theme="light"] .hero .hp-trigger .hp-val{color:var(--gold)}
-[data-theme="light"] .hero .hero-sell-form{background:rgba(12,11,9,0.55);border:1px solid rgba(196,176,140,0.2)}
-[data-theme="light"] .hero .hsf-input{background:rgba(245,240,232,0.08);color:#F5F0E8;border-color:rgba(196,176,140,0.15)}
-[data-theme="light"] .hero .hsf-input::placeholder{color:rgba(245,240,232,0.3)}
-[data-theme="light"] .hero .hero-search-note{color:rgba(245,240,232,0.4)}
-[data-theme="light"] .hero .hero-search-note svg{stroke:rgba(245,240,232,0.4)}
+[data-theme="light"] .hero .hero-sell-form{background:rgba(255,255,255,0.7);border:1px solid rgba(120,100,70,0.15)}
+[data-theme="light"] .hero .hsf-input{background:rgba(26,24,21,0.05);color:#1A1815;border-color:rgba(120,100,70,0.15)}
+[data-theme="light"] .hero .hsf-input::placeholder{color:rgba(26,24,21,0.3)}
+[data-theme="light"] .hero .hero-search-note{color:rgba(26,24,21,0.45)}
+[data-theme="light"] .hero .hero-search-note svg{stroke:rgba(26,24,21,0.45)}
 
 /* ═══════════════════════════════════════════════════════
    PAGE SECTIONS (shared)
