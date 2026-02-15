@@ -1,0 +1,27 @@
+# Large media files (host on CDN separately)
+*.mp4
+*.mov
+*.avi
+*.mkv
+
+# Environment / secrets
+.env
+.env.*
+
+# Supabase Edge Function (contains secrets — deploy via Supabase CLI)
+index.ts
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / tools
+.vscode/
+.idea/
+.claude/
+*.swp
+*.swo
+
+# Node (if added later)
+node_modules/

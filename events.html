@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Events & Things to Do in Western NC | Waynesville, Sylva, Bryson City & More</title>
+<meta name="description" content="Discover festivals, farmers markets, concerts, outdoor adventures, and community events across Western North Carolina. Updated weekly with events in Waynesville, Sylva, Bryson City, Highlands, Franklin, and more.">
+<meta name="keywords" content="Western NC events, things to do Waynesville NC, Sylva NC festivals, Bryson City events, WNC farmers market, Highlands NC events, mountain festivals North Carolina">
+<link rel="canonical" href="https://coryhelpsyoumove.com/events.html">
+
+<!-- Open Graph -->
+<meta property="og:title" content="Events & Things to Do in Western NC">
+<meta property="og:description" content="Festivals, markets, concerts, and outdoor adventures across the WNC mountains. Find what's happening this week.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://coryhelpsyoumove.com/events.html">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Outfit:wght@200;300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ── THEME ── */
+:root,[data-theme="dark"]{
+  --bg:#0C0B09;--bg-warm:#141210;--card-bg:#1A1815;--surface:#211F1B;
+  --border:rgba(196,176,140,0.12);--border-hover:rgba(196,176,140,0.3);
+  --gold:#C4B08C;--gold-light:#D4C4A0;--gold-dark:#A08A60;
+  --cream:#F5F0E8;--text-muted:rgba(245,240,232,0.55);--text-body:rgba(245,240,232,0.75);
+  --nav-bg:rgba(12,11,9,0.92);
+}
+[data-theme="light"]{
+  --bg:#F8F6F1;--bg-warm:#F0EDE6;--card-bg:#FFFFFF;--surface:#EBE7DF;
+  --border:rgba(120,100,70,0.12);--border-hover:rgba(120,100,70,0.25);
+  --gold:#8B7748;--gold-light:#A08A58;--gold-dark:#6B5A38;
+  --cream:#1A1815;--text-muted:rgba(26,24,21,0.5);--text-body:rgba(26,24,21,0.7);
+  --nav-bg:rgba(248,246,241,0.92);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Outfit','Helvetica Neue',sans-serif;background:var(--bg);color:var(--cream);line-height:1.7;overflow-x:hidden;transition:background 0.5s,color 0.5s}
+a{color:var(--gold);text-decoration:none}
+a:hover{color:var(--gold-light)}
+::selection{background:var(--gold);color:var(--bg)}
+.fd{font-family:'Cormorant Garamond',Georgia,serif}
+
+/* ── NAV ── */
+.nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:1rem 3rem;display:flex;align-items:center;justify-content:space-between;background:var(--nav-bg);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
+.nav-logo{display:flex;align-items:center;gap:1.25rem;text-decoration:none;color:var(--cream)}
+.nav-logo-name{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.5rem;font-weight:300;letter-spacing:0.05em}
+.nav-logo-name span{color:var(--gold)}
+.nav-logo-sub{font-size:0.5rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--text-muted);font-family:'Outfit',sans-serif}
+.nav-links{display:flex;align-items:center;gap:2rem}
+.nav-links a{font-size:0.7rem;font-weight:400;letter-spacing:0.18em;text-transform:uppercase;color:var(--text-muted);transition:color 0.3s}
+.nav-links a:hover,.nav-links a.active{color:var(--gold)}
+.nav-right{display:flex;align-items:center;gap:1.5rem}
+.nav-phone{display:flex;align-items:center;gap:0.4rem;font-size:0.78rem;color:var(--text-body);letter-spacing:0.06em;text-decoration:none}
+.nav-phone svg{width:16px;height:16px;fill:none;stroke:var(--gold);stroke-width:2}
+.theme-toggle{cursor:pointer;font-size:1rem;padding:4px 8px;border-radius:20px;border:1px solid var(--border);transition:all 0.3s}
+.theme-toggle:hover{border-color:var(--gold)}
+[data-theme="dark"] .t-sun{display:none}
+[data-theme="light"] .t-moon{display:none}
+
+/* ── HERO ── */
+.events-hero{padding:140px 20px 60px;text-align:center;max-width:800px;margin:0 auto}
+.events-hero .section-label{font-size:0.65rem;letter-spacing:0.35em;text-transform:uppercase;color:var(--gold);margin-bottom:16px;font-weight:500}
+.events-hero h1{font-family:'Cormorant Garamond',Georgia,serif;font-size:3rem;font-weight:300;line-height:1.15;margin-bottom:16px}
+.events-hero p{color:var(--text-body);font-size:1.1rem;max-width:560px;margin:0 auto 32px;line-height:1.7}
+
+/* ── FILTERS ── */
+.filters-bar{max-width:1200px;margin:0 auto 16px;padding:0 20px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.filters-bar button{padding:8px 18px;border-radius:24px;border:1.5px solid var(--border);background:transparent;color:var(--text-body);font-size:0.85rem;cursor:pointer;transition:all 0.2s;font-family:inherit}
+.filters-bar button:hover{border-color:var(--gold);color:var(--gold)}
+.filters-bar button.active{background:var(--gold);color:#1a1a1a;border-color:var(--gold)}
+
+/* ── EVENT CARDS ── */
+.events-container{max-width:1200px;margin:0 auto;padding:0 20px 80px}
+.events-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:20px;margin-top:28px}
+.event-card{border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:transform 0.2s,box-shadow 0.2s;background:var(--card-bg)}
+.event-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,0.15)}
+.event-card-top{display:flex;align-items:stretch}
+.event-date-badge{min-width:72px;padding:16px 12px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--gold);color:#1a1a1a}
+.event-date-badge .edb-month{font-size:0.72rem;text-transform:uppercase;letter-spacing:1.5px;opacity:0.7}
+.event-date-badge .edb-day{font-size:1.6rem;font-weight:700;line-height:1.1}
+.event-date-badge .edb-dow{font-size:0.68rem;opacity:0.6;margin-top:2px}
+.event-card-body{flex:1;padding:16px 18px}
+.event-card-body h3{font-size:1.05rem;margin:0 0 6px;line-height:1.3}
+.event-card-body h3 a{color:var(--cream);text-decoration:none}
+.event-card-body h3 a:hover{color:var(--gold)}
+.event-meta{display:flex;flex-wrap:wrap;gap:10px;font-size:0.82rem;color:var(--text-muted);margin-bottom:8px}
+.event-meta span{display:flex;align-items:center;gap:4px}
+.event-meta svg{width:14px;height:14px;opacity:0.5;fill:none;stroke:currentColor;stroke-width:2}
+.event-desc{font-size:0.88rem;color:var(--text-body);line-height:1.5;margin:0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.event-tags{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.event-tag{font-size:0.72rem;padding:3px 10px;border-radius:12px;background:rgba(194,167,115,0.15);color:var(--gold);text-transform:capitalize}
+.event-tag.recurring{background:rgba(255,152,0,0.12);color:#ffb74d}
+.event-card.featured{border-color:var(--gold);border-width:2px}
+.event-card.featured::before{content:'\2605 Featured';display:block;padding:4px 18px;background:var(--gold);color:#1a1a1a;font-size:0.72rem;letter-spacing:1px;text-transform:uppercase}
+
+/* Load more + empty */
+.events-load-more{text-align:center;margin-top:32px}
+.events-load-more button{padding:14px 36px;border-radius:8px;border:2px solid var(--gold);background:transparent;color:var(--gold);font-weight:600;cursor:pointer;transition:all 0.2s;font-family:inherit;font-size:0.95rem}
+.events-load-more button:hover{background:var(--gold);color:#1a1a1a}
+.events-empty{text-align:center;padding:60px 20px;color:var(--text-muted)}
+.events-empty svg{width:48px;height:48px;opacity:0.3;margin-bottom:12px;fill:none;stroke:currentColor;stroke-width:1.5}
+.events-count{text-align:center;color:var(--text-muted);font-size:0.85rem;margin-top:4px}
+
+/* ── FOOTER ── */
+.events-footer{border-top:1px solid var(--border);padding:40px 20px;text-align:center}
+.events-footer p{color:var(--text-muted);font-size:0.85rem;margin-bottom:8px}
+.events-footer a{color:var(--gold)}
+
+/* ── LOADING ── */
+.event-skeleton{background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:24px;animation:evtPulse 1.5s infinite}
+@keyframes evtPulse{0%,100%{opacity:1}50%{opacity:0.5}}
+.event-skeleton .sk-line{height:14px;background:var(--surface);border-radius:6px;margin-bottom:10px}
+.event-skeleton .sk-line.short{width:60%}
+
+/* ── RESPONSIVE ── */
+@media(max-width:768px){
+  .nav{padding:0.8rem 1rem}
+  .nav-links{display:none}
+  .events-hero h1{font-size:2rem}
+  .events-grid{grid-template-columns:1fr}
+  .event-card-top{flex-direction:column}
+  .event-date-badge{flex-direction:row;gap:8px;padding:10px 16px;min-width:auto}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <a href="index.html" class="nav-logo">
+    <div><div class="nav-logo-name"><span>C</span>ory <span>C</span>oleman</div><div class="nav-logo-sub">Real Estate</div></div>
+  </a>
+  <div class="nav-links">
+    <a href="index.html">Home</a>
+    <a href="index.html#areas">Areas</a>
+    <a href="index.html#listings">Properties</a>
+    <a href="#" class="active">Events</a>
+    <a href="index.html#blog">Blog</a>
+    <a href="index.html#contact">Contact</a>
+  </div>
+  <div class="nav-right">
+    <div class="theme-toggle" onclick="toggleTheme()"><span class="t-sun">&#9728;</span><span class="t-moon">&#9789;</span></div>
+    <a href="tel:8285066413" class="nav-phone">
+      <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+      (828) 506-6413
+    </a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="events-hero">
+  <div class="section-label">Western North Carolina</div>
+  <h1 class="fd">Events & Things to Do</h1>
+  <p>From weekly farmers markets to world-class festivals — discover what makes these mountain communities come alive, all year round.</p>
+</div>
+
+<!-- CATEGORY FILTERS -->
+<div class="filters-bar" id="catFilters">
+  <button class="active" data-filter="all">All Events</button>
+  <button data-filter="festival">Festivals</button>
+  <button data-filter="market">Markets</button>
+  <button data-filter="music">Music</button>
+  <button data-filter="outdoor">Outdoor</button>
+  <button data-filter="arts">Arts</button>
+  <button data-filter="food">Food & Drink</button>
+  <button data-filter="community">Community</button>
+</div>
+
+<!-- TOWN FILTERS -->
+<div class="filters-bar" id="townFilters"></div>
+
+<!-- RESULTS COUNT -->
+<p class="events-count" id="eventsCount"></p>
+
+<!-- EVENTS GRID -->
+<div class="events-container">
+  <div class="events-grid" id="eventsGrid">
+    <div class="event-skeleton"><div class="sk-line"></div><div class="sk-line short"></div><div class="sk-line"></div></div>
+    <div class="event-skeleton"><div class="sk-line"></div><div class="sk-line short"></div><div class="sk-line"></div></div>
+    <div class="event-skeleton"><div class="sk-line"></div><div class="sk-line short"></div><div class="sk-line"></div></div>
+    <div class="event-skeleton"><div class="sk-line"></div><div class="sk-line short"></div><div class="sk-line"></div></div>
+    <div class="event-skeleton"><div class="sk-line"></div><div class="sk-line short"></div><div class="sk-line"></div></div>
+    <div class="event-skeleton"><div class="sk-line"></div><div class="sk-line short"></div><div class="sk-line"></div></div>
+  </div>
+
+  <div class="events-load-more" id="loadMore" style="display:none">
+    <button onclick="showMore()">Show More Events</button>
+  </div>
+
+  <div class="events-empty" id="emptyState" style="display:none">
+    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    <p>No events match your filters — try a different combination!</p>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="events-footer">
+  <p>Know about an event we're missing? <a href="mailto:coryhelpsyoumove@gmail.com">Let us know</a></p>
+  <p>&copy; 2026 Cory Coleman &middot; Keller Williams Great Smokies &middot; <a href="index.html">Back to Home</a></p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+var sb = supabase.createClient(
+  'https://kzaabnnwjupjqvydiqlz.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6YWFibm53anVwanF2eWRpcWx6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExMTE5NDMsImV4cCI6MjA4NjY4Nzk0M30.2B2sJnAuDim_yhn5UFKxXzdZw58ne4E20-ulW8pTwPA'
+);
+
+var allEvents = [], filtered = [], visibleCount = 12;
+var activeCategory = 'all', activeTown = 'all';
+var TOWN_NAMES = {'waynesville':'Waynesville','sylva':'Sylva','maggie-valley':'Maggie Valley','bryson-city':'Bryson City','cashiers-highlands':'Cashiers/Highlands','franklin':'Franklin','dillsboro':'Dillsboro','cullowhee':'Cullowhee','cherokee':'Cherokee'};
+
+// Load events
+async function loadEvents() {
+  var today = new Date().toISOString().split('T')[0];
+  var { data, error } = await sb.from('community_events').select('*').eq('is_published', true).gte('event_date', today).order('event_date', { ascending: true }).limit(200);
+  if (error) { console.error('[Events]', error); document.getElementById('eventsGrid').innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:40px;grid-column:1/-1">Events loading soon. Please check back!</p>'; return; }
+  allEvents = data || [];
+
+  // Also get recurring past-date events
+  var { data: recurring } = await sb.from('community_events').select('*').eq('is_published', true).eq('is_recurring', true).lt('event_date', today);
+  if (recurring && recurring.length) allEvents = allEvents.concat(recurring);
+
+  // Sort: featured first, then by date
+  allEvents.sort(function(a, b) {
+    if (a.is_featured && !b.is_featured) return -1;
+    if (!a.is_featured && b.is_featured) return 1;
+    return new Date(a.event_date) - new Date(b.event_date);
+  });
+
+  filtered = allEvents;
+  render();
+  buildTownFilters();
+  generateSchema();
+}
+
+function render() {
+  var grid = document.getElementById('eventsGrid');
+  var empty = document.getElementById('emptyState');
+  var loadMore = document.getElementById('loadMore');
+  var count = document.getElementById('eventsCount');
+
+  if (!filtered.length) { grid.innerHTML = ''; empty.style.display = ''; loadMore.style.display = 'none'; count.textContent = 'No events found'; return; }
+  empty.style.display = 'none';
+  count.textContent = filtered.length + ' event' + (filtered.length !== 1 ? 's' : '') + ' found';
+
+  var toShow = filtered.slice(0, visibleCount);
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var html = '';
+
+  toShow.forEach(function(evt) {
+    var d = new Date(evt.event_date + 'T12:00:00');
+    var timeStr = '';
+    if (evt.start_time) {
+      var p = evt.start_time.split(':'), h = parseInt(p[0]), ap = h >= 12 ? 'PM' : 'AM';
+      if (h > 12) h -= 12; if (h === 0) h = 12;
+      timeStr = h + ':' + p[1] + ' ' + ap;
+      if (evt.end_time) {
+        var ep = evt.end_time.split(':'), eh = parseInt(ep[0]), eap = eh >= 12 ? 'PM' : 'AM';
+        if (eh > 12) eh -= 12; if (eh === 0) eh = 12;
+        timeStr += ' \u2013 ' + eh + ':' + ep[1] + ' ' + eap;
+      }
+    }
+    var feat = evt.is_featured ? ' featured' : '';
+    var lO = evt.url ? '<a href="' + evt.url + '" target="_blank" rel="noopener">' : '<span>';
+    var lC = evt.url ? '</a>' : '</span>';
+
+    html += '<div class="event-card' + feat + '"><div class="event-card-top">';
+    html += '<div class="event-date-badge"><span class="edb-month">' + months[d.getMonth()] + '</span><span class="edb-day">' + d.getDate() + '</span><span class="edb-dow">' + days[d.getDay()] + '</span></div>';
+    html += '<div class="event-card-body"><h3>' + lO + evt.title + lC + '</h3>';
+    html += '<div class="event-meta">';
+    if (evt.town_display) html += '<span><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>' + evt.town_display + '</span>';
+    if (timeStr) html += '<span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>' + timeStr + '</span>';
+    if (evt.venue) html += '<span><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>' + evt.venue + '</span>';
+    html += '</div>';
+    if (evt.description) html += '<p class="event-desc">' + evt.description + '</p>';
+    html += '<div class="event-tags"><span class="event-tag">' + evt.category + '</span>';
+    if (evt.is_recurring && evt.recurrence_note) html += '<span class="event-tag recurring">' + evt.recurrence_note + '</span>';
+    html += '</div></div></div></div>';
+  });
+
+  grid.innerHTML = html;
+  loadMore.style.display = filtered.length > visibleCount ? '' : 'none';
+}
+
+function showMore() { visibleCount += 12; render(); }
+
+function filterCategory(cat) {
+  activeCategory = cat; visibleCount = 12; applyFilters();
+  document.querySelectorAll('#catFilters button').forEach(function(b) { b.classList.toggle('active', b.dataset.filter === cat); });
+}
+
+function filterTown(town) {
+  activeTown = town; visibleCount = 12; applyFilters();
+  document.querySelectorAll('#townFilters button').forEach(function(b) { b.classList.toggle('active', b.dataset.town === town); });
+}
+
+function applyFilters() {
+  filtered = allEvents.filter(function(evt) {
+    if (activeCategory !== 'all' && evt.category !== activeCategory) return false;
+    if (activeTown !== 'all' && evt.town !== activeTown) return false;
+    return true;
+  });
+  render();
+}
+
+function buildTownFilters() {
+  var towns = {};
+  allEvents.forEach(function(e) { if (!towns[e.town]) towns[e.town] = e.town_display; });
+  var c = document.getElementById('townFilters');
+  if (Object.keys(towns).length < 2) { c.style.display = 'none'; return; }
+  c.innerHTML = '';
+  var allBtn = document.createElement('button');
+  allBtn.className = 'active'; allBtn.dataset.town = 'all'; allBtn.textContent = 'All Towns';
+  allBtn.onclick = function() { filterTown('all'); };
+  c.appendChild(allBtn);
+  Object.keys(towns).sort().forEach(function(slug) {
+    var btn = document.createElement('button');
+    btn.dataset.town = slug; btn.textContent = towns[slug];
+    btn.onclick = function() { filterTown(slug); };
+    c.appendChild(btn);
+  });
+}
+
+function generateSchema() {
+  allEvents.slice(0, 30).forEach(function(evt) {
+    var s = {'@context':'https://schema.org','@type':'Event','name':evt.title,
+      'startDate':evt.event_date + (evt.start_time ? 'T' + evt.start_time : ''),
+      'location':{'@type':'Place','name':evt.venue || evt.town_display,
+        'address':{'@type':'PostalAddress','addressLocality':evt.town_display,'addressRegion':'NC','addressCountry':'US'}}};
+    if (evt.description) s.description = evt.description;
+    if (evt.end_time) s.endDate = evt.event_date + 'T' + evt.end_time;
+    if (evt.event_end_date) s.endDate = evt.event_end_date;
+    if (evt.address) s.location.address.streetAddress = evt.address;
+    if (evt.url) s.url = evt.url;
+    if (evt.image_url) s.image = evt.image_url;
+    var el = document.createElement('script');
+    el.type = 'application/ld+json';
+    el.textContent = JSON.stringify(s);
+    document.head.appendChild(el);
+  });
+}
+
+// Category filter clicks
+document.querySelectorAll('#catFilters button').forEach(function(btn) {
+  btn.addEventListener('click', function() { filterCategory(this.dataset.filter); });
+});
+
+// Theme toggle
+function toggleTheme() {
+  var t = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+  try { localStorage.setItem('cc-theme', t); } catch(e) {}
+}
+// Restore theme
+try { var saved = localStorage.getItem('cc-theme'); if (saved) document.documentElement.setAttribute('data-theme', saved); } catch(e) {}
+
+// Check URL params for pre-filtering
+var params = new URLSearchParams(window.location.search);
+if (params.get('town')) { activeTown = params.get('town'); }
+if (params.get('category')) { activeCategory = params.get('category'); }
+
+// Init
+loadEvents();
+</script>
+</body>
+</html>
