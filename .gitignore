@@ -23,5 +23,8 @@ desktop.ini
 *.swp
 *.swo
 
+# Build scripts (not needed in production)
+_generate-pages.js
+
 # Node (if added later)
 node_modules/
