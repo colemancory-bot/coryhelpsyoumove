@@ -1975,6 +1975,51 @@ var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 var _sb = null;
 try { _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY); } catch(e){ console.warn('[Supabase] Could not init:', e); }
 
+// ═══ LOAD REVIEWS FROM SUPABASE ═══
+(function(){
+  var grid = document.getElementById('reviewsGrid');
+  if(!grid || !_sb) return;
+  var starSvg = '<svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>';
+  var stars5 = starSvg+starSvg+starSvg+starSvg+starSvg;
+
+  function renderReviews(reviews){
+    if(!reviews || reviews.length === 0) return; // keep fallback HTML
+    grid.innerHTML = '';
+    reviews.forEach(function(r){
+      var initials = (r.reviewer_name||'').split(' ').map(function(w){return w[0]}).join('').toUpperCase().slice(0,2);
+      var source = r.source || 'Google';
+      var card = document.createElement('div');
+      card.className = 'test-card reveal vis';
+      card.innerHTML = '<div class="test-quote">&ldquo;</div>' +
+        '<div class="test-text">' + (r.review_text||'') + '</div>' +
+        '<div class="test-author"><div class="test-avatar">' + initials + '</div><div>' +
+        '<div class="test-name">' + (r.reviewer_name||'') + '</div>' +
+        '<div class="test-source">' + source + '</div>' +
+        '<div class="test-stars">' + stars5 + '</div>' +
+        '</div></div>';
+      grid.appendChild(card);
+    });
+    // Update stat counter
+    _sb.from('reviews').select('id',{count:'exact',head:true}).eq('rating',5).eq('is_published',true).then(function(res){
+      var statEl = document.getElementById('reviewStatNum');
+      if(statEl && res.count != null){
+        statEl.textContent = res.count + ' ★';
+      }
+    });
+  }
+
+  _sb.from('reviews')
+    .select('*')
+    .eq('rating', 5)
+    .eq('is_published', true)
+    .order('review_date', {ascending: false})
+    .limit(9)
+    .then(function(res){
+      if(res.error){ console.warn('[Reviews]', res.error.message); return; }
+      renderReviews(res.data);
+    });
+})();
+
 // --- Account state ---
 var _acctLoggedIn = false;
 var _currentUser = null;
