@@ -1435,9 +1435,50 @@ function propShare(type) {
         }
       });
     }
-    // Description
+    // Property Overview (description)
     var d1 = document.getElementById('propDesc1');
-    document.getElementById('printDesc').textContent = d1 ? d1.textContent.substring(0,250) : '';
+    var d2 = document.getElementById('propDesc2');
+    var descText = (d1 ? d1.textContent : '') + (d2 && d2.textContent ? ' ' + d2.textContent : '');
+    document.getElementById('printDesc').textContent = descText.substring(0, 400);
+
+    // Property Details (features grid)
+    var featEls = document.querySelectorAll('#propFeatures .prop-feat');
+    var printDetailsEl = document.getElementById('printDetails');
+    if(printDetailsEl){
+      printDetailsEl.innerHTML = '';
+      featEls.forEach(function(f){
+        var val = f.querySelector('.prop-feat-val');
+        var label = f.querySelector('.prop-feat-label');
+        if(val && label){
+          printDetailsEl.innerHTML += '<div class="print-detail-item"><span class="print-detail-label">'+label.textContent+'</span><span class="print-detail-val">'+val.textContent+'</span></div>';
+        }
+      });
+    }
+
+    // Cory's Take
+    var corysTakeEl = document.getElementById('corysTake');
+    var printCT = document.getElementById('printCorysTake');
+    var printCTInsights = document.getElementById('printCorysTakeInsights');
+    if(printCT && printCTInsights && corysTakeEl && corysTakeEl.style.display !== 'none'){
+      var insightEls = corysTakeEl.querySelectorAll('.corys-take-insight');
+      if(insightEls.length > 0){
+        printCTInsights.innerHTML = '';
+        insightEls.forEach(function(ins){
+          var textDiv = ins.querySelector('div:last-child');
+          if(textDiv){
+            // Strip HTML spans but keep the text content
+            var text = textDiv.textContent;
+            printCTInsights.innerHTML += '<div class="print-ct-insight">'+text+'</div>';
+          }
+        });
+        printCT.style.display = '';
+      } else {
+        printCT.style.display = 'none';
+      }
+    } else if(printCT) {
+      printCT.style.display = 'none';
+    }
+
     // Your Notes (from the notes textarea if it exists)
     var notesTA = document.getElementById('propNotesTA');
     var printNotes = document.getElementById('printYourNotes');

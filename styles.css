@@ -1600,108 +1600,180 @@ textarea.form-input{resize:vertical;min-height:100px}
     font-family:'Outfit',Arial,sans-serif;
   }
 
+  /* ── Header: photo + price/address ── */
   .print-page-header{
     display:flex;
     align-items:flex-start;
-    gap:1.25rem;
-    padding-bottom:0.75rem;
+    gap:1rem;
+    padding-bottom:0.5rem;
     border-bottom:2px solid #C4B08C;
-    margin-bottom:0.75rem;
+    margin-bottom:0.5rem;
   }
   .print-page-thumb{
-    width:140px;
-    height:100px;
+    width:130px;
+    height:90px;
     object-fit:cover;
     border:1px solid #ddd;
   }
   .print-page-header-right{flex:1}
   .print-page-price{
     font-family:'Cormorant Garamond',Georgia,serif;
-    font-size:1.8rem;
+    font-size:1.6rem;
     font-weight:400;
     color:#1a1815;
     line-height:1;
-    margin-bottom:0.2rem;
+    margin-bottom:0.15rem;
   }
-  .print-page-addr{font-size:0.9rem;color:#333;font-weight:400}
-  .print-page-city{font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:#8B7748;margin-top:0.15rem}
-  .print-page-date{font-size:0.6rem;color:#999;margin-top:0.3rem}
+  .print-page-addr{font-size:0.85rem;color:#333;font-weight:400}
+  .print-page-city{font-size:0.6rem;letter-spacing:0.2em;text-transform:uppercase;color:#8B7748;margin-top:0.1rem}
+  .print-page-date{font-size:0.55rem;color:#999;margin-top:0.2rem}
 
+  /* ── Stats ribbon ── */
   .print-page-stats{
     display:grid;
     grid-template-columns:repeat(4,1fr);
     gap:0;
     border:1px solid #ddd;
-    margin-bottom:0.75rem;
+    margin-bottom:0.5rem;
   }
   .print-page-stat{
-    padding:0.5rem 0.6rem;
+    padding:0.35rem 0.5rem;
     text-align:center;
     border-right:1px solid #ddd;
   }
   .print-page-stat:last-child{border-right:none}
   .print-page-stat-val{
     font-family:'Cormorant Garamond',Georgia,serif;
-    font-size:1.1rem;
+    font-size:1rem;
     color:#1a1815;
     font-weight:400;
   }
   .print-page-stat-label{
     font-size:0.45rem;
-    letter-spacing:0.15em;
+    letter-spacing:0.12em;
     text-transform:uppercase;
     color:#888;
-    margin-top:0.1rem;
+    margin-top:0.05rem;
   }
 
+  /* ── Section labels ── */
+  .print-section-label{
+    font-size:0.5rem;
+    letter-spacing:0.2em;
+    text-transform:uppercase;
+    color:#8B7748;
+    margin-bottom:0.25rem;
+    margin-top:0.4rem;
+    padding-left:0.4rem;
+    border-left:2px solid #C4B08C;
+  }
+
+  /* ── Property Overview (description) ── */
   .print-page-desc{
     font-size:0.72rem;
     color:#444;
-    line-height:1.6;
-    margin-bottom:0.75rem;
-    max-height:3.2rem;
-    overflow:hidden;
+    line-height:1.5;
+    margin-bottom:0.4rem;
   }
 
-  .print-notes-section{
-    margin-bottom:0.6rem;
+  /* ── Property Details (features grid) ── */
+  .print-page-details{
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr;
+    gap:0;
     border:1px solid #ddd;
-    padding:0.5rem 0.6rem;
+    margin-bottom:0.4rem;
+  }
+  .print-detail-item{
+    display:flex;
+    flex-direction:column;
+    padding:0.3rem 0.5rem;
+    border-right:1px solid #eee;
+    border-bottom:1px solid #eee;
+  }
+  .print-detail-item:nth-child(3n){border-right:none}
+  .print-detail-item:nth-last-child(-n+3){border-bottom:none}
+  .print-detail-label{
+    font-size:0.45rem;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:#888;
+    margin-bottom:0.05rem;
+  }
+  .print-detail-val{
+    font-size:0.75rem;
+    color:#1a1815;
+    font-weight:400;
+  }
+
+  /* ── Cory's Take ── */
+  .print-corys-take{
+    border:1px solid #ddd;
+    border-left:3px solid #C4B08C;
+    padding:0.4rem 0.6rem;
+    margin-bottom:0.4rem;
+    background:#fdfaf3;
+  }
+  .print-corys-take .print-section-label{
+    margin-top:0;
+    border-left:none;
+    padding-left:0;
+    margin-bottom:0.2rem;
+  }
+  .print-ct-insight{
+    font-size:0.68rem;
+    color:#444;
+    line-height:1.4;
+    padding:0.2rem 0;
+    border-bottom:1px solid #f0ebe0;
+  }
+  .print-ct-insight:last-child{border-bottom:none}
+
+  /* ── Bottom row: Notes side by side ── */
+  .print-bottom-row{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:0.5rem;
+    margin-bottom:0.3rem;
+  }
+  .print-notes-section{
+    border:1px solid #ddd;
+    padding:0.4rem 0.5rem;
   }
   .print-notes-title{
     font-family:'Cormorant Garamond',Georgia,serif;
-    font-size:0.85rem;
+    font-size:0.78rem;
     color:#8B7748;
     font-weight:400;
-    margin-bottom:0.3rem;
+    margin-bottom:0.2rem;
     border-bottom:1px solid #eee;
-    padding-bottom:0.2rem;
+    padding-bottom:0.15rem;
   }
   .print-notes-content{
-    font-size:0.72rem;
+    font-size:0.7rem;
     color:#333;
-    line-height:1.5;
-    min-height:1.5rem;
+    line-height:1.4;
+    min-height:1.2rem;
     white-space:pre-wrap;
   }
 
   .print-notepad-section{
     border:1px solid #ddd;
-    padding:0.5rem 0.6rem;
-    margin-bottom:0.5rem;
+    padding:0.4rem 0.5rem;
   }
   .print-notepad-title{
     font-family:'Cormorant Garamond',Georgia,serif;
-    font-size:0.85rem;
+    font-size:0.78rem;
     color:#8B7748;
     font-weight:400;
-    margin-bottom:0.4rem;
+    margin-bottom:0.25rem;
     border-bottom:1px solid #eee;
-    padding-bottom:0.2rem;
+    padding-bottom:0.15rem;
   }
-  .print-notepad-lines{padding:0.2rem 0}
-  .print-line{height:1.4rem;border-bottom:1px solid #d0d8e0}
+  .print-notepad-lines{padding:0.1rem 0}
+  .print-line{height:1.2rem;border-bottom:1px solid #d0d8e0}
 
+  /* ── Footer ── */
   .print-page-footer{
     font-size:0.5rem;
     color:#999;
@@ -1709,9 +1781,9 @@ textarea.form-input{resize:vertical;min-height:100px}
     letter-spacing:0.1em;
     text-transform:uppercase;
     border-top:1px solid #ddd;
-    padding-top:0.4rem;
-    margin-top:0.4rem;
+    padding-top:0.3rem;
+    margin-top:0.2rem;
   }
 
-  @page{margin:0.6in;size:letter}
+  @page{margin:0.5in;size:letter}
 }
