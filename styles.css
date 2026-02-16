@@ -357,21 +357,21 @@ ul{list-style:none}
 /* Card favorite heart icon */
 .card-fav-heart{
   position:absolute;bottom:0.6rem;right:0.6rem;z-index:3;
-  width:32px;height:32px;border-radius:50%;border:none;
-  background:rgba(12,11,9,0.55);backdrop-filter:blur(4px);
-  color:rgba(255,255,255,0.55);cursor:pointer;
+  width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,0.15);
+  background:rgba(12,11,9,0.45);backdrop-filter:blur(4px);
+  color:rgba(255,255,255,0.3);cursor:pointer;
   display:flex;align-items:center;justify-content:center;
   padding:0;transition:all 0.25s;
 }
 .card-fav-heart svg{width:16px;height:16px;transition:transform 0.25s}
-.card-fav-heart:hover{background:rgba(12,11,9,0.75);color:rgba(255,255,255,0.85);transform:scale(1.1)}
-.card-fav-heart.saved{color:var(--gold);background:rgba(12,11,9,0.75)}
-.card-fav-heart.saved svg{transform:scale(1.15)}
-.card-fav-heart.saved:hover{color:#fff;background:rgba(180,80,80,0.7)}
-[data-theme="light"] .card-fav-heart{background:rgba(255,255,255,0.65);color:rgba(0,0,0,0.35)}
-[data-theme="light"] .card-fav-heart:hover{background:rgba(255,255,255,0.85);color:rgba(0,0,0,0.6)}
-[data-theme="light"] .card-fav-heart.saved{color:var(--gold);background:rgba(255,255,255,0.85)}
-[data-theme="light"] .card-fav-heart.saved:hover{color:#c04040;background:rgba(255,255,255,0.9)}
+.card-fav-heart:hover{background:rgba(12,11,9,0.7);color:rgba(255,255,255,0.7);transform:scale(1.1);border-color:rgba(255,255,255,0.25)}
+.card-fav-heart.saved{color:#dfc077;background:rgba(12,11,9,0.8);border-color:rgba(196,176,140,0.5);box-shadow:0 0 8px rgba(196,176,140,0.35)}
+.card-fav-heart.saved svg{transform:scale(1.2);filter:drop-shadow(0 0 3px rgba(196,176,140,0.5))}
+.card-fav-heart.saved:hover{color:#f0d898;background:rgba(12,11,9,0.85);box-shadow:0 0 12px rgba(196,176,140,0.5)}
+[data-theme="light"] .card-fav-heart{background:rgba(255,255,255,0.55);color:rgba(0,0,0,0.2);border-color:rgba(0,0,0,0.1)}
+[data-theme="light"] .card-fav-heart:hover{background:rgba(255,255,255,0.8);color:rgba(0,0,0,0.45);border-color:rgba(0,0,0,0.15)}
+[data-theme="light"] .card-fav-heart.saved{color:#b8922e;background:rgba(255,255,255,0.9);border-color:rgba(184,146,46,0.4);box-shadow:0 0 8px rgba(184,146,46,0.25)}
+[data-theme="light"] .card-fav-heart.saved:hover{color:#a07e1e;box-shadow:0 0 12px rgba(184,146,46,0.35)}
 
 .f-card-body{padding:1.15rem 1.35rem}
 .f-card-price{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.45rem;font-weight:500;color:var(--cream);margin-bottom:0.15rem}
