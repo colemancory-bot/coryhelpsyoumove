@@ -1662,61 +1662,69 @@ textarea.form-input{resize:vertical;min-height:100px}
     font-family:'Outfit',Arial,sans-serif;
   }
 
-  /* ── Header: photo + price/address ── */
-  .print-page-header{
+  /* ── Hero row: large photo + info/stats to the right ── */
+  .print-hero-row{
     display:flex;
-    align-items:flex-start;
+    align-items:stretch;
     gap:0.7rem;
     padding-bottom:0.35rem;
     border-bottom:2px solid #8B7748;
-    margin-bottom:0.35rem;
+    margin-bottom:0.3rem;
   }
+  .print-hero-left{flex-shrink:0}
   .print-page-thumb{
-    width:120px;
-    height:82px;
+    width:240px;
+    height:164px;
     object-fit:cover;
     border:1px solid #999;
+    display:block;
   }
-  .print-page-header-right{flex:1}
+  .print-hero-right{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+  }
   .print-page-price{
     font-family:'Cormorant Garamond',Georgia,serif;
     font-size:1.5rem;
     font-weight:600;
     color:#111;
     line-height:1;
-    margin-bottom:0.12rem;
+    margin-bottom:0.1rem;
   }
   .print-page-addr{font-size:0.82rem;color:#222;font-weight:500}
   .print-page-city{font-size:0.55rem;letter-spacing:0.2em;text-transform:uppercase;color:#6B5728;font-weight:600;margin-top:0.06rem}
-  .print-page-date{font-size:0.5rem;color:#666;margin-top:0.1rem}
+  .print-page-date{font-size:0.5rem;color:#666;margin-top:0.08rem}
 
-  /* ── Stats ribbon ── */
+  /* ── Stats ribbon (sits inside hero-right) ── */
   .print-page-stats{
     display:grid;
-    grid-template-columns:repeat(4,1fr);
+    grid-template-columns:repeat(2,1fr);
     gap:0;
     border:1px solid #999;
-    margin-bottom:0.35rem;
+    margin-top:auto;
   }
   .print-page-stat{
-    padding:0.25rem 0.4rem;
+    padding:0.2rem 0.35rem;
     text-align:center;
     border-right:1px solid #999;
+    border-bottom:1px solid #999;
   }
-  .print-page-stat:last-child{border-right:none}
+  .print-page-stat:nth-child(2n){border-right:none}
+  .print-page-stat:nth-last-child(-n+2){border-bottom:none}
   .print-page-stat-val{
     font-family:'Cormorant Garamond',Georgia,serif;
-    font-size:0.95rem;
+    font-size:0.88rem;
     color:#111;
     font-weight:600;
   }
   .print-page-stat-label{
-    font-size:0.42rem;
+    font-size:0.38rem;
     letter-spacing:0.12em;
     text-transform:uppercase;
     color:#555;
     font-weight:500;
-    margin-top:0.03rem;
+    margin-top:0.02rem;
   }
 
   /* ── Section labels ── */
