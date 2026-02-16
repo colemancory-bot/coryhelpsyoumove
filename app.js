@@ -12,18 +12,20 @@ function toggleTheme(){
 // Load saved theme
 try{const saved=localStorage.getItem('cc-theme');if(saved)document.documentElement.setAttribute('data-theme',saved)}catch(e){}
 // Show tooltip for first-time visitors
-(function(){
+document.addEventListener('DOMContentLoaded', function(){
   try{
     if(!localStorage.getItem('cc-theme-seen')){
       setTimeout(function(){
         var tip=document.getElementById('themeTooltip');
-        if(tip)tip.classList.add('show');
-        // Auto-hide after 6 seconds
-        setTimeout(function(){if(tip)tip.classList.remove('show')},6000);
-      },2500);
+        if(tip){
+          tip.classList.add('show');
+          // Auto-hide after 8 seconds
+          setTimeout(function(){tip.classList.remove('show')},8000);
+        }
+      },2000);
     }
   }catch(e){}
-})();
+});
 
 // ═══ NAV ═══
 const nav=document.getElementById('nav');
@@ -2458,24 +2460,39 @@ function updateGatedFeatures() {
 
 function applyGateToElement(valEl) {
   if(!valEl) return;
+  var parentBox = valEl.closest('.prop-stat') || valEl.closest('.prop-feat') || valEl.parentElement;
   if(!_acctLoggedIn) {
     if(!valEl.getAttribute('data-gated')) {
       valEl.setAttribute('data-gated','1');
       valEl.setAttribute('data-original', valEl.textContent);
       valEl.style.filter = 'blur(6px)';
-      valEl.style.cursor = 'pointer';
       valEl.style.userSelect = 'none';
-      valEl.title = 'Create a free account to view';
-      valEl.onclick = function(e){ e.stopPropagation(); openAcctModal(); };
+      // Make entire parent box clickable
+      parentBox.style.cursor = 'pointer';
+      parentBox.title = 'Create a free account to view';
+      parentBox.setAttribute('data-gated-parent','1');
+      parentBox.onclick = function(e){ e.stopPropagation(); openAcctModal(); };
+      // Add "Create Account" hint below the blurred text
+      if(!parentBox.querySelector('.gated-hint')){
+        var hint = document.createElement('div');
+        hint.className = 'gated-hint';
+        hint.textContent = 'Create account to view';
+        hint.style.cssText = 'font-size:0.5rem;color:var(--gold);letter-spacing:0.1em;text-transform:uppercase;margin-top:0.25rem;opacity:0.7;pointer-events:none';
+        parentBox.appendChild(hint);
+      }
     }
   } else {
     if(valEl.getAttribute('data-gated')) {
       valEl.style.filter = '';
-      valEl.style.cursor = '';
       valEl.style.userSelect = '';
-      valEl.title = '';
       valEl.onclick = null;
       valEl.removeAttribute('data-gated');
+      parentBox.style.cursor = '';
+      parentBox.title = '';
+      parentBox.onclick = null;
+      parentBox.removeAttribute('data-gated-parent');
+      var hint = parentBox.querySelector('.gated-hint');
+      if(hint) hint.remove();
     }
   }
 }
