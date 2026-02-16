@@ -57,6 +57,24 @@ a:hover{color:var(--gold-light)}
 .theme-toggle:hover{border-color:var(--gold)}
 [data-theme="dark"] .t-sun{display:none}
 [data-theme="light"] .t-moon{display:none}
+.nav-logo-text{display:flex;flex-direction:column;line-height:1.1;gap:0.15rem}
+.nav-divider{width:1px;height:36px;background:var(--border);flex-shrink:0}
+.nav-kw{height:44px;width:auto;opacity:0.85;transition:opacity 0.3s}
+.nav-kw:hover{opacity:1}
+[data-theme="light"] .nav-kw{filter:invert(1)}
+.nav-toggle{display:none;flex-direction:column;gap:5px;padding:5px;cursor:pointer;border:none;background:none}
+.nav-toggle span{width:22px;height:1.5px;background:var(--cream);transition:all 0.3s}
+.mobile-menu{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--nav-bg);backdrop-filter:blur(20px);z-index:999;flex-direction:column;align-items:center;justify-content:center;gap:2rem;opacity:0;pointer-events:none;transition:opacity 0.4s}
+.mobile-menu.open{opacity:1;pointer-events:all}
+.mobile-menu a{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.8rem;font-weight:300;color:var(--cream);text-decoration:none;letter-spacing:0.05em}
+.mobile-menu a:hover{color:var(--gold)}
+@media(max-width:900px){
+  .nav-links{display:none}
+  .nav-kw{display:none}
+  .nav-divider{display:none}
+  .nav-toggle{display:flex}
+  .mobile-menu{display:flex}
+}
 
 /* ── HERO ── */
 .events-hero{padding:140px 20px 60px;text-align:center;max-width:800px;margin:0 auto}
@@ -127,16 +145,20 @@ a:hover{color:var(--gold-light)}
 <body>
 
 <!-- NAV -->
-<nav class="nav">
+<nav class="nav" id="nav">
   <a href="index.html" class="nav-logo">
-    <div><div class="nav-logo-name"><span>C</span>ory <span>C</span>oleman</div><div class="nav-logo-sub">Real Estate</div></div>
+    <div class="nav-logo-text"><div class="nav-logo-name"><span>C</span>ory <span>C</span>oleman</div><div class="nav-logo-sub">Real Estate</div></div>
+    <div class="nav-divider"></div>
+    <img src="keller-williams-great-smokies-western-nc-real-estate.png" alt="Keller Williams Great Smokies - Western NC Real Estate Brokerage" class="nav-kw">
   </a>
   <div class="nav-links">
-    <a href="index.html">Home</a>
+    <a href="index.html#about">About</a>
     <a href="index.html#areas">Areas</a>
     <a href="index.html#listings">Properties</a>
-    <a href="#" class="active">Events</a>
-    <a href="index.html#blog">Blog</a>
+    <a href="index.html#services">Services</a>
+    <a href="index.html#testimonials">Reviews</a>
+    <a href="events.html" class="active">Events</a>
+    <a href="blog/">Blog</a>
     <a href="index.html#contact">Contact</a>
   </div>
   <div class="nav-right">
@@ -145,8 +167,20 @@ a:hover{color:var(--gold-light)}
       <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
       (828) 506-6413
     </a>
+    <button class="nav-toggle" id="navToggle" onclick="document.getElementById('mobileMenu').classList.toggle('open');this.classList.toggle('active')"><span></span><span></span><span></span></button>
   </div>
 </nav>
+<div class="mobile-menu" id="mobileMenu">
+  <a href="index.html#about" onclick="closeMobileMenu()">About</a>
+  <a href="index.html#areas" onclick="closeMobileMenu()">Areas</a>
+  <a href="index.html#listings" onclick="closeMobileMenu()">Properties</a>
+  <a href="index.html#services" onclick="closeMobileMenu()">Services</a>
+  <a href="index.html#testimonials" onclick="closeMobileMenu()">Reviews</a>
+  <a href="events.html" onclick="closeMobileMenu()">Events</a>
+  <a href="blog/" onclick="closeMobileMenu()">Blog</a>
+  <a href="index.html#contact" onclick="closeMobileMenu()">Contact</a>
+  <div class="theme-toggle" onclick="toggleTheme()" style="margin-top:1rem"><span class="t-sun">&#9728;</span><span class="t-moon">&#9789;</span></div>
+</div>
 
 <!-- HERO -->
 <div class="events-hero">
@@ -353,6 +387,13 @@ function toggleTheme() {
   var t = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', t);
   try { localStorage.setItem('cc-theme', t); } catch(e) {}
+}
+// Mobile menu
+function closeMobileMenu(){
+  var m=document.getElementById('mobileMenu');
+  var t=document.getElementById('navToggle');
+  if(m)m.classList.remove('open');
+  if(t)t.classList.remove('active');
 }
 // Restore theme
 try { var saved = localStorage.getItem('cc-theme'); if (saved) document.documentElement.setAttribute('data-theme', saved); } catch(e) {}
