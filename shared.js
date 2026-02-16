@@ -126,3 +126,33 @@ document.addEventListener('DOMContentLoaded', function(){
     if(id) initSlider(id);
   });
 });
+
+// ═══ TOWN PAGE CARD WIRING ═══
+// Makes static property cards clickable on standalone town pages (not index.html)
+(function(){
+  // Only run on town pages (not the main site which has app.js)
+  if(document.getElementById('featuredGrid')) return; // main site has this
+
+  document.addEventListener('DOMContentLoaded', function(){
+    var cards = document.querySelectorAll('.f-card');
+    if(!cards.length) return;
+
+    cards.forEach(function(card){
+      var priceEl = card.querySelector('.f-card-price');
+      var addrEl = card.querySelector('.f-card-addr');
+      var cityEl = card.querySelector('.f-card-city');
+      if(!priceEl || !addrEl) return;
+
+      var price = priceEl.textContent.trim();
+      var addr = addrEl.textContent.trim();
+      var city = cityEl ? cityEl.textContent.replace(/,\s*NC$/i,'').trim() : '';
+
+      // Make card clickable — navigate to main site and open property
+      card.style.cursor = 'pointer';
+      card.onclick = function(){
+        var url = '/?prop=' + encodeURIComponent(addr) + '&city=' + encodeURIComponent(city);
+        window.location.href = url;
+      };
+    });
+  });
+})();

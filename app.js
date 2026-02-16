@@ -3410,8 +3410,48 @@ if(SIMPLYRETS.enabled) {
   } else {
     SIMPLYRETS.init().then(function(){
       if(typeof updateAcctUI === 'function') updateAcctUI();
+      // Check for deep link after listings load
+      _checkPropDeepLink();
     });
     // Initialize community events calendar
     EVENTS.init();
   }
 }
+
+// ═══ DEEP LINK: Open property from ?prop=address&city=town query params ═══
+function _checkPropDeepLink(){
+  try {
+    var params = new URLSearchParams(window.location.search);
+    var propAddr = params.get('prop');
+    var propCity = params.get('city');
+    if(!propAddr) return;
+    // Clean URL without reloading
+    history.replaceState(null, '', window.location.pathname);
+    // Search ALL_LISTINGS for a match
+    var match = null;
+    var addrLower = propAddr.toLowerCase();
+    var cityLower = (propCity||'').toLowerCase();
+    for(var i=0; i<ALL_LISTINGS.length; i++){
+      var l = ALL_LISTINGS[i];
+      if(l.address.toLowerCase() === addrLower && (l.city||'').toLowerCase() === cityLower){
+        match = l; break;
+      }
+    }
+    if(match){
+      setTimeout(function(){ openProp(match, match.city||propCity); }, 300);
+    } else {
+      // Fallback: try LISTINGS (demo data)
+      for(var j=0; j<LISTINGS.length; j++){
+        var dl = LISTINGS[j];
+        if(dl.address.toLowerCase() === addrLower && (dl.city||'').toLowerCase() === cityLower){
+          match = dl; break;
+        }
+      }
+      if(match){
+        setTimeout(function(){ openProp({price:match.price,address:match.address,type:match.type,beds:match.beds,baths:match.baths,sqft:match.sqft,lot:match.lot,restrictions:match.restrictions||'unrestricted',status:match.status||'Active',photo:match.photo||null,photos:match.photos||[],description:match.description||''}, match.city||propCity); }, 300);
+      }
+    }
+  } catch(e){ console.warn('[DeepLink] Error:', e); }
+}
+// Also check on page load in case SimplyRETS is disabled
+if(!SIMPLYRETS.enabled) _checkPropDeepLink();
