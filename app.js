@@ -1,6 +1,7 @@
 // ═══ DEV BYPASS — remove before production ═══
-function devUnlock(){ _acctLoggedIn=true; updateAcctUI(); updateGatedFeatures(); updatePrintGate(); var nw=document.getElementById('propNotesWrap');if(nw)nw.style.display=''; console.log('🔓 Dev mode: account unlocked'); }
-function devLock(){ _acctLoggedIn=false; updateAcctUI(); updateGatedFeatures(); updatePrintGate(); var nw=document.getElementById('propNotesWrap');if(nw)nw.style.display='none'; console.log('🔒 Dev mode: account locked'); }
+var _isAdmin = false;
+function devUnlock(){ _acctLoggedIn=true; _isAdmin=true; updateAcctUI(); updateGatedFeatures(); updatePrintGate(); var nw=document.getElementById('propNotesWrap');if(nw)nw.style.display=''; console.log('🔓 Dev mode: account + admin unlocked'); }
+function devLock(){ _acctLoggedIn=false; _isAdmin=false; updateAcctUI(); updateGatedFeatures(); updatePrintGate(); var nw=document.getElementById('propNotesWrap');if(nw)nw.style.display='none'; console.log('🔒 Dev mode: account + admin locked'); }
 
 // ═══ CTRL+P INTERCEPT — Custom print for logged-in users ═══
 window.addEventListener('keydown', function(e){
@@ -100,6 +101,8 @@ if(_isTownPage){
         '</div>' +
         '<div class="prop-section-label" style="margin-top:2.5rem">Property Highlights</div>' +
         '<div class="prop-highlights" id="propHighlights"></div>' +
+        '<div class="gated-wrap locked" id="gatedNeighborhood" onclick="onGatedClick()"><div class="gated-prompt"><svg class="gated-prompt-icon" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg><div class="gated-prompt-text"><strong>Create a free account</strong> to see neighborhood details</div><div class="gated-prompt-sub">Click anywhere to sign up</div></div><div class="gated-content"><div class="prop-section-label" style="margin-top:2.5rem">Neighborhood Details</div><div class="neighborhood-dive" id="neighborhoodDive"></div></div></div>' +
+        '<div class="gated-wrap locked" id="gatedDistances" onclick="onGatedClick()"><div class="gated-prompt"><svg class="gated-prompt-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><div class="gated-prompt-text"><strong>Create a free account</strong> to see drive times</div><div class="gated-prompt-sub">Click anywhere to sign up</div></div><div class="gated-content"><div class="prop-section-label" style="margin-top:2.5rem">Distances & Drive Times</div><div class="prop-distances" id="propDistances"></div></div></div>' +
         '<div class="prop-section-label" style="margin-top:2.5rem">Location</div>' +
         '<div class="prop-map"><div class="prop-map-text"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><p id="propMapText">Interactive map available on request</p></div></div>' +
       '</div>' +
@@ -109,8 +112,10 @@ if(_isTownPage){
           '<a href="sms:8285066413" class="prop-agent-cta secondary"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>Text About This Property</a>' +
           '<a href="mailto:cory@coryhelpsyoumove.com" class="prop-agent-cta secondary"><svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M22 6l-10 7L2 6"/></svg>Email Inquiry</a>' +
           '<a href="tel:8285066413" class="prop-agent-phone"><svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>(828) 506-6413</a>' +
+          '<button class="prop-showing-btn" id="propShowingBtn" onclick="openShowingRequest()"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Request a Showing</button>' +
         '</div>' +
         '<div class="prop-notes-wrap" id="propNotesWrap" style="display:none"><div class="prop-notes-header"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg><div class="prop-notes-title">Your Notes</div></div><textarea class="prop-notes-ta" id="propNotesTA" placeholder="Jot down thoughts, questions, or things to look for at the showing..."></textarea><div class="prop-notes-hint"><svg viewBox="0 0 24 24" width="12" height="12"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Notes appear on your printed property sheet</div></div>' +
+        '<div class="prop-ask-cory" id="propAskCory" style="display:none"><div class="prop-notes-header"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><div class="prop-notes-title">Ask Cory</div></div><div id="propQuestionsList"></div><textarea class="prop-notes-ta" id="propQuestionTA" placeholder="Have a question about this property? Ask Cory directly..."></textarea><button class="prop-ask-send" onclick="submitPropertyQuestion()">Send Question</button></div>' +
         '<div class="gated-wrap locked" id="gatedCalc" onclick="onGatedClick()"><div class="gated-prompt"><svg class="gated-prompt-icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><div class="gated-prompt-text"><strong>Create a free account</strong> to view mortgage estimates and payment details</div><div class="gated-prompt-sub">Click anywhere to sign up</div></div><div class="gated-content"><div class="prop-calc"><div class="prop-calc-title">Estimated Payment</div><div class="prop-calc-row"><span class="prop-calc-label">Purchase Price</span><span class="prop-calc-val" id="calcPrice"></span></div><div class="prop-calc-row"><span class="prop-calc-label">Down Payment (20%)</span><span class="prop-calc-val" id="calcDown"></span></div><div class="prop-calc-row"><span class="prop-calc-label">Loan Amount</span><span class="prop-calc-val" id="calcLoan"></span></div><div class="prop-calc-row"><span class="prop-calc-label">Interest Rate</span><span class="prop-calc-val">6.75%</span></div><div class="prop-calc-row"><span class="prop-calc-label">Loan Term</span><span class="prop-calc-val">30 years</span></div><div class="prop-calc-total"><span class="prop-calc-label">Est. Monthly</span><span class="prop-calc-val" id="calcMonthly"></span></div><div class="prop-calc-note">Estimate only. Does not include taxes, insurance, or HOA. Contact a lender for an accurate pre-approval.</div></div></div></div>' +
         '<div class="prop-share"><button class="prop-share-btn" onclick="propShare(\'copy\')"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy Link</button><button class="prop-share-btn" onclick="propShare(\'email\')"><svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M22 6l-10 7L2 6"/></svg> Email</button><button class="prop-share-btn gated-print-btn" id="propPrintBtn" onclick="propShare(\'print\')"><svg viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print</button></div>' +
       '</div>' +
@@ -135,7 +140,14 @@ if(_isTownPage){
     '<div id="acctFormView"><div class="acct-modal-badge">Free Account</div><h3>Unlock <em>Full Details</em></h3><div class="acct-modal-sub">Create a free account to access mortgage calculators, restriction details, save your favorite properties, and more.</div><div class="acct-error" id="acctSignupError" style="display:none"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem"><div class="acct-field"><label>First Name</label><input type="text" id="acctFirst" placeholder="John" required></div><div class="acct-field"><label>Last Name</label><input type="text" id="acctLast" placeholder="Smith" required></div></div><div class="acct-field"><label>Email Address</label><input type="email" id="acctEmail" placeholder="john@example.com" required></div><div class="acct-field"><label>Phone</label><input type="tel" id="acctPhone" placeholder="(828) 555-1234" required></div><div class="acct-field"><label>Password</label><input type="password" id="acctPass" placeholder="Create a password" required minlength="6"><div class="acct-pass-note">Minimum 6 characters</div></div><button class="acct-submit" onclick="submitAcct()">Create Free Account</button><div class="form-privacy"><svg viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Your information stays with me &mdash; I never sell or share it with third parties.</div><div class="acct-or">&mdash; or &mdash;</div><div class="acct-login-link" onclick="showAcctLogin()">Already have an account? <strong>Sign in</strong></div></div>' +
     '<div id="acctLoginView" style="display:none"><div class="acct-modal-badge">Welcome Back</div><h3>Sign In</h3><div class="acct-modal-sub">Access your saved favorites, searches, and full property details.</div><div class="acct-error" id="acctLoginError" style="display:none"></div><div class="acct-field"><label>Email Address</label><input type="email" id="acctLoginEmail" placeholder="john@example.com" required></div><div class="acct-field"><label>Password</label><input type="password" id="acctLoginPass" placeholder="Your password" required></div><button class="acct-submit" onclick="loginAcct()">Sign In</button><div class="acct-or">&mdash; or &mdash;</div><div class="acct-login-link" onclick="showAcctSignup()">Don\'t have an account? <strong>Create one free</strong></div></div>' +
     '<div id="acctSuccessView" style="display:none"><div class="acct-success"><svg class="acct-success-icon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg><h3>Welcome!</h3><p>Your free account is ready. You now have full access to property details, mortgage estimates, and can save your favorites.</p></div></div>' +
-    '<div id="acctDashView" style="display:none"><div style="text-align:center;margin-bottom:1rem"><svg viewBox="0 0 24 24" style="width:40px;height:40px;stroke:var(--gold);fill:none;stroke-width:1.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><h3 id="acctDashName" style="margin:0.5rem 0 0;color:var(--text)">My Account</h3><p id="acctDashEmail" style="margin:0;font-size:0.85rem;color:var(--text-muted)"></p></div><div style="margin:1rem 0"><h4 style="color:var(--gold);font-size:0.9rem;margin-bottom:0.5rem;border-bottom:1px solid var(--border);padding-bottom:0.4rem">Saved Searches</h4><div id="acctSavedSearches" style="max-height:200px;overflow-y:auto"></div></div><div style="margin:1rem 0"><h4 style="color:var(--gold);font-size:0.9rem;margin-bottom:0.5rem;border-bottom:1px solid var(--border);padding-bottom:0.4rem">Favorites</h4><p id="acctFavCount" style="font-size:0.85rem;color:var(--text-muted)"></p><button onclick="closeAcctModal();openCompare()" style="margin-top:0.5rem;padding:0.55rem 1rem;border:1px solid var(--gold);background:transparent;color:var(--gold);font-family:\'Outfit\',sans-serif;font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;transition:all 0.3s;width:100%" id="acctCompareBtn">Compare Favorites</button></div><div style="margin:1rem 0"><h4 style="color:var(--gold);font-size:0.9rem;margin-bottom:0.5rem;border-bottom:1px solid var(--border);padding-bottom:0.4rem">Cory\'s Suggestions</h4><div id="acctSuggestionsPreview" style="max-height:300px;overflow-y:auto"><p style="font-size:0.85rem;color:var(--text-muted)">Save at least 2 properties to unlock personalized suggestions.</p></div></div><div style="display:flex;gap:0.5rem;margin-top:1.2rem"><button onclick="closeAcctModal()" style="flex:1;padding:0.65rem;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;font-size:0.85rem">Close</button><button onclick="signOutAcct()" style="flex:1;padding:0.65rem;border-radius:8px;border:none;background:#c0392b;color:#fff;cursor:pointer;font-size:0.85rem">Sign Out</button></div></div>' +
+    '<div id="acctDashView" style="display:none"><div style="text-align:center;margin-bottom:1rem"><svg viewBox="0 0 24 24" style="width:40px;height:40px;stroke:var(--gold);fill:none;stroke-width:1.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><h3 id="acctDashName" style="margin:0.5rem 0 0;color:var(--text)">My Account</h3><p id="acctDashEmail" style="margin:0;font-size:0.85rem;color:var(--text-muted)"></p></div>' +
+      '<div class="acct-dash-tools"><button onclick="closeAcctModal();openAfford()" class="acct-tool-btn"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>Affordability</button><button onclick="closeAcctModal();openCol()" class="acct-tool-btn"><svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>Cost of Living</button><button onclick="closeAcctModal();openQA()" class="acct-tool-btn"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Local Q&A</button></div>' +
+      '<div style="margin:1rem 0"><h4 style="color:var(--gold);font-size:0.9rem;margin-bottom:0.5rem;border-bottom:1px solid var(--border);padding-bottom:0.4rem">Saved Searches</h4><div id="acctSavedSearches" style="max-height:200px;overflow-y:auto"></div></div><div style="margin:1rem 0"><h4 style="color:var(--gold);font-size:0.9rem;margin-bottom:0.5rem;border-bottom:1px solid var(--border);padding-bottom:0.4rem">Favorites</h4><p id="acctFavCount" style="font-size:0.85rem;color:var(--text-muted)"></p><button onclick="closeAcctModal();openCompare()" style="margin-top:0.5rem;padding:0.55rem 1rem;border:1px solid var(--gold);background:transparent;color:var(--gold);font-family:\'Outfit\',sans-serif;font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;transition:all 0.3s;width:100%" id="acctCompareBtn">Compare Favorites</button></div>' +
+      '<div style="margin:1rem 0"><h4 style="color:var(--gold);font-size:0.9rem;margin-bottom:0.5rem;border-bottom:1px solid var(--border);padding-bottom:0.4rem">Recently Viewed</h4><div id="acctViewingHistory" style="max-height:200px;overflow-y:auto"><p style="font-size:0.85rem;color:var(--text-muted)">No properties viewed yet</p></div></div>' +
+      '<div style="margin:1rem 0"><h4 style="color:var(--gold);font-size:0.9rem;margin-bottom:0.5rem;border-bottom:1px solid var(--border);padding-bottom:0.4rem">My Journey</h4><div id="acctTimeline" style="max-height:250px;overflow-y:auto"><p style="font-size:0.85rem;color:var(--text-muted)">No activity yet</p></div></div>' +
+      '<div style="margin:1rem 0"><h4 style="color:var(--gold);font-size:0.9rem;margin-bottom:0.5rem;border-bottom:1px solid var(--border);padding-bottom:0.4rem">Cory\'s Suggestions</h4><div id="acctSuggestionsPreview" style="max-height:300px;overflow-y:auto"><p style="font-size:0.85rem;color:var(--text-muted)">Save at least 2 properties to unlock personalized suggestions.</p></div></div>' +
+      '<div id="acctAdminBtn" style="display:none;margin:1rem 0"><button onclick="closeAcctModal();openAdmin()" style="width:100%;padding:0.65rem;border-radius:8px;border:1px solid var(--gold);background:rgba(196,176,140,0.1);color:var(--gold);cursor:pointer;font-size:0.82rem;font-weight:500">Open Admin Dashboard</button></div>' +
+      '<div style="display:flex;gap:0.5rem;margin-top:1.2rem"><button onclick="closeAcctModal()" style="flex:1;padding:0.65rem;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;font-size:0.85rem">Close</button><button onclick="signOutAcct()" style="flex:1;padding:0.65rem;border-radius:8px;border:none;background:#c0392b;color:#fff;cursor:pointer;font-size:0.85rem">Sign Out</button></div></div>' +
   '</div></div>';
 
   // --- Search Results Overlay ---
@@ -161,6 +173,33 @@ if(_isTownPage){
     '<div class="compare-table-wrap" id="compareTableWrap" style="display:none"><div class="compare-table-actions"><button class="compare-back-btn" onclick="showCompareSelect()">&#8592; Change Selection</button></div><div class="compare-table-scroll"><table class="compare-table" id="compareTable"><thead id="compareHead"></thead><tbody id="compareBody"></tbody></table></div></div>' +
   '</div>';
 
+  // --- Admin Dashboard Overlay ---
+  html += '<div class="admin-overlay" id="adminOverlay">' +
+    '<div class="admin-topbar"><div class="admin-topbar-left"><button class="sr-back" onclick="closeAdmin()"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button><div><div class="sr-title">Admin <em>Dashboard</em></div></div></div></div>' +
+    '<div class="admin-body"><div class="admin-nav" id="adminNav"></div><div class="admin-content" id="adminContent"></div></div>' +
+  '</div>';
+
+  // --- Affordability Calculator Overlay ---
+  html += '<div class="afford-overlay" id="affordOverlay">' +
+    '<div class="afford-topbar"><div class="admin-topbar-left"><button class="sr-back" onclick="closeAfford()"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button><div><div class="sr-title">What Can I <em>Afford?</em></div></div></div></div>' +
+    '<div class="afford-body"><div class="afford-inputs" id="affordInputs"></div><div class="afford-results" id="affordResults"></div></div>' +
+  '</div>';
+
+  // --- Cost of Living Overlay ---
+  html += '<div class="col-overlay" id="colOverlay">' +
+    '<div class="col-topbar"><div class="admin-topbar-left"><button class="sr-back" onclick="closeCol()"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button><div><div class="sr-title">Cost of <em>Living</em></div></div></div></div>' +
+    '<div class="col-body" id="colBody"></div>' +
+  '</div>';
+
+  // --- Q&A Library Overlay ---
+  html += '<div class="qa-overlay" id="qaOverlay">' +
+    '<div class="qa-topbar"><div class="admin-topbar-left"><button class="sr-back" onclick="closeQA()"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button><div><div class="sr-title">Local Expert <em>Q&A</em></div></div></div></div>' +
+    '<div class="qa-body" id="qaBody"></div>' +
+  '</div>';
+
+  // --- Notification Panel ---
+  html += '<div class="notif-panel" id="notifPanel" style="display:none"><div class="notif-header"><span>Notifications</span><button onclick="markAllNotifsRead()" style="background:none;border:none;color:var(--gold);cursor:pointer;font-size:0.72rem">Mark all read</button></div><div class="notif-list" id="notifList"></div></div>';
+
   // --- Chat Widget ---
   html += '<div class="chat-greeting" id="chatGreeting"><button class="chat-greeting-close" onclick="var cg=document.getElementById(\'chatGreeting\');if(cg)cg.classList.remove(\'show\');var cb=document.getElementById(\'chatBadge\');if(cb)cb.classList.remove(\'show\');">&times;</button><strong>Hey there!</strong> I\'m Cory\'s assistant. Looking to buy, sell, or explore Western NC? I\'m here to help.</div>' +
     '<button class="chat-trigger" id="chatTrigger" onclick="toggleChat()"><div class="chat-trigger-av">CC</div><div class="chat-trigger-label"><span class="chat-trigger-name">Chat with Cory</span><span class="chat-trigger-status">Online Now</span></div><div class="chat-trigger-dot"></div><svg id="triggerIcon" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" fill="none"/></svg><div class="chat-badge" id="chatBadge">1</div></button>' +
@@ -181,6 +220,35 @@ if(_isTownPage){
   }
 })();
 }
+
+// ═══ INJECT NAV EXTRAS (notification bell + admin link) ═══
+(function(){
+  var navAcct = document.getElementById('navAcct');
+  if(!navAcct) return;
+  // Notification bell (before account button)
+  if(!document.getElementById('navNotifBell')){
+    var bell = document.createElement('div');
+    bell.className = 'nav-notif';
+    bell.id = 'navNotifBell';
+    bell.style.display = 'none';
+    bell.innerHTML = '<svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><span class="notif-badge" id="notifBadge" style="display:none">0</span>';
+    bell.onclick = function(){ toggleNotifPanel(); };
+    navAcct.parentNode.insertBefore(bell, navAcct);
+  }
+  // Admin dashboard link (before notification bell)
+  if(!document.getElementById('navAdminLink')){
+    var link = document.createElement('div');
+    link.className = 'nav-admin-link';
+    link.id = 'navAdminLink';
+    link.style.display = 'none';
+    link.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>';
+    link.title = 'Admin Dashboard';
+    link.onclick = function(){ openAdmin(); };
+    var bellEl = document.getElementById('navNotifBell');
+    if(bellEl) navAcct.parentNode.insertBefore(link, bellEl);
+    else navAcct.parentNode.insertBefore(link, navAcct);
+  }
+})();
 
 // ═══ SCROLL REVEAL ═══
 const obs=new IntersectionObserver(entries=>{entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('vis');obs.unobserve(e.target)}})},{threshold:0.1,rootMargin:'0px 0px -40px 0px'});
@@ -2327,6 +2395,19 @@ try { _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
 var _acctLoggedIn = false;
 var _currentUser = null;
 
+// --- Admin role check ---
+async function checkAdminRole() {
+  if(!_sb || !_currentUser) { _isAdmin = false; return; }
+  try {
+    var resp = await _sb.from('profiles').select('role').eq('id', _currentUser.id).single();
+    if(resp.data && resp.data.role === 'admin') {
+      _isAdmin = true;
+      console.log('[Auth] Admin mode active');
+    } else { _isAdmin = false; }
+  } catch(e) { _isAdmin = false; }
+  updateAcctUI();
+}
+
 // --- Viewed & favorited tracking ---
 var _viewedProps = {};
 var _favProps = {};
@@ -2376,6 +2457,7 @@ async function initSupabaseAuth() {
       _currentUser = sess.data.session.user;
       await loadFavoritesFromCloud();
       updateAcctUI();
+      checkAdminRole();
     } else {
       // Session expired — try to refresh silently
       var refresh = await _sb.auth.refreshSession();
@@ -2384,6 +2466,7 @@ async function initSupabaseAuth() {
         _currentUser = refresh.data.session.user;
         await loadFavoritesFromCloud();
         updateAcctUI();
+        checkAdminRole();
         console.log('[Auth] Session refreshed successfully');
       }
     }
@@ -2392,10 +2475,11 @@ async function initSupabaseAuth() {
       if(session && session.user) {
         _acctLoggedIn = true;
         _currentUser = session.user;
-        if(event === 'SIGNED_IN') loadFavoritesFromCloud();
+        if(event === 'SIGNED_IN') { loadFavoritesFromCloud(); checkAdminRole(); }
       } else if(event === 'SIGNED_OUT') {
         _acctLoggedIn = false;
         _currentUser = null;
+        _isAdmin = false;
         _favProps = {};
         saveFavs();
       }
@@ -2411,8 +2495,15 @@ initSupabaseAuth();
 function updateAcctUI() {
   var btn = document.getElementById('navAcct');
   var label = document.getElementById('navAcctLabel');
-  if(label) label.textContent = _acctLoggedIn ? 'My Account' : 'Sign In';
+  if(label) label.textContent = _isAdmin ? 'Admin' : (_acctLoggedIn ? 'My Account' : 'Sign In');
   if(btn) { if(_acctLoggedIn) btn.classList.add('logged-in'); else btn.classList.remove('logged-in'); }
+  // Show/hide admin dashboard link in nav
+  var adminLink = document.getElementById('navAdminLink');
+  if(adminLink) adminLink.style.display = _isAdmin ? '' : 'none';
+  // Show/hide notification bell
+  var notifBell = document.getElementById('navNotifBell');
+  if(notifBell) notifBell.style.display = _acctLoggedIn ? '' : 'none';
+  if(_acctLoggedIn) loadNotificationCount();
   // Unlock gated content
   document.querySelectorAll('.gated-wrap').forEach(function(el){
     if(_acctLoggedIn) el.classList.remove('locked');
@@ -2452,6 +2543,11 @@ function openAcctModal() {
     // Load saved searches
     loadSavedSearchesUI();
     buildDashboardSuggestions();
+    loadViewingHistoryUI();
+    loadTimelineUI();
+    // Show admin button if admin
+    var adminBtn = document.getElementById('acctAdminBtn');
+    if(adminBtn) adminBtn.style.display = _isAdmin ? '' : 'none';
     modal.classList.add('open');
     return;
   }
@@ -2472,6 +2568,7 @@ function signOutAcct() {
   if(_sb) _sb.auth.signOut();
   _acctLoggedIn = false;
   _currentUser = null;
+  _isAdmin = false;
   _favProps = {};
   saveFavs();
   updateAcctUI();
@@ -2866,10 +2963,12 @@ function toggleFavProp() {
     delete _favProps[_currentPropKey];
     saveFavs();
     saveFavToCloud(_currentPropKey, false);
+    logActivity('unfavorite', _currentPropKey, {});
   } else {
     _favProps[_currentPropKey] = true;
     saveFavs();
     saveFavToCloud(_currentPropKey, true);
+    logActivity('favorite', _currentPropKey, {});
   }
   updateFavBtn();
   // Update search results if open
@@ -3411,16 +3510,55 @@ openProp = function(listing, townName) {
   setTimeout(updateGatedFeatures, 50);
   // Update print gate
   setTimeout(updatePrintGate, 60);
-  // Show notes textarea for logged-in users & load saved notes
+  // Show notes textarea for logged-in users & load saved notes (cloud sync)
   var notesWrap = document.getElementById('propNotesWrap');
   var notesTA = document.getElementById('propNotesTA');
   if(notesWrap) notesWrap.style.display = _acctLoggedIn ? '' : 'none';
   if(notesTA) {
-    // Load saved notes for this property
-    try { notesTA.value = localStorage.getItem('cc-note-'+key) || ''; } catch(e){ notesTA.value = ''; }
-    // Auto-save on typing
-    notesTA.oninput = function(){ try{ if(notesTA.value) localStorage.setItem('cc-note-'+key, notesTA.value); else localStorage.removeItem('cc-note-'+key); }catch(e){} };
+    // Load from cloud first, fallback to localStorage
+    var localNote = ''; try { localNote = localStorage.getItem('cc-note-'+key) || ''; } catch(e){}
+    notesTA.value = localNote;
+    if(_acctLoggedIn && _currentUser) {
+      loadPropertyNote(key).then(function(cloudNote) {
+        if(cloudNote !== null) notesTA.value = cloudNote;
+        else if(localNote) savePropertyNote(key, localNote); // migrate to cloud
+      });
+    }
+    var _noteTimer = null;
+    notesTA.oninput = function(){
+      try{ if(notesTA.value) localStorage.setItem('cc-note-'+key, notesTA.value); else localStorage.removeItem('cc-note-'+key); }catch(e){}
+      clearTimeout(_noteTimer);
+      _noteTimer = setTimeout(function(){ if(_acctLoggedIn) { savePropertyNote(key, notesTA.value); logActivity('note', key, {}); } }, 1500);
+    };
   }
+  // Log viewing history to cloud
+  if(_acctLoggedIn && _currentUser) {
+    logViewingHistory(key, listing, townName);
+    logActivity('view', key, {address: listing.address, city: townName});
+  }
+  // Show/hide Ask Cory section
+  var askCory = document.getElementById('propAskCory');
+  if(askCory) askCory.style.display = _acctLoggedIn ? '' : 'none';
+  if(_acctLoggedIn) loadPropertyQuestions(key);
+  // Remove previous showing request form
+  var oldShowForm = document.getElementById('showingRequestForm');
+  if(oldShowForm) oldShowForm.remove();
+  // Render neighborhood and distances
+  var townSlug = '';
+  var tn = (townName||listing.city||'').toLowerCase().replace(/\s*\/\s*/g,'-').replace(/\s+/g,'-');
+  if(NEIGHBORHOOD_DATA[tn]) townSlug = tn;
+  renderNeighborhoodDive(townSlug);
+  renderDistances(townSlug);
+  // Admin print buttons
+  var printBtn = document.getElementById('propInfoPrintBtn');
+  if(printBtn && _isAdmin) {
+    var wrap = printBtn.parentElement;
+    if(wrap && !document.getElementById('adminPrintBtns')) {
+      wrap.insertAdjacentHTML('beforeend', '<div id="adminPrintBtns" class="admin-print-btns"><button class="prop-info-print-btn" onclick="printAgentCopy()"><svg viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg><span>Agent Copy</span></button><button class="prop-info-print-btn" onclick="printClientCopy()"><svg viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg><span>Client Copy</span></button></div>');
+    }
+  }
+  var adminPrintBtns = document.getElementById('adminPrintBtns');
+  if(adminPrintBtns) adminPrintBtns.style.display = _isAdmin ? '' : 'none';
   // Build Cory's Take
   setTimeout(function(){ buildCorysTake(listing, townName); }, 70);
   // Build Cory's Suggestions
@@ -3608,6 +3746,733 @@ function _checkPropDeepLink(){
 }
 // Also check on page load in case SimplyRETS is disabled
 if(!SIMPLYRETS.enabled) _checkPropDeepLink();
+
+// ═══════════════════════════════════════════════════
+// NEW FEATURES: 12 Account Features + Admin Dashboard
+// ═══════════════════════════════════════════════════
+
+// ═══ PROPERTY NOTES CLOUD SYNC ═══
+async function loadPropertyNote(propertyKey) {
+  if(!_sb || !_currentUser) return null;
+  try {
+    var resp = await _sb.from('property_notes').select('note_text').eq('user_id', _currentUser.id).eq('property_key', propertyKey).single();
+    return resp.data ? resp.data.note_text : null;
+  } catch(e) { return null; }
+}
+async function savePropertyNote(propertyKey, text) {
+  if(!_sb || !_currentUser) return;
+  try {
+    await _sb.from('property_notes').upsert({
+      user_id: _currentUser.id, property_key: propertyKey,
+      note_text: text, updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id,property_key' });
+  } catch(e) { console.warn('[Notes] Save error:', e); }
+}
+
+// ═══ VIEWING HISTORY ═══
+async function logViewingHistory(propertyKey, listing, townName) {
+  if(!_sb || !_currentUser) return;
+  try {
+    await _sb.from('viewing_history').insert({
+      user_id: _currentUser.id, property_key: propertyKey,
+      property_data: { address: listing.address, city: townName||listing.city, price: listing.price, type: listing.type, photo: listing.photo||(listing.photos&&listing.photos[0])||null, beds: listing.beds, baths: listing.baths, sqft: listing.sqft }
+    });
+  } catch(e) { console.warn('[History] Log error:', e); }
+}
+async function loadViewingHistoryUI() {
+  var container = document.getElementById('acctViewingHistory');
+  if(!container || !_sb || !_currentUser) return;
+  container.innerHTML = '<p style="color:var(--text-muted);font-size:0.8rem">Loading...</p>';
+  try {
+    var resp = await _sb.from('viewing_history').select('*').eq('user_id', _currentUser.id).order('viewed_at', { ascending: false }).limit(20);
+    if(!resp.data || !resp.data.length) { container.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem">No properties viewed yet</p>'; return; }
+    container.innerHTML = '';
+    var seen = {};
+    resp.data.forEach(function(v) {
+      if(seen[v.property_key]) return; seen[v.property_key] = true;
+      var d = v.property_data || {};
+      var card = document.createElement('div');
+      card.className = 'suggestion-mini';
+      card.style.cursor = 'pointer';
+      card.innerHTML = '<img class="suggestion-mini-img" src="' + (d.photo||'') + '" alt=""><div class="suggestion-mini-info"><div class="suggestion-mini-price">$' + (d.price||0).toLocaleString() + '</div><div class="suggestion-mini-addr">' + (d.address||'') + ', ' + (d.city||'') + '</div></div>';
+      card.onclick = function() { closeAcctModal(); var match = ALL_LISTINGS.find(function(l){ return propKey(l, l.city) === v.property_key; }); if(match) openProp(match, match.city); };
+      container.appendChild(card);
+    });
+  } catch(e) { container.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem">Could not load history</p>'; }
+}
+
+// ═══ USER ACTIVITY LOGGING ═══
+async function logActivity(type, propertyKey, metadata) {
+  if(!_sb || !_currentUser) return;
+  try {
+    await _sb.from('user_activity').insert({
+      user_id: _currentUser.id, activity_type: type,
+      property_key: propertyKey || null, metadata: metadata || {}
+    });
+  } catch(e) { /* silent fail */ }
+}
+
+// ═══ NOTIFICATION CENTER ═══
+async function loadNotificationCount() {
+  if(!_sb || !_currentUser) return;
+  try {
+    var resp = await _sb.from('alert_notifications').select('id', {count:'exact', head:true}).eq('user_id', _currentUser.id).eq('is_read', false);
+    var badge = document.getElementById('notifBadge');
+    if(badge) {
+      var count = resp.count || 0;
+      badge.textContent = count;
+      badge.style.display = count > 0 ? '' : 'none';
+    }
+  } catch(e) {}
+}
+function toggleNotifPanel() {
+  var panel = document.getElementById('notifPanel');
+  if(!panel) return;
+  if(panel.style.display === 'none') { panel.style.display = ''; loadNotifications(); }
+  else panel.style.display = 'none';
+}
+async function loadNotifications() {
+  var list = document.getElementById('notifList');
+  if(!list || !_sb || !_currentUser) return;
+  list.innerHTML = '<p style="padding:1rem;color:var(--text-muted);font-size:0.8rem">Loading...</p>';
+  try {
+    var resp = await _sb.from('alert_notifications').select('*').eq('user_id', _currentUser.id).order('created_at', {ascending:false}).limit(20);
+    if(!resp.data || !resp.data.length) { list.innerHTML = '<p style="padding:1rem;color:var(--text-muted);font-size:0.85rem">No notifications yet</p>'; return; }
+    list.innerHTML = '';
+    resp.data.forEach(function(n) {
+      var item = document.createElement('div');
+      item.className = 'notif-item' + (n.is_read ? '' : ' unread');
+      var icon = n.alert_type === 'price_drop' ? '$' : n.alert_type === 'new_listing_match' ? '🏠' : n.alert_type === 'question_response' ? '💬' : '🔔';
+      var ago = timeAgo(n.created_at);
+      item.innerHTML = '<div class="notif-icon">' + icon + '</div><div class="notif-text"><div class="notif-msg">' + (n.title || n.message) + '</div><div class="notif-time">' + ago + '</div></div>';
+      item.onclick = function() { markNotifRead(n.id); item.classList.remove('unread'); };
+      list.appendChild(item);
+    });
+  } catch(e) { list.innerHTML = '<p style="padding:1rem;color:var(--text-muted)">Could not load</p>'; }
+}
+async function markNotifRead(id) {
+  if(!_sb) return;
+  try { await _sb.from('alert_notifications').update({is_read:true}).eq('id', id); loadNotificationCount(); } catch(e) {}
+}
+async function markAllNotifsRead() {
+  if(!_sb || !_currentUser) return;
+  try { await _sb.from('alert_notifications').update({is_read:true}).eq('user_id', _currentUser.id).eq('is_read', false); loadNotificationCount(); loadNotifications(); } catch(e) {}
+}
+function timeAgo(dateStr) {
+  var diff = Date.now() - new Date(dateStr).getTime();
+  var mins = Math.floor(diff/60000);
+  if(mins < 1) return 'just now';
+  if(mins < 60) return mins + 'm ago';
+  var hrs = Math.floor(mins/60);
+  if(hrs < 24) return hrs + 'h ago';
+  var days = Math.floor(hrs/24);
+  if(days < 7) return days + 'd ago';
+  return new Date(dateStr).toLocaleDateString();
+}
+
+// ═══ SHOWING REQUEST ═══
+function todayStr() { var d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function openShowingRequest() {
+  if(!_acctLoggedIn) { openAcctModal(); return; }
+  var existing = document.getElementById('showingRequestForm');
+  if(existing) { existing.style.display = existing.style.display === 'none' ? '' : 'none'; if(existing.style.display === '') existing.scrollIntoView({behavior:'smooth'}); return; }
+  var btn = document.getElementById('propShowingBtn');
+  if(!btn) return;
+  var wrap = btn.closest('.prop-agent');
+  if(!wrap) return;
+  var html = '<div id="showingRequestForm" class="showing-form">' +
+    '<div class="prop-section-label">Request a Showing</div>' +
+    '<p class="showing-form-sub">Choose up to 3 preferred times and I\'ll confirm one that works for both of us.</p>' +
+    '<div class="showing-slot"><label>Option 1 *</label><div class="showing-slot-row"><input type="date" id="showDate1" class="showing-input" min="' + todayStr() + '"><input type="time" id="showTime1" class="showing-input" value="10:00"></div></div>' +
+    '<div class="showing-slot"><label>Option 2 *</label><div class="showing-slot-row"><input type="date" id="showDate2" class="showing-input" min="' + todayStr() + '"><input type="time" id="showTime2" class="showing-input" value="14:00"></div></div>' +
+    '<div class="showing-slot"><label>Option 3 (optional)</label><div class="showing-slot-row"><input type="date" id="showDate3" class="showing-input" min="' + todayStr() + '"><input type="time" id="showTime3" class="showing-input"></div></div>' +
+    '<textarea id="showMessage" class="prop-notes-ta" placeholder="Any notes for the showing..." rows="2"></textarea>' +
+    '<button class="acct-submit" id="showSubmitBtn" onclick="submitShowingRequest()">Request Showing</button>' +
+  '</div>';
+  wrap.insertAdjacentHTML('afterend', html);
+  document.getElementById('showingRequestForm').scrollIntoView({behavior:'smooth'});
+}
+async function submitShowingRequest() {
+  var slots = [];
+  for(var i=1; i<=3; i++) {
+    var d = document.getElementById('showDate'+i); var t = document.getElementById('showTime'+i);
+    if(d && t && d.value && t.value) slots.push({date: d.value, time: t.value});
+  }
+  if(slots.length < 2) { alert('Please select at least 2 preferred times.'); return; }
+  var btn = document.getElementById('showSubmitBtn');
+  if(btn) { btn.textContent = 'Sending...'; btn.disabled = true; }
+  var prof = {}; try { prof = JSON.parse(localStorage.getItem('cc_profile')||'{}'); } catch(e) {}
+  try {
+    await _sb.from('showing_requests').insert({
+      user_id: _currentUser.id, property_key: _currentPropKey,
+      property_data: { address: window._currentListing.address, city: window._currentTownName, price: window._currentListing.price, photo: window._currentListing.photo||(window._currentListing.photos&&window._currentListing.photos[0])||'' },
+      preferred_slots: slots, status: 'pending',
+      user_name: (prof.firstName||'')+' '+(prof.lastName||''), user_email: prof.email||'', user_phone: prof.phone||''
+    });
+    logActivity('showing_request', _currentPropKey, {slots: slots});
+    var form = document.getElementById('showingRequestForm');
+    if(form) form.innerHTML = '<div class="showing-success"><svg viewBox="0 0 24 24" style="width:32px;height:32px;stroke:var(--gold);fill:none;stroke-width:2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg><h4>Request Sent!</h4><p>I\'ll get back to you shortly to confirm a time.</p></div>';
+  } catch(e) { alert('Could not send request. Please try again.'); if(btn) { btn.textContent = 'Request Showing'; btn.disabled = false; } }
+}
+
+// ═══ ASK CORY PER-PROPERTY QUESTIONS ═══
+async function loadPropertyQuestions(propertyKey) {
+  var list = document.getElementById('propQuestionsList');
+  if(!list || !_sb || !_currentUser) return;
+  list.innerHTML = '';
+  try {
+    var resp = await _sb.from('property_questions').select('*').eq('user_id', _currentUser.id).eq('property_key', propertyKey).order('created_at', {ascending: true});
+    if(!resp.data || !resp.data.length) return;
+    resp.data.forEach(function(q) {
+      var div = document.createElement('div');
+      div.className = 'prop-qa-item';
+      div.innerHTML = '<div class="prop-qa-q"><strong>You:</strong> ' + q.question_text + '</div>' +
+        (q.response_text ? '<div class="prop-qa-a"><strong>Cory:</strong> ' + q.response_text + '</div>' : '<div class="prop-qa-pending">Awaiting response</div>');
+      list.appendChild(div);
+    });
+  } catch(e) {}
+}
+async function submitPropertyQuestion() {
+  var ta = document.getElementById('propQuestionTA');
+  if(!ta || !ta.value.trim()) return;
+  if(!_acctLoggedIn) { openAcctModal(); return; }
+  var text = ta.value.trim();
+  ta.value = '';
+  var prof = {}; try { prof = JSON.parse(localStorage.getItem('cc_profile')||'{}'); } catch(e) {}
+  try {
+    await _sb.from('property_questions').insert({
+      user_id: _currentUser.id, property_key: _currentPropKey,
+      property_data: { address: window._currentListing.address, city: window._currentTownName, price: window._currentListing.price },
+      question_text: text,
+      user_name: (prof.firstName||'')+' '+(prof.lastName||''), user_email: prof.email||''
+    });
+    logActivity('question', _currentPropKey, {question: text});
+    loadPropertyQuestions(_currentPropKey);
+  } catch(e) { alert('Could not send question. Please try again.'); }
+}
+
+// ═══ NEIGHBORHOOD DATA (static) ═══
+var NEIGHBORHOOD_DATA = {
+  'waynesville': { schools: {rating:7, details:'Haywood County Schools — strong elementary through high school programs'}, safety: {rating:'A-', details:'Low crime, active community policing'}, walkability: {score:52, label:'Somewhat Walkable'}, commute: {avg:25, to:'Asheville'}, amenities: {restaurants:45, breweries:4, parks:8, trailheads:12} },
+  'sylva': { schools: {rating:6, details:'Jackson County Schools — good smaller school options, close to WCU'}, safety: {rating:'B+', details:'Low crime small-town feel'}, walkability: {score:48, label:'Car-Dependent'}, commute: {avg:50, to:'Asheville'}, amenities: {restaurants:30, breweries:3, parks:5, trailheads:8} },
+  'maggie-valley': { schools: {rating:6, details:'Haywood County Schools — family-friendly area'}, safety: {rating:'A', details:'Very low crime, quiet mountain community'}, walkability: {score:20, label:'Car-Dependent'}, commute: {avg:40, to:'Asheville'}, amenities: {restaurants:25, breweries:1, parks:3, trailheads:15} },
+  'bryson-city': { schools: {rating:6, details:'Swain County Schools — small class sizes'}, safety: {rating:'A', details:'Very safe, tight-knit community'}, walkability: {score:45, label:'Somewhat Walkable'}, commute: {avg:65, to:'Asheville'}, amenities: {restaurants:35, breweries:2, parks:4, trailheads:20} },
+  'cashiers-highlands': { schools: {rating:7, details:'Jackson & Macon County Schools — Summit Charter School nearby'}, safety: {rating:'A', details:'Very low crime'}, walkability: {score:25, label:'Car-Dependent'}, commute: {avg:75, to:'Asheville'}, amenities: {restaurants:40, breweries:1, parks:6, trailheads:10} },
+  'franklin': { schools: {rating:6, details:'Macon County Schools — solid options with community involvement'}, safety: {rating:'B+', details:'Low crime rate'}, walkability: {score:40, label:'Car-Dependent'}, commute: {avg:60, to:'Asheville'}, amenities: {restaurants:35, breweries:2, parks:5, trailheads:8} },
+  'dillsboro': { schools: {rating:6, details:'Jackson County Schools — small-town charm'}, safety: {rating:'A', details:'Very safe historic village'}, walkability: {score:55, label:'Somewhat Walkable'}, commute: {avg:52, to:'Asheville'}, amenities: {restaurants:12, breweries:1, parks:3, trailheads:6} },
+  'cullowhee': { schools: {rating:7, details:'Jackson County Schools — university community feel (WCU)'}, safety: {rating:'B+', details:'College-town environment'}, walkability: {score:35, label:'Car-Dependent'}, commute: {avg:55, to:'Asheville'}, amenities: {restaurants:15, breweries:1, parks:4, trailheads:7} }
+};
+function renderNeighborhoodDive(townSlug) {
+  var container = document.getElementById('neighborhoodDive');
+  if(!container) return;
+  var data = NEIGHBORHOOD_DATA[townSlug];
+  if(!data) { container.innerHTML = ''; return; }
+  container.innerHTML =
+    '<div class="nd-grid">' +
+      '<div class="nd-card"><div class="nd-card-icon"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg></div><div class="nd-card-label">Schools</div><div class="nd-card-value">' + data.schools.rating + '/10</div><div class="nd-card-detail">' + data.schools.details + '</div></div>' +
+      '<div class="nd-card"><div class="nd-card-icon"><svg viewBox="0 0 24 24"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z"/></svg></div><div class="nd-card-label">Safety</div><div class="nd-card-value">' + data.safety.rating + '</div><div class="nd-card-detail">' + data.safety.details + '</div></div>' +
+      '<div class="nd-card"><div class="nd-card-icon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div><div class="nd-card-label">Walkability</div><div class="nd-card-value">' + data.walkability.score + '</div><div class="nd-card-detail">' + data.walkability.label + '</div></div>' +
+      '<div class="nd-card"><div class="nd-card-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div><div class="nd-card-label">Commute</div><div class="nd-card-value">' + data.commute.avg + ' min</div><div class="nd-card-detail">To ' + data.commute.to + '</div></div>' +
+    '</div>' +
+    '<div class="nd-amenities"><span class="nd-am-tag">' + data.amenities.restaurants + ' Restaurants</span><span class="nd-am-tag">' + data.amenities.breweries + ' Breweries</span><span class="nd-am-tag">' + data.amenities.parks + ' Parks</span><span class="nd-am-tag">' + data.amenities.trailheads + ' Trailheads</span></div>';
+}
+
+// ═══ COMMUTE / DISTANCE CALCULATOR (static) ═══
+var TOWN_POIS = {
+  'waynesville': { hospital:[{n:'Haywood Regional Medical',d:'5 min',m:2.1}], grocery:[{n:'Ingles Markets',d:'3 min',m:1.2},{n:'Publix',d:'8 min',m:3.5}], schools:[{n:'Waynesville Middle',d:'7 min',m:2.8},{n:'Tuscola High',d:'10 min',m:4.1}], downtown:[{n:'Downtown Waynesville',d:'5 min',m:1.8}], outdoors:[{n:'Blue Ridge Parkway',d:'15 min',m:8.2},{n:'Great Smoky Mtns NP',d:'25 min',m:15}] },
+  'sylva': { hospital:[{n:'Harris Regional Hospital',d:'5 min',m:1.5}], grocery:[{n:'Ingles Markets',d:'4 min',m:1.4},{n:'Sav-Mor',d:'3 min',m:0.8}], schools:[{n:'Sylva-Webster Elem',d:'5 min',m:1.6},{n:'Smoky Mountain High',d:'8 min',m:3.2}], downtown:[{n:'Downtown Sylva',d:'3 min',m:0.9}], outdoors:[{n:'Pinnacle Park Trail',d:'5 min',m:1.5},{n:'Great Smoky Mtns NP',d:'35 min',m:22}] },
+  'maggie-valley': { hospital:[{n:'Haywood Regional Medical',d:'20 min',m:10}], grocery:[{n:'Ingles Markets',d:'5 min',m:2.2}], schools:[{n:'Jonathan Valley Elem',d:'8 min',m:3}], downtown:[{n:'Soco Road (Main)',d:'3 min',m:1}], outdoors:[{n:'Cataloochee Ski',d:'10 min',m:5},{n:'Blue Ridge Parkway',d:'10 min',m:5.5},{n:'Great Smoky Mtns NP',d:'15 min',m:8}] },
+  'bryson-city': { hospital:[{n:'Swain Community Hospital',d:'5 min',m:1.8}], grocery:[{n:'Ingles Markets',d:'5 min',m:2}], schools:[{n:'Swain County Schools',d:'7 min',m:2.5}], downtown:[{n:'Downtown Bryson City',d:'3 min',m:0.8}], outdoors:[{n:'Great Smoky Mtns NP',d:'5 min',m:3},{n:'Nantahala Gorge',d:'15 min',m:10},{n:'Deep Creek Trails',d:'5 min',m:2}] },
+  'cashiers-highlands': { hospital:[{n:'Highlands-Cashiers Hospital',d:'10 min',m:5}], grocery:[{n:'Ingles Markets',d:'8 min',m:3.5}], schools:[{n:'Summit Charter School',d:'5 min',m:2}], downtown:[{n:'Cashiers Crossroads',d:'5 min',m:1.5},{n:'Downtown Highlands',d:'15 min',m:8}], outdoors:[{n:'Whiteside Mountain',d:'10 min',m:5},{n:'Panthertown Valley',d:'15 min',m:8}] },
+  'franklin': { hospital:[{n:'Angel Medical Center',d:'5 min',m:2}], grocery:[{n:'Ingles Markets',d:'4 min',m:1.5},{n:'Bi-Lo',d:'5 min',m:2}], schools:[{n:'Macon County Schools',d:'7 min',m:3}], downtown:[{n:'Downtown Franklin',d:'5 min',m:1.5}], outdoors:[{n:'Appalachian Trail',d:'20 min',m:12},{n:'Nantahala NF',d:'15 min',m:8}] },
+  'dillsboro': { hospital:[{n:'Harris Regional Hospital',d:'8 min',m:3}], grocery:[{n:'Ingles (Sylva)',d:'8 min',m:3.5}], schools:[{n:'Sylva-Webster Elem',d:'8 min',m:3}], downtown:[{n:'Downtown Dillsboro',d:'2 min',m:0.5},{n:'Downtown Sylva',d:'5 min',m:2.5}], outdoors:[{n:'Tuckasegee River',d:'2 min',m:0.3},{n:'Great Smoky Mtns NP',d:'30 min',m:20}] },
+  'cullowhee': { hospital:[{n:'Harris Regional Hospital',d:'10 min',m:4}], grocery:[{n:'Ingles (Sylva)',d:'10 min',m:4.5}], schools:[{n:'Cullowhee Valley School',d:'3 min',m:1},{n:'WCU (University)',d:'2 min',m:0.5}], downtown:[{n:'Downtown Sylva',d:'10 min',m:5}], outdoors:[{n:'Pinnacle Park',d:'12 min',m:5.5},{n:'Tuckasegee River',d:'5 min',m:2}] }
+};
+var POI_LABELS = {hospital:'Medical',grocery:'Grocery',schools:'Schools',downtown:'Downtown',outdoors:'Outdoors & Trails'};
+var POI_ICONS = {hospital:'<svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>',grocery:'<svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>',schools:'<svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>',downtown:'<svg viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01M16 6h.01M12 6h.01M8 10h.01M16 10h.01M12 10h.01M8 14h.01M16 14h.01M12 14h.01"/></svg>',outdoors:'<svg viewBox="0 0 24 24"><path d="M17 21H7l5-10 5 10z"/><path d="M12.5 7.5L16 14"/><path d="M8 14l3.5-6.5"/><path d="M21 21H3"/></svg>'};
+function renderDistances(townSlug) {
+  var container = document.getElementById('propDistances');
+  if(!container) return;
+  var pois = TOWN_POIS[townSlug];
+  if(!pois) { container.innerHTML = ''; return; }
+  var html = '';
+  Object.keys(POI_LABELS).forEach(function(cat) {
+    if(!pois[cat] || !pois[cat].length) return;
+    html += '<div class="prop-distance-card"><div class="prop-distance-category">' + (POI_ICONS[cat]||'') + ' ' + POI_LABELS[cat] + '</div>';
+    pois[cat].forEach(function(p) {
+      html += '<div class="prop-distance-item"><span>' + p.n + '</span><span class="prop-distance-time">' + p.d + '</span></div>';
+    });
+    html += '</div>';
+  });
+  container.innerHTML = html;
+}
+
+// ═══ COST OF LIVING ESTIMATOR ═══
+var COST_OF_LIVING = {
+  'National Average': {housing:100,groceries:100,utilities:100,transport:100,healthcare:100},
+  'Waynesville': {housing:72,groceries:96,utilities:92,transport:88,healthcare:95},
+  'Sylva': {housing:68,groceries:95,utilities:90,transport:86,healthcare:94},
+  'Maggie Valley': {housing:70,groceries:96,utilities:91,transport:90,healthcare:95},
+  'Bryson City': {housing:65,groceries:94,utilities:89,transport:85,healthcare:93},
+  'Cashiers / Highlands': {housing:110,groceries:100,utilities:93,transport:88,healthcare:96},
+  'Franklin': {housing:62,groceries:93,utilities:88,transport:84,healthcare:92},
+  'Dillsboro': {housing:66,groceries:94,utilities:89,transport:86,healthcare:93},
+  'Cullowhee': {housing:64,groceries:94,utilities:89,transport:85,healthcare:93},
+  'Atlanta, GA': {housing:105,groceries:102,utilities:98,transport:110,healthcare:103},
+  'Charlotte, NC': {housing:98,groceries:100,utilities:96,transport:105,healthcare:101},
+  'Raleigh, NC': {housing:100,groceries:99,utilities:97,transport:102,healthcare:100},
+  'Miami, FL': {housing:145,groceries:108,utilities:103,transport:112,healthcare:107},
+  'New York, NY': {housing:230,groceries:115,utilities:110,transport:130,healthcare:112},
+  'Chicago, IL': {housing:95,groceries:103,utilities:99,transport:108,healthcare:104},
+  'Nashville, TN': {housing:105,groceries:98,utilities:93,transport:100,healthcare:99},
+  'Tampa, FL': {housing:100,groceries:103,utilities:101,transport:105,healthcare:100},
+  'Denver, CO': {housing:125,groceries:103,utilities:95,transport:105,healthcare:103}
+};
+function openCol() {
+  if(!_acctLoggedIn) { openAcctModal(); return; }
+  var overlay = document.getElementById('colOverlay');
+  if(!overlay) return;
+  overlay.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  renderColUI();
+}
+function closeCol() {
+  var o = document.getElementById('colOverlay'); if(o) o.style.display = 'none';
+  document.body.style.overflow = '';
+}
+function renderColUI() {
+  var body = document.getElementById('colBody');
+  if(!body) return;
+  var cities = Object.keys(COST_OF_LIVING);
+  var wncCities = cities.filter(function(c){ return !c.match(/,/) && c !== 'National Average'; });
+  var otherCities = cities.filter(function(c){ return c.match(/,/) || c === 'National Average'; });
+  var html = '<div class="col-container"><div class="col-selects"><div class="col-select-wrap"><label>Compare from</label><select id="colFrom" onchange="updateColComparison()"><option value="">Select a city...</option>';
+  otherCities.forEach(function(c){ html += '<option value="' + c + '">' + c + '</option>'; });
+  html += '</select></div><div class="col-vs">vs</div><div class="col-select-wrap"><label>Moving to</label><select id="colTo" onchange="updateColComparison()"><option value="">Select a WNC town...</option>';
+  wncCities.forEach(function(c){ html += '<option value="' + c + '">' + c + '</option>'; });
+  html += '</select></div></div><div id="colResults"></div></div>';
+  body.innerHTML = html;
+}
+function updateColComparison() {
+  var from = document.getElementById('colFrom').value;
+  var to = document.getElementById('colTo').value;
+  var results = document.getElementById('colResults');
+  if(!from || !to || !results) { if(results) results.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:2rem">Select both cities to compare</p>'; return; }
+  var fd = COST_OF_LIVING[from]; var td = COST_OF_LIVING[to];
+  if(!fd || !td) return;
+  var categories = ['housing','groceries','utilities','transport','healthcare'];
+  var labels = {housing:'Housing',groceries:'Groceries',utilities:'Utilities',transport:'Transportation',healthcare:'Healthcare'};
+  var overall_from = 0, overall_to = 0;
+  categories.forEach(function(c){ overall_from += fd[c]; overall_to += td[c]; });
+  overall_from = Math.round(overall_from / categories.length);
+  overall_to = Math.round(overall_to / categories.length);
+  var diff = overall_to - overall_from;
+  var diffLabel = diff < 0 ? '<span style="color:var(--green)">' + Math.abs(diff) + '% lower</span>' : diff > 0 ? '<span style="color:#c07070">' + diff + '% higher</span>' : '<span>Same</span>';
+  var html = '<div class="col-summary"><div class="col-summary-title">Overall Cost of Living</div><div class="col-summary-diff">' + to + ' is ' + diffLabel + ' than ' + from + '</div></div><div class="col-bars">';
+  categories.forEach(function(cat) {
+    var fv = fd[cat]; var tv = td[cat];
+    var max = Math.max(fv, tv, 100);
+    var cdiff = tv - fv;
+    var clr = cdiff < 0 ? 'var(--green)' : cdiff > 0 ? '#c07070' : 'var(--text-muted)';
+    html += '<div class="col-bar-row"><div class="col-bar-label">' + labels[cat] + '</div><div class="col-bar-tracks"><div class="col-bar-track"><div class="col-bar-fill from" style="width:' + (fv/max*100) + '%"></div><span class="col-bar-val">' + fv + '</span></div><div class="col-bar-track"><div class="col-bar-fill to" style="width:' + (tv/max*100) + '%"></div><span class="col-bar-val">' + tv + '</span></div></div><div class="col-bar-diff" style="color:' + clr + '">' + (cdiff > 0 ? '+' : '') + cdiff + '</div></div>';
+  });
+  html += '</div><div class="col-legend"><span class="col-legend-dot from"></span> ' + from + ' <span class="col-legend-dot to"></span> ' + to + ' <span style="color:var(--text-muted);font-size:0.7rem">(100 = national average)</span></div>';
+  results.innerHTML = html;
+}
+
+// ═══ WHAT CAN I AFFORD? CALCULATOR ═══
+function openAfford() {
+  if(!_acctLoggedIn) { openAcctModal(); return; }
+  var overlay = document.getElementById('affordOverlay');
+  if(!overlay) return;
+  overlay.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  renderAffordUI();
+}
+function closeAfford() { var o = document.getElementById('affordOverlay'); if(o) o.style.display = 'none'; document.body.style.overflow = ''; }
+function renderAffordUI() {
+  var inputs = document.getElementById('affordInputs');
+  var results = document.getElementById('affordResults');
+  if(!inputs) return;
+  inputs.innerHTML =
+    '<div class="afford-section-title">Your Financial Picture</div>' +
+    '<div class="afford-field"><label>Annual Household Income</label><input type="number" id="affIncome" class="form-input" placeholder="85000" value="85000"></div>' +
+    '<div class="afford-field"><label>Monthly Debts (car, student loans, etc.)</label><input type="number" id="affDebts" class="form-input" placeholder="500" value="500"></div>' +
+    '<div class="afford-row"><div class="afford-field"><label>Down Payment %</label><input type="number" id="affDown" class="form-input" placeholder="20" value="20" min="3" max="100"></div><div class="afford-field"><label>Interest Rate %</label><input type="number" id="affRate" class="form-input" placeholder="6.75" value="6.75" step="0.25"></div></div>' +
+    '<div class="afford-row"><div class="afford-field"><label>Property Tax Rate %</label><input type="number" id="affTax" class="form-input" placeholder="0.5" value="0.5" step="0.1"></div><div class="afford-field"><label>Monthly Insurance</label><input type="number" id="affInsurance" class="form-input" placeholder="150" value="150"></div></div>' +
+    '<button class="acct-submit" onclick="calcAffordability()">Calculate</button>';
+  if(results) results.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:2rem">Enter your details and click Calculate</p>';
+}
+function calcAffordability() {
+  var income = parseFloat(document.getElementById('affIncome').value)||0;
+  var debts = parseFloat(document.getElementById('affDebts').value)||0;
+  var downPct = parseFloat(document.getElementById('affDown').value)||20;
+  var rate = parseFloat(document.getElementById('affRate').value)||6.75;
+  var taxRate = parseFloat(document.getElementById('affTax').value)||0.5;
+  var insurance = parseFloat(document.getElementById('affInsurance').value)||150;
+  var monthlyIncome = income/12;
+  var maxHousing = monthlyIncome * 0.28;
+  var maxTotal = monthlyIncome * 0.36;
+  var maxAfterDebt = Math.min(maxHousing, maxTotal - debts);
+  if(maxAfterDebt <= 0) { document.getElementById('affordResults').innerHTML = '<div class="afford-result-card"><h3>Debt-to-Income Ratio Too High</h3><p>Your monthly debts exceed what lenders typically allow. Consider reducing debts before applying for a mortgage.</p></div>'; return; }
+  var maxPrice = 0, bestMonthly = 0, bestPI = 0, bestTax = 0;
+  var monthlyRate = (rate/100)/12; var n = 360;
+  for(var price = 50000; price <= 3000000; price += 5000) {
+    var loan = price * (1 - downPct/100);
+    var pi = loan * (monthlyRate * Math.pow(1+monthlyRate,n)) / (Math.pow(1+monthlyRate,n)-1);
+    var tax = (price * taxRate/100)/12;
+    var total = pi + tax + insurance;
+    if(total <= maxAfterDebt) { maxPrice = price; bestMonthly = total; bestPI = pi; bestTax = tax; }
+    else break;
+  }
+  var downAmt = Math.round(maxPrice * downPct/100);
+  var loanAmt = maxPrice - downAmt;
+  var results = document.getElementById('affordResults');
+  results.innerHTML =
+    '<div class="afford-result-card">' +
+      '<div class="afford-max-label">You Can Afford Up To</div>' +
+      '<div class="afford-max-price">$' + maxPrice.toLocaleString() + '</div>' +
+      '<div class="afford-breakdown">' +
+        '<div class="afford-bk-row"><span>Down Payment (' + downPct + '%)</span><span>$' + downAmt.toLocaleString() + '</span></div>' +
+        '<div class="afford-bk-row"><span>Loan Amount</span><span>$' + loanAmt.toLocaleString() + '</span></div>' +
+        '<div class="afford-bk-row"><span>Interest Rate</span><span>' + rate + '%</span></div>' +
+        '<div class="afford-bk-divider"></div>' +
+        '<div class="afford-bk-row"><span>Principal & Interest</span><span>$' + Math.round(bestPI).toLocaleString() + '/mo</span></div>' +
+        '<div class="afford-bk-row"><span>Property Taxes</span><span>$' + Math.round(bestTax).toLocaleString() + '/mo</span></div>' +
+        '<div class="afford-bk-row"><span>Insurance</span><span>$' + insurance.toLocaleString() + '/mo</span></div>' +
+        '<div class="afford-bk-divider"></div>' +
+        '<div class="afford-bk-row total"><span>Est. Monthly Payment</span><span>$' + Math.round(bestMonthly).toLocaleString() + '</span></div>' +
+      '</div>' +
+      '<div class="afford-note">Based on the 28/36 qualifying rule. Contact a lender for an official pre-approval.</div>' +
+    '</div>';
+}
+
+// ═══ Q&A LIBRARY ═══
+function openQA() {
+  if(!_acctLoggedIn) { openAcctModal(); return; }
+  var overlay = document.getElementById('qaOverlay');
+  if(!overlay) return;
+  overlay.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  loadQALibrary();
+}
+function closeQA() { var o = document.getElementById('qaOverlay'); if(o) o.style.display = 'none'; document.body.style.overflow = ''; }
+async function loadQALibrary() {
+  var body = document.getElementById('qaBody');
+  if(!body) return;
+  body.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:2rem">Loading...</p>';
+  if(!_sb) { body.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:2rem">Service unavailable</p>'; return; }
+  try {
+    var resp = await _sb.from('qa_library').select('*').eq('is_published', true).order('category').order('sort_order');
+    if(!resp.data || !resp.data.length) { body.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:2rem">Q&A content coming soon!</p>'; return; }
+    var cats = {}; resp.data.forEach(function(q) { if(!cats[q.category]) cats[q.category] = []; cats[q.category].push(q); });
+    var catLabels = {'moving-logistics':'Moving Logistics','weather':'Weather & Seasons','outdoors':'Outdoors & Recreation','schools':'Schools & Education','healthcare':'Healthcare','lifestyle':'Lifestyle & Community','real-estate':'Real Estate Market'};
+    var html = '<div class="qa-container">';
+    Object.keys(cats).forEach(function(cat) {
+      html += '<div class="qa-category"><div class="qa-cat-title">' + (catLabels[cat]||cat) + '</div>';
+      cats[cat].forEach(function(q) {
+        html += '<div class="qa-item"><button class="qa-question" onclick="this.parentElement.classList.toggle(\'open\')"><span>' + q.question + '</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button><div class="qa-answer">' + q.answer + '</div></div>';
+      });
+      html += '</div>';
+    });
+    html += '</div>';
+    body.innerHTML = html;
+  } catch(e) { body.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:2rem">Could not load Q&A</p>'; }
+}
+
+// ═══ PROPERTY JOURNEY TIMELINE ═══
+async function loadTimelineUI() {
+  var container = document.getElementById('acctTimeline');
+  if(!container || !_sb || !_currentUser) return;
+  container.innerHTML = '<p style="color:var(--text-muted);font-size:0.8rem">Loading...</p>';
+  try {
+    var resp = await _sb.from('user_activity').select('*').eq('user_id', _currentUser.id).order('created_at', {ascending:false}).limit(50);
+    if(!resp.data || !resp.data.length) { container.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem">No activity yet</p>'; return; }
+    container.innerHTML = '';
+    var timeline = document.createElement('div');
+    timeline.className = 'timeline';
+    var actIcons = {view:'👁',favorite:'❤️',unfavorite:'💔',save_search:'🔍',showing_request:'📅',question:'💬',note:'📝'};
+    var actLabels = {view:'Viewed',favorite:'Saved',unfavorite:'Removed',save_search:'Saved search',showing_request:'Requested showing',question:'Asked question',note:'Added note'};
+    resp.data.forEach(function(a) {
+      var item = document.createElement('div');
+      item.className = 'timeline-item';
+      var meta = a.metadata || {};
+      var propInfo = a.property_key ? a.property_key.split('|')[0] : '';
+      item.innerHTML = '<div class="timeline-dot"></div><div class="timeline-date">' + timeAgo(a.created_at) + '</div><div class="timeline-text">' + (actIcons[a.activity_type]||'🔔') + ' ' + (actLabels[a.activity_type]||a.activity_type) + (propInfo ? ' — ' + propInfo : '') + '</div>';
+      timeline.appendChild(item);
+    });
+    container.appendChild(timeline);
+  } catch(e) { container.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem">Could not load timeline</p>'; }
+}
+
+// ═══ ADMIN DASHBOARD ═══
+var _adminTab = 'leads';
+function openAdmin() {
+  if(!_isAdmin) return;
+  var overlay = document.getElementById('adminOverlay');
+  if(!overlay) return;
+  overlay.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  renderAdminNav();
+  switchAdminTab('leads');
+}
+function closeAdmin() { var o = document.getElementById('adminOverlay'); if(o) o.style.display = 'none'; document.body.style.overflow = ''; }
+function renderAdminNav() {
+  var nav = document.getElementById('adminNav');
+  if(!nav) return;
+  var tabs = [{id:'leads',label:'Leads',icon:'<svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>'},{id:'showings',label:'Showings',icon:'<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>'},{id:'questions',label:'Questions',icon:'<svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>'},{id:'analytics',label:'Analytics',icon:'<svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>'},{id:'content',label:'Content',icon:'<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'},{id:'notifications',label:'Alerts Log',icon:'<svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>'}];
+  nav.innerHTML = '';
+  tabs.forEach(function(t) {
+    var item = document.createElement('div');
+    item.className = 'admin-nav-item' + (_adminTab===t.id?' active':'');
+    item.innerHTML = t.icon + '<span>' + t.label + '</span>';
+    item.onclick = function() { switchAdminTab(t.id); };
+    nav.appendChild(item);
+  });
+}
+function switchAdminTab(tab) {
+  _adminTab = tab;
+  renderAdminNav();
+  var content = document.getElementById('adminContent');
+  if(!content) return;
+  content.innerHTML = '<p style="color:var(--text-muted);padding:2rem">Loading...</p>';
+  if(tab === 'leads') loadAdminLeads();
+  else if(tab === 'showings') loadAdminShowings();
+  else if(tab === 'questions') loadAdminQuestions();
+  else if(tab === 'analytics') loadAdminAnalytics();
+  else if(tab === 'content') loadAdminContent();
+  else if(tab === 'notifications') loadAdminNotifications();
+}
+
+async function loadAdminLeads() {
+  var c = document.getElementById('adminContent');
+  try {
+    var resp = await _sb.from('leads').select('*').order('created_at', {ascending:false}).limit(50);
+    if(!resp.data || !resp.data.length) { c.innerHTML = '<p style="padding:2rem;color:var(--text-muted)">No leads yet</p>'; return; }
+    var html = '<div class="admin-section-title">Recent Leads (' + resp.data.length + ')</div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Date</th><th>Name</th><th>Email</th><th>Phone</th><th>Source</th><th>Message</th></tr></thead><tbody>';
+    resp.data.forEach(function(l) {
+      html += '<tr><td>' + new Date(l.created_at).toLocaleDateString() + '</td><td>' + (l.first_name||'') + ' ' + (l.last_name||'') + '</td><td>' + (l.email||'') + '</td><td>' + (l.phone||'') + '</td><td><span class="admin-badge">' + (l.source||'') + '</span></td><td class="admin-msg-cell">' + (l.message||'').substring(0,80) + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+    c.innerHTML = html;
+  } catch(e) { c.innerHTML = '<p style="padding:2rem;color:var(--text-muted)">Error loading leads</p>'; }
+}
+
+async function loadAdminShowings() {
+  var c = document.getElementById('adminContent');
+  try {
+    var resp = await _sb.from('showing_requests').select('*').order('created_at', {ascending:false}).limit(50);
+    if(!resp.data || !resp.data.length) { c.innerHTML = '<p style="padding:2rem;color:var(--text-muted)">No showing requests yet</p>'; return; }
+    var html = '<div class="admin-section-title">Showing Requests (' + resp.data.length + ')</div><div class="admin-showings">';
+    resp.data.forEach(function(s) {
+      var pd = s.property_data || {};
+      var slots = s.preferred_slots || [];
+      var statusClass = s.status === 'confirmed' ? 'confirmed' : s.status === 'completed' ? 'completed' : s.status === 'cancelled' ? 'cancelled' : 'pending';
+      html += '<div class="admin-showing-card">' +
+        '<div class="admin-showing-header"><div class="admin-showing-prop">' + (pd.address||'Unknown') + ', ' + (pd.city||'') + '</div><span class="admin-status ' + statusClass + '">' + s.status + '</span></div>' +
+        '<div class="admin-showing-info"><span>👤 ' + (s.user_name||'') + '</span><span>📧 ' + (s.user_email||'') + '</span><span>📱 ' + (s.user_phone||'') + '</span></div>' +
+        '<div class="admin-showing-slots"><strong>Preferred times:</strong>';
+      slots.forEach(function(sl,i) { html += '<div class="admin-slot">' + (i+1) + '. ' + sl.date + ' at ' + sl.time + '</div>'; });
+      html += '</div>';
+      if(s.status === 'pending') {
+        html += '<div class="admin-showing-actions"><select id="confirmSlot_' + s.id + '">' + slots.map(function(sl,i){ return '<option value="' + i + '">' + sl.date + ' ' + sl.time + '</option>'; }).join('') + '</select><button class="admin-action-btn" onclick="confirmShowing(\'' + s.id + '\')">Confirm</button><button class="admin-action-btn cancel" onclick="updateShowingStatus(\'' + s.id + '\',\'cancelled\')">Cancel</button></div>';
+      }
+      html += '</div>';
+    });
+    html += '</div>';
+    c.innerHTML = html;
+  } catch(e) { c.innerHTML = '<p style="padding:2rem;color:var(--text-muted)">Error loading showings</p>'; }
+}
+async function confirmShowing(id) {
+  var sel = document.getElementById('confirmSlot_'+id);
+  if(!sel) return;
+  try {
+    var resp = await _sb.from('showing_requests').select('preferred_slots').eq('id', id).single();
+    var slot = resp.data.preferred_slots[parseInt(sel.value)];
+    await _sb.from('showing_requests').update({status:'confirmed', confirmed_slot:slot, updated_at:new Date().toISOString()}).eq('id', id);
+    loadAdminShowings();
+  } catch(e) { alert('Error confirming showing'); }
+}
+async function updateShowingStatus(id, status) {
+  try {
+    await _sb.from('showing_requests').update({status:status, updated_at:new Date().toISOString()}).eq('id', id);
+    loadAdminShowings();
+  } catch(e) { alert('Error updating status'); }
+}
+
+async function loadAdminQuestions() {
+  var c = document.getElementById('adminContent');
+  try {
+    var resp = await _sb.from('property_questions').select('*').order('created_at', {ascending:false}).limit(50);
+    if(!resp.data || !resp.data.length) { c.innerHTML = '<p style="padding:2rem;color:var(--text-muted)">No questions yet</p>'; return; }
+    var unanswered = resp.data.filter(function(q){ return !q.response_text; });
+    var answered = resp.data.filter(function(q){ return q.response_text; });
+    var html = '<div class="admin-section-title">Property Questions (' + unanswered.length + ' unanswered)</div><div class="admin-questions">';
+    if(unanswered.length) {
+      html += '<div class="admin-q-group-title">Unanswered</div>';
+      unanswered.forEach(function(q) {
+        var pd = q.property_data || {};
+        html += '<div class="admin-question-card unanswered"><div class="admin-q-header"><span class="admin-q-prop">' + (pd.address||'') + ', ' + (pd.city||'') + '</span><span class="admin-q-from">' + (q.user_name||'') + ' &middot; ' + timeAgo(q.created_at) + '</span></div><div class="admin-q-text">' + q.question_text + '</div><textarea id="qReply_' + q.id + '" class="admin-reply-ta" placeholder="Type your response..."></textarea><button class="admin-action-btn" onclick="replyToQuestion(\'' + q.id + '\')">Send Reply</button></div>';
+      });
+    }
+    if(answered.length) {
+      html += '<div class="admin-q-group-title" style="margin-top:1.5rem">Answered</div>';
+      answered.forEach(function(q) {
+        var pd = q.property_data || {};
+        html += '<div class="admin-question-card answered"><div class="admin-q-header"><span class="admin-q-prop">' + (pd.address||'') + '</span><span class="admin-q-from">' + (q.user_name||'') + '</span></div><div class="admin-q-text">' + q.question_text + '</div><div class="admin-q-reply"><strong>Your reply:</strong> ' + q.response_text + '</div></div>';
+      });
+    }
+    html += '</div>';
+    c.innerHTML = html;
+  } catch(e) { c.innerHTML = '<p style="padding:2rem;color:var(--text-muted)">Error loading questions</p>'; }
+}
+async function replyToQuestion(id) {
+  var ta = document.getElementById('qReply_'+id);
+  if(!ta || !ta.value.trim()) return;
+  try {
+    await _sb.from('property_questions').update({response_text: ta.value.trim(), responded_at: new Date().toISOString()}).eq('id', id);
+    // Create notification for the user
+    var q = await _sb.from('property_questions').select('user_id, property_key, property_data').eq('id', id).single();
+    if(q.data) {
+      await _sb.from('alert_notifications').insert({user_id: q.data.user_id, alert_type:'question_response', property_key: q.data.property_key, title:'Cory answered your question', message:'Your question about ' + ((q.data.property_data||{}).address||'a property') + ' has been answered.'});
+    }
+    loadAdminQuestions();
+  } catch(e) { alert('Error sending reply'); }
+}
+
+async function loadAdminAnalytics() {
+  var c = document.getElementById('adminContent');
+  try {
+    var [viewsResp, favsResp, usersResp] = await Promise.all([
+      _sb.from('viewing_history').select('property_key, property_data', {count:'exact'}).limit(500),
+      _sb.from('favorites').select('property_key', {count:'exact'}),
+      _sb.from('profiles').select('id, first_name, last_name, email, created_at', {count:'exact'}).order('created_at', {ascending:false}).limit(20)
+    ]);
+    var totalViews = viewsResp.count || 0;
+    var totalFavs = favsResp.count || 0;
+    var totalUsers = usersResp.count || 0;
+    // Most viewed properties
+    var viewCounts = {};
+    (viewsResp.data||[]).forEach(function(v) {
+      var k = v.property_key;
+      if(!viewCounts[k]) viewCounts[k] = {count:0, data:v.property_data};
+      viewCounts[k].count++;
+    });
+    var topViewed = Object.keys(viewCounts).map(function(k){ return {key:k, count:viewCounts[k].count, data:viewCounts[k].data}; }).sort(function(a,b){ return b.count-a.count; }).slice(0,5);
+    var html = '<div class="admin-section-title">Analytics</div><div class="admin-stats-grid">' +
+      '<div class="admin-stat-card"><div class="admin-stat-num">' + totalUsers + '</div><div class="admin-stat-label">Registered Users</div></div>' +
+      '<div class="admin-stat-card"><div class="admin-stat-num">' + totalViews + '</div><div class="admin-stat-label">Property Views</div></div>' +
+      '<div class="admin-stat-card"><div class="admin-stat-num">' + totalFavs + '</div><div class="admin-stat-label">Total Favorites</div></div>' +
+    '</div>';
+    if(topViewed.length) {
+      html += '<div class="admin-subsection-title">Most Viewed Properties</div><div class="admin-top-list">';
+      topViewed.forEach(function(v) {
+        var d = v.data || {};
+        html += '<div class="admin-top-item"><span>' + (d.address||v.key) + '</span><span class="admin-top-count">' + v.count + ' views</span></div>';
+      });
+      html += '</div>';
+    }
+    if(usersResp.data && usersResp.data.length) {
+      html += '<div class="admin-subsection-title">Recent Users</div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Name</th><th>Email</th><th>Joined</th></tr></thead><tbody>';
+      usersResp.data.forEach(function(u) {
+        html += '<tr><td>' + (u.first_name||'') + ' ' + (u.last_name||'') + '</td><td>' + (u.email||'') + '</td><td>' + new Date(u.created_at).toLocaleDateString() + '</td></tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+    c.innerHTML = html;
+  } catch(e) { c.innerHTML = '<p style="padding:2rem;color:var(--text-muted)">Error loading analytics</p>'; }
+}
+
+async function loadAdminContent() {
+  var c = document.getElementById('adminContent');
+  c.innerHTML = '<div class="admin-section-title">Content Management</div>' +
+    '<div class="admin-content-tabs"><button class="admin-content-tab active" onclick="loadAdminQAContent()" id="adminQATab">Q&A Library</button></div>' +
+    '<div id="adminContentArea"></div>';
+  loadAdminQAContent();
+}
+async function loadAdminQAContent() {
+  var area = document.getElementById('adminContentArea');
+  if(!area) return;
+  area.innerHTML = '<p style="color:var(--text-muted)">Loading...</p>';
+  try {
+    var resp = await _sb.from('qa_library').select('*').order('category').order('sort_order');
+    var items = resp.data || [];
+    var html = '<div style="margin-bottom:1rem"><button class="admin-action-btn" onclick="showAddQAForm()">+ Add Q&A Entry</button></div><div id="adminQAForm" style="display:none"></div>';
+    if(items.length) {
+      html += '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Category</th><th>Question</th><th>Published</th><th>Actions</th></tr></thead><tbody>';
+      items.forEach(function(q) {
+        html += '<tr><td>' + q.category + '</td><td>' + q.question.substring(0,60) + '</td><td>' + (q.is_published?'Yes':'No') + '</td><td><button class="admin-action-btn small" onclick="deleteQA(\'' + q.id + '\')">Delete</button></td></tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+    area.innerHTML = html;
+  } catch(e) { area.innerHTML = '<p style="color:var(--text-muted)">Error loading content</p>'; }
+}
+function showAddQAForm() {
+  var form = document.getElementById('adminQAForm');
+  if(!form) return;
+  form.style.display = '';
+  form.innerHTML = '<div class="admin-add-form"><select id="qaNewCat" class="form-input"><option value="moving-logistics">Moving Logistics</option><option value="weather">Weather & Seasons</option><option value="outdoors">Outdoors & Recreation</option><option value="schools">Schools & Education</option><option value="healthcare">Healthcare</option><option value="lifestyle">Lifestyle & Community</option><option value="real-estate">Real Estate Market</option></select><input id="qaNewQ" class="form-input" placeholder="Question"><textarea id="qaNewA" class="form-input" placeholder="Answer" rows="3"></textarea><button class="admin-action-btn" onclick="addQAEntry()">Save</button></div>';
+}
+async function addQAEntry() {
+  var cat = document.getElementById('qaNewCat').value;
+  var q = document.getElementById('qaNewQ').value.trim();
+  var a = document.getElementById('qaNewA').value.trim();
+  if(!q || !a) return;
+  try {
+    await _sb.from('qa_library').insert({category:cat, question:q, answer:a});
+    loadAdminQAContent();
+  } catch(e) { alert('Error adding entry'); }
+}
+async function deleteQA(id) {
+  if(!confirm('Delete this Q&A entry?')) return;
+  try { await _sb.from('qa_library').delete().eq('id', id); loadAdminQAContent(); } catch(e) { alert('Error deleting'); }
+}
+
+async function loadAdminNotifications() {
+  var c = document.getElementById('adminContent');
+  try {
+    var resp = await _sb.from('alert_notifications').select('*').order('created_at', {ascending:false}).limit(50);
+    if(!resp.data || !resp.data.length) { c.innerHTML = '<p style="padding:2rem;color:var(--text-muted)">No alerts sent yet</p>'; return; }
+    var html = '<div class="admin-section-title">Alert Log</div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Date</th><th>Type</th><th>User</th><th>Message</th><th>Read</th><th>Emailed</th></tr></thead><tbody>';
+    resp.data.forEach(function(n) {
+      html += '<tr><td>' + new Date(n.created_at).toLocaleDateString() + '</td><td><span class="admin-badge">' + n.alert_type + '</span></td><td>' + (n.user_id||'').substring(0,8) + '</td><td>' + (n.message||'').substring(0,60) + '</td><td>' + (n.is_read?'Yes':'No') + '</td><td>' + (n.email_sent?'Yes':'No') + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+    c.innerHTML = html;
+  } catch(e) { c.innerHTML = '<p style="padding:2rem;color:var(--text-muted)">Error loading notifications</p>'; }
+}
+
+// ═══ ADMIN PRINT: Agent Copy vs Client Copy ═══
+function printAgentCopy() {
+  var pp = document.getElementById('printPage');
+  if(!pp) return;
+  // Add agent-only section
+  var agentSection = document.getElementById('printAgentSection');
+  if(!agentSection) {
+    var div = document.createElement('div');
+    div.id = 'printAgentSection';
+    div.className = 'print-agent-section';
+    div.innerHTML = '<div class="print-agent-header">CONFIDENTIAL — Agent Use Only</div>' +
+      '<div class="print-agent-grid">' +
+        '<div class="print-agent-field"><label>Agent Remarks</label><div class="print-agent-value" id="printAgentRemarks">— Available with BBO feed —</div></div>' +
+        '<div class="print-agent-field"><label>Showing Instructions</label><div class="print-agent-value" id="printShowingInstr">— Available with BBO feed —</div></div>' +
+        '<div class="print-agent-field"><label>Buyer Agent Commission</label><div class="print-agent-value" id="printCommission">— Available with BBO feed —</div></div>' +
+        '<div class="print-agent-field"><label>Lockbox / Access</label><div class="print-agent-value" id="printLockbox">— Available with BBO feed —</div></div>' +
+      '</div>';
+    var footer = pp.querySelector('.print-page-footer');
+    if(footer) pp.insertBefore(div, footer);
+    else pp.appendChild(div);
+  }
+  agentSection = document.getElementById('printAgentSection');
+  if(agentSection) agentSection.style.display = '';
+  propShare('print');
+}
+function printClientCopy() {
+  var agentSection = document.getElementById('printAgentSection');
+  if(agentSection) agentSection.style.display = 'none';
+  propShare('print');
+}
 
 // ═══ TOWN PAGE INITIALIZATION ═══
 // When app.js loads on a standalone town page, wire cards, search, and filters
