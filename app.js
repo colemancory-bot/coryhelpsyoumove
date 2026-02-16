@@ -2074,7 +2074,14 @@ document.addEventListener('keydown', function(e){
 var SUPABASE_URL = 'https://kzaabnnwjupjqvydiqlz.supabase.co';
 var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6YWFibm53anVwanF2eWRpcWx6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExMTE5NDMsImV4cCI6MjA4NjY4Nzk0M30.2B2sJnAuDim_yhn5UFKxXzdZw58ne4E20-ulW8pTwPA';
 var _sb = null;
-try { _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY); } catch(e){ console.warn('[Supabase] Could not init:', e); }
+try { _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    storageKey: 'cc-supabase-auth',
+    storage: window.localStorage
+  }
+}); } catch(e){ console.warn('[Supabase] Could not init:', e); }
 
 // ═══ LOAD REVIEWS FROM SUPABASE ═══
 (function(){
@@ -2174,6 +2181,16 @@ async function initSupabaseAuth() {
       _currentUser = sess.data.session.user;
       await loadFavoritesFromCloud();
       updateAcctUI();
+    } else {
+      // Session expired — try to refresh silently
+      var refresh = await _sb.auth.refreshSession();
+      if(refresh.data && refresh.data.session) {
+        _acctLoggedIn = true;
+        _currentUser = refresh.data.session.user;
+        await loadFavoritesFromCloud();
+        updateAcctUI();
+        console.log('[Auth] Session refreshed successfully');
+      }
     }
     // Listen for auth changes (login/logout/token refresh)
     _sb.auth.onAuthStateChange(function(event, session) {
@@ -2181,12 +2198,13 @@ async function initSupabaseAuth() {
         _acctLoggedIn = true;
         _currentUser = session.user;
         if(event === 'SIGNED_IN') loadFavoritesFromCloud();
-      } else {
+      } else if(event === 'SIGNED_OUT') {
         _acctLoggedIn = false;
         _currentUser = null;
         _favProps = {};
         saveFavs();
       }
+      // Don't log out on TOKEN_REFRESHED failures — keep cached state
       updateAcctUI();
     });
   } catch(e){ console.warn('[Supabase] Auth init error:', e); }
