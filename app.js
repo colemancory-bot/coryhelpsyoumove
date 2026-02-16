@@ -1967,7 +1967,7 @@ document.addEventListener('click', function(e) {
 });
 
 
-// Fade in scroll-over gradient on scroll
+// Fade in scroll-over gradient + hero darken on scroll
 (function(){
   var overlay = document.getElementById('propOverlay');
   if (!overlay) return;
@@ -1976,6 +1976,13 @@ document.addEventListener('click', function(e) {
     if (area) {
       if (overlay.scrollTop > 30) area.classList.add('scroll-fade');
       else area.classList.remove('scroll-fade');
+    }
+    // Darken hero image as user scrolls
+    var hero = document.querySelector('.prop-hero');
+    if (hero) {
+      var heroH = hero.offsetHeight || 500;
+      var fade = Math.min(overlay.scrollTop / heroH, 0.85);
+      hero.style.setProperty('--hero-fade', fade);
     }
   });
 })();
