@@ -3089,12 +3089,14 @@ function renderCompareTable() {
     tr.setAttribute('data-field', field);
 
     var th = document.createElement('td');
+    th.className = 'compare-criteria-cell';
     th.innerHTML = '<div class="compare-row-header">'+
-      '<div class="compare-move-btns">'+
-        '<button class="compare-move-btn" onclick="compareMove('+rowIdx+',-1)" title="Move up">&#9650;</button>'+
-        '<button class="compare-move-btn" onclick="compareMove('+rowIdx+',1)" title="Move down">&#9660;</button>'+
-      '</div>'+
-      '<span>'+_compareRowLabels[field]+'</span></div>';
+      '<div class="compare-move-zone compare-move-up" data-row="'+rowIdx+'" title="Move up">&#9650;</div>'+
+      '<span class="compare-criteria-label">'+_compareRowLabels[field]+'</span>'+
+      '<div class="compare-move-zone compare-move-down" data-row="'+rowIdx+'" title="Move down">&#9660;</div>'+
+    '</div>';
+    th.querySelector('.compare-move-up').addEventListener('click', function(){ compareMove(rowIdx, -1); });
+    th.querySelector('.compare-move-down').addEventListener('click', function(){ compareMove(rowIdx, 1); });
     tr.appendChild(th);
 
     var vals = _compareSelected.map(function(l){return getCompareVal(l, field)});
