@@ -354,6 +354,25 @@ ul{list-style:none}
 .f-card:hover .f-card-img img{transform:scale(1.04)}
 .f-card-badge{position:absolute;top:0.75rem;left:0.75rem;padding:0.3rem 0.65rem;font-size:0.55rem;font-weight:500;letter-spacing:0.15em;text-transform:uppercase;background:var(--gold);color:var(--bg)}
 .f-card-badge.land{background:var(--green)}
+/* Card favorite heart icon */
+.card-fav-heart{
+  position:absolute;bottom:0.6rem;right:0.6rem;z-index:3;
+  width:32px;height:32px;border-radius:50%;border:none;
+  background:rgba(12,11,9,0.55);backdrop-filter:blur(4px);
+  color:rgba(255,255,255,0.55);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  padding:0;transition:all 0.25s;
+}
+.card-fav-heart svg{width:16px;height:16px;transition:transform 0.25s}
+.card-fav-heart:hover{background:rgba(12,11,9,0.75);color:rgba(255,255,255,0.85);transform:scale(1.1)}
+.card-fav-heart.saved{color:var(--gold);background:rgba(12,11,9,0.75)}
+.card-fav-heart.saved svg{transform:scale(1.15)}
+.card-fav-heart.saved:hover{color:#fff;background:rgba(180,80,80,0.7)}
+[data-theme="light"] .card-fav-heart{background:rgba(255,255,255,0.65);color:rgba(0,0,0,0.35)}
+[data-theme="light"] .card-fav-heart:hover{background:rgba(255,255,255,0.85);color:rgba(0,0,0,0.6)}
+[data-theme="light"] .card-fav-heart.saved{color:var(--gold);background:rgba(255,255,255,0.85)}
+[data-theme="light"] .card-fav-heart.saved:hover{color:#c04040;background:rgba(255,255,255,0.9)}
+
 .f-card-body{padding:1.15rem 1.35rem}
 .f-card-price{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.45rem;font-weight:500;color:var(--cream);margin-bottom:0.15rem}
 .f-card-addr{font-size:0.82rem;color:var(--text-body);margin-bottom:0.1rem}
@@ -1093,6 +1112,8 @@ textarea.form-input{resize:vertical;min-height:100px}
 .sr-card-img img{width:100%;height:100%;object-fit:cover}
 .sr-card-img .sr-card-badge{position:absolute;top:0.35rem;left:0.35rem;font-size:0.45rem;letter-spacing:0.1em;text-transform:uppercase;padding:0.15rem 0.45rem;background:var(--gold);color:var(--bg);font-weight:600}
 .sr-card-img .sr-card-badge.land{background:var(--green-soft, #5a8a5a)}
+.sr-card-img .card-fav-heart{width:26px;height:26px;bottom:0.35rem;right:0.35rem}
+.sr-card-img .card-fav-heart svg{width:13px;height:13px}
 .sr-card-body{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;padding:0.65rem 0.75rem 0.75rem}
 .sr-card-price{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.25rem;font-weight:400;color:var(--cream);line-height:1.1;margin-bottom:0.15rem}
 .sr-card-addr{font-size:0.78rem;color:var(--text-body);margin-bottom:0.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

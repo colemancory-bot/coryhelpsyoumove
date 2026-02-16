@@ -251,7 +251,7 @@ var SIMPLYRETS = {
           var c=document.createElement('div');c.className='f-card reveal vis';
           var feats=l.type==='Land'?'<span class="f-feat"><strong>'+l.lot+'</strong></span>':'<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+l.sqft.toLocaleString()+'</strong> SF</span>';
           var imgSrc = l.photo || 'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=700&q=80';
-          c.innerHTML='<div class="f-card-img"><img src="'+imgSrc+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge '+(l.type==='Land'?'land':'')+'">'+l.type+'</div></div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+l.city+', NC</div><div class="f-card-features">'+feats+'</div></div>';
+          c.innerHTML='<div class="f-card-img"><img src="'+imgSrc+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge '+(l.type==='Land'?'land':'')+'">'+l.type+'</div>'+cardFavHtml(l.address,l.city)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+l.city+', NC</div><div class="f-card-features">'+feats+'</div></div>';
           c.onclick=function(){try{openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,lot:l.lot,restrictions:l.restrictions||'unrestricted',status:l.status||'Active',photo:l.photo||null,photos:l.photos||[],description:l.description||''},l.city)}catch(err){console.error(err)}};
           grid.appendChild(c);
         });
@@ -330,7 +330,7 @@ function renderFeatured(){
   LISTINGS.slice(0,6).forEach(function(l,i){
     const c=document.createElement('div');c.className='f-card reveal';
     const feats=l.type==='Land'?'<span class="f-feat"><strong>'+l.lot+'</strong></span>':'<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+l.sqft.toLocaleString()+'</strong> SF</span>';
-    c.innerHTML='<div class="f-card-img"><img src="'+l.photo+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge '+(l.type==='Land'?'land':'')+'">'+l.type+'</div></div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+l.city+', NC</div><div class="f-card-features">'+feats+'</div></div>';
+    c.innerHTML='<div class="f-card-img"><img src="'+l.photo+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge '+(l.type==='Land'?'land':'')+'">'+l.type+'</div>'+cardFavHtml(l.address,l.city)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+l.city+', NC</div><div class="f-card-features">'+feats+'</div></div>';
     c.onclick=function(){try{openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,lot:l.lot,restrictions:l.restrictions||'unrestricted',status:l.status||'Active',photo:l.photo||null,photos:l.photos||[],description:l.description||''},l.city)}catch(err){console.error(err)}};
     grid.appendChild(c);
   });
@@ -1135,7 +1135,7 @@ function renderTownResults(townId,results,townName){
     var feats=l.type==='Land'?'<span class="f-feat"><strong>'+l.lot+'</strong></span>':'<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+l.sqft.toLocaleString()+'</strong> SF</span>';
     var badge=l.type==='Land'?' land':'';
     var statusBadge=l.status==='Under Contract'?'<div style="position:absolute;top:0.75rem;right:0.75rem;padding:0.25rem 0.5rem;font-size:0.5rem;letter-spacing:0.1em;text-transform:uppercase;background:var(--red-soft);color:#fff">Under Contract</div>':'';
-    c.innerHTML='<div class="f-card-img" style="position:relative"><div style="aspect-ratio:16/10;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.75rem">Property Photo</div><div class="f-card-badge'+badge+'">'+l.type+'</div>'+statusBadge+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+townName+', NC</div><div class="f-card-features">'+feats+'</div></div>';
+    c.innerHTML='<div class="f-card-img" style="position:relative"><div style="aspect-ratio:16/10;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.75rem">Property Photo</div><div class="f-card-badge'+badge+'">'+l.type+'</div>'+statusBadge+cardFavHtml(l.address,townName)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+townName+', NC</div><div class="f-card-features">'+feats+'</div></div>';
     (function(listing,town){c.onclick=function(){try{openProp(listing,town)}catch(err){console.error(err)}}})(l,townName);
     grid.appendChild(c);
   });
@@ -1409,7 +1409,7 @@ function openProp(listing, townName) {
     var feats=l.type==='Land'?'<span class="f-feat"><strong>'+l.lot+'</strong></span>':'<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+l.sqft.toLocaleString()+'</strong> SF</span>';
     var simImgs=PROP_IMAGES[l.type]||PROP_IMAGES['Single Family'];
     var simImg=simImgs[Math.floor(Math.random()*simImgs.length)].replace('w=1200','w=700');
-    c.innerHTML='<div class="f-card-img"><img src="'+simImg+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge'+(l.type==='Land'?' land':'')+'">'+l.type+'</div></div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+(l._town||townName)+', NC</div><div class="f-card-features">'+feats+'</div></div>';
+    c.innerHTML='<div class="f-card-img"><img src="'+simImg+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge'+(l.type==='Land'?' land':'')+'">'+l.type+'</div>'+cardFavHtml(l.address, l._town||townName)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+(l._town||townName)+', NC</div><div class="f-card-features">'+feats+'</div></div>';
     c.onclick=function(){openProp(l,l._town||townName)};
     simEl.appendChild(c);
   });
@@ -1888,7 +1888,7 @@ function srRenderCards(results){
     var badgeClass = l.type === 'Land' ? 'sr-card-badge land' : 'sr-card-badge';
     var statusHtml = l.status === 'Under Contract' ? '<div class="sr-card-status">Under Contract</div>' : '';
 
-    card.innerHTML = '<div class="sr-card-img">' + imgHtml + '<div class="' + badgeClass + '">' + l.type + '</div></div>' +
+    card.innerHTML = '<div class="sr-card-img">' + imgHtml + '<div class="' + badgeClass + '">' + l.type + '</div>' + cardFavHtml(l.address, l.city) + '</div>' +
       '<div class="sr-card-body">' +
         '<div class="sr-card-price">$' + l.price.toLocaleString() + '</div>' +
         '<div class="sr-card-addr">' + l.address + '</div>' +
@@ -2652,6 +2652,40 @@ function applyGateToElement(valEl) {
   }
 }
 
+// --- Favorite toggle from property card heart icon ---
+function toggleCardFav(e, address, city) {
+  e.stopPropagation(); // Don't open property details
+  if(!_acctLoggedIn) { openAcctModal(); return; }
+  var key = (address + '|' + (city||'')).toLowerCase();
+  if(_favProps[key]) {
+    delete _favProps[key];
+    saveFavs();
+    saveFavToCloud(key, false);
+  } else {
+    _favProps[key] = true;
+    saveFavs();
+    saveFavToCloud(key, true);
+  }
+  // Update all heart icons on page for this property
+  document.querySelectorAll('.card-fav-heart[data-key="'+key+'"]').forEach(function(h){
+    h.classList.toggle('saved', !!_favProps[key]);
+  });
+  // Update property detail save button if same property is open
+  if(_currentPropKey === key) updateFavBtn();
+  srApplyViewedFavStates();
+  // Update account dashboard fav count
+  var favCount = Object.keys(_favProps).filter(function(k){return _favProps[k]}).length;
+  var fc = document.getElementById('acctFavCount');
+  if(fc) fc.textContent = favCount;
+}
+
+// Helper: generate heart icon HTML for a property card
+function cardFavHtml(address, city) {
+  var key = (address + '|' + (city||'')).toLowerCase();
+  var saved = _favProps[key] ? ' saved' : '';
+  return '<button class="card-fav-heart'+saved+'" data-key="'+key+'" onclick="toggleCardFav(event,\''+address.replace(/'/g,"\\'")+'\',\''+city.replace(/'/g,"\\'")+'\')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></button>';
+}
+
 // --- Favorite toggle on property detail ---
 var _currentPropKey = '';
 function toggleFavProp() {
@@ -2937,7 +2971,7 @@ function buildCorysSuggestions(currentListing, townName) {
       ? '<span class="f-feat"><strong>'+l.lot+'</strong></span>'
       : '<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+(l.sqft||0).toLocaleString()+'</strong> SF</span>';
     var imgSrc = l.photo || (PROP_IMAGES[l.type]||PROP_IMAGES['Single Family'])[0].replace('w=1200','w=700');
-    c.innerHTML = '<div class="f-card-img"><img src="'+imgSrc+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge'+(l.type==='Land'?' land':'')+'">' + l.type + '</div><div class="f-card-badge" style="right:auto;left:0.75rem;background:var(--gold);color:var(--bg);font-size:0.5rem">Suggested</div></div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+(l.city||townName)+', NC</div><div class="f-card-features">'+feats+'</div></div>';
+    c.innerHTML = '<div class="f-card-img"><img src="'+imgSrc+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge'+(l.type==='Land'?' land':'')+'">' + l.type + '</div><div class="f-card-badge" style="right:auto;left:0.75rem;background:var(--gold);color:var(--bg);font-size:0.5rem">Suggested</div>'+cardFavHtml(l.address, l.city||townName)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+(l.city||townName)+', NC</div><div class="f-card-features">'+feats+'</div></div>';
     c.onclick = function(){ openProp(l, l.city||townName); };
     grid.appendChild(c);
   });
@@ -3228,6 +3262,12 @@ openProp = function(listing, townName) {
 
 // --- Apply viewed/favorited states to search result cards & map markers ---
 function srApplyViewedFavStates() {
+  // Update ALL heart icons on page (all card types)
+  document.querySelectorAll('.card-fav-heart').forEach(function(h){
+    var k = h.getAttribute('data-key');
+    if(k) h.classList.toggle('saved', !!_favProps[k]);
+  });
+
   if(!_srCurrentResults || !_srCurrentResults.length) return;
 
   var cards = document.querySelectorAll('.sr-card');
