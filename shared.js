@@ -151,7 +151,8 @@ document.addEventListener('DOMContentLoaded', function(){
       card.style.cursor = 'pointer';
       card.onclick = function(){
         var base = window.location.pathname.indexOf('/towns/') > -1 ? '../index.html' : '/index.html';
-        var url = base + '?prop=' + encodeURIComponent(addr) + '&city=' + encodeURIComponent(city);
+        var returnUrl = window.location.href;
+        var url = base + '?prop=' + encodeURIComponent(addr) + '&city=' + encodeURIComponent(city) + '&ref=' + encodeURIComponent(returnUrl);
         window.location.href = url;
       };
     });

@@ -1456,6 +1456,13 @@ function closeProp(fromPopstate) {
   if(!searchOv || !searchOv.classList.contains('active')){
     document.body.style.overflow = '';
   }
+  // If user came from a town page, go back there
+  if(_propDeepLinkRef) {
+    var returnUrl = _propDeepLinkRef;
+    _propDeepLinkRef = null;
+    window.location.href = returnUrl;
+    return;
+  }
   if (!fromPopstate && history.state && history.state.page === 'property') {
     window._propJustClosed = true;
     history.back();
@@ -3419,12 +3426,15 @@ if(SIMPLYRETS.enabled) {
 }
 
 // ═══ DEEP LINK: Open property from ?prop=address&city=town query params ═══
+var _propDeepLinkRef = null; // Return URL when coming from town page
 function _checkPropDeepLink(){
   try {
     var params = new URLSearchParams(window.location.search);
     var propAddr = params.get('prop');
     var propCity = params.get('city');
+    var ref = params.get('ref');
     if(!propAddr) return;
+    if(ref) _propDeepLinkRef = ref;
     // Clean URL without reloading
     history.replaceState(null, '', window.location.pathname);
     // Search ALL_LISTINGS for a match
