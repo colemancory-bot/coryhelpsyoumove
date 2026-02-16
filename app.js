@@ -1409,6 +1409,35 @@ function propShare(type) {
   } else if (type === 'email') {
     window.location.href = 'mailto:?subject=Check out this property in Western NC&body=' + encodeURIComponent(addr + ' — ' + price + '\n\nView at coryhelpsyoumove.com');
   } else if (type === 'print') {
+    if(!_acctLoggedIn) { openAcctModal(); return; }
+    // Populate print page
+    var heroImg = document.getElementById('propHeroImg');
+    document.getElementById('printThumb').src = heroImg ? heroImg.src : '';
+    document.getElementById('printPrice').textContent = price;
+    document.getElementById('printAddr').textContent = addr;
+    document.getElementById('printCity').textContent = document.getElementById('propCity').textContent || '';
+    document.getElementById('printDate').textContent = 'Printed: ' + new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+    // Stats from the stats ribbon
+    var statsEl = document.getElementById('propStats');
+    var printStatsEl = document.getElementById('printStats');
+    if(statsEl && printStatsEl){
+      var statDivs = statsEl.querySelectorAll('.prop-stat');
+      printStatsEl.innerHTML = '';
+      statDivs.forEach(function(s){
+        var val = s.querySelector('.prop-stat-val');
+        var label = s.querySelector('.prop-stat-label');
+        if(val && label){
+          printStatsEl.innerHTML += '<div class="print-page-stat"><div class="print-page-stat-val">'+val.textContent+'</div><div class="print-page-stat-label">'+label.textContent+'</div></div>';
+        }
+      });
+    }
+    // Description
+    var d1 = document.getElementById('propDesc1');
+    document.getElementById('printDesc').textContent = d1 ? d1.textContent.substring(0,250) : '';
+    // Your Notes (from the notes textarea if it exists)
+    var notesTA = document.getElementById('propNotesTA');
+    var printNotes = document.getElementById('printYourNotes');
+    if(notesTA && printNotes) printNotes.textContent = notesTA.value || '(No notes yet)';
     window.print();
   }
 }
@@ -1416,6 +1445,13 @@ function propShare(type) {
 // Handle popstate for property page
 var _origPopstate = window.onpopstate;
 window.addEventListener('popstate', function(e) {
+  // Close compare overlay if open
+  var compareOv = document.getElementById('compareOverlay');
+  if(compareOv && compareOv.classList.contains('active')) {
+    compareOv.classList.remove('active');
+    document.body.style.overflow = '';
+    return;
+  }
   // Close lightbox first if open
   var lb = document.getElementById('propLightbox');
   if (lb && lb.classList.contains('open')) {
@@ -2143,6 +2179,7 @@ function openAcctModal() {
     document.getElementById('acctFavCount').textContent = favCount ? favCount + ' saved propert' + (favCount===1?'y':'ies') : 'No favorites yet';
     // Load saved searches
     loadSavedSearchesUI();
+    buildDashboardSuggestions();
     modal.classList.add('open');
     return;
   }
@@ -2531,10 +2568,515 @@ function updateFavBtn() {
   }
 }
 
+// ═══ CORY'S TAKE — Dynamic market insights (Fair Housing compliant) ═══
+function buildCorysTake(listing, townName) {
+  var container = document.getElementById('corysTake');
+  var insightsEl = document.getElementById('corysTakeInsights');
+  if(!container || !insightsEl) return;
+
+  // Find the town slug
+  var townSlug = null;
+  Object.keys(TOWN_LISTINGS).forEach(function(k){
+    if(TOWN_LISTINGS[k].display === townName) townSlug = k;
+  });
+  if(!townSlug || !TOWN_LISTINGS[townSlug]) { container.style.display='none'; return; }
+
+  var areaListings = TOWN_LISTINGS[townSlug].listings;
+  var insights = [];
+  var dollarIcon = '<svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>';
+  var clockIcon = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>';
+  var checkIcon = '<svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>';
+  var lotIcon = '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>';
+  var homeIcon = '<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M9 22V12h6v10"/></svg>';
+  var starIcon = '<svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+
+  // --- Insight: $/sqft vs area average (homes) ---
+  if(listing.type !== 'Land' && listing.sqft > 0) {
+    var homes = areaListings.filter(function(l){ return l.type !== 'Land' && l.sqft > 0 && l.price > 0; });
+    if(homes.length >= 3) {
+      var avgPsf = homes.reduce(function(s,l){ return s + l.price/l.sqft; }, 0) / homes.length;
+      var thisPsf = listing.price / listing.sqft;
+      var psfDiff = ((thisPsf - avgPsf) / avgPsf * 100);
+      var absDiff = Math.abs(Math.round(psfDiff));
+      if(absDiff >= 5) {
+        if(psfDiff < 0) {
+          insights.push({ icon: dollarIcon, text: 'Priced at <strong>$'+Math.round(thisPsf)+'/sqft</strong> — <span class="insight-great">'+absDiff+'% below</span> the '+townName+' average of $'+Math.round(avgPsf)+'/sqft. Strong value positioning.' });
+        } else {
+          insights.push({ icon: dollarIcon, text: 'At <strong>$'+Math.round(thisPsf)+'/sqft</strong>, this property reflects <span class="insight-note">premium quality</span> for '+townName+' (avg $'+Math.round(avgPsf)+'/sqft) — often indicative of superior finishes or setting.' });
+        }
+      }
+    }
+  }
+
+  // --- Insight: $/acre vs area average (land) ---
+  if(listing.type === 'Land' && listing.lot) {
+    var acres = parseFloat(listing.lot);
+    if(acres > 0) {
+      var lands = areaListings.filter(function(l){ return l.type === 'Land' && l.lot && parseFloat(l.lot) > 0 && l.price > 0; });
+      if(lands.length >= 2) {
+        var avgPpa = lands.reduce(function(s,l){ return s + l.price/parseFloat(l.lot); }, 0) / lands.length;
+        var thisPpa = listing.price / acres;
+        var ppaDiff = ((thisPpa - avgPpa) / avgPpa * 100);
+        var absPpaDiff = Math.abs(Math.round(ppaDiff));
+        if(absPpaDiff >= 8) {
+          if(ppaDiff < 0) {
+            insights.push({ icon: lotIcon, text: 'At <strong>$'+Math.round(thisPpa).toLocaleString()+'/acre</strong>, this parcel is <span class="insight-great">'+absPpaDiff+'% below</span> the '+townName+' average of $'+Math.round(avgPpa).toLocaleString()+'/acre — excellent value for the area.' });
+          } else {
+            insights.push({ icon: lotIcon, text: 'At <strong>$'+Math.round(thisPpa).toLocaleString()+'/acre</strong>, this parcel commands a <span class="insight-note">premium</span> over the area average — often reflecting views, access, or desirable topography.' });
+          }
+        }
+      }
+    }
+  }
+
+  // --- Insight: Days on market ---
+  var dom = listing.daysOnMarket || listing.days || 0;
+  if(dom > 0) {
+    var listingsWithDom = areaListings.filter(function(l){ return (l.daysOnMarket || 0) > 0; });
+    if(listingsWithDom.length >= 3) {
+      var avgDom = listingsWithDom.reduce(function(s,l){ return s + (l.daysOnMarket||0); }, 0) / listingsWithDom.length;
+      if(dom < avgDom * 0.6) {
+        insights.push({ icon: clockIcon, text: 'Only <strong>'+dom+' days on market</strong> — well below the '+townName+' average of '+Math.round(avgDom)+' days. <span class="insight-note">Fresh listing generating early interest.</span>' });
+      } else if(dom > avgDom * 1.5 && dom > 30) {
+        insights.push({ icon: clockIcon, text: 'At <strong>'+dom+' days on market</strong> ('+townName+' avg: '+Math.round(avgDom)+'), <span class="insight-great">this listing may present a strong negotiation opportunity.</span>' });
+      } else {
+        insights.push({ icon: clockIcon, text: 'At <strong>'+dom+' days on market</strong>, this property is tracking near the '+townName+' average of '+Math.round(avgDom)+' days — healthy market activity.' });
+      }
+    }
+  }
+
+  // --- Insight: Price vs median for similar properties ---
+  if(listing.type !== 'Land' && listing.beds > 0 && listing.price > 0) {
+    var similar = areaListings.filter(function(l){
+      return l.type === listing.type && l.beds >= listing.beds-1 && l.beds <= listing.beds+1 && l.price > 0;
+    });
+    if(similar.length >= 3) {
+      var prices = similar.map(function(l){ return l.price; }).sort(function(a,b){ return a-b; });
+      var median = prices[Math.floor(prices.length/2)];
+      var valDiff = ((listing.price - median) / median * 100);
+      var absValDiff = Math.abs(Math.round(valDiff));
+      if(valDiff < -8) {
+        insights.push({ icon: checkIcon, text: '<span class="insight-great">Priced '+absValDiff+'% below the median</span> for comparable '+listing.beds+'-bedroom '+listing.type.toLowerCase()+'s in '+townName+'. Well-positioned for value-minded buyers.' });
+      } else if(valDiff > 15) {
+        insights.push({ icon: starIcon, text: 'This '+listing.beds+'-bedroom '+listing.type.toLowerCase()+' is positioned at the <span class="insight-note">upper end of the market</span> — likely reflecting upgraded features, views, or lot quality.' });
+      }
+    }
+  }
+
+  // --- Insight: Lot size advantage ---
+  if(listing.lot) {
+    var thisAcres = parseFloat(listing.lot);
+    if(thisAcres > 0) {
+      var sameTypeWithLot = areaListings.filter(function(l){ return l.lot && parseFloat(l.lot) > 0 && l.type === listing.type; });
+      if(sameTypeWithLot.length >= 3) {
+        var avgLot = sameTypeWithLot.reduce(function(s,l){ return s + parseFloat(l.lot); }, 0) / sameTypeWithLot.length;
+        if(thisAcres > avgLot * 1.5 && thisAcres - avgLot > 0.5) {
+          insights.push({ icon: lotIcon, text: '<strong>'+listing.lot+'</strong> — <span class="insight-great">significantly more land</span> than the '+townName+' average of '+avgLot.toFixed(1)+' acres for this property type. Great for privacy and outdoor space.' });
+        }
+      }
+    }
+  }
+
+  // --- Insight: Year built ---
+  if(listing.yearBuilt && listing.yearBuilt > 1900) {
+    var currentYear = new Date().getFullYear();
+    var age = currentYear - listing.yearBuilt;
+    if(age <= 5) {
+      insights.push({ icon: homeIcon, text: 'Built in <strong>'+listing.yearBuilt+'</strong> — <span class="insight-great">newer construction</span> with modern building standards, energy efficiency, and current design features.' });
+    } else if(age >= 40) {
+      insights.push({ icon: homeIcon, text: 'Built in <strong>'+listing.yearBuilt+'</strong> — an established property with <span class="insight-note">proven construction</span> and mature landscaping. Character and craftsmanship from a different era.' });
+    }
+  }
+
+  // --- Insight: Overall value score ---
+  if(insights.length >= 2 && listing.price > 0) {
+    var positiveCount = 0;
+    insights.forEach(function(ins){ if(ins.text.indexOf('insight-great') > -1) positiveCount++; });
+    if(positiveCount >= 2) {
+      insights.push({ icon: starIcon, text: '<span class="insight-great">Multiple value indicators</span> suggest this property is well-positioned in the '+townName+' market. Worth a closer look.' });
+    }
+  }
+
+  // Show max 5 insights
+  insights = insights.slice(0, 5);
+
+  if(insights.length === 0) { container.style.display='none'; return; }
+
+  insightsEl.innerHTML = insights.map(function(ins){
+    return '<div class="corys-take-insight"><div class="corys-take-insight-icon">'+ins.icon+'</div><div>'+ins.text+'</div></div>';
+  }).join('');
+  container.style.display = '';
+}
+
+// ═══ CORY'S SUGGESTIONS — Personalized recommendations ═══
+function analyzeFavoritePatterns() {
+  var favKeys = Object.keys(_favProps).filter(function(k){ return _favProps[k]; });
+  if(favKeys.length < 2) return null;
+  // Resolve to listings
+  var favListings = [];
+  ALL_LISTINGS.forEach(function(l){
+    var key = propKey(l, l.city);
+    if(_favProps[key]) favListings.push(l);
+  });
+  if(favListings.length < 2) return null;
+
+  var types={}, towns={}, restrictions={};
+  var priceSum=0, priceCount=0;
+
+  favListings.forEach(function(l){
+    types[l.type] = (types[l.type]||0)+1;
+    towns[l.city] = (towns[l.city]||0)+1;
+    restrictions[l.restrictions] = (restrictions[l.restrictions]||0)+1;
+    if(l.price>0){priceSum+=l.price;priceCount++}
+  });
+
+  var topType = Object.keys(types).sort(function(a,b){return types[b]-types[a]})[0];
+  var topTown = Object.keys(towns).sort(function(a,b){return towns[b]-towns[a]})[0];
+  var topRestriction = Object.keys(restrictions).sort(function(a,b){return restrictions[b]-restrictions[a]})[0];
+  var avgPrice = priceCount ? priceSum/priceCount : 0;
+
+  return {
+    favListings:favListings, topType:topType, topTypeCount:types[topType]||0,
+    topTown:topTown, topTownCount:towns[topTown]||0,
+    topRestriction:topRestriction, avgPrice:avgPrice,
+    priceMin:avgPrice*0.5, priceMax:avgPrice*1.8,
+    totalFavs:favListings.length
+  };
+}
+
+function findSuggestionsFromPatterns(patterns, excludeAddress) {
+  if(!patterns) return [];
+  var scored = [];
+  ALL_LISTINGS.forEach(function(l){
+    var key = propKey(l, l.city);
+    if(_favProps[key]) return;
+    if(excludeAddress && l.address === excludeAddress) return;
+    var score = 0;
+    if(l.type === patterns.topType) score += 3;
+    if(l.city === patterns.topTown) score += 2;
+    if(l.price >= patterns.priceMin && l.price <= patterns.priceMax) score += 2;
+    if(l.restrictions === patterns.topRestriction) score += 1;
+    if(score >= 3) scored.push({listing:l, score:score});
+  });
+  scored.sort(function(a,b){return b.score-a.score});
+  return scored.slice(0,3).map(function(s){return s.listing});
+}
+
+// Fallback: find suggestions based on current property (for non-logged-in users)
+function findSuggestionsFromCurrent(currentListing) {
+  if(!currentListing) return [];
+  var scored = [];
+  ALL_LISTINGS.forEach(function(l){
+    if(l.address === currentListing.address && l.price === currentListing.price) return;
+    var score = 0;
+    if(l.type === currentListing.type) score += 3;
+    if(l.city === (currentListing.city || window._currentTownName)) score += 2;
+    if(currentListing.price > 0 && l.price >= currentListing.price*0.5 && l.price <= currentListing.price*1.8) score += 2;
+    if(score >= 4) scored.push({listing:l, score:score});
+  });
+  scored.sort(function(a,b){return b.score-a.score});
+  return scored.slice(0,3).map(function(s){return s.listing});
+}
+
+function buildCorysSuggestions(currentListing, townName) {
+  var container = document.getElementById('corysSuggestions');
+  if(!container) return;
+
+  var patterns = analyzeFavoritePatterns();
+  var suggestions, reason;
+
+  if(patterns) {
+    suggestions = findSuggestionsFromPatterns(patterns, currentListing ? currentListing.address : null);
+    if(suggestions.length > 0) {
+      reason = 'You\'ve saved ' + patterns.topTypeCount + ' ' + patterns.topType.toLowerCase() +
+        (patterns.topTypeCount > 1 ? ' properties':'') +
+        (patterns.topTownCount >= 2 ? ' in '+patterns.topTown : '') +
+        ' \u2014 here are '+suggestions.length+' more you might like.';
+    }
+  }
+
+  // Fallback for non-logged-in users or no favorites match
+  if(!suggestions || suggestions.length === 0) {
+    suggestions = findSuggestionsFromCurrent(currentListing);
+    if(suggestions.length > 0) {
+      var tn = townName || (currentListing ? currentListing.city : 'this area');
+      reason = 'Based on this '+((currentListing && currentListing.type) || 'property').toLowerCase()+' in '+tn+', here are similar listings you might want to explore.';
+    }
+  }
+
+  if(!suggestions || suggestions.length === 0) {
+    container.style.display = 'none';
+    return;
+  }
+
+  document.getElementById('corysSuggestionsReason').textContent = reason;
+  var grid = document.getElementById('corysSuggestionsGrid');
+  grid.innerHTML = '';
+  suggestions.forEach(function(l){
+    var c = document.createElement('div');
+    c.className = 'f-card'; c.style.cursor = 'pointer';
+    var feats = l.type === 'Land'
+      ? '<span class="f-feat"><strong>'+l.lot+'</strong></span>'
+      : '<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+(l.sqft||0).toLocaleString()+'</strong> SF</span>';
+    var imgSrc = l.photo || (PROP_IMAGES[l.type]||PROP_IMAGES['Single Family'])[0].replace('w=1200','w=700');
+    c.innerHTML = '<div class="f-card-img"><img src="'+imgSrc+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge'+(l.type==='Land'?' land':'')+'">' + l.type + '</div><div class="f-card-badge" style="right:auto;left:0.75rem;background:var(--gold);color:var(--bg);font-size:0.5rem">Suggested</div></div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+(l.city||townName)+', NC</div><div class="f-card-features">'+feats+'</div></div>';
+    c.onclick = function(){ openProp(l, l.city||townName); };
+    grid.appendChild(c);
+  });
+  container.style.display = '';
+}
+
+function buildDashboardSuggestions() {
+  var container = document.getElementById('acctSuggestionsPreview');
+  if(!container) return;
+  var patterns = analyzeFavoritePatterns();
+  if(!patterns) {
+    container.innerHTML = '<p style="font-size:0.85rem;color:var(--text-muted)">Save at least 2 properties to unlock personalized suggestions.</p>';
+    return;
+  }
+  var suggestions = findSuggestionsFromPatterns(patterns);
+  if(suggestions.length === 0) {
+    container.innerHTML = '<p style="font-size:0.85rem;color:var(--text-muted)">No new suggestions right now. Save more favorites and check back!</p>';
+    return;
+  }
+  container.innerHTML = '';
+  suggestions.forEach(function(l){
+    var card = document.createElement('div');
+    card.className = 'suggestion-mini';
+    var imgSrc = l.photo || 'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=200&q=80';
+    card.innerHTML = '<img class="suggestion-mini-img" src="'+imgSrc+'" alt="'+l.address+'"><div class="suggestion-mini-info"><div class="suggestion-mini-price">$'+l.price.toLocaleString()+'</div><div class="suggestion-mini-addr">'+l.address+', '+(l.city||'')+', NC</div></div>';
+    card.onclick = function(){ closeAcctModal(); openProp(l, l.city||''); };
+    container.appendChild(card);
+  });
+}
+
+// ═══ COMPARE PROPERTIES ═══
+var _compareSelected = [];
+var _compareRowOrder = ['price','beds','baths','sqft','lot','daysOnMarket','type','restrictions','location'];
+var _compareRowLabels = {
+  price:'Price', beds:'Bedrooms', baths:'Bathrooms', sqft:'Square Feet',
+  lot:'Lot Size', daysOnMarket:'Days on Market', type:'Property Type',
+  restrictions:'Restrictions', location:'Location'
+};
+
+function openCompare() {
+  if(!_acctLoggedIn) { openAcctModal(); return; }
+  _compareSelected = [];
+  var overlay = document.getElementById('compareOverlay');
+  overlay.classList.add('active');
+  document.body.style.overflow = 'hidden';
+  showCompareSelect();
+  try{history.pushState({page:'compare'},'','#compare')}catch(e){}
+}
+
+function closeCompare() {
+  var overlay = document.getElementById('compareOverlay');
+  overlay.classList.remove('active');
+  document.body.style.overflow = '';
+  if(history.state && history.state.page === 'compare') history.back();
+}
+
+function showCompareSelect() {
+  document.getElementById('compareSelect').style.display = '';
+  document.getElementById('compareTableWrap').style.display = 'none';
+  _compareSelected = [];
+  updateCompareBtn();
+  renderCompareFavGrid();
+}
+
+function renderCompareFavGrid() {
+  var grid = document.getElementById('compareFavGrid');
+  grid.innerHTML = '';
+  var favKeys = Object.keys(_favProps).filter(function(k){return _favProps[k]});
+  if(favKeys.length === 0) {
+    grid.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;grid-column:1/-1">No saved properties yet. Favorite some listings first, then come back to compare them.</p>';
+    return;
+  }
+  var favListings = [];
+  ALL_LISTINGS.forEach(function(l){
+    var key = propKey(l, l.city);
+    if(_favProps[key]) { l._compareKey = key; favListings.push(l); }
+  });
+  favListings.forEach(function(l){
+    var card = document.createElement('div');
+    card.className = 'compare-fav-card';
+    card.setAttribute('data-compare-key', l._compareKey);
+    var imgSrc = l.photo || (PROP_IMAGES[l.type]||PROP_IMAGES['Single Family'])[0].replace('w=1200','w=400');
+    card.innerHTML = '<img class="compare-fav-card-img" src="'+imgSrc+'" alt="'+l.address+'" loading="lazy">'+
+      '<div class="compare-fav-card-price">$'+l.price.toLocaleString()+'</div>'+
+      '<div class="compare-fav-card-addr">'+l.address+'</div>'+
+      '<div class="compare-fav-card-city">'+(l.city||'')+', NC</div>'+
+      '<div class="compare-fav-card-type">'+l.type+'</div>';
+    card.onclick = function(){
+      var isSelected = card.classList.contains('selected');
+      if(isSelected){
+        card.classList.remove('selected');
+        _compareSelected = _compareSelected.filter(function(s){return s._compareKey !== l._compareKey});
+      } else {
+        if(_compareSelected.length >= 10) return;
+        card.classList.add('selected');
+        _compareSelected.push(l);
+      }
+      updateCompareBtn();
+    };
+    grid.appendChild(card);
+  });
+}
+
+function updateCompareBtn() {
+  var btn = document.getElementById('compareGoBtn');
+  var count = _compareSelected.length;
+  var total = Object.keys(_favProps).filter(function(k){return _favProps[k]}).length;
+  btn.textContent = 'Compare Selected ('+count+')';
+  btn.disabled = count < 2;
+  document.getElementById('compareCount').textContent = count+' of '+total+' favorites selected';
+}
+
+function runCompare() {
+  if(_compareSelected.length < 2) return;
+  document.getElementById('compareSelect').style.display = 'none';
+  document.getElementById('compareTableWrap').style.display = '';
+  renderCompareTable();
+}
+
+function renderCompareTable() {
+  var head = document.getElementById('compareHead');
+  var body = document.getElementById('compareBody');
+
+  // Header
+  var headHtml = '<tr><th>Criteria</th>';
+  _compareSelected.forEach(function(l, idx){
+    var imgSrc = l.photo || (PROP_IMAGES[l.type]||PROP_IMAGES['Single Family'])[0].replace('w=1200','w=300');
+    headHtml += '<th><div class="compare-th-card" data-compare-idx="'+idx+'">'+
+      '<img class="compare-th-img" src="'+imgSrc+'" alt="'+l.address+'">'+
+      '$'+l.price.toLocaleString()+
+      '<div class="compare-th-addr">'+l.address+'<br>'+(l.city||'')+', NC</div></div></th>';
+  });
+  headHtml += '</tr>';
+  head.innerHTML = headHtml;
+
+  // Bind click events to header cards
+  head.querySelectorAll('.compare-th-card').forEach(function(card){
+    card.addEventListener('click', function(){
+      var idx = parseInt(card.getAttribute('data-compare-idx'));
+      var listing = _compareSelected[idx];
+      if(listing) { closeCompare(); setTimeout(function(){ openProp(listing, listing.city||''); }, 150); }
+    });
+  });
+
+  // Body rows
+  body.innerHTML = '';
+  _compareRowOrder.forEach(function(field, rowIdx){
+    var tr = document.createElement('tr');
+    tr.setAttribute('data-field', field);
+
+    var th = document.createElement('td');
+    th.innerHTML = '<div class="compare-row-header">'+
+      '<div class="compare-move-btns">'+
+        '<button class="compare-move-btn" onclick="compareMove('+rowIdx+',-1)" title="Move up">&#9650;</button>'+
+        '<button class="compare-move-btn" onclick="compareMove('+rowIdx+',1)" title="Move down">&#9660;</button>'+
+      '</div>'+
+      '<span>'+_compareRowLabels[field]+'</span></div>';
+    tr.appendChild(th);
+
+    var vals = _compareSelected.map(function(l){return getCompareVal(l, field)});
+    var bestIdx = findBestValue(vals, field);
+
+    _compareSelected.forEach(function(l, colIdx){
+      var td = document.createElement('td');
+      td.textContent = formatCompareVal(l, field);
+      if(colIdx === bestIdx) td.classList.add('compare-best');
+      tr.appendChild(td);
+    });
+    body.appendChild(tr);
+  });
+}
+
+function getCompareVal(listing, field) {
+  switch(field){
+    case 'price': return listing.price || 0;
+    case 'beds': return listing.beds || 0;
+    case 'baths': return listing.baths || 0;
+    case 'sqft': return listing.sqft || 0;
+    case 'lot': return parseFloat(listing.lot) || 0;
+    case 'daysOnMarket': return listing.daysOnMarket || 0;
+    default: return '';
+  }
+}
+
+function formatCompareVal(listing, field) {
+  switch(field){
+    case 'price': return '$'+(listing.price||0).toLocaleString();
+    case 'beds': return (listing.beds||0)+' Bed'+(listing.beds!==1?'s':'');
+    case 'baths': return (listing.baths||0)+' Bath'+(listing.baths!==1?'s':'');
+    case 'sqft': return listing.sqft ? listing.sqft.toLocaleString()+' SF' : 'N/A';
+    case 'lot': return listing.lot || 'N/A';
+    case 'daysOnMarket': return (listing.daysOnMarket||0)+' days';
+    case 'type': return listing.type || 'N/A';
+    case 'restrictions': return RESTRICT_LABELS[listing.restrictions]||listing.restrictions||'N/A';
+    case 'location': return (listing.city||'')+', NC';
+    default: return 'N/A';
+  }
+}
+
+function findBestValue(vals, field) {
+  if(vals.every(function(v){return typeof v==='string'})) return -1;
+  if(vals.every(function(v){return v===0})) return -1;
+  var numVals = vals.filter(function(v){return typeof v==='number' && v>0});
+  if(numVals.length < 2) return -1;
+
+  var comparator;
+  switch(field){
+    case 'price': case 'daysOnMarket':
+      comparator = function(a,b){return a-b}; break; // lower better
+    case 'beds': case 'baths': case 'sqft': case 'lot':
+      comparator = function(a,b){return b-a}; break; // higher better
+    default: return -1;
+  }
+  var sorted = vals.slice().filter(function(v){return typeof v==='number' && v>0}).sort(comparator);
+  var bestVal = sorted[0];
+  return vals.indexOf(bestVal);
+}
+
+function compareMove(fromIdx, direction) {
+  var toIdx = fromIdx + direction;
+  if(toIdx < 0 || toIdx >= _compareRowOrder.length) return;
+  var temp = _compareRowOrder[fromIdx];
+  _compareRowOrder[fromIdx] = _compareRowOrder[toIdx];
+  _compareRowOrder[toIdx] = temp;
+  renderCompareTable();
+}
+
+// --- Gate the print button for non-logged-in users ---
+function updatePrintGate() {
+  var printBtn = document.getElementById('propPrintBtn');
+  var shareWrap = printBtn ? printBtn.closest('.prop-share') : null;
+  if(!printBtn || !shareWrap) return;
+  var existingOverlay = shareWrap.querySelector('.gated-print-overlay');
+  if(!_acctLoggedIn) {
+    printBtn.classList.add('gated');
+    shareWrap.classList.add('has-gated-print');
+    if(!existingOverlay) {
+      var ov = document.createElement('div');
+      ov.className = 'gated-print-overlay';
+      ov.textContent = 'Create account to print';
+      ov.onclick = function(e){ e.stopPropagation(); openAcctModal(); };
+      shareWrap.appendChild(ov);
+    }
+  } else {
+    printBtn.classList.remove('gated');
+    shareWrap.classList.remove('has-gated-print');
+    if(existingOverlay) existingOverlay.remove();
+  }
+}
+
 // --- Hook into openProp to track views & update fav button ---
 var _origOpenProp = openProp;
 openProp = function(listing, townName) {
   _origOpenProp(listing, townName);
+  // Store current listing for features
+  window._currentListing = listing;
+  window._currentTownName = townName;
   // Track as viewed
   var key = propKey(listing, townName);
   _currentPropKey = key;
@@ -2544,6 +3086,17 @@ openProp = function(listing, townName) {
   updateFavBtn();
   // Update gated features
   setTimeout(updateGatedFeatures, 50);
+  // Update print gate
+  setTimeout(updatePrintGate, 60);
+  // Show notes textarea for logged-in users
+  var notesWrap = document.getElementById('propNotesWrap');
+  var notesTA = document.getElementById('propNotesTA');
+  if(notesWrap) notesWrap.style.display = _acctLoggedIn ? '' : 'none';
+  if(notesTA) notesTA.value = ''; // Reset notes for each property
+  // Build Cory's Take
+  setTimeout(function(){ buildCorysTake(listing, townName); }, 70);
+  // Build Cory's Suggestions
+  setTimeout(function(){ buildCorysSuggestions(listing, townName); }, 80);
   // Update card/marker states
   srApplyViewedFavStates();
 };
