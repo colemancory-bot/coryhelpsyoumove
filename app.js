@@ -120,7 +120,6 @@ if(_isTownPage){
         '<div class="prop-share"><button class="prop-share-btn" onclick="propShare(\'copy\')"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy Link</button><button class="prop-share-btn" onclick="propShare(\'email\')"><svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M22 6l-10 7L2 6"/></svg> Email</button><button class="prop-share-btn gated-print-btn" id="propPrintBtn" onclick="propShare(\'print\')"><svg viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print</button></div>' +
       '</div>' +
     '</div></div>' +
-    '<div class="prop-similar"><div class="prop-similar-inner"><div class="prop-section-label">More Properties</div><h2 class="prop-section-title">Similar <em>Listings</em></h2><div class="prop-similar-grid" id="propSimilar"></div></div></div>' +
     '<div class="corys-suggestions" id="corysSuggestions" style="display:none"><div class="corys-suggestions-inner"><div class="corys-take-label">Personalized for You</div><div class="prop-section-title" style="margin-bottom:0.5rem">Cory\'s <em>Suggestions</em></div><div class="corys-suggestions-reason" id="corysSuggestionsReason"></div><div class="corys-suggestions-grid" id="corysSuggestionsGrid"></div></div></div>' +
     '<div class="print-page" id="printPage"><div class="print-hero-row"><div class="print-hero-left"><img class="print-page-thumb" id="printThumb" src="" alt="Property photo"></div><div class="print-hero-right"><div class="print-page-price" id="printPrice"></div><div class="print-page-addr" id="printAddr"></div><div class="print-page-city" id="printCity"></div><div class="print-page-date" id="printDate"></div><div class="print-page-stats" id="printStats"></div></div></div><div class="print-section-label">Property Overview</div><div class="print-page-desc" id="printDesc"></div><div class="print-section-label">Property Details</div><div class="print-page-details" id="printDetails"></div><div class="print-corys-take" id="printCorysTake" style="display:none"><div class="print-section-label">Cory\'s Take</div><div class="print-corys-take-insights" id="printCorysTakeInsights"></div></div><div class="print-neighborhood" id="printNeighborhood" style="display:none"><div class="print-section-label">Neighborhood Details</div><div class="print-nd-grid" id="printNdGrid"></div><div class="print-nd-amenities" id="printNdAmenities"></div></div><div class="print-distances" id="printDistances" style="display:none"><div class="print-section-label">Distances &amp; Drive Times</div><div class="print-dist-grid" id="printDistGrid"></div></div><div class="print-qa" id="printQA" style="display:none"><div class="print-section-label" style="border-left:none;padding-left:0;margin-top:0">Questions &amp; Answers</div><div id="printQAList"></div></div><div class="print-bottom-row"><div class="print-notes-section"><div class="print-notes-title">Your Notes</div><div class="print-notes-content" id="printYourNotes"></div></div><div class="print-notepad-section"><div class="print-notepad-title">Additional Notes</div><div class="print-notepad-lines"><div class="print-line"></div><div class="print-line"></div><div class="print-line"></div><div class="print-line"></div><div class="print-line"></div><div class="print-line"></div><div class="print-line"></div><div class="print-line"></div></div></div></div><div class="print-page-footer">Cory Coleman | Keller Williams Great Smokies | (828) 506-6413 | coryhelpsyoumove.com</div></div>' +
   '</div>';
@@ -1615,32 +1614,6 @@ function openProp(listing, townName) {
   document.getElementById('calcDown').textContent = '$' + down.toLocaleString();
   document.getElementById('calcLoan').textContent = '$' + loan.toLocaleString();
   document.getElementById('calcMonthly').textContent = '$' + monthly.toLocaleString();
-
-  // Similar listings
-  var simEl = document.getElementById('propSimilar');
-  simEl.innerHTML = '';
-  var allListings = [];
-  Object.keys(TOWN_LISTINGS).forEach(function(tid){
-    TOWN_LISTINGS[tid].listings.forEach(function(l){
-      l._town = TOWN_LISTINGS[tid].display;
-      l._townId = tid;
-      allListings.push(l);
-    });
-  });
-  // Filter similar by type and price range, exclude current
-  var similar = allListings.filter(function(l){
-    return l.address !== listing.address && l.type === listing.type && l.price >= price*0.5 && l.price <= price*1.5;
-  }).slice(0,3);
-  if(similar.length<3){similar=allListings.filter(function(l){return l.address!==listing.address}).slice(0,3)}
-  similar.forEach(function(l){
-    var c=document.createElement('div');c.className='f-card';c.style.cursor='pointer';
-    var feats=l.type==='Land'?'<span class="f-feat"><strong>'+l.lot+'</strong></span>':'<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+l.sqft.toLocaleString()+'</strong> SF</span>';
-    var simImgs=PROP_IMAGES[l.type]||PROP_IMAGES['Single Family'];
-    var simImg=simImgs[Math.floor(Math.random()*simImgs.length)].replace('w=1200','w=700');
-    c.innerHTML='<div class="f-card-img"><img src="'+simImg+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge'+(l.type==='Land'?' land':'')+'">'+l.type+'</div>'+cardFavHtml(l.address, l._town||townName)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+(l._town||townName)+', NC</div><div class="f-card-features">'+feats+'</div></div>';
-    c.onclick=function(){openProp(l,l._town||townName)};
-    simEl.appendChild(c);
-  });
 
   // Show overlay
   o.classList.add('active');
