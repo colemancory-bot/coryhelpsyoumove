@@ -150,7 +150,8 @@ document.addEventListener('DOMContentLoaded', function(){
       // Make card clickable — navigate to main site and open property
       card.style.cursor = 'pointer';
       card.onclick = function(){
-        var url = '/?prop=' + encodeURIComponent(addr) + '&city=' + encodeURIComponent(city);
+        var base = window.location.pathname.indexOf('/towns/') > -1 ? '../index.html' : '/index.html';
+        var url = base + '?prop=' + encodeURIComponent(addr) + '&city=' + encodeURIComponent(city);
         window.location.href = url;
       };
     });
