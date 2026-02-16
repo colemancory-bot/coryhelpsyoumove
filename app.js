@@ -122,7 +122,7 @@ if(_isTownPage){
     '</div></div>' +
     '<div class="prop-similar"><div class="prop-similar-inner"><div class="prop-section-label">More Properties</div><h2 class="prop-section-title">Similar <em>Listings</em></h2><div class="prop-similar-grid" id="propSimilar"></div></div></div>' +
     '<div class="corys-suggestions" id="corysSuggestions" style="display:none"><div class="corys-suggestions-inner"><div class="corys-take-label">Personalized for You</div><div class="prop-section-title" style="margin-bottom:0.5rem">Cory\'s <em>Suggestions</em></div><div class="corys-suggestions-reason" id="corysSuggestionsReason"></div><div class="corys-suggestions-grid" id="corysSuggestionsGrid"></div></div></div>' +
-    '<div class="print-page" id="printPage"><div class="print-page-header"><div class="print-page-header-left"><img class="print-page-thumb" id="printThumb" src="" alt="Property photo"></div><div class="print-page-header-right"><div class="print-page-price" id="printPrice"></div><div class="print-page-addr" id="printAddr"></div><div class="print-page-city" id="printCity"></div><div class="print-page-date" id="printDate"></div></div></div><div class="print-page-stats" id="printStats"></div><div class="print-section-label">Property Overview</div><div class="print-page-desc" id="printDesc"></div><div class="print-section-label">Property Details</div><div class="print-page-details" id="printDetails"></div><div class="print-corys-take" id="printCorysTake" style="display:none"><div class="print-section-label">Cory\'s Take</div><div class="print-corys-take-insights" id="printCorysTakeInsights"></div></div><div class="print-bottom-row"><div class="print-notes-section"><div class="print-notes-title">Your Notes</div><div class="print-notes-content" id="printYourNotes"></div></div><div class="print-notepad-section"><div class="print-notepad-title">Additional Notes</div><div class="print-notepad-lines"><div class="print-line"></div><div class="print-line"></div><div class="print-line"></div><div class="print-line"></div><div class="print-line"></div><div class="print-line"></div><div class="print-line"></div><div class="print-line"></div></div></div></div><div class="print-page-footer">Cory Coleman | Keller Williams Great Smokies | (828) 506-6413 | coryhelpsyoumove.com</div></div>' +
+    '<div class="print-page" id="printPage"><div class="print-page-header"><div class="print-page-header-left"><img class="print-page-thumb" id="printThumb" src="" alt="Property photo"></div><div class="print-page-header-right"><div class="print-page-price" id="printPrice"></div><div class="print-page-addr" id="printAddr"></div><div class="print-page-city" id="printCity"></div><div class="print-page-date" id="printDate"></div></div></div><div class="print-page-stats" id="printStats"></div><div class="print-section-label">Property Overview</div><div class="print-page-desc" id="printDesc"></div><div class="print-section-label">Property Details</div><div class="print-page-details" id="printDetails"></div><div class="print-corys-take" id="printCorysTake" style="display:none"><div class="print-section-label">Cory\'s Take</div><div class="print-corys-take-insights" id="printCorysTakeInsights"></div></div><div class="print-neighborhood" id="printNeighborhood" style="display:none"><div class="print-section-label">Neighborhood Details</div><div class="print-nd-grid" id="printNdGrid"></div><div class="print-nd-amenities" id="printNdAmenities"></div></div><div class="print-distances" id="printDistances" style="display:none"><div class="print-section-label">Distances &amp; Drive Times</div><div class="print-dist-grid" id="printDistGrid"></div></div><div class="print-qa" id="printQA" style="display:none"><div class="print-section-label" style="border-left:none;padding-left:0;margin-top:0">Questions &amp; Answers</div><div id="printQAList"></div></div><div class="print-bottom-row"><div class="print-notes-section"><div class="print-notes-title">Your Notes</div><div class="print-notes-content" id="printYourNotes"></div></div><div class="print-notepad-section"><div class="print-notepad-title">Additional Notes</div><div class="print-notepad-lines"><div class="print-line"></div><div class="print-line"></div><div class="print-line"></div><div class="print-line"></div><div class="print-line"></div><div class="print-line"></div><div class="print-line"></div><div class="print-line"></div></div></div></div><div class="print-page-footer">Cory Coleman | Keller Williams Great Smokies | (828) 506-6413 | coryhelpsyoumove.com</div></div>' +
   '</div>';
 
   // --- Fullscreen Lightbox ---
@@ -1720,7 +1720,7 @@ function propShare(type) {
     var d1 = document.getElementById('propDesc1');
     var d2 = document.getElementById('propDesc2');
     var descText = (d1 ? d1.textContent : '') + (d2 && d2.textContent ? ' ' + d2.textContent : '');
-    document.getElementById('printDesc').textContent = descText.substring(0, 400);
+    document.getElementById('printDesc').textContent = descText.substring(0, 800);
 
     // Property Details (features grid)
     var featEls = document.querySelectorAll('#propFeatures .prop-feat');
@@ -1758,6 +1758,74 @@ function propShare(type) {
       }
     } else if(printCT) {
       printCT.style.display = 'none';
+    }
+
+    // Neighborhood Details
+    var printND = document.getElementById('printNeighborhood');
+    var printNdGrid = document.getElementById('printNdGrid');
+    var printNdAm = document.getElementById('printNdAmenities');
+    if(printND && printNdGrid && printNdAm) {
+      var tn = (window._currentTownName||'').toLowerCase().replace(/\s*\/\s*/g,'-').replace(/\s+/g,'-');
+      var ndData = NEIGHBORHOOD_DATA[tn];
+      if(ndData) {
+        printNdGrid.innerHTML =
+          '<div class="print-nd-card"><div class="print-nd-label">Schools</div><div class="print-nd-value">' + ndData.schools.rating + '/10</div><div class="print-nd-detail">' + ndData.schools.details + '</div></div>' +
+          '<div class="print-nd-card"><div class="print-nd-label">Safety</div><div class="print-nd-value">' + ndData.safety.rating + '</div><div class="print-nd-detail">' + ndData.safety.details + '</div></div>' +
+          '<div class="print-nd-card"><div class="print-nd-label">Walkability</div><div class="print-nd-value">' + ndData.walkability.score + '</div><div class="print-nd-detail">' + ndData.walkability.label + '</div></div>' +
+          '<div class="print-nd-card"><div class="print-nd-label">Commute</div><div class="print-nd-value">' + ndData.commute.avg + ' min</div><div class="print-nd-detail">To ' + ndData.commute.to + '</div></div>';
+        printNdAm.innerHTML =
+          '<span class="print-nd-tag">' + ndData.amenities.restaurants + ' Restaurants</span>' +
+          '<span class="print-nd-tag">' + ndData.amenities.breweries + ' Breweries</span>' +
+          '<span class="print-nd-tag">' + ndData.amenities.parks + ' Parks</span>' +
+          '<span class="print-nd-tag">' + ndData.amenities.trailheads + ' Trailheads</span>';
+        printND.style.display = '';
+      } else {
+        printND.style.display = 'none';
+      }
+    }
+
+    // Distances & Drive Times
+    var printDist = document.getElementById('printDistances');
+    var printDistGrid = document.getElementById('printDistGrid');
+    if(printDist && printDistGrid) {
+      var tn2 = (window._currentTownName||'').toLowerCase().replace(/\s*\/\s*/g,'-').replace(/\s+/g,'-');
+      var pois = TOWN_POIS[tn2];
+      if(pois) {
+        var distHtml = '';
+        Object.keys(POI_LABELS).forEach(function(cat) {
+          if(!pois[cat] || !pois[cat].length) return;
+          distHtml += '<div class="print-dist-card"><div class="print-dist-cat">' + POI_LABELS[cat] + '</div>';
+          pois[cat].forEach(function(p) {
+            distHtml += '<div class="print-dist-item"><span>' + p.n + '</span><span class="print-dist-time">' + p.d + '</span></div>';
+          });
+          distHtml += '</div>';
+        });
+        printDistGrid.innerHTML = distHtml;
+        printDist.style.display = '';
+      } else {
+        printDist.style.display = 'none';
+      }
+    }
+
+    // Ask Cory Q&A
+    var printQA = document.getElementById('printQA');
+    var printQAList = document.getElementById('printQAList');
+    if(printQA && printQAList) {
+      var qaItems = document.querySelectorAll('#propQuestionsList .prop-qa-item');
+      if(qaItems && qaItems.length > 0) {
+        printQAList.innerHTML = '';
+        qaItems.forEach(function(item) {
+          var qEl = item.querySelector('.prop-qa-q');
+          var aEl = item.querySelector('.prop-qa-a');
+          var html = '<div class="print-qa-item"><div class="print-qa-q">' + (qEl ? qEl.textContent : '') + '</div>';
+          if(aEl) html += '<div class="print-qa-a">' + aEl.textContent + '</div>';
+          html += '</div>';
+          printQAList.innerHTML += html;
+        });
+        printQA.style.display = '';
+      } else {
+        printQA.style.display = 'none';
+      }
     }
 
     // Your Notes (from the notes textarea if it exists)

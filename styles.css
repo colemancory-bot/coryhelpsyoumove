@@ -1624,7 +1624,7 @@ textarea.form-input{resize:vertical;min-height:100px}
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
 
   /* Hide everything except the print page */
-  body{background:#fff!important;color:#1a1815!important;overflow:visible!important}
+  body{background:#fff!important;color:#111!important;overflow:visible!important}
   .nav,.mobile-menu,.grain,.hero,.stats-bar,.about,.areas,.featured,.services,
   .testimonials,.blog,.cta,.footer,.hero-scroll,.hp-overlay,.hp-sheet,
   #eventsSection,.events-preview,
@@ -1637,7 +1637,16 @@ textarea.form-input{resize:vertical;min-height:100px}
   .search-overlay,.acct-modal-bg,.prop-lightbox,
   .compare-overlay,
   .chat-trigger,.chat-panel,.chat-greeting,
-  #themeTooltip,.scroll-icon-wrap
+  #themeTooltip,.scroll-icon-wrap,
+  /* Town page elements */
+  .page-hero,.page-body,.page-cta,.page-stats,.tp-search,
+  .featured-grid,.section-label,
+  header,main,article,
+  /* New feature overlays */
+  .admin-overlay,.afford-overlay,.col-overlay,.qa-overlay,
+  .notif-panel,.nav-notif,.nav-admin-link,
+  .admin-print-btns,.prop-showing-btn,.prop-ask-cory,
+  .showing-form
   {display:none!important}
 
   /* Property overlay: static flow */
@@ -1648,7 +1657,7 @@ textarea.form-input{resize:vertical;min-height:100px}
   .print-page{
     display:block!important;
     background:#fff!important;
-    color:#1a1815!important;
+    color:#111!important;
     padding:0;
     font-family:'Outfit',Arial,sans-serif;
   }
@@ -1659,53 +1668,54 @@ textarea.form-input{resize:vertical;min-height:100px}
     align-items:flex-start;
     gap:1rem;
     padding-bottom:0.5rem;
-    border-bottom:2px solid #C4B08C;
+    border-bottom:3px solid #8B7748;
     margin-bottom:0.5rem;
   }
   .print-page-thumb{
     width:130px;
     height:90px;
     object-fit:cover;
-    border:1px solid #ddd;
+    border:1px solid #999;
   }
   .print-page-header-right{flex:1}
   .print-page-price{
     font-family:'Cormorant Garamond',Georgia,serif;
     font-size:1.6rem;
-    font-weight:400;
-    color:#1a1815;
+    font-weight:600;
+    color:#111;
     line-height:1;
     margin-bottom:0.15rem;
   }
-  .print-page-addr{font-size:0.85rem;color:#333;font-weight:400}
-  .print-page-city{font-size:0.6rem;letter-spacing:0.2em;text-transform:uppercase;color:#8B7748;margin-top:0.1rem}
-  .print-page-date{font-size:0.55rem;color:#999;margin-top:0.2rem}
+  .print-page-addr{font-size:0.85rem;color:#222;font-weight:500}
+  .print-page-city{font-size:0.6rem;letter-spacing:0.2em;text-transform:uppercase;color:#6B5728;font-weight:600;margin-top:0.1rem}
+  .print-page-date{font-size:0.55rem;color:#666;margin-top:0.2rem}
 
   /* ── Stats ribbon ── */
   .print-page-stats{
     display:grid;
     grid-template-columns:repeat(4,1fr);
     gap:0;
-    border:1px solid #ddd;
+    border:1px solid #999;
     margin-bottom:0.5rem;
   }
   .print-page-stat{
     padding:0.35rem 0.5rem;
     text-align:center;
-    border-right:1px solid #ddd;
+    border-right:1px solid #999;
   }
   .print-page-stat:last-child{border-right:none}
   .print-page-stat-val{
     font-family:'Cormorant Garamond',Georgia,serif;
     font-size:1rem;
-    color:#1a1815;
-    font-weight:400;
+    color:#111;
+    font-weight:600;
   }
   .print-page-stat-label{
     font-size:0.45rem;
     letter-spacing:0.12em;
     text-transform:uppercase;
-    color:#888;
+    color:#555;
+    font-weight:500;
     margin-top:0.05rem;
   }
 
@@ -1714,17 +1724,18 @@ textarea.form-input{resize:vertical;min-height:100px}
     font-size:0.5rem;
     letter-spacing:0.2em;
     text-transform:uppercase;
-    color:#8B7748;
+    color:#6B5728;
+    font-weight:700;
     margin-bottom:0.25rem;
     margin-top:0.4rem;
     padding-left:0.4rem;
-    border-left:2px solid #C4B08C;
+    border-left:3px solid #8B7748;
   }
 
   /* ── Property Overview (description) ── */
   .print-page-desc{
     font-size:0.72rem;
-    color:#444;
+    color:#222;
     line-height:1.5;
     margin-bottom:0.4rem;
   }
@@ -1734,15 +1745,15 @@ textarea.form-input{resize:vertical;min-height:100px}
     display:grid;
     grid-template-columns:1fr 1fr 1fr;
     gap:0;
-    border:1px solid #ddd;
+    border:1px solid #999;
     margin-bottom:0.4rem;
   }
   .print-detail-item{
     display:flex;
     flex-direction:column;
     padding:0.3rem 0.5rem;
-    border-right:1px solid #eee;
-    border-bottom:1px solid #eee;
+    border-right:1px solid #bbb;
+    border-bottom:1px solid #bbb;
   }
   .print-detail-item:nth-child(3n){border-right:none}
   .print-detail-item:nth-last-child(-n+3){border-bottom:none}
@@ -1750,19 +1761,20 @@ textarea.form-input{resize:vertical;min-height:100px}
     font-size:0.45rem;
     letter-spacing:0.1em;
     text-transform:uppercase;
-    color:#888;
+    color:#555;
+    font-weight:600;
     margin-bottom:0.05rem;
   }
   .print-detail-val{
     font-size:0.75rem;
-    color:#1a1815;
-    font-weight:400;
+    color:#111;
+    font-weight:500;
   }
 
   /* ── Cory's Take ── */
   .print-corys-take{
-    border:1px solid #ddd;
-    border-left:3px solid #C4B08C;
+    border:1px solid #999;
+    border-left:4px solid #8B7748;
     padding:0.4rem 0.6rem;
     margin-bottom:0.4rem;
     background:#fdfaf3;
@@ -1775,10 +1787,10 @@ textarea.form-input{resize:vertical;min-height:100px}
   }
   .print-ct-insight{
     font-size:0.68rem;
-    color:#444;
+    color:#222;
     line-height:1.4;
     padding:0.2rem 0;
-    border-bottom:1px solid #f0ebe0;
+    border-bottom:1px solid #d8d0c0;
   }
   .print-ct-insight:last-child{border-bottom:none}
 
@@ -1790,61 +1802,142 @@ textarea.form-input{resize:vertical;min-height:100px}
     margin-bottom:0.3rem;
   }
   .print-notes-section{
-    border:1px solid #ddd;
+    border:1px solid #999;
     padding:0.4rem 0.5rem;
   }
   .print-notes-title{
     font-family:'Cormorant Garamond',Georgia,serif;
     font-size:0.78rem;
-    color:#8B7748;
-    font-weight:400;
+    color:#6B5728;
+    font-weight:600;
     margin-bottom:0.2rem;
-    border-bottom:1px solid #eee;
+    border-bottom:1px solid #bbb;
     padding-bottom:0.15rem;
   }
   .print-notes-content{
     font-size:0.7rem;
-    color:#333;
+    color:#222;
     line-height:1.4;
     min-height:1.2rem;
     white-space:pre-wrap;
   }
 
   .print-notepad-section{
-    border:1px solid #ddd;
+    border:1px solid #999;
     padding:0.4rem 0.5rem;
   }
   .print-notepad-title{
     font-family:'Cormorant Garamond',Georgia,serif;
     font-size:0.78rem;
-    color:#8B7748;
-    font-weight:400;
+    color:#6B5728;
+    font-weight:600;
     margin-bottom:0.25rem;
-    border-bottom:1px solid #eee;
+    border-bottom:1px solid #bbb;
     padding-bottom:0.15rem;
   }
   .print-notepad-lines{padding:0.1rem 0}
-  .print-line{height:1.2rem;border-bottom:1px solid #d0d8e0}
+  .print-line{height:1.2rem;border-bottom:1px solid #999}
 
   /* ── Footer ── */
   .print-page-footer{
     font-size:0.5rem;
-    color:#999;
+    color:#666;
     text-align:center;
     letter-spacing:0.1em;
     text-transform:uppercase;
-    border-top:1px solid #ddd;
+    font-weight:500;
+    border-top:2px solid #999;
     padding-top:0.3rem;
     margin-top:0.2rem;
   }
 
+  /* ── Neighborhood Details (print) ── */
+  .print-neighborhood{
+    margin-bottom:0.4rem;
+  }
+  .print-nd-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr 1fr;
+    gap:0;
+    border:1px solid #999;
+    margin-bottom:0.3rem;
+  }
+  .print-nd-card{
+    padding:0.3rem 0.4rem;
+    text-align:center;
+    border-right:1px solid #999;
+  }
+  .print-nd-card:last-child{border-right:none}
+  .print-nd-label{font-size:0.45rem;letter-spacing:0.1em;text-transform:uppercase;color:#555;font-weight:600}
+  .print-nd-value{font-size:0.85rem;color:#111;font-weight:600;margin:0.1rem 0}
+  .print-nd-detail{font-size:0.5rem;color:#444;line-height:1.3}
+  .print-nd-amenities{
+    display:flex;
+    gap:0.4rem;
+    flex-wrap:wrap;
+  }
+  .print-nd-tag{
+    font-size:0.5rem;
+    color:#333;
+    font-weight:500;
+    padding:0.15rem 0.4rem;
+    border:1px solid #bbb;
+    background:#f8f6f0;
+  }
+
+  /* ── Distances (print) ── */
+  .print-distances{
+    margin-bottom:0.4rem;
+  }
+  .print-dist-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:0.3rem;
+  }
+  .print-dist-card{
+    border:1px solid #999;
+    padding:0.3rem 0.5rem;
+  }
+  .print-dist-cat{
+    font-size:0.5rem;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:#6B5728;
+    font-weight:700;
+    margin-bottom:0.15rem;
+    border-bottom:1px solid #bbb;
+    padding-bottom:0.1rem;
+  }
+  .print-dist-item{
+    display:flex;
+    justify-content:space-between;
+    font-size:0.6rem;
+    color:#222;
+    padding:0.1rem 0;
+  }
+  .print-dist-time{font-weight:600;color:#111}
+
+  /* ── Q&A / Ask Cory (print) ── */
+  .print-qa{
+    border:1px solid #999;
+    padding:0.4rem 0.5rem;
+    margin-bottom:0.4rem;
+  }
+  .print-qa-item{
+    padding:0.2rem 0;
+    border-bottom:1px solid #bbb;
+  }
+  .print-qa-item:last-child{border-bottom:none}
+  .print-qa-q{font-size:0.65rem;color:#222;font-weight:500}
+  .print-qa-a{font-size:0.65rem;color:#444;margin-top:0.1rem;padding-left:0.5rem;border-left:2px solid #8B7748}
+
   @page{margin:0.5in;size:letter}
 
   .print-agent-section { display: block !important; page-break-before: avoid; margin-top: 1rem; }
-  .print-agent-header { font-size: 11pt; font-weight: 700; color: #c0392b; border: 2px solid #c0392b; padding: 6px 12px; text-align: center; margin-bottom: 10px; }
+  .print-agent-header { font-size: 11pt; font-weight: 700; color: #c0392b; border: 3px solid #c0392b; padding: 6px 12px; text-align: center; margin-bottom: 10px; }
   .print-agent-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .print-agent-field label { font-size: 8pt; text-transform: uppercase; letter-spacing: 0.1em; color: #888; }
-  .print-agent-value { font-size: 10pt; color: #333; border: 1px solid #ddd; padding: 6px 8px; min-height: 40px; margin-top: 3px; }
+  .print-agent-field label { font-size: 8pt; text-transform: uppercase; letter-spacing: 0.1em; color: #555; font-weight: 600; }
+  .print-agent-value { font-size: 10pt; color: #222; border: 1px solid #999; padding: 6px 8px; min-height: 40px; margin-top: 3px; }
 }
 
 /* ═══════════════════════════════════════════════════
