@@ -699,6 +699,19 @@
         </a>
       </div>
 
+      <!-- Your Notes (logged-in only) -->
+      <div class="prop-notes-wrap" id="propNotesWrap" style="display:none">
+        <div class="prop-notes-header">
+          <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          <div class="prop-notes-title">Your Notes</div>
+        </div>
+        <textarea class="prop-notes-ta" id="propNotesTA" placeholder="Jot down thoughts, questions, or things to look for at the showing..."></textarea>
+        <div class="prop-notes-hint">
+          <svg viewBox="0 0 24 24" width="12" height="12"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          Notes appear on your printed property sheet
+        </div>
+      </div>
+
       <!-- Mortgage calc (gated) -->
       <div class="gated-wrap locked" id="gatedCalc" onclick="onGatedClick()">
         <div class="gated-prompt">
@@ -721,12 +734,6 @@
         <div class="prop-calc-note">Estimate only. Does not include taxes, insurance, or HOA. Contact a lender for an accurate pre-approval.</div>
       </div>
         </div>
-      </div>
-
-      <!-- Your Notes (logged-in only) -->
-      <div class="prop-notes-wrap" id="propNotesWrap" style="display:none">
-        <div class="prop-notes-title">Your Notes</div>
-        <textarea class="prop-notes-ta" id="propNotesTA" placeholder="Add notes about this property... (will appear on your printed page)"></textarea>
       </div>
 
       <!-- Share -->

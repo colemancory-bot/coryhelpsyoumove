@@ -1343,19 +1343,39 @@ textarea.form-input{resize:vertical;min-height:100px}
 /* ═══════════════════════════════════════════════════════
    YOUR NOTES (sidebar, logged-in only)
    ═══════════════════════════════════════════════════════ */
-.prop-notes-wrap{margin-bottom:1.5rem}
+.prop-notes-wrap{
+  margin-bottom:1.5rem;
+  border:1px solid var(--border);
+  padding:1.25rem;
+  background:var(--bg-card);
+  border-left:3px solid var(--gold);
+  transition:border-color 0.3s;
+}
+.prop-notes-wrap:focus-within{border-color:var(--gold)}
+.prop-notes-header{
+  display:flex;align-items:center;gap:0.6rem;margin-bottom:0.65rem;
+}
+.prop-notes-header svg{
+  width:18px;height:18px;stroke:var(--gold);fill:none;stroke-width:1.5;flex-shrink:0;
+}
 .prop-notes-title{
-  font-family:'Cormorant Garamond',Georgia,serif;font-size:1.05rem;
-  color:var(--cream);margin-bottom:0.5rem;font-weight:400;
+  font-family:'Cormorant Garamond',Georgia,serif;font-size:1.15rem;
+  color:var(--cream);font-weight:400;
 }
 .prop-notes-ta{
-  width:100%;min-height:80px;padding:0.75rem;
-  background:var(--bg-card);border:1px solid var(--border);
+  width:100%;min-height:90px;padding:0.75rem;
+  background:var(--surface);border:1px solid var(--border);
   color:var(--text-body);font-family:'Outfit',sans-serif;font-size:0.82rem;
-  line-height:1.6;resize:vertical;transition:border-color 0.3s;
+  line-height:1.6;resize:vertical;transition:border-color 0.3s,box-shadow 0.3s;
 }
-.prop-notes-ta:focus{border-color:var(--gold);outline:none}
+.prop-notes-ta:focus{border-color:var(--gold);outline:none;box-shadow:0 0 0 2px rgba(196,176,140,0.15)}
 .prop-notes-ta::placeholder{color:var(--text-muted);font-style:italic}
+.prop-notes-hint{
+  display:flex;align-items:center;gap:0.35rem;
+  margin-top:0.5rem;font-size:0.6rem;
+  color:var(--text-muted);letter-spacing:0.05em;
+}
+.prop-notes-hint svg{stroke:var(--text-muted);fill:none;stroke-width:1.5;flex-shrink:0}
 
 
 /* ═══════════════════════════════════════════════════════
