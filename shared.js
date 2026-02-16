@@ -134,6 +134,9 @@ document.addEventListener('DOMContentLoaded', function(){
   if(document.getElementById('featuredGrid')) return; // main site has this
 
   document.addEventListener('DOMContentLoaded', function(){
+    // If app.js is loaded, it handles card wiring with openProp — skip redirect wiring
+    if(typeof openProp === 'function') return;
+
     var cards = document.querySelectorAll('.f-card');
     if(!cards.length) return;
 

@@ -51,9 +51,136 @@ document.addEventListener('DOMContentLoaded', function(){
 
 // ═══ NAV ═══
 const nav=document.getElementById('nav');
-window.addEventListener('scroll',()=>nav.classList.toggle('scrolled',window.scrollY>50));
-document.getElementById('navToggle').addEventListener('click',()=>document.getElementById('mobileMenu').classList.toggle('open'));
-function closeMobile(){document.getElementById('mobileMenu').classList.remove('open')}
+if(nav) window.addEventListener('scroll',()=>nav.classList.toggle('scrolled',window.scrollY>50));
+var _navToggle=document.getElementById('navToggle');
+if(_navToggle) _navToggle.addEventListener('click',()=>{var mm=document.getElementById('mobileMenu');if(mm)mm.classList.toggle('open')});
+function closeMobile(){var mm=document.getElementById('mobileMenu');if(mm)mm.classList.remove('open')}
+
+// ═══ TOWN PAGE DETECTION & OVERLAY INJECTION ═══
+var _isTownPage = !document.getElementById('propOverlay') && !document.getElementById('featuredGrid');
+if(_isTownPage){
+(function(){
+  // Inject all overlay HTML that town pages need but don't have in their static HTML.
+  // This enables the property overlay, lightbox, search, compare, account modal, and chat
+  // to work directly on town pages without redirecting to index.html.
+  var html = '';
+
+  // --- Property Detail Overlay ---
+  html += '<div class="prop-overlay" id="propOverlay">' +
+    '<button class="prop-close" onclick="closeProp()">&times;</button>' +
+    '<div class="prop-theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode"><span class="prop-toggle-sun">☀</span><span class="prop-toggle-moon">☽</span></div>' +
+    '<div class="prop-hero-wrap"><div class="prop-hero" id="propHeroZone">' +
+      '<img class="prop-hero-img" id="propHeroImg" src="" alt="Property listing photo">' +
+      '<div class="prop-nav prop-nav-left" onclick="propImgNav(-1)"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></div>' +
+      '<div class="prop-nav prop-nav-right" onclick="propImgNav(1)"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>' +
+      '<div class="prop-img-count" id="propImgCount">1 / 1</div>' +
+      '<div class="prop-hero-expand" onclick="openLightbox()"><svg viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg> View Photos</div>' +
+      '<div class="prop-hero-content"><div class="prop-hero-status active-status" id="propStatus">Active Listing</div></div>' +
+      '<div class="prop-thumbs" id="propThumbs"></div>' +
+    '</div></div>' +
+    '<div class="prop-info-bar"><div class="prop-info-bar-inner">' +
+      '<div class="prop-info-left"><div class="prop-hero-price" id="propPrice"></div><div class="prop-hero-addr" id="propAddr"></div><div class="prop-hero-city" id="propCity"></div></div>' +
+      '<div class="prop-info-right">' +
+        '<div class="prop-info-scroll-hint"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 5v14M19 12l-7 7-7-7" stroke="currentColor" stroke-width="2" fill="none"/></svg><span>Scroll for details</span></div>' +
+        '<button class="prop-fav-btn" id="propFavBtn" onclick="toggleFavProp()"><svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg><span id="propFavLabel">Save</span></button>' +
+        '<button class="prop-info-print-btn" id="propInfoPrintBtn" onclick="propShare(\'print\')"><svg viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg><span>Print</span></button>' +
+      '</div>' +
+    '</div></div>' +
+    '<div class="prop-content-area" id="propContentArea">' +
+      '<div class="prop-stats" id="propStats"></div>' +
+      '<div class="prop-body"><div class="prop-main">' +
+        '<div class="prop-section-label">Property Overview</div>' +
+        '<h2 class="prop-section-title" id="propTitle"></h2>' +
+        '<p class="prop-desc" id="propDesc1"></p><p class="prop-desc" id="propDesc2"></p>' +
+        '<div class="prop-section-label" style="margin-top:2.5rem">Property Details</div>' +
+        '<div class="prop-features" id="propFeatures"></div>' +
+        '<div class="corys-take-gated gated-wrap locked" id="gatedCorysTake" onclick="onGatedClick()">' +
+          '<div class="gated-prompt"><svg class="gated-prompt-icon" viewBox="0 0 24 24"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg><div class="gated-prompt-text"><strong>Create a free account</strong> to see Cory\'s market insights on this property</div><div class="gated-prompt-sub">Click anywhere to sign up</div></div>' +
+          '<div class="gated-content"><div class="corys-take" id="corysTake" style="display:none"><div class="corys-take-pin"><svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="6" r="4" fill="#C4B08C" stroke="none"/><path d="M12 10v10" stroke="#C4B08C" stroke-width="2" fill="none"/></svg></div><div class="corys-take-header"><div class="corys-take-label">From the Broker</div><div class="corys-take-title">Cory\'s Take</div></div><div class="corys-take-insights" id="corysTakeInsights"></div><div class="corys-take-sig">&mdash; Cory Coleman, Keller Williams Great Smokies</div></div></div>' +
+        '</div>' +
+        '<div class="prop-section-label" style="margin-top:2.5rem">Property Highlights</div>' +
+        '<div class="prop-highlights" id="propHighlights"></div>' +
+        '<div class="prop-section-label" style="margin-top:2.5rem">Location</div>' +
+        '<div class="prop-map"><div class="prop-map-text"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><p id="propMapText">Interactive map available on request</p></div></div>' +
+      '</div>' +
+      '<div class="prop-sidebar">' +
+        '<div class="prop-agent"><div class="prop-agent-header"><div class="prop-agent-avatar">CC</div><div><div class="prop-agent-name">Cory Coleman</div><div class="prop-agent-brokerage">Keller Williams Great Smokies</div></div></div>' +
+          '<a href="tel:8285066413" class="prop-agent-cta primary"><svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>Call Cory</a>' +
+          '<a href="sms:8285066413" class="prop-agent-cta secondary"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>Text About This Property</a>' +
+          '<a href="mailto:cory@coryhelpsyoumove.com" class="prop-agent-cta secondary"><svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M22 6l-10 7L2 6"/></svg>Email Inquiry</a>' +
+          '<a href="tel:8285066413" class="prop-agent-phone"><svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>(828) 506-6413</a>' +
+        '</div>' +
+        '<div class="prop-notes-wrap" id="propNotesWrap" style="display:none"><div class="prop-notes-header"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg><div class="prop-notes-title">Your Notes</div></div><textarea class="prop-notes-ta" id="propNotesTA" placeholder="Jot down thoughts, questions, or things to look for at the showing..."></textarea><div class="prop-notes-hint"><svg viewBox="0 0 24 24" width="12" height="12"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Notes appear on your printed property sheet</div></div>' +
+        '<div class="gated-wrap locked" id="gatedCalc" onclick="onGatedClick()"><div class="gated-prompt"><svg class="gated-prompt-icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><div class="gated-prompt-text"><strong>Create a free account</strong> to view mortgage estimates and payment details</div><div class="gated-prompt-sub">Click anywhere to sign up</div></div><div class="gated-content"><div class="prop-calc"><div class="prop-calc-title">Estimated Payment</div><div class="prop-calc-row"><span class="prop-calc-label">Purchase Price</span><span class="prop-calc-val" id="calcPrice"></span></div><div class="prop-calc-row"><span class="prop-calc-label">Down Payment (20%)</span><span class="prop-calc-val" id="calcDown"></span></div><div class="prop-calc-row"><span class="prop-calc-label">Loan Amount</span><span class="prop-calc-val" id="calcLoan"></span></div><div class="prop-calc-row"><span class="prop-calc-label">Interest Rate</span><span class="prop-calc-val">6.75%</span></div><div class="prop-calc-row"><span class="prop-calc-label">Loan Term</span><span class="prop-calc-val">30 years</span></div><div class="prop-calc-total"><span class="prop-calc-label">Est. Monthly</span><span class="prop-calc-val" id="calcMonthly"></span></div><div class="prop-calc-note">Estimate only. Does not include taxes, insurance, or HOA. Contact a lender for an accurate pre-approval.</div></div></div></div>' +
+        '<div class="prop-share"><button class="prop-share-btn" onclick="propShare(\'copy\')"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy Link</button><button class="prop-share-btn" onclick="propShare(\'email\')"><svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M22 6l-10 7L2 6"/></svg> Email</button><button class="prop-share-btn gated-print-btn" id="propPrintBtn" onclick="propShare(\'print\')"><svg viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print</button></div>' +
+      '</div>' +
+    '</div></div>' +
+    '<div class="prop-similar"><div class="prop-similar-inner"><div class="prop-section-label">More Properties</div><h2 class="prop-section-title">Similar <em>Listings</em></h2><div class="prop-similar-grid" id="propSimilar"></div></div></div>' +
+    '<div class="corys-suggestions" id="corysSuggestions" style="display:none"><div class="corys-suggestions-inner"><div class="corys-take-label">Personalized for You</div><div class="prop-section-title" style="margin-bottom:0.5rem">Cory\'s <em>Suggestions</em></div><div class="corys-suggestions-reason" id="corysSuggestionsReason"></div><div class="corys-suggestions-grid" id="corysSuggestionsGrid"></div></div></div>' +
+    '<div class="print-page" id="printPage"><div class="print-page-header"><div class="print-page-header-left"><img class="print-page-thumb" id="printThumb" src="" alt="Property photo"></div><div class="print-page-header-right"><div class="print-page-price" id="printPrice"></div><div class="print-page-addr" id="printAddr"></div><div class="print-page-city" id="printCity"></div><div class="print-page-date" id="printDate"></div></div></div><div class="print-page-stats" id="printStats"></div><div class="print-section-label">Property Overview</div><div class="print-page-desc" id="printDesc"></div><div class="print-section-label">Property Details</div><div class="print-page-details" id="printDetails"></div><div class="print-corys-take" id="printCorysTake" style="display:none"><div class="print-section-label">Cory\'s Take</div><div class="print-corys-take-insights" id="printCorysTakeInsights"></div></div><div class="print-bottom-row"><div class="print-notes-section"><div class="print-notes-title">Your Notes</div><div class="print-notes-content" id="printYourNotes"></div></div><div class="print-notepad-section"><div class="print-notepad-title">Additional Notes</div><div class="print-notepad-lines"><div class="print-line"></div><div class="print-line"></div><div class="print-line"></div><div class="print-line"></div><div class="print-line"></div><div class="print-line"></div><div class="print-line"></div><div class="print-line"></div></div></div></div><div class="print-page-footer">Cory Coleman | Keller Williams Great Smokies | (828) 506-6413 | coryhelpsyoumove.com</div></div>' +
+  '</div>';
+
+  // --- Fullscreen Lightbox ---
+  html += '<div class="prop-lightbox" id="propLightbox" onclick="closeLightbox(event)">' +
+    '<button class="prop-lightbox-close" onclick="closeLightbox()">&times;</button>' +
+    '<div class="prop-lb-nav prop-lb-prev" onclick="event.stopPropagation();lbNav(-1)"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></div>' +
+    '<div class="prop-lb-nav prop-lb-next" onclick="event.stopPropagation();lbNav(1)"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>' +
+    '<img id="propLbImg" src="" alt="Property photo fullscreen">' +
+    '<div class="prop-lb-count" id="propLbCount"></div>' +
+  '</div>';
+
+  // --- Account Modal ---
+  html += '<div class="acct-modal-bg" id="acctModal"><div class="acct-modal" id="acctModalInner">' +
+    '<button class="acct-modal-close" onclick="closeAcctModal()">&times;</button>' +
+    '<div id="acctFormView"><div class="acct-modal-badge">Free Account</div><h3>Unlock <em>Full Details</em></h3><div class="acct-modal-sub">Create a free account to access mortgage calculators, restriction details, save your favorite properties, and more.</div><div class="acct-error" id="acctSignupError" style="display:none"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem"><div class="acct-field"><label>First Name</label><input type="text" id="acctFirst" placeholder="John" required></div><div class="acct-field"><label>Last Name</label><input type="text" id="acctLast" placeholder="Smith" required></div></div><div class="acct-field"><label>Email Address</label><input type="email" id="acctEmail" placeholder="john@example.com" required></div><div class="acct-field"><label>Phone</label><input type="tel" id="acctPhone" placeholder="(828) 555-1234" required></div><div class="acct-field"><label>Password</label><input type="password" id="acctPass" placeholder="Create a password" required minlength="6"><div class="acct-pass-note">Minimum 6 characters</div></div><button class="acct-submit" onclick="submitAcct()">Create Free Account</button><div class="form-privacy"><svg viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Your information stays with me &mdash; I never sell or share it with third parties.</div><div class="acct-or">&mdash; or &mdash;</div><div class="acct-login-link" onclick="showAcctLogin()">Already have an account? <strong>Sign in</strong></div></div>' +
+    '<div id="acctLoginView" style="display:none"><div class="acct-modal-badge">Welcome Back</div><h3>Sign In</h3><div class="acct-modal-sub">Access your saved favorites, searches, and full property details.</div><div class="acct-error" id="acctLoginError" style="display:none"></div><div class="acct-field"><label>Email Address</label><input type="email" id="acctLoginEmail" placeholder="john@example.com" required></div><div class="acct-field"><label>Password</label><input type="password" id="acctLoginPass" placeholder="Your password" required></div><button class="acct-submit" onclick="loginAcct()">Sign In</button><div class="acct-or">&mdash; or &mdash;</div><div class="acct-login-link" onclick="showAcctSignup()">Don\'t have an account? <strong>Create one free</strong></div></div>' +
+    '<div id="acctSuccessView" style="display:none"><div class="acct-success"><svg class="acct-success-icon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg><h3>Welcome!</h3><p>Your free account is ready. You now have full access to property details, mortgage estimates, and can save your favorites.</p></div></div>' +
+    '<div id="acctDashView" style="display:none"><div style="text-align:center;margin-bottom:1rem"><svg viewBox="0 0 24 24" style="width:40px;height:40px;stroke:var(--gold);fill:none;stroke-width:1.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><h3 id="acctDashName" style="margin:0.5rem 0 0;color:var(--text)">My Account</h3><p id="acctDashEmail" style="margin:0;font-size:0.85rem;color:var(--text-muted)"></p></div><div style="margin:1rem 0"><h4 style="color:var(--gold);font-size:0.9rem;margin-bottom:0.5rem;border-bottom:1px solid var(--border);padding-bottom:0.4rem">Saved Searches</h4><div id="acctSavedSearches" style="max-height:200px;overflow-y:auto"></div></div><div style="margin:1rem 0"><h4 style="color:var(--gold);font-size:0.9rem;margin-bottom:0.5rem;border-bottom:1px solid var(--border);padding-bottom:0.4rem">Favorites</h4><p id="acctFavCount" style="font-size:0.85rem;color:var(--text-muted)"></p><button onclick="closeAcctModal();openCompare()" style="margin-top:0.5rem;padding:0.55rem 1rem;border:1px solid var(--gold);background:transparent;color:var(--gold);font-family:\'Outfit\',sans-serif;font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;transition:all 0.3s;width:100%" id="acctCompareBtn">Compare Favorites</button></div><div style="margin:1rem 0"><h4 style="color:var(--gold);font-size:0.9rem;margin-bottom:0.5rem;border-bottom:1px solid var(--border);padding-bottom:0.4rem">Cory\'s Suggestions</h4><div id="acctSuggestionsPreview" style="max-height:300px;overflow-y:auto"><p style="font-size:0.85rem;color:var(--text-muted)">Save at least 2 properties to unlock personalized suggestions.</p></div></div><div style="display:flex;gap:0.5rem;margin-top:1.2rem"><button onclick="closeAcctModal()" style="flex:1;padding:0.65rem;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;font-size:0.85rem">Close</button><button onclick="signOutAcct()" style="flex:1;padding:0.65rem;border-radius:8px;border:none;background:#c0392b;color:#fff;cursor:pointer;font-size:0.85rem">Sign Out</button></div></div>' +
+  '</div></div>';
+
+  // --- Search Results Overlay ---
+  html += '<div class="search-overlay" id="searchOverlay">' +
+    '<div class="sr-topbar"><div class="sr-topbar-left"><button class="sr-back" onclick="closeSearch()"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button><div><div class="sr-title">Properties in <em id="srRegion">Western NC</em></div><div class="sr-count" id="srCount">0 listings</div></div></div><div class="sr-topbar-right"><button class="theme-toggle" onclick="toggleTheme()" style="width:36px;height:36px;font-size:0.85rem" aria-label="Toggle theme"><span class="prop-toggle-sun" style="display:none">☀</span><span class="prop-toggle-moon">☽</span></button></div></div>' +
+    '<div class="sr-filters" id="srFilters">' +
+      '<div class="sr-filter-chip" id="srfLocation"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><select id="srfLocSelect" onchange="srApplyFilters()"><option value="">All Areas</option><option value="Waynesville">Waynesville</option><option value="Sylva">Sylva</option><option value="Maggie Valley">Maggie Valley</option><option value="Bryson City">Bryson City</option><option value="Cashiers">Cashiers / Highlands</option><option value="Franklin">Franklin</option><option value="Dillsboro">Dillsboro</option><option value="Cullowhee">Cullowhee</option></select></div>' +
+      '<div class="sr-filter-chip" id="srfType"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg><select id="srfTypeSelect" onchange="srApplyFilters()"><option value="">All Types</option><option value="Single Family">Single Family</option><option value="Cabin">Cabin</option><option value="Land">Land</option></select></div>' +
+      '<div class="sr-filter-chip" id="srfPrice"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg><select id="srfPriceSelect" onchange="srApplyFilters()"><option value="">Any Price</option><option value="0-200000">Under $200K</option><option value="200000-400000">$200K – $400K</option><option value="400000-700000">$400K – $700K</option><option value="700000-1000000">$700K – $1M</option><option value="1000000-99999999">$1M+</option></select></div>' +
+      '<div class="sr-filter-chip" id="srfBeds"><select id="srfBedsSelect" onchange="srApplyFilters()"><option value="">Any Beds</option><option value="2">2+ Beds</option><option value="3">3+ Beds</option><option value="4">4+ Beds</option><option value="5">5+ Beds</option></select></div>' +
+      '<div class="sr-filter-chip" id="srfBaths"><select id="srfBathsSelect" onchange="srApplyFilters()"><option value="">Any Baths</option><option value="1">1+ Bath</option><option value="2">2+ Baths</option><option value="3">3+ Baths</option><option value="4">4+ Baths</option></select></div>' +
+      '<div class="sr-filter-chip sr-restrict-gated" id="srfRestrict" onclick="if(!_acctLoggedIn){event.preventDefault();event.stopPropagation();openAcctModal();}"><select id="srfRestrictSelect" onchange="srApplyFilters()" class="sr-restrict-select" disabled><option value="">Any Restrictions</option><option value="unrestricted">Unrestricted</option><option value="restricted">Deed Restricted</option><option value="light">Lightly Restricted</option><option value="hoa">HOA Community</option></select><div class="restrict-lock-overlay" id="srRestrictOverlay"><span>Create account to filter</span></div></div>' +
+      '<button class="sr-filter-clear" id="srfClear" onclick="srClearFilters()">Clear All</button>' +
+    '</div>' +
+    '<div class="sr-body" id="srBody"><div class="sr-map-panel" id="srMapPanel"><div class="sr-map-loading" id="srMapLoading"><span>Loading Map...</span></div><div id="srMap" style="height:100%;width:100%"></div><div class="sr-map-vignette"></div><div class="sr-map-overlay"></div><div class="sr-map-brand"><div class="sr-map-brand-text">Western North Carolina</div><div class="sr-map-brand-sub">Cory Coleman Real Estate</div></div></div><div class="sr-list-panel" id="srListPanel"><div class="sr-sort"><span>Sort by</span><select id="srSort" onchange="srApplyFilters()"><option value="price-asc">Price: Low to High</option><option value="price-desc">Price: High to Low</option><option value="beds-desc">Most Bedrooms</option><option value="sqft-desc">Largest</option></select></div><div class="sr-cards" id="srCards"></div></div></div>' +
+    '<button class="sr-view-toggle" id="srViewToggle" onclick="srToggleView()"><svg viewBox="0 0 24 24" id="srToggleIcon"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span id="srToggleLabel">Show Map</span></button>' +
+  '</div>';
+
+  // --- Compare Overlay ---
+  html += '<div class="compare-overlay" id="compareOverlay">' +
+    '<div class="compare-topbar"><div class="compare-topbar-left"><button class="sr-back" onclick="closeCompare()"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button><div><div class="compare-title">Compare <em>Properties</em></div><div class="compare-count" id="compareCount">Select properties to compare</div></div></div><div class="compare-topbar-right"><button class="theme-toggle" onclick="toggleTheme()" style="width:36px;height:36px;font-size:0.85rem" aria-label="Toggle theme"><span class="prop-toggle-sun" style="display:none">☀</span><span class="prop-toggle-moon">☽</span></button></div></div>' +
+    '<div class="compare-select" id="compareSelect"><div class="compare-select-header"><div class="prop-section-label">Your Favorites</div><h2 class="prop-section-title">Choose Properties to <em>Compare</em></h2><p class="compare-select-sub">Select 2 to 10 saved properties, then hit Compare.</p></div><div class="compare-fav-grid" id="compareFavGrid"></div><div class="compare-select-actions"><button class="compare-go-btn" id="compareGoBtn" onclick="runCompare()" disabled>Compare Selected (0)</button></div></div>' +
+    '<div class="compare-table-wrap" id="compareTableWrap" style="display:none"><div class="compare-table-actions"><button class="compare-back-btn" onclick="showCompareSelect()">&#8592; Change Selection</button></div><div class="compare-table-scroll"><table class="compare-table" id="compareTable"><thead id="compareHead"></thead><tbody id="compareBody"></tbody></table></div></div>' +
+  '</div>';
+
+  // --- Chat Widget ---
+  html += '<div class="chat-greeting" id="chatGreeting"><button class="chat-greeting-close" onclick="var cg=document.getElementById(\'chatGreeting\');if(cg)cg.classList.remove(\'show\');var cb=document.getElementById(\'chatBadge\');if(cb)cb.classList.remove(\'show\');">&times;</button><strong>Hey there!</strong> I\'m Cory\'s assistant. Looking to buy, sell, or explore Western NC? I\'m here to help.</div>' +
+    '<button class="chat-trigger" id="chatTrigger" onclick="toggleChat()"><div class="chat-trigger-av">CC</div><div class="chat-trigger-label"><span class="chat-trigger-name">Chat with Cory</span><span class="chat-trigger-status">Online Now</span></div><div class="chat-trigger-dot"></div><svg id="triggerIcon" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" fill="none"/></svg><div class="chat-badge" id="chatBadge">1</div></button>' +
+    '<div class="chat-panel" id="chatPanel"><div class="chat-header"><div class="chat-hinfo"><div class="chat-av">CC</div><div><div class="chat-hname">Cory\'s Assistant</div><div class="chat-hstatus">Online now</div></div></div><div style="display:flex;gap:0.4rem"><button class="chat-hbtn" onclick="clearChat()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button><button class="chat-hbtn" onclick="toggleChat()"><svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div></div><div class="chat-messages" id="chatMessages"></div><div class="chat-input-area"><input type="text" class="chat-hp" id="chatHp" tabindex="-1" autocomplete="off"><div class="chat-input-wrap"><textarea class="chat-input" id="chatInput" placeholder="Type your message..." rows="1" maxlength="500"></textarea><button class="chat-send" id="chatSend" onclick="sendMessage()"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button></div><div class="chat-powered">Powered by AI &middot; Cory Coleman Realty</div></div></div>';
+
+  // Inject all HTML into the page
+  document.body.insertAdjacentHTML('beforeend', html);
+
+  // Now that chat elements exist, re-bind the chat trigger listener
+  var ct = document.getElementById('chatTrigger');
+  if(ct) ct.addEventListener('click', toggleChat);
+
+  // Re-bind chatInput listeners
+  var ci = document.getElementById('chatInput');
+  if(ci){
+    ci.addEventListener('keydown', function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}});
+    ci.addEventListener('input', function(){ci.style.height='auto';ci.style.height=Math.min(ci.scrollHeight,100)+'px'});
+  }
+})();
+}
 
 // ═══ SCROLL REVEAL ═══
 const obs=new IntersectionObserver(entries=>{entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('vis');obs.unobserve(e.target)}})},{threshold:0.1,rootMargin:'0px 0px -40px 0px'});
@@ -334,6 +461,7 @@ function cardFavHtml(address, city) {
 
 function renderFeatured(){
   const grid=document.getElementById('featuredGrid');
+  if(!grid) return;
   LISTINGS.slice(0,6).forEach(function(l,i){
     const c=document.createElement('div');c.className='f-card reveal';
     const feats=l.type==='Land'?'<span class="f-feat"><strong>'+l.lot+'</strong></span>':'<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+l.sqft.toLocaleString()+'</strong> SF</span>';
@@ -515,20 +643,22 @@ function tryPushChatLead(){
 
 // --- Chat UI ---
 function toggleChat(){
+  var cp=document.getElementById('chatPanel');if(!cp)return;
   chatOpen=!chatOpen;
-  document.getElementById('chatPanel').classList.toggle('open',chatOpen);
-  document.getElementById('chatTrigger').classList.toggle('open',chatOpen);
-  document.getElementById('chatGreeting').classList.remove('show');
-  document.getElementById('chatBadge').classList.remove('show');
+  cp.classList.toggle('open',chatOpen);
+  var ct=document.getElementById('chatTrigger');if(ct)ct.classList.toggle('open',chatOpen);
+  var cg=document.getElementById('chatGreeting');if(cg)cg.classList.remove('show');
+  var cb=document.getElementById('chatBadge');if(cb)cb.classList.remove('show');
   if(chatOpen){
-    if(!document.getElementById('chatMessages').children.length)addInitMsg();
-    setTimeout(()=>document.getElementById('chatInput').focus(),300);
+    var cm=document.getElementById('chatMessages');if(cm&&!cm.children.length)addInitMsg();
+    var ci=document.getElementById('chatInput');if(ci)setTimeout(()=>ci.focus(),300);
   }
 }
-document.getElementById('chatTrigger').addEventListener('click',toggleChat);
+var _chatTriggerEl=document.getElementById('chatTrigger');
+if(_chatTriggerEl) _chatTriggerEl.addEventListener('click',toggleChat);
 
 function addMsg(role,text,chips){
-  const c=document.getElementById('chatMessages'),w=document.createElement('div');
+  const c=document.getElementById('chatMessages');if(!c)return;var w=document.createElement('div');
   w.className='msg '+role;w.innerHTML='<div class="msg-bubble">'+text+'</div>';c.appendChild(w);
   if(chips){const cw=document.createElement('div');cw.className='quick-actions';chips.forEach(ch=>{const b=document.createElement('button');b.className='chip';b.textContent=ch;b.onclick=()=>{document.getElementById('chatInput').value=ch;sendMessage();cw.remove()};cw.appendChild(b)});c.appendChild(cw)}
   c.scrollTop=c.scrollHeight;
@@ -549,11 +679,12 @@ function addInitMsg(){
   convHistory.push({role:'assistant',content:'Greeted visitor.'});
 }
 
-function showTyping(){const c=document.getElementById('chatMessages'),t=document.createElement('div');t.className='typing-indicator';t.id='typInd';t.innerHTML='<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';c.appendChild(t);c.scrollTop=c.scrollHeight}
+function showTyping(){const c=document.getElementById('chatMessages');if(!c)return;var t=document.createElement('div');t.className='typing-indicator';t.id='typInd';t.innerHTML='<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';c.appendChild(t);c.scrollTop=c.scrollHeight}
 function hideTyping(){const e=document.getElementById('typInd');if(e)e.remove()}
 
 async function sendMessage(){
-  const inp=document.getElementById('chatInput'),txt=inp.value.trim();
+  const inp=document.getElementById('chatInput');if(!inp)return;
+  var txt=inp.value.trim();
   if(!txt||isTyping)return;
 
   // Honeypot check
@@ -691,11 +822,13 @@ updateAcctUI = function() {
   }
 };
 
-function clearChat(){convHistory=[];_chatLimits.exchangeCount=0;_chatLeadPushed=false;document.getElementById('chatMessages').innerHTML='';addInitMsg()}
+function clearChat(){convHistory=[];_chatLimits.exchangeCount=0;_chatLeadPushed=false;var cm=document.getElementById('chatMessages');if(cm)cm.innerHTML='';addInitMsg()}
 
 const chatInp=document.getElementById('chatInput');
-chatInp.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}});
-chatInp.addEventListener('input',()=>{chatInp.style.height='auto';chatInp.style.height=Math.min(chatInp.scrollHeight,100)+'px'});
+if(chatInp){
+  chatInp.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}});
+  chatInp.addEventListener('input',()=>{chatInp.style.height='auto';chatInp.style.height=Math.min(chatInp.scrollHeight,100)+'px'});
+}
 
 // ═══ COMMUNITY EVENTS (Preview for main page) ═══
 var EVENTS = {
@@ -873,12 +1006,12 @@ setTimeout(()=>{
   try{
     const profile=localStorage.getItem('cc_profile');
     if(!chatOpen && !profile){
-      document.getElementById('chatGreeting').classList.add('show');
-      document.getElementById('chatBadge').classList.add('show');
+      var _cg=document.getElementById('chatGreeting');if(_cg)_cg.classList.add('show');
+      var _cb=document.getElementById('chatBadge');if(_cb)_cb.classList.add('show');
     }
   }catch(e){}
 },3500);
-setTimeout(()=>{try{document.getElementById('chatGreeting').classList.remove('show')}catch(e){}},12000);
+setTimeout(()=>{try{var _cg2=document.getElementById('chatGreeting');if(_cg2)_cg2.classList.remove('show')}catch(e){}},12000);
 
 // ═══ PAGE OVERLAYS (Towns + Blogs) ═══
 function openPage(id){
@@ -1451,12 +1584,24 @@ function openProp(listing, townName) {
 function closeProp(fromPopstate) {
   var o = document.getElementById('propOverlay');
   if (o) o.classList.remove('active');
+  // On town pages, simply hide and restore scroll — no navigation
+  if(_isTownPage) {
+    var searchOv = document.getElementById('searchOverlay');
+    if(!searchOv || !searchOv.classList.contains('active')){
+      document.body.style.overflow = '';
+    }
+    if (!fromPopstate && history.state && history.state.page === 'property') {
+      window._propJustClosed = true;
+      history.back();
+    }
+    return;
+  }
   // Only restore scroll if search overlay isn't also open
   var searchOv = document.getElementById('searchOverlay');
   if(!searchOv || !searchOv.classList.contains('active')){
     document.body.style.overflow = '';
   }
-  // If user came from a town page, go back there
+  // If user came from a town page deep link, go back there
   if(_propDeepLinkRef) {
     var returnUrl = _propDeepLinkRef;
     _propDeepLinkRef = null;
@@ -1800,7 +1945,7 @@ function openSearchResults(filters){
 
 function closeSearch(){
   var overlay = document.getElementById('searchOverlay');
-  if(!overlay.classList.contains('active')) return;
+  if(!overlay || !overlay.classList.contains('active')) return;
   overlay.classList.remove('active');
   document.body.style.overflow = '';
   if(history.state && history.state.page === 'search') history.back();
@@ -2265,13 +2410,8 @@ initSupabaseAuth();
 function updateAcctUI() {
   var btn = document.getElementById('navAcct');
   var label = document.getElementById('navAcctLabel');
-  if(_acctLoggedIn) {
-    label.textContent = 'My Account';
-    btn.classList.add('logged-in');
-  } else {
-    label.textContent = 'Sign In';
-    btn.classList.remove('logged-in');
-  }
+  if(label) label.textContent = _acctLoggedIn ? 'My Account' : 'Sign In';
+  if(btn) { if(_acctLoggedIn) btn.classList.add('logged-in'); else btn.classList.remove('logged-in'); }
   // Unlock gated content
   document.querySelectorAll('.gated-wrap').forEach(function(el){
     if(_acctLoggedIn) el.classList.remove('locked');
@@ -2289,6 +2429,7 @@ function updateAcctUI() {
 // --- Account modal ---
 function openAcctModal() {
   var modal = document.getElementById('acctModal');
+  if(!modal) return;
   if(_acctLoggedIn) {
     // Show account dashboard
     document.getElementById('acctFormView').style.display = 'none';
@@ -2323,7 +2464,7 @@ function openAcctModal() {
 }
 
 function closeAcctModal() {
-  document.getElementById('acctModal').classList.remove('open');
+  var m=document.getElementById('acctModal');if(m)m.classList.remove('open');
 }
 
 function signOutAcct() {
@@ -2427,7 +2568,7 @@ function showAcctError(id, msg) {
 }
 
 function closeAcctModal() {
-  document.getElementById('acctModal').classList.remove('open');
+  var m=document.getElementById('acctModal');if(m)m.classList.remove('open');
 }
 
 // --- Create account (Supabase) ---
@@ -3049,6 +3190,7 @@ function openCompare() {
 
 function closeCompare() {
   var overlay = document.getElementById('compareOverlay');
+  if(!overlay) return;
   overlay.classList.remove('active');
   document.body.style.overflow = '';
   if(history.state && history.state.page === 'compare') history.back();
@@ -3465,3 +3607,88 @@ function _checkPropDeepLink(){
 }
 // Also check on page load in case SimplyRETS is disabled
 if(!SIMPLYRETS.enabled) _checkPropDeepLink();
+
+// ═══ TOWN PAGE INITIALIZATION ═══
+// When app.js loads on a standalone town page, wire cards, search, and filters
+if(_isTownPage){
+  document.addEventListener('DOMContentLoaded', function(){
+    // Detect town slug from URL
+    var pathMatch = window.location.pathname.match(/\/towns\/([a-z-]+)\.html/i);
+    var townSlug = pathMatch ? pathMatch[1].toLowerCase() : '';
+    var townData = townSlug ? TOWN_LISTINGS[townSlug] : null;
+    var townName = townData ? townData.display : '';
+
+    // 1. Wire static f-cards to openProp()
+    var cards = document.querySelectorAll('.f-card');
+    cards.forEach(function(card){
+      var addrEl = card.querySelector('.f-card-addr');
+      var cityEl = card.querySelector('.f-card-city');
+      if(!addrEl) return;
+      var addr = addrEl.textContent.trim();
+      var city = cityEl ? cityEl.textContent.replace(/,\s*NC$/i,'').trim() : townName;
+
+      // Find matching listing in TOWN_LISTINGS
+      var listing = null;
+      if(townData){
+        for(var i=0; i<townData.listings.length; i++){
+          if(townData.listings[i].address === addr){ listing = townData.listings[i]; break; }
+        }
+      }
+      // Fallback: search ALL_LISTINGS
+      if(!listing){
+        var addrLower = addr.toLowerCase();
+        for(var j=0; j<ALL_LISTINGS.length; j++){
+          if(ALL_LISTINGS[j].address.toLowerCase() === addrLower){ listing = ALL_LISTINGS[j]; break; }
+        }
+      }
+      if(!listing) return;
+
+      // Add heart icon
+      var imgWrap = card.querySelector('.f-card-img');
+      if(imgWrap && !imgWrap.querySelector('.card-fav-heart')){
+        imgWrap.insertAdjacentHTML('beforeend', cardFavHtml(listing.address, city));
+      }
+
+      // Wire click → openProp
+      card.style.cursor = 'pointer';
+      card.onclick = function(){
+        try{ openProp(listing, city); } catch(err){ console.error(err); }
+      };
+    });
+
+    // 2. Override search button to pass town page filter values
+    var searchBtns = document.querySelectorAll('.tp-search-btn');
+    searchBtns.forEach(function(btn){
+      btn.onclick = function(e){
+        e.preventDefault();
+        var filters = { location: townName };
+        // Read town page filter values
+        var typeEl = document.getElementById('tps-type-' + townSlug);
+        var bedsEl = document.getElementById('tps-beds-' + townSlug);
+        var bathsEl = document.getElementById('tps-baths-' + townSlug);
+        var restrictEl = document.getElementById('tps-restrict-' + townSlug);
+        var priceEl = document.getElementById('tps-price-' + townSlug);
+        if(typeEl && typeEl.value) filters.type = typeEl.value;
+        if(bedsEl && bedsEl.value) filters.beds = bedsEl.value;
+        if(bathsEl && bathsEl.value) filters.baths = bathsEl.value;
+        if(restrictEl && restrictEl.value) filters.restrictions = restrictEl.value;
+        if(priceEl && priceEl.value) filters.price = priceEl.value;
+        openSearchResults(filters);
+      };
+    });
+
+    // 3. Run town page search to populate dynamic grid
+    if(townSlug && townData){
+      townSearch(townSlug);
+      // Wire filter change events to re-run townSearch
+      ['tps-type-','tps-beds-','tps-baths-','tps-restrict-'].forEach(function(prefix){
+        var el = document.getElementById(prefix + townSlug);
+        if(el) el.addEventListener('change', function(){ townSearch(townSlug); });
+      });
+    }
+
+    // 4. Update account UI now that navAcct exists in the injected nav
+    if(typeof updateAcctUI === 'function') updateAcctUI();
+    if(typeof gateRestrictionFilters === 'function') gateRestrictionFilters();
+  });
+}
