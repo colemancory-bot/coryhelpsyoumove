@@ -38,6 +38,16 @@
 - **Data:** 100% owned by Cory — no third-party access
 - **Existing data flow:** Chat leads, consultation form, and account signups already insert into Supabase `leads` and `profiles` tables. Currently triggers FUB via edge function — will redirect to CRM instead.
 
+## Phase 4 — Mobile App (PWA)
+
+- [ ] Progressive Web App (PWA) — installable from browser, no app store needed
+- [ ] Works on both iPhone and Android
+- [ ] Manifest file, service worker, install prompt
+- [ ] Clients can access saved properties, chat, account from home screen
+- [ ] CRM admin panel mobile-friendly for managing leads on the go
+
+---
+
 ## Migration Steps (when ready)
 
 1. Build Phase 1 CRM
