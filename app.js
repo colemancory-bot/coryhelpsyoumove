@@ -325,6 +325,13 @@ var LISTINGS=[
   {id:6,price:1250000,address:"1 Summit Overlook",city:"Cashiers",type:"Single Family",beds:6,baths:5,sqft:5200,lot:"3.5 ac",photo:"https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?w=700&q=80",days:28}
 ];
 
+// Helper: generate heart icon HTML for a property card (defined early so all card renderers can use it)
+function cardFavHtml(address, city) {
+  var key = (address + '|' + (city||'')).toLowerCase();
+  var saved = _favProps[key] ? ' saved' : '';
+  return '<button class="card-fav-heart'+saved+'" data-key="'+key+'" onclick="toggleCardFav(event,\''+address.replace(/'/g,"\\'")+'\',\''+city.replace(/'/g,"\\'")+'\')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></button>';
+}
+
 function renderFeatured(){
   const grid=document.getElementById('featuredGrid');
   LISTINGS.slice(0,6).forEach(function(l,i){
@@ -1178,33 +1185,52 @@ function openPropFromTown(lid){
   var data=window[lid];
   if(data)openProp(data.l,data.t);
 }
-// Wire static featured cards in town pages on open
+// Wire static featured cards in town pages on open + inject heart icons
 (function(){
   var origOpen=openPage;
   openPage=function(id){
     origOpen(id);
-    if(TOWN_LISTINGS[id]){
-      setTimeout(function(){
-        var page=document.getElementById('page-'+id);
-        if(!page)return;
-        var cards=page.querySelectorAll('.f-card');
-        cards.forEach(function(card){
-          if(card._propWired)return;
-          card._propWired=true;
-          var priceEl=card.querySelector('.f-card-price');
-          var addrEl=card.querySelector('.f-card-addr');
-          if(!priceEl||!addrEl)return;
-          var price=parseInt(priceEl.textContent.replace(/[^0-9]/g,''));
-          var addr=addrEl.textContent;
-          var townName=TOWN_LISTINGS[id].display;
-          var match=null;
+    setTimeout(function(){
+      var page=document.getElementById('page-'+id);
+      if(!page)return;
+      var townName = TOWN_LISTINGS[id] ? TOWN_LISTINGS[id].display : id.replace(/-/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase()});
+      var cards=page.querySelectorAll('.f-card');
+      cards.forEach(function(card){
+        if(card._propWired)return;
+        card._propWired=true;
+        var priceEl=card.querySelector('.f-card-price');
+        var addrEl=card.querySelector('.f-card-addr');
+        if(!priceEl||!addrEl)return;
+        var price=parseInt(priceEl.textContent.replace(/[^0-9]/g,''));
+        var addr=addrEl.textContent;
+        var cityEl=card.querySelector('.f-card-city');
+        var city=cityEl?cityEl.textContent.replace(/,\s*NC$/i,'').trim():townName;
+
+        // Inject heart icon if not already present
+        var imgWrap=card.querySelector('.f-card-img');
+        if(imgWrap && !imgWrap.querySelector('.card-fav-heart')){
+          imgWrap.insertAdjacentHTML('beforeend', cardFavHtml(addr, city));
+        }
+
+        // Wire click — try to match from TOWN_LISTINGS for full data, else build from card
+        var match=null;
+        if(TOWN_LISTINGS[id]){
           TOWN_LISTINGS[id].listings.forEach(function(l){if(l.address===addr&&l.price===price)match=l});
-          if(match){
-            card.onclick=function(){try{openProp(match,townName)}catch(err){console.error(err)}};
-          }
-        });
-      },100);
-    }
+        }
+        if(match){
+          card.onclick=function(e){if(e.target.closest('.card-fav-heart'))return;try{openProp(match,townName)}catch(err){console.error(err)}};
+        } else {
+          // Fallback: build listing from card HTML
+          var badgeEl=card.querySelector('.f-card-badge');
+          var type=badgeEl?badgeEl.textContent.trim():'Single Family';
+          var feats=card.querySelectorAll('.f-feat strong');
+          var beds=0,baths=0,sqft=0,lot='';
+          if(type==='Land'){lot=feats[0]?feats[0].textContent:'';}
+          else{beds=feats[0]?parseInt(feats[0].textContent):0;baths=feats[1]?parseInt(feats[1].textContent):0;sqft=feats[2]?parseInt(feats[2].textContent.replace(/,/g,'')):0;}
+          card.onclick=function(e){if(e.target.closest('.card-fav-heart'))return;try{openProp({price:price,address:addr,type:type,beds:beds,baths:baths,sqft:sqft,lot:lot,restrictions:'unrestricted',status:'Active'},city)}catch(err){console.error(err)}};
+        }
+      });
+    },100);
   };
 })();
 
@@ -2677,13 +2703,6 @@ function toggleCardFav(e, address, city) {
   var favCount = Object.keys(_favProps).filter(function(k){return _favProps[k]}).length;
   var fc = document.getElementById('acctFavCount');
   if(fc) fc.textContent = favCount;
-}
-
-// Helper: generate heart icon HTML for a property card
-function cardFavHtml(address, city) {
-  var key = (address + '|' + (city||'')).toLowerCase();
-  var saved = _favProps[key] ? ' saved' : '';
-  return '<button class="card-fav-heart'+saved+'" data-key="'+key+'" onclick="toggleCardFav(event,\''+address.replace(/'/g,"\\'")+'\',\''+city.replace(/'/g,"\\'")+'\')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></button>';
 }
 
 // --- Favorite toggle on property detail ---
