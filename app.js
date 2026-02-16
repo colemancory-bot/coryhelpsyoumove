@@ -1,6 +1,6 @@
 // ═══ DEV BYPASS — remove before production ═══
-function devUnlock(){ _acctLoggedIn=true; updateAcctUI(); updateGatedFeatures(); updatePrintGate(); console.log('🔓 Dev mode: account unlocked'); }
-function devLock(){ _acctLoggedIn=false; updateAcctUI(); updateGatedFeatures(); updatePrintGate(); console.log('🔒 Dev mode: account locked'); }
+function devUnlock(){ _acctLoggedIn=true; updateAcctUI(); updateGatedFeatures(); updatePrintGate(); var nw=document.getElementById('propNotesWrap');if(nw)nw.style.display=''; console.log('🔓 Dev mode: account unlocked'); }
+function devLock(){ _acctLoggedIn=false; updateAcctUI(); updateGatedFeatures(); updatePrintGate(); var nw=document.getElementById('propNotesWrap');if(nw)nw.style.display='none'; console.log('🔒 Dev mode: account locked'); }
 
 // ═══ THEME TOGGLE ═══
 function toggleTheme(){
