@@ -102,6 +102,45 @@ Site continues showing last good data
 
 ---
 
+## SEO Advantage (vs SimplyRETS)
+
+SimplyRETS loads listings via JavaScript after the page renders. Google's crawler often sees a blank page — meaning your listings are essentially invisible to search engines. The direct feed approach fixes this entirely.
+
+### What we build:
+
+- [ ] **Static listing pages** — each property gets its own URL: `coryhelpsyoumove.com/properties/74-mountain-view-rd-waynesville`
+- [ ] **Auto-generated on sync** — every time listings update, static HTML pages are regenerated
+- [ ] **Rich meta tags per listing** — unique title, description, Open Graph image for each property
+- [ ] **JSON-LD structured data** — Schema.org `RealEstateListing` markup so Google can show rich results (price, beds, baths, photo in search)
+- [ ] **Auto-generated sitemap.xml** — updated every sync with all active listing URLs
+- [ ] **Canonical URLs** — prevent duplicate content issues
+- [ ] **Internal linking** — listing pages link back to town pages, town pages link to listings
+
+### SEO impact:
+
+- **Hundreds of indexable pages** — every active listing becomes a page Google can find and rank
+- **Long-tail keyword coverage** — pages automatically target searches like:
+  - "74 Mountain View Rd Waynesville NC"
+  - "3 bedroom homes for sale Sylva NC"
+  - "unrestricted land Maggie Valley NC"
+  - "cabins under 300k Bryson City NC"
+- **Faster load times** — static HTML loads instantly vs waiting for API calls (Google rewards speed)
+- **Fresh content signal** — listings update regularly, showing Google the site is active
+- **Compete with Zillow/Realtor.com** — instead of those portals being the only indexed result for a property address, your site shows up too
+
+### SimplyRETS SEO comparison:
+
+| | Direct Feed | SimplyRETS |
+|---|---|---|
+| Individual listing URLs | Yes | No (JS overlays) |
+| Google can crawl listings | Yes (static HTML) | Unreliable (JS rendering) |
+| Structured data per listing | Yes | No |
+| Auto-generated sitemap | Yes | No |
+| Meta tags per listing | Yes | No (generic page meta) |
+| Page load speed | Instant (static) | Slow (API call first) |
+
+---
+
 ## IDX Compliance Checklist
 
 - [ ] MLS disclaimer/logo on all listing pages
