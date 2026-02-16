@@ -904,11 +904,17 @@ textarea.form-input{resize:vertical;min-height:100px}
 .prop-hero-price{font-family:'Cormorant Garamond',Georgia,serif;font-size:clamp(2.2rem,4.5vw,3.2rem);font-weight:300;color:var(--cream);line-height:1;margin-bottom:0.3rem;letter-spacing:-0.02em}
 .prop-hero-addr{font-size:0.95rem;color:var(--text-body);font-weight:300;margin-bottom:0.1rem}
 .prop-hero-city{font-size:0.6rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--gold)}
+.prop-info-right{display:flex;align-items:center;gap:0.75rem}
 .prop-info-scroll-hint{display:flex;align-items:center;gap:0.4rem;color:var(--text-muted);font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;animation:hintPulse 2s ease-in-out infinite}
 @keyframes hintPulse{0%,100%{opacity:0.4}50%{opacity:1}}
+.prop-info-print-btn{display:inline-flex;align-items:center;gap:0.5rem;padding:0.6rem 1.2rem;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-family:'Outfit',sans-serif;font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;transition:all 0.3s}
+.prop-info-print-btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.5;transition:all 0.3s}
+.prop-info-print-btn:hover{border-color:var(--gold);color:var(--gold)}
 @media(max-width:768px){
   .prop-info-bar-inner{padding:1.25rem 1.5rem}
   .prop-info-scroll-hint{display:none}
+  .prop-info-print-btn span{display:none}
+  .prop-info-print-btn{padding:0.5rem}
 }
 
 .prop-hero-status{display:inline-flex;align-items:center;gap:0.5rem;padding:0.4rem 0.9rem;font-size:0.55rem;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;backdrop-filter:blur(8px)}
@@ -1237,7 +1243,7 @@ textarea.form-input{resize:vertical;min-height:100px}
 /* ═══════════════════════════════════════════════════════
    FAVORITE BUTTON (property detail)
    ═══════════════════════════════════════════════════════ */
-.prop-fav-btn{display:inline-flex;align-items:center;gap:0.5rem;padding:0.6rem 1.2rem;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-family:'Outfit',sans-serif;font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;transition:all 0.3s;margin-left:auto}
+.prop-fav-btn{display:inline-flex;align-items:center;gap:0.5rem;padding:0.6rem 1.2rem;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-family:'Outfit',sans-serif;font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;transition:all 0.3s}
 .prop-fav-btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.5;transition:all 0.3s}
 .prop-fav-btn:hover{border-color:var(--gold);color:var(--gold)}
 .prop-fav-btn.favorited{border-color:var(--gold);color:var(--gold);background:rgba(196,176,140,0.08)}
@@ -1600,7 +1606,7 @@ textarea.form-input{resize:vertical;min-height:100px}
   .prop-thumbs,.prop-hero-status,
   .prop-hero-wrap,.prop-info-bar,.prop-content-area,
   .prop-similar,.corys-suggestions,.corys-take-gated,
-  .prop-share,.prop-fav-btn,.prop-notes-wrap,
+  .prop-share,.prop-fav-btn,.prop-notes-wrap,.prop-info-print-btn,.prop-info-right,
   .search-overlay,.acct-modal-bg,.prop-lightbox,
   .compare-overlay,
   .chat-trigger,.chat-panel,.chat-greeting,

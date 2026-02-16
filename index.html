@@ -605,13 +605,19 @@
         <div class="prop-hero-addr" id="propAddr"></div>
         <div class="prop-hero-city" id="propCity"></div>
       </div>
-      <button class="prop-fav-btn" id="propFavBtn" onclick="toggleFavProp()">
-        <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
-        <span id="propFavLabel">Save</span>
-      </button>
-      <div class="prop-info-scroll-hint">
-        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 5v14M19 12l-7 7-7-7" stroke="currentColor" stroke-width="2" fill="none"/></svg>
-        <span>Scroll for details</span>
+      <div class="prop-info-right">
+        <div class="prop-info-scroll-hint">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 5v14M19 12l-7 7-7-7" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+          <span>Scroll for details</span>
+        </div>
+        <button class="prop-fav-btn" id="propFavBtn" onclick="toggleFavProp()">
+          <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+          <span id="propFavLabel">Save</span>
+        </button>
+        <button class="prop-info-print-btn" id="propInfoPrintBtn" onclick="propShare('print')">
+          <svg viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          <span>Print</span>
+        </button>
       </div>
     </div>
   </div>

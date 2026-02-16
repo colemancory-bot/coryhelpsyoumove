@@ -2,6 +2,24 @@
 function devUnlock(){ _acctLoggedIn=true; updateAcctUI(); updateGatedFeatures(); updatePrintGate(); var nw=document.getElementById('propNotesWrap');if(nw)nw.style.display=''; console.log('🔓 Dev mode: account unlocked'); }
 function devLock(){ _acctLoggedIn=false; updateAcctUI(); updateGatedFeatures(); updatePrintGate(); var nw=document.getElementById('propNotesWrap');if(nw)nw.style.display='none'; console.log('🔒 Dev mode: account locked'); }
 
+// ═══ CTRL+P INTERCEPT — Custom print for logged-in users ═══
+window.addEventListener('keydown', function(e){
+  if((e.ctrlKey || e.metaKey) && e.key === 'p'){
+    var propOverlay = document.getElementById('propOverlay');
+    if(propOverlay && propOverlay.classList.contains('active')){
+      if(_acctLoggedIn){
+        e.preventDefault();
+        propShare('print');
+      } else {
+        // Not logged in — block custom print, let browser do its default (which won't look as nice)
+        // Or we could block entirely and prompt account creation:
+        e.preventDefault();
+        openAcctModal();
+      }
+    }
+  }
+});
+
 // ═══ THEME TOGGLE ═══
 function toggleTheme(){
   const html=document.documentElement;
@@ -3133,11 +3151,16 @@ openProp = function(listing, townName) {
   setTimeout(updateGatedFeatures, 50);
   // Update print gate
   setTimeout(updatePrintGate, 60);
-  // Show notes textarea for logged-in users
+  // Show notes textarea for logged-in users & load saved notes
   var notesWrap = document.getElementById('propNotesWrap');
   var notesTA = document.getElementById('propNotesTA');
   if(notesWrap) notesWrap.style.display = _acctLoggedIn ? '' : 'none';
-  if(notesTA) notesTA.value = ''; // Reset notes for each property
+  if(notesTA) {
+    // Load saved notes for this property
+    try { notesTA.value = localStorage.getItem('cc-note-'+key) || ''; } catch(e){ notesTA.value = ''; }
+    // Auto-save on typing
+    notesTA.oninput = function(){ try{ if(notesTA.value) localStorage.setItem('cc-note-'+key, notesTA.value); else localStorage.removeItem('cc-note-'+key); }catch(e){} };
+  }
   // Build Cory's Take
   setTimeout(function(){ buildCorysTake(listing, townName); }, 70);
   // Build Cory's Suggestions
