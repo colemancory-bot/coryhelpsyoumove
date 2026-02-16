@@ -5,25 +5,52 @@
 
 ---
 
+## MLS Feeds
+
+The sync engine is built to support multiple MLSs. Each feed pulls into the same `listings` table with a `source_mls` field so we know where each listing came from. Deduplication handles properties that appear in more than one MLS.
+
+| MLS | Status | Coverage |
+|---|---|---|
+| **Carolina Smokies MLS** | Pending setup | Western NC mountains |
+| **Canopy MLS** | Pending setup | Greater Charlotte / Western NC |
+| **Highlands Cashiers MLS** | Future | Highlands, Cashiers, Sapphire area |
+
+Adding a new MLS = add credentials + field mapping. The sync engine handles the rest.
+
+---
+
 ## Prerequisites (Cory's action items)
 
-- [ ] Contact Canopy MLS (or ask KW broker) about getting RESO Web API or RETS feed access for IDX
-- [ ] Get approved for IDX data feed (typically 1-3 weeks)
-- [ ] Receive MLS credentials (server URL, API key or username/password)
+### Carolina Smokies MLS
+- [ ] Contact Carolina Smokies MLS about RESO Web API or RETS feed access for IDX
+- [ ] Get approved (typically 1-3 weeks)
+- [ ] Receive credentials (server URL, API key or username/password)
 - [ ] Confirm IDX compliance requirements (disclaimers, update frequency, photo rules)
+
+### Canopy MLS
+- [ ] Contact Canopy MLS (or ask KW broker) about RESO Web API or RETS feed access for IDX
+- [ ] Get approved (typically 1-3 weeks)
+- [ ] Receive credentials (server URL, API key or username/password)
+- [ ] Confirm IDX compliance requirements (disclaimers, update frequency, photo rules)
+
+### Highlands Cashiers MLS (future)
+- [ ] Subscribe when ready
+- [ ] Same process: request RESO Web API / RETS access, get credentials
 
 ---
 
 ## Phase 1 — Data Sync Engine
 
-- [ ] Supabase `listings` table: full schema for all MLS fields (address, price, beds, baths, sqft, lot, type, status, photos, description, coordinates, year built, days on market, MLS ID, etc.)
+- [ ] Supabase `listings` table: full schema for all MLS fields (address, price, beds, baths, sqft, lot, type, status, photos, description, coordinates, year built, days on market, MLS ID, source_mls, etc.)
 - [ ] Supabase Edge Function: scheduled sync every 15-30 minutes
-- [ ] Pull active listings from RESO Web API
-- [ ] Map MLS fields to our local schema
+- [ ] Multi-MLS support: pull from Carolina Smokies + Canopy independently
+- [ ] Per-MLS field mapping config (each MLS may name fields differently)
+- [ ] Deduplication: same property in multiple MLSs → keep most recent
 - [ ] Handle new listings, price changes, status changes, delisted/sold
 - [ ] Photo URL handling (hotlink from MLS or store in Supabase Storage)
 - [ ] City-to-town-slug mapping (MLS city names to your town pages)
-- [ ] Sync log table: every run records timestamp, listings processed, errors, duration
+- [ ] Sync log table: every run records timestamp, MLS source, listings processed, errors, duration
+- [ ] Designed so adding Highlands Cashiers MLS (or any future MLS) is just config — no code changes
 
 ## Phase 2 — Site Integration
 
@@ -54,23 +81,32 @@
 ## Technical Architecture
 
 ```
-Canopy MLS (RESO Web API)
-        |
-        v
-Supabase Edge Function (runs every 15-30 min)
-        |
-        v
-Supabase `listings` table (your database, your data)
-        |
-        v
-Your website reads from own DB (fast, no rate limits)
+Carolina Smokies MLS ──┐
+                       ├──> Supabase Edge Function (runs every 15-30 min)
+Canopy MLS ────────────┤         |
+                       │         v
+Highlands Cashiers ────┘  Supabase `listings` table
+(future)                  (deduplicated, unified schema)
+                                 |
+                                 v
+                          Your website reads from own DB
+                          (fast, no rate limits)
 ```
+
+### Multi-MLS Sync Logic
+
+- Each MLS has its own credentials and field mapping config
+- Sync runs each feed independently — if one fails, the others still update
+- Each listing stores `source_mls` field (e.g., "carolina_smokies", "canopy", "highlands_cashiers")
+- Deduplication by address + city — if same property appears in two MLSs, keep the most recently updated version
+- Adding a new MLS = add credentials + field mapping. No code rewrite needed.
 
 ### Database Tables
 
-- **`listings`** — All active MLS listings (replaces SimplyRETS API calls)
+- **`listings`** — All active MLS listings with `source_mls` field (replaces SimplyRETS API calls)
 - **`listings_history`** — Price changes, status changes over time
-- **`sync_log`** — Every sync run: timestamp, success/fail, count, errors
+- **`sync_log`** — Every sync run: timestamp, MLS source, success/fail, count, errors
+- **`mls_config`** — Credentials and field mappings per MLS (encrypted)
 
 ### Monitoring Flow
 
