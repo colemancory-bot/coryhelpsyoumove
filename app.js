@@ -546,10 +546,17 @@ renderFeatured();
   var banner=document.createElement('div');
   banner.id='demoBanner';
   banner.className='demo-banner';
-  banner.innerHTML='<div class="demo-banner-inner"><span class="demo-banner-icon">\u26A0</span> <span>Sample listings shown for demonstration purposes only. These properties are not real.</span><button class="demo-banner-close" onclick="this.parentElement.parentElement.style.display=\'none\'" aria-label="Dismiss">&times;</button></div>';
-  var nav=document.querySelector('nav')||document.querySelector('header');
-  if(nav&&nav.nextSibling){nav.parentNode.insertBefore(banner,nav.nextSibling)}
-  else{document.body.insertBefore(banner,document.body.firstChild)}
+  banner.innerHTML='<div class="demo-banner-inner"><span class="demo-banner-icon">\u26A0</span> <span>Sample listings shown for demonstration purposes only. These properties are not real.</span></div>';
+  document.body.appendChild(banner);
+  // Keep banner pinned right below the fixed nav
+  var nav=document.querySelector('.nav');
+  function positionBanner(){
+    if(!nav)return;
+    banner.style.top=nav.offsetHeight+'px';
+  }
+  positionBanner();
+  window.addEventListener('scroll',positionBanner);
+  window.addEventListener('resize',positionBanner);
 })();
 
 // ═══ IDX DISCLAIMER INJECTION (for town pages) ═══

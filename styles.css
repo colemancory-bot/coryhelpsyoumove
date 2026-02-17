@@ -2175,12 +2175,15 @@ textarea.form-input{resize:vertical;min-height:100px}
 
 /* ═══ MLS/IDX COMPLIANCE ELEMENTS ═══ */
 
-/* Demo data banner */
+/* Demo data banner — fixed below nav */
 .demo-banner {
   background: linear-gradient(135deg, #2a2208 0%, #1a1508 100%);
-  border-bottom: 1px solid var(--gold);
-  position: relative;
-  z-index: 100;
+  border-bottom: 1px solid rgba(196, 176, 140, 0.3);
+  position: fixed;
+  top: 70px;
+  left: 0;
+  right: 0;
+  z-index: 999;
 }
 .demo-banner-inner {
   max-width: 1200px;
