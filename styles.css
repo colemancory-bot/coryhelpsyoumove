@@ -2172,3 +2172,123 @@ textarea.form-input{resize:vertical;min-height:100px}
   .acct-dash-tools { grid-template-columns:1fr 1fr; }
   .notif-panel { right:8px; width:calc(100vw - 16px); max-width:360px; }
 }
+
+/* ═══ MLS/IDX COMPLIANCE ELEMENTS ═══ */
+
+/* Demo data banner */
+.demo-banner {
+  background: linear-gradient(135deg, #2a2208 0%, #1a1508 100%);
+  border-bottom: 1px solid var(--gold);
+  position: relative;
+  z-index: 100;
+}
+.demo-banner-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0.6rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.8rem;
+  color: var(--gold);
+  letter-spacing: 0.03em;
+}
+.demo-banner-icon { font-size: 1rem; }
+.demo-banner-close {
+  background: none;
+  border: none;
+  color: var(--gold);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  margin-left: 0.5rem;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+.demo-banner-close:hover { opacity: 1; }
+[data-theme="light"] .demo-banner {
+  background: linear-gradient(135deg, #faf5e8 0%, #f0e8d0 100%);
+  border-bottom-color: var(--gold);
+}
+[data-theme="light"] .demo-banner-inner { color: #6b5a2e; }
+[data-theme="light"] .demo-banner-close { color: #6b5a2e; }
+
+/* DEMO badge on cards */
+.f-card-demo-badge {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  padding: 0.15rem 0.45rem;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.55rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: rgba(196, 176, 140, 0.9);
+  color: #0C0B09;
+  border-radius: 3px;
+  z-index: 2;
+}
+
+/* Listing office on cards */
+.f-card-office {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  margin-top: 0.35rem;
+  letter-spacing: 0.02em;
+  opacity: 0.8;
+}
+
+/* Listing broker attribution in property overlay */
+.prop-listing-broker {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.3rem;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+}
+
+/* Demo notice on property overlay */
+.prop-demo-notice {
+  display: inline-block;
+  margin-top: 0.4rem;
+  padding: 0.2rem 0.6rem;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: rgba(196, 176, 140, 0.85);
+  color: #0C0B09;
+  border-radius: 3px;
+}
+
+/* IDX disclaimer footer */
+.idx-disclaimer {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem 2rem;
+  border-top: 1px solid rgba(196, 176, 140, 0.15);
+}
+.idx-disclaimer p {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0 0 0.5rem 0;
+  opacity: 0.7;
+}
+.idx-disclaimer .idx-demo-note {
+  font-weight: 600;
+  color: var(--gold);
+  opacity: 0.9;
+}
+.idx-disclaimer .idx-timestamp {
+  font-size: 0.65rem;
+  opacity: 0.5;
+  margin-bottom: 0;
+}
