@@ -68,6 +68,7 @@ if(_isTownPage){
 
   // --- Property Detail Overlay ---
   html += '<div class="prop-overlay" id="propOverlay">' +
+    '<div class="prop-demo-banner"><span class="demo-banner-icon">\u26A0</span> Sample listings shown for demonstration purposes only. These properties are not real.</div>' +
     '<button class="prop-close" onclick="closeProp()">&times;</button>' +
     '<div class="prop-theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode"><span class="prop-toggle-sun">☀</span><span class="prop-toggle-moon">☽</span></div>' +
     '<div class="prop-hero-wrap"><div class="prop-hero" id="propHeroZone">' +
