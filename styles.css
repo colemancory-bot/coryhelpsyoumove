@@ -1647,7 +1647,8 @@ textarea.form-input{resize:vertical;min-height:100px}
   .admin-overlay,.afford-overlay,.col-overlay,.qa-overlay,
   .notif-panel,.nav-notif,.nav-admin-link,
   .admin-print-btns,.prop-showing-btn,.prop-ask-cory,
-  .showing-form
+  .showing-form,
+  .prop-demo-banner,.prop-demo-notice,.demo-banner
   {display:none!important}
 
   /* Property overlay: static flow */
