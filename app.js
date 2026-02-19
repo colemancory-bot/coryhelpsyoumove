@@ -1878,6 +1878,33 @@ function propShare(type) {
         printNotesSection.style.display = 'none';
       }
     }
+    // Dynamic note lines: start with 8, remove until content fits one page (min 2)
+    var pp = document.getElementById('printPage');
+    var noteLines = document.getElementById('printNotepadLines');
+    if(pp && noteLines) {
+      // Temporarily show print page to measure
+      pp.style.display = 'block';
+      pp.style.position = 'absolute';
+      pp.style.left = '-9999px';
+      pp.style.width = '7.7in'; // letter width minus 0.4in margins
+      // Reset to 8 lines
+      noteLines.innerHTML = '';
+      for(var nl=0; nl<8; nl++) noteLines.innerHTML += '<div class="print-line"></div>';
+      // One page height: 11in - 0.5in top/bottom margins = 10.1in
+      var maxH = 10.1 * 96; // ~969px at 96dpi
+      var lines = noteLines.querySelectorAll('.print-line');
+      var attempts = 0;
+      while(pp.scrollHeight > maxH && lines.length > 2 && attempts < 7) {
+        noteLines.removeChild(lines[lines.length - 1]);
+        lines = noteLines.querySelectorAll('.print-line');
+        attempts++;
+      }
+      // Reset positioning
+      pp.style.display = '';
+      pp.style.position = '';
+      pp.style.left = '';
+      pp.style.width = '';
+    }
     window.print();
   }
 }
