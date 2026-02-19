@@ -1757,7 +1757,7 @@ function propShare(type) {
     var d1 = document.getElementById('propDesc1');
     var d2 = document.getElementById('propDesc2');
     var descText = (d1 ? d1.textContent : '') + (d2 && d2.textContent ? ' ' + d2.textContent : '');
-    document.getElementById('printDesc').textContent = descText.substring(0, 350) + (descText.length > 350 ? '...' : '');
+    document.getElementById('printDesc').textContent = descText;
 
     // Property Details (features grid)
     var featEls = document.querySelectorAll('#propFeatures .prop-feat');
