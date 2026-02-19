@@ -2345,3 +2345,54 @@ textarea.form-input{resize:vertical;min-height:100px}
   color: var(--cream);
   opacity: 0.9;
 }
+
+/* IDX source attribution (Rule 23) */
+.idx-disclaimer .idx-source {
+  font-weight: 600;
+  font-size: 0.75rem;
+  color: var(--cream);
+  opacity: 0.85;
+  margin-bottom: 0.75rem;
+}
+
+/* DMCA notice (Rule 30) */
+.idx-dmca {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem 2rem;
+  border-top: 1px solid rgba(196, 176, 140, 0.1);
+}
+.idx-dmca p {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0 0 0.5rem 0;
+  opacity: 0.6;
+}
+.idx-dmca .idx-dmca-title {
+  font-weight: 700;
+  font-size: 0.7rem;
+  color: var(--cream);
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.5rem;
+}
+
+/* Anti-scraping notice (Rule 29) */
+.idx-scraping-notice {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0.75rem 2rem;
+  border-top: 1px solid rgba(196, 176, 140, 0.1);
+}
+.idx-scraping-notice p {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin: 0;
+  opacity: 0.6;
+  font-weight: 500;
+}
