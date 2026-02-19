@@ -2174,6 +2174,100 @@ textarea.form-input{resize:vertical;min-height:100px}
   .notif-panel { right:8px; width:calc(100vw - 16px); max-width:360px; }
 }
 
+/* ═══ TOWN FAQ SECTIONS ═══ */
+
+.town-faq {
+  padding: 3rem 2rem;
+  max-width: 900px;
+  margin: 0 auto;
+}
+.town-faq .section-title {
+  font-size: clamp(1.6rem, 3.5vw, 2.5rem);
+  margin-bottom: 2rem;
+}
+.faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.faq-item {
+  border-bottom: 1px solid rgba(196, 176, 140, 0.15);
+}
+.faq-item:first-child {
+  border-top: 1px solid rgba(196, 176, 140, 0.15);
+}
+.faq-item summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 0;
+  font-family: 'Outfit', sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--cream);
+  cursor: pointer;
+  list-style: none;
+  transition: color 0.2s;
+  line-height: 1.4;
+}
+.faq-item summary::-webkit-details-marker { display: none; }
+.faq-item summary::after {
+  content: '+';
+  flex-shrink: 0;
+  margin-left: 1rem;
+  font-size: 1.3rem;
+  font-weight: 300;
+  color: var(--gold);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.faq-item[open] summary::after {
+  content: '−';
+}
+.faq-item summary:hover {
+  color: var(--gold);
+}
+.faq-item p {
+  padding: 0 0 1.25rem 0;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.9rem;
+  color: var(--text-body);
+  line-height: 1.7;
+  max-width: 800px;
+}
+.faq-item p a {
+  color: var(--gold);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.faq-item p a:hover {
+  color: var(--gold-light);
+}
+
+/* Light theme FAQ adjustments */
+[data-theme="light"] .faq-item {
+  border-bottom-color: rgba(139, 119, 72, 0.2);
+}
+[data-theme="light"] .faq-item:first-child {
+  border-top-color: rgba(139, 119, 72, 0.2);
+}
+[data-theme="light"] .faq-item summary {
+  color: var(--cream);
+}
+
+@media (max-width: 768px) {
+  .town-faq {
+    padding: 2rem 1.25rem;
+  }
+  .faq-item summary {
+    font-size: 0.9rem;
+    padding: 1rem 0;
+  }
+  .faq-item p {
+    font-size: 0.85rem;
+    padding-bottom: 1rem;
+  }
+}
+
 /* ═══ MLS/IDX COMPLIANCE ELEMENTS ═══ */
 
 /* Demo data banner — fixed below nav */
