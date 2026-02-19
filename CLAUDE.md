@@ -3,6 +3,39 @@
 ## SEO IS THE #1 PRIORITY FOR THIS WEBSITE
 Every code change, new page, and content addition must consider SEO impact. When in doubt, optimize for search.
 
+## FAIR HOUSING ACT COMPLIANCE IS MANDATORY
+All content on this website MUST comply with the Fair Housing Act (42 U.S.C. 3601-3619) and the North Carolina State Fair Housing Act (Chapter 41A). This is non-negotiable.
+
+### The Core Rule: Describe the property, not the people.
+
+### Protected Classes (Federal + NC)
+Race, color, religion, national origin, sex (includes sexual orientation/gender identity), disability, familial status, affordable housing status (NC).
+
+### Content Rules — NEVER:
+- Describe who a property/area is "perfect for" (no "great for retirees/families/singles")
+- Say "safe," "low crime," "quiet neighborhood," or "dangerous"
+- Rate schools as "good" or "best" — link to GreatSchools.org or school district sites instead
+- Describe demographics of residents (racial, ethnic, religious, age composition)
+- Use "exclusive," "restricted," "private" as community character descriptors
+- Use "family-friendly," "empty nester," "bachelor," "couples only"
+- Describe religious character of a community
+- Provide crime statistics or safety comparisons between areas
+- Steer by describing certain towns as better for certain groups
+
+### Content Rules — ALWAYS:
+- Describe physical property features, geography, landmarks, distances, amenities
+- Cite objective data with sources (median prices, tax rates, elevation, climate)
+- Link to third-party sources for schools, safety, demographics
+- Use inclusive language: "residents," "homebuyers," "newcomers"
+- Present facts and let readers draw their own conclusions
+- Include Equal Housing Opportunity statement on every page
+- Include Fair Housing disclaimer on blog posts
+
+### Blog Post Disclaimers (required on every post):
+- Equal Housing Opportunity statement
+- "This content is for informational purposes only and does not constitute legal, financial, or tax advice."
+- "Information is believed to be accurate but is not guaranteed. Buyers should verify all information independently."
+
 ---
 
 ## Project Overview

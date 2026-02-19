@@ -571,6 +571,13 @@ renderFeatured();
     disc.innerHTML='<p>Data deemed reliable but not guaranteed accurate by the MLS. Information provided by Carolina Smokies Association of Realtors and Canopy MLS. IDX information is provided exclusively for consumers\u2019 personal, non-commercial use and may not be used for any purpose other than identifying prospective properties. Properties displayed may be listed or sold by various participants in the MLS. \u00A9 2026 Carolina Smokies Association of Realtors. All rights reserved.</p><p class="idx-demo-note">Currently displaying demonstration data. Live MLS data pending feed activation.</p><p class="idx-timestamp">Data last updated: February 17, 2026 at 3:45 PM</p>';
     fb.parentNode.insertBefore(disc,fb);
   }
+  // Fair Housing statement injection
+  if(!document.querySelector('.fair-housing')&&fb){
+    var fh=document.createElement('div');
+    fh.className='fair-housing';
+    fh.innerHTML='<div class="fair-housing-inner"><svg class="fair-housing-logo" viewBox="0 0 24 24" width="28" height="28" aria-label="Equal Housing Opportunity"><path d="M12 3L2 12h3v9h14v-9h3L12 3zm0 2.84L19 12h-2v7H7v-7H5l7-6.16z" fill="currentColor"/><rect x="9" y="14" width="6" height="1.5" fill="currentColor"/><rect x="9" y="17" width="6" height="1.5" fill="currentColor"/></svg><div class="fair-housing-text"><strong>Equal Housing Opportunity.</strong> Cory Coleman and Keller Williams Great Smokies fully support the principles of the Fair Housing Act. We do not discriminate on the basis of race, color, religion, national origin, sex, disability, or familial status.</div></div>';
+    fb.parentNode.insertBefore(fh,fb);
+  }
 })();
 
 // ═══ CHATBOT ═══

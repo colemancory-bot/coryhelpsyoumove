@@ -2315,3 +2315,33 @@ textarea.form-input{resize:vertical;min-height:100px}
   opacity: 0.5;
   margin-bottom: 0;
 }
+
+/* Fair Housing statement */
+.fair-housing {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem 2rem 0.5rem;
+  border-top: 1px solid rgba(196, 176, 140, 0.1);
+}
+.fair-housing-inner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+.fair-housing-logo {
+  flex-shrink: 0;
+  color: var(--gold);
+  opacity: 0.7;
+  margin-top: 0.1rem;
+}
+.fair-housing-text {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  opacity: 0.7;
+}
+.fair-housing-text strong {
+  color: var(--cream);
+  opacity: 0.9;
+}
