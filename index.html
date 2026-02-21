@@ -94,7 +94,7 @@
 <!-- ═══════════════ NAVIGATION ═══════════════ -->
 <header>
 <nav class="nav" id="nav">
-  <a href="#" class="nav-logo"><div class="nav-logo-text"><div class="nav-logo-name"><span>C</span>ory <span>C</span>oleman</div><div class="nav-logo-sub">Real Estate</div></div> <div class="nav-divider"></div> <img src="keller-williams-great-smokies-western-nc-real-estate.png" alt="Keller Williams Great Smokies - Western NC Real Estate Brokerage" class="nav-kw"></a>
+  <a href="#" class="nav-logo"><img src="keller-williams-great-smokies-western-nc-real-estate.png" alt="Keller Williams Great Smokies - Western NC Real Estate Brokerage" class="nav-kw"> <div class="nav-divider"></div> <div class="nav-logo-text"><div class="nav-logo-name"><span>C</span>ory <span>C</span>oleman</div><div class="nav-logo-sub">Real Estate</div></div></a>
   <div class="nav-center">
     <a href="#about">About</a>
     <a href="#areas">Areas</a>
@@ -537,7 +537,7 @@
 <footer class="footer">
   <div class="footer-inner">
     <div class="footer-brand">
-      <div class="nav-logo"><div class="nav-logo-text"><div class="nav-logo-name"><span>C</span>ory <span>C</span>oleman</div><div class="nav-logo-sub">Real Estate</div></div> <div class="nav-divider"></div> <img src="keller-williams-great-smokies-western-nc-real-estate.png" alt="Keller Williams Great Smokies Mountain Real Estate" class="nav-kw"></div>
+      <div class="nav-logo"><img src="keller-williams-great-smokies-western-nc-real-estate.png" alt="Keller Williams Great Smokies Mountain Real Estate" class="nav-kw"> <div class="nav-divider"></div> <div class="nav-logo-text"><div class="nav-logo-name"><span>C</span>ory <span>C</span>oleman</div><div class="nav-logo-sub">Real Estate</div></div></div>
       <p>Your trusted guide to real estate across Western North Carolina. From mountain homes to peaceful acreage — honest guidance and real results.</p>
       <div class="footer-social">
         <a href="https://www.facebook.com/profile.php?id=61561909577942" target="_blank" aria-label="Facebook"><svg viewBox="0 0 24 24"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg></a>
@@ -555,7 +555,7 @@
     <p>IDX information is provided exclusively for consumers' personal, non-commercial use and may not be used for any purpose other than to identify prospective properties consumers may be interested in purchasing. Data is deemed reliable but is not guaranteed by MLS GRID.</p>
     <p>Properties displayed may be listed or sold by various participants in the MLS. &copy; 2026 Carolina Smokies Association of Realtors. All rights reserved.</p>
     <p class="idx-demo-note">Currently displaying demonstration data. Live MLS data pending feed activation.</p>
-    <p class="idx-timestamp">Data last updated: February 18, 2026 at 9:00 AM</p>
+    <p class="idx-timestamp" id="idxTimestamp">Data last updated: February 18, 2026 at 9:00 AM</p>
   </div>
   <div class="idx-dmca">
     <p class="idx-dmca-title">DMCA Notice</p>
@@ -667,6 +667,31 @@
       <!-- Features grid -->
       <div class="prop-section-label" style="margin-top:2.5rem">Property Details</div>
       <div class="prop-features" id="propFeatures"></div>
+
+      <!-- Property History (NOT gated — public information) -->
+      <div class="prop-history" id="propHistory" style="display:none">
+        <div class="prop-section-label" style="margin-top:2.5rem">Property History</div>
+        <details class="prop-history-section" id="propPriceHistorySection" open>
+          <summary class="prop-history-toggle"><span class="prop-history-toggle-label">Price History</span><span class="prop-history-toggle-icon"></span></summary>
+          <div class="prop-history-content">
+            <table class="prop-history-table" id="propPriceHistoryTable">
+              <thead><tr><th>Date</th><th>Event</th><th>Price</th><th>Change</th><th>Source</th></tr></thead>
+              <tbody id="propPriceHistoryBody"></tbody>
+            </table>
+            <div class="prop-history-empty" id="propPriceHistoryEmpty" style="display:none">Price history will be available when MLS data is live.</div>
+          </div>
+        </details>
+        <details class="prop-history-section" id="propTaxHistorySection">
+          <summary class="prop-history-toggle"><span class="prop-history-toggle-label">Tax &amp; Assessment History</span><span class="prop-history-toggle-icon"></span></summary>
+          <div class="prop-history-content">
+            <table class="prop-history-table" id="propTaxHistoryTable">
+              <thead><tr><th>Year</th><th>Property Tax</th><th>Assessment</th><th>Change</th></tr></thead>
+              <tbody id="propTaxHistoryBody"></tbody>
+            </table>
+            <div class="prop-history-empty" id="propTaxHistoryEmpty" style="display:none">Tax history will be available soon.</div>
+          </div>
+        </details>
+      </div>
 
       <!-- Cory's Take (gated) -->
       <div class="corys-take-gated gated-wrap locked" id="gatedCorysTake" onclick="onGatedClick()">
@@ -836,6 +861,7 @@
         <div class="print-page-addr" id="printAddr"></div>
         <div class="print-page-city" id="printCity"></div>
         <div class="print-page-date" id="printDate"></div>
+        <div class="print-page-broker" id="printBroker"></div>
         <div class="print-page-stats" id="printStats"></div>
       </div>
     </div>
@@ -1165,6 +1191,7 @@
   <div class="compare-table-wrap" id="compareTableWrap" style="display:none">
     <div class="compare-table-actions">
       <button class="compare-back-btn" onclick="showCompareSelect()">&#8592; Change Selection</button>
+      <button class="compare-print-btn" onclick="printComparison()"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print Comparison</button>
     </div>
     <div class="compare-table-scroll">
       <table class="compare-table" id="compareTable">
@@ -1173,6 +1200,29 @@
       </table>
     </div>
   </div>
+</div>
+
+<!-- Compare Print Sheet (hidden on screen, shown only in print) -->
+<div class="compare-print-page" id="comparePrintPage">
+  <div class="cp-header">
+    <div class="cp-header-brand">Keller Williams Great Smokies</div>
+    <div class="cp-header-agent">Prepared by Cory Coleman</div>
+  </div>
+  <div class="cp-title-row">
+    <div class="cp-title">Property Comparison</div>
+    <div class="cp-date" id="cpDate"></div>
+  </div>
+  <div class="cp-props-row" id="cpPropsRow"></div>
+  <table class="cp-table" id="cpTable">
+    <thead id="cpTableHead"></thead>
+    <tbody id="cpTableBody"></tbody>
+  </table>
+  <div class="cp-brokers" id="cpBrokers"></div>
+  <div class="cp-disclaimer">
+    <div class="cp-disclaimer-text">Listings courtesy of Canopy MLS as distributed by MLS GRID. Information deemed reliable but not guaranteed. Buyer should verify all information independently. Properties may or may not be listed by the office/agent presenting the information.</div>
+    <div class="cp-disclaimer-updated" id="cpUpdated"></div>
+  </div>
+  <div class="cp-footer">Cory Coleman | Keller Williams Great Smokies | (828) 506-6413 | coryhelpsyoumove.com</div>
 </div>
 
 <!-- Admin dashboard at /admin.html -->

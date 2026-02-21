@@ -455,6 +455,9 @@ var SIMPLYRETS = {
       // Update town page nav with new towns
       SIMPLYRETS._updateTownNav();
       SIMPLYRETS.loaded = true;
+      // Update IDX timestamp to reflect data freshness
+      var tsEl = document.getElementById('idxTimestamp');
+      if(tsEl) tsEl.textContent = 'Data last updated: ' + new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) + ' at ' + new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
       // Sync listings to Supabase cache for notification system
       if(_sb && ALL_LISTINGS.length > 0){
         SIMPLYRETS._syncListingsCache(ALL_LISTINGS);
@@ -510,6 +513,152 @@ var SIMPLYRETS = {
   }
 };
 
+// ═══ MLS GRID (via Supabase) ═══
+// When MLS Grid feed is active, this replaces SimplyRETS.
+// Set MLS_GRID.enabled = true and SIMPLYRETS.enabled = false to switch.
+var MLS_GRID = {
+  enabled: false, // Set true when MLS Grid replication is running
+  // Town slugs mapped from MLS city names
+  cityMap: {
+    'Waynesville': 'waynesville',
+    'Sylva': 'sylva',
+    'Cashiers': 'cashiers-highlands',
+    'Highlands': 'cashiers-highlands',
+    'Bryson City': 'bryson-city',
+    'Maggie Valley': 'maggie-valley',
+    'Franklin': 'franklin',
+    'Dillsboro': 'dillsboro',
+    'Cullowhee': 'cullowhee',
+  },
+  resolveTown: function(city) {
+    if(MLS_GRID.cityMap[city]) return MLS_GRID.cityMap[city];
+    return city.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9\-]/g,'');
+  },
+  // Map DB row to site listing format
+  mapListing: function(row) {
+    var typeMap = {'Residential':'Single Family','Land':'Land','Condominium':'Condo',
+                   'Commercial Sale':'Commercial','Farm':'Farm','Multifamily':'Multi-Family'};
+    var pType = typeMap[row.property_type] || row.property_sub_type || row.property_type || 'Single Family';
+    var lotAc = row.lot_size_acres ? parseFloat(row.lot_size_acres).toFixed(2)+' ac' :
+                row.lot_size_square_feet ? (parseFloat(row.lot_size_square_feet)/43560).toFixed(2)+' ac' : '';
+    var restrict = 'unrestricted';
+    if(row.association_fee && parseFloat(row.association_fee) > 0) restrict = 'hoa';
+    var status = row.standard_status || 'Active';
+    if(status.toLowerCase().indexOf('pending')>-1 || status.toLowerCase().indexOf('contract')>-1) status = 'Under Contract';
+    if(status.toLowerCase().indexOf('closed')>-1) status = 'Sold';
+    return {
+      mlsId: row.listing_id,
+      listingId: row.listing_id,
+      listingKey: row.listing_key,
+      price: row.list_price || 0,
+      address: row.full_address || '',
+      city: row.city || '',
+      type: pType,
+      beds: row.bedrooms_total || 0,
+      baths: row.bathrooms_total_integer || 0,
+      sqft: row.living_area ? parseInt(row.living_area) : 0,
+      lot: lotAc,
+      status: status,
+      restrictions: restrict,
+      photo: null, // Set from media query
+      photos: [],
+      lat: row.latitude ? parseFloat(row.latitude) : null,
+      lng: row.longitude ? parseFloat(row.longitude) : null,
+      yearBuilt: row.year_built,
+      daysOnMarket: row.days_on_market || 0,
+      description: row.public_remarks || '',
+      listAgent: row.list_agent_full_name || '',
+      listOffice: row.list_office_name || '',
+      listOfficePhone: row.list_office_phone || '',
+      _src: 'mlsgrid'
+    };
+  },
+  init: function() {
+    if(!MLS_GRID.enabled || !_sb) return Promise.resolve();
+    console.log('[MLS Grid] Loading listings from Supabase...');
+    return _sb.from('mls_listings')
+      .select('*')
+      .eq('mlg_can_view', true)
+      .in('standard_status', ['Active','Active Under Contract','Pending'])
+      .then(function(res) {
+        if(!res.data || !res.data.length) { console.warn('[MLS Grid] No listings found'); return; }
+        console.log('[MLS Grid] Received ' + res.data.length + ' listings');
+        var mapped = res.data.map(MLS_GRID.mapListing);
+
+        // Load media for each listing (first photo)
+        return _sb.from('mls_media')
+          .select('listing_key, local_url, media_url, "order"')
+          .order('"order"', {ascending: true})
+          .then(function(mediaRes) {
+            var mediaMap = {};
+            (mediaRes.data || []).forEach(function(m) {
+              if(!mediaMap[m.listing_key]) mediaMap[m.listing_key] = [];
+              mediaMap[m.listing_key].push(m.local_url || m.media_url);
+            });
+            // Assign photos to listings
+            mapped.forEach(function(l) {
+              var photos = mediaMap[l.listingKey] || [];
+              l.photo = photos[0] || null;
+              l.photos = photos;
+            });
+
+            // Populate TOWN_LISTINGS
+            var newTowns = {};
+            mapped.forEach(function(l) {
+              var slug = MLS_GRID.resolveTown(l.city);
+              if(!newTowns[slug]) newTowns[slug] = { display: l.city, listings: [] };
+              newTowns[slug].listings.push(l);
+            });
+            Object.keys(TOWN_LISTINGS).forEach(function(k){ delete TOWN_LISTINGS[k]; });
+            Object.keys(newTowns).forEach(function(k){ TOWN_LISTINGS[k] = newTowns[k]; });
+
+            // Populate LISTINGS (featured) — top 6 by price with photos
+            var sorted = mapped.filter(function(l){return l.photo}).sort(function(a,b){return b.price-a.price});
+            LISTINGS.length = 0;
+            sorted.slice(0,6).forEach(function(l,i){
+              LISTINGS.push({
+                id:i+1, price:l.price, address:l.address, city:l.city, type:l.type,
+                beds:l.beds, baths:l.baths, sqft:l.sqft, lot:l.lot,
+                photo:l.photo, photos:l.photos, days:l.daysOnMarket,
+                mlsId:l.mlsId, restrictions:l.restrictions, status:l.status,
+                listAgent:l.listAgent, listOffice:l.listOffice, listOfficePhone:l.listOfficePhone
+              });
+            });
+
+            // Rebuild ALL_LISTINGS
+            ALL_LISTINGS.length = 0;
+            mapped.forEach(function(l){
+              ALL_LISTINGS.push({
+                price:l.price, address:l.address, city:l.city, type:l.type,
+                beds:l.beds, baths:l.baths, sqft:l.sqft, lot:l.lot,
+                photo:l.photo, photos:l.photos, status:l.status,
+                restrictions:l.restrictions, _src:'mlsgrid',
+                lat:l.lat, lng:l.lng, mlsId:l.mlsId, description:l.description,
+                daysOnMarket:l.daysOnMarket,
+                listAgent:l.listAgent, listOffice:l.listOffice, listOfficePhone:l.listOfficePhone
+              });
+            });
+
+            // Update timestamp
+            var tsEl = document.getElementById('idxTimestamp');
+            if(tsEl) tsEl.textContent = 'Data last updated: ' + new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) + ' at ' + new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+
+            // Remove demo banner
+            var demoBanner = document.getElementById('demoBanner');
+            if(demoBanner) demoBanner.remove();
+            var demoNote = document.querySelector('.idx-demo-note');
+            if(demoNote) demoNote.style.display = 'none';
+
+            // Re-render
+            renderFeatured();
+            console.log('[MLS Grid] Site updated with ' + ALL_LISTINGS.length + ' listings across ' + Object.keys(TOWN_LISTINGS).length + ' areas');
+          });
+      }).catch(function(err){
+        console.error('[MLS Grid] Failed to load:', err.message || err);
+      });
+  }
+};
+
 // ═══ DEMO LISTINGS ═══
 var LISTINGS=[
   {id:1,price:389900,address:"74 Mountain View Rd",city:"Waynesville",type:"Single Family",beds:3,baths:2,sqft:1840,lot:"0.82 ac",photo:"https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=700&q=80",days:12,listAgent:"Sarah Mitchell",listOffice:"Blue Ridge Realty Group",listOfficePhone:"(828) 555-0142",mlsId:"DEMO-1001"},
@@ -533,7 +682,9 @@ function renderFeatured(){
   LISTINGS.slice(0,6).forEach(function(l,i){
     const c=document.createElement('div');c.className='f-card reveal';
     const feats=l.type==='Land'?'<span class="f-feat"><strong>'+l.lot+'</strong></span>':'<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+l.sqft.toLocaleString()+'</strong> SF</span>';
-    c.innerHTML='<div class="f-card-img"><img src="'+l.photo+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge '+(l.type==='Land'?'land':'')+'">'+l.type+'</div><div class="f-card-demo-badge">DEMO</div>'+cardFavHtml(l.address,l.city)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+l.city+', NC</div><div class="f-card-features">'+feats+'</div>'+(l.listOffice?'<div class="f-card-office">Listed by '+l.listOffice+(l.mlsId?' | MLS# '+l.mlsId:'')+'</div>':'')+'</div>';
+    var brokerParts=[];if(l.listAgent)brokerParts.push(l.listAgent);if(l.listOffice)brokerParts.push(l.listOffice);if(l.listOfficePhone)brokerParts.push(l.listOfficePhone);
+    var brokerHtml=brokerParts.length?'<div class="f-card-office">Listed by '+brokerParts.join(' &bull; ')+(l.mlsId?' | MLS# '+l.mlsId:'')+'</div>':'';
+    c.innerHTML='<div class="f-card-img"><img src="'+l.photo+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge '+(l.type==='Land'?'land':'')+'">'+l.type+'</div><div class="f-card-demo-badge">DEMO</div>'+cardFavHtml(l.address,l.city)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+l.city+', NC</div><div class="f-card-features">'+feats+'</div>'+brokerHtml+'</div>';
     c.onclick=function(){try{openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,lot:l.lot,restrictions:l.restrictions||'unrestricted',status:l.status||'Active',photo:l.photo||null,photos:l.photos||[],description:l.description||'',listAgent:l.listAgent||'',listOffice:l.listOffice||'',listOfficePhone:l.listOfficePhone||'',mlsId:l.mlsId||''},l.city)}catch(err){console.error(err)}};
     grid.appendChild(c);
   });
@@ -1393,7 +1544,9 @@ function renderTownResults(townId,results,townName){
     var feats=l.type==='Land'?'<span class="f-feat"><strong>'+l.lot+'</strong></span>':'<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+l.sqft.toLocaleString()+'</strong> SF</span>';
     var badge=l.type==='Land'?' land':'';
     var statusBadge=l.status==='Under Contract'?'<div style="position:absolute;top:0.75rem;right:0.75rem;padding:0.25rem 0.5rem;font-size:0.5rem;letter-spacing:0.1em;text-transform:uppercase;background:var(--red-soft);color:#fff">Under Contract</div>':'';
-    c.innerHTML='<div class="f-card-img" style="position:relative"><div style="aspect-ratio:16/10;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.75rem">Property Photo</div><div class="f-card-badge'+badge+'">'+l.type+'</div><div class="f-card-demo-badge">DEMO</div>'+statusBadge+cardFavHtml(l.address,townName)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+townName+', NC</div><div class="f-card-features">'+feats+'</div>'+(l.listOffice?'<div class="f-card-office">Listed by '+l.listOffice+(l.mlsId?' | MLS# '+l.mlsId:'')+'</div>':'')+'</div>';
+    var tBrokerParts=[];if(l.listAgent)tBrokerParts.push(l.listAgent);if(l.listOffice)tBrokerParts.push(l.listOffice);if(l.listOfficePhone)tBrokerParts.push(l.listOfficePhone);
+    var tBrokerHtml=tBrokerParts.length?'<div class="f-card-office">Listed by '+tBrokerParts.join(' &bull; ')+(l.mlsId?' | MLS# '+l.mlsId:'')+'</div>':'';
+    c.innerHTML='<div class="f-card-img" style="position:relative"><div style="aspect-ratio:16/10;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.75rem">Property Photo</div><div class="f-card-badge'+badge+'">'+l.type+'</div><div class="f-card-demo-badge">DEMO</div>'+statusBadge+cardFavHtml(l.address,townName)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+townName+', NC</div><div class="f-card-features">'+feats+'</div>'+tBrokerHtml+'</div>';
     (function(listing,town){c.onclick=function(){try{openProp(listing,town)}catch(err){console.error(err)}}})(l,townName);
     grid.appendChild(c);
   });
@@ -1732,6 +1885,9 @@ function propShare(type) {
     window.location.href = 'mailto:?subject=Check out this property in Western NC&body=' + encodeURIComponent(addr + ' — ' + price + '\n\nView at coryhelpsyoumove.com');
   } else if (type === 'print') {
     if(!_acctLoggedIn) { openAcctModal(); return; }
+    // Hide compare print page if present
+    var cpPage = document.getElementById('comparePrintPage');
+    if(cpPage) cpPage.className = 'compare-print-page';
     // Populate print page
     var heroImg = document.getElementById('propHeroImg');
     document.getElementById('printThumb').src = heroImg ? heroImg.src : '';
@@ -1739,6 +1895,13 @@ function propShare(type) {
     document.getElementById('printAddr').textContent = addr;
     document.getElementById('printCity').textContent = document.getElementById('propCity').textContent || '';
     document.getElementById('printDate').textContent = 'Printed: ' + new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+    // Listing broker attribution (IDX compliance)
+    var printBrokerEl = document.getElementById('printBroker');
+    if(printBrokerEl) {
+      var brokerSrc = document.getElementById('propListingBroker');
+      printBrokerEl.textContent = brokerSrc ? brokerSrc.textContent : '';
+      printBrokerEl.style.display = printBrokerEl.textContent ? '' : 'none';
+    }
     // Stats from the stats ribbon
     var statsEl = document.getElementById('propStats');
     var printStatsEl = document.getElementById('printStats');
@@ -2051,7 +2214,9 @@ var ALL_LISTINGS = [];
     ALL_LISTINGS.push({
       price:l.price, address:l.address, city:l.city, type:l.type,
       beds:l.beds, baths:l.baths, sqft:l.sqft, lot:l.lot,
-      photo:l.photo, status:'Active', restrictions:'unrestricted',
+      photo:l.photo, photos:l.photos||[], status:l.status||'Active', restrictions:l.restrictions||'unrestricted',
+      listAgent:l.listAgent||'', listOffice:l.listOffice||'', listOfficePhone:l.listOfficePhone||'',
+      mlsId:l.mlsId||'', description:l.description||'', daysOnMarket:l.daysOnMarket||l.days||0,
       _src:'featured'
     });
   });
@@ -2065,7 +2230,9 @@ var ALL_LISTINGS = [];
         ALL_LISTINGS.push({
           price:l.price, address:l.address, city:td.display, type:l.type,
           beds:l.beds, baths:l.baths, sqft:l.sqft, lot:l.lot,
-          photo:null, status:l.status||'Active', restrictions:l.restrictions||'unrestricted',
+          photo:l.photo||null, photos:l.photos||[], status:l.status||'Active', restrictions:l.restrictions||'unrestricted',
+          listAgent:l.listAgent||'', listOffice:l.listOffice||'', listOfficePhone:l.listOfficePhone||'',
+          mlsId:l.mlsId||'', description:l.description||'', daysOnMarket:l.daysOnMarket||0,
           _src:'town'
         });
       }
@@ -2256,6 +2423,8 @@ function srRenderCards(results){
     var badgeClass = l.type === 'Land' ? 'sr-card-badge land' : 'sr-card-badge';
     var statusHtml = l.status === 'Under Contract' ? '<div class="sr-card-status">Under Contract</div>' : '';
 
+    var srBrokerParts=[];if(l.listAgent)srBrokerParts.push(l.listAgent);if(l.listOffice)srBrokerParts.push(l.listOffice);
+    var srBrokerHtml=srBrokerParts.length?'<div class="sr-card-office">Listed by '+srBrokerParts.join(' &bull; ')+(l.mlsId?' | MLS# '+l.mlsId:'')+'</div>':'';
     card.innerHTML = '<div class="sr-card-img">' + imgHtml + '<div class="' + badgeClass + '">' + l.type + '</div>' + cardFavHtml(l.address, l.city) + '</div>' +
       '<div class="sr-card-body">' +
         '<div class="sr-card-price">$' + l.price.toLocaleString() + '</div>' +
@@ -2263,11 +2432,12 @@ function srRenderCards(results){
         '<div class="sr-card-city">' + l.city + ', NC</div>' +
         '<div class="sr-card-feats">' + feats + '</div>' +
         statusHtml +
+        srBrokerHtml +
       '</div>';
 
     (function(listing, idx){
       card.onclick = function(){
-        try { openProp({price:listing.price,address:listing.address,type:listing.type,beds:listing.beds,baths:listing.baths,sqft:listing.sqft,lot:listing.lot,restrictions:listing.restrictions||'unrestricted',status:listing.status||'Active'}, listing.city); } catch(err){console.error(err)}
+        try { openProp({price:listing.price,address:listing.address,type:listing.type,beds:listing.beds,baths:listing.baths,sqft:listing.sqft,lot:listing.lot,restrictions:listing.restrictions||'unrestricted',status:listing.status||'Active',photo:listing.photo||null,photos:listing.photos||[],description:listing.description||'',listAgent:listing.listAgent||'',listOffice:listing.listOffice||'',listOfficePhone:listing.listOfficePhone||'',mlsId:listing.mlsId||'',daysOnMarket:listing.daysOnMarket||0}, listing.city); } catch(err){console.error(err)}
       };
       card.onmouseenter = function(){ srHighlightMarker(idx) };
       card.onmouseleave = function(){ srUnhighlightMarker(idx) };
@@ -2313,6 +2483,7 @@ function srRenderMarkers(results){
       ? '<img class="sr-popup-img" src="' + l.photo + '" alt="' + l.address + '">'
       : '<div style="width:100%;height:110px;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.6rem">Property Photo</div>';
 
+    var popBroker = l.listOffice ? '<div class="sr-popup-office">Listed by ' + l.listOffice + '</div>' : '';
     var popupHtml = '<div class="sr-popup-inner">' +
       popupImg +
       '<div class="sr-popup-body">' +
@@ -2320,6 +2491,7 @@ function srRenderMarkers(results){
         '<div class="sr-popup-addr">' + l.address + '</div>' +
         '<div class="sr-popup-city">' + l.city + ', NC</div>' +
         '<div class="sr-popup-feats">' + feats + '</div>' +
+        popBroker +
         '<button class="sr-popup-btn" onclick="event.stopPropagation();srOpenFromMap(' + i + ')">View Details</button>' +
       '</div></div>';
 
@@ -2344,7 +2516,7 @@ var _srCurrentResults = [];
 function srOpenFromMap(idx){
   var l = _srCurrentResults[idx];
   if(!l) return;
-  openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,lot:l.lot,restrictions:l.restrictions||'unrestricted',status:l.status||'Active'}, l.city);
+  openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,lot:l.lot,restrictions:l.restrictions||'unrestricted',status:l.status||'Active',photo:l.photo||null,photos:l.photos||[],description:l.description||'',listAgent:l.listAgent||'',listOffice:l.listOffice||'',listOfficePhone:l.listOfficePhone||'',mlsId:l.mlsId||'',daysOnMarket:l.daysOnMarket||0}, l.city);
 }
 
 function srHighlightMarker(idx){
@@ -3392,11 +3564,11 @@ function buildDashboardSuggestions() {
 
 // ═══ COMPARE PROPERTIES ═══
 var _compareSelected = [];
-var _compareRowOrder = ['price','beds','baths','sqft','lot','daysOnMarket','type','restrictions','location'];
+var _compareRowOrder = ['price','beds','baths','sqft','lot','daysOnMarket','type','restrictions','location','listingBroker'];
 var _compareRowLabels = {
   price:'Price', beds:'Bedrooms', baths:'Bathrooms', sqft:'Square Feet',
   lot:'Lot Size', daysOnMarket:'Days on Market', type:'Property Type',
-  restrictions:'Restrictions', location:'Location'
+  restrictions:'Restrictions', location:'Location', listingBroker:'Listing Office'
 };
 
 function openCompare() {
@@ -3443,11 +3615,13 @@ function renderCompareFavGrid() {
     card.className = 'compare-fav-card';
     card.setAttribute('data-compare-key', l._compareKey);
     var imgSrc = l.photo || (PROP_IMAGES[l.type]||PROP_IMAGES['Single Family'])[0].replace('w=1200','w=400');
+    var cmpBroker = l.listOffice ? '<div class="compare-fav-card-office">Listed by '+l.listOffice+(l.mlsId?' | MLS# '+l.mlsId:'')+'</div>' : '';
     card.innerHTML = '<img class="compare-fav-card-img" src="'+imgSrc+'" alt="'+l.address+'" loading="lazy">'+
       '<div class="compare-fav-card-price">$'+l.price.toLocaleString()+'</div>'+
       '<div class="compare-fav-card-addr">'+l.address+'</div>'+
       '<div class="compare-fav-card-city">'+(l.city||'')+', NC</div>'+
-      '<div class="compare-fav-card-type">'+l.type+'</div>';
+      '<div class="compare-fav-card-type">'+l.type+'</div>'+
+      cmpBroker;
     card.onclick = function(){
       var isSelected = card.classList.contains('selected');
       if(isSelected){
@@ -3543,6 +3717,7 @@ function getCompareVal(listing, field) {
     case 'sqft': return listing.sqft || 0;
     case 'lot': return parseFloat(listing.lot) || 0;
     case 'daysOnMarket': return listing.daysOnMarket || 0;
+    case 'listingBroker': return listing.listOffice || '';
     default: return '';
   }
 }
@@ -3558,6 +3733,7 @@ function formatCompareVal(listing, field) {
     case 'type': return listing.type || 'N/A';
     case 'restrictions': return RESTRICT_LABELS[listing.restrictions]||listing.restrictions||'N/A';
     case 'location': return (listing.city||'')+', NC';
+    case 'listingBroker': return listing.listOffice || 'N/A';
     default: return 'N/A';
   }
 }
@@ -3588,6 +3764,211 @@ function compareMove(fromIdx, direction) {
   _compareRowOrder[fromIdx] = _compareRowOrder[toIdx];
   _compareRowOrder[toIdx] = temp;
   renderCompareTable();
+}
+
+// ═══ COMPARE PRINT ═══
+
+function printComparison() {
+  if(!_acctLoggedIn) { openAcctModal(); return; }
+  var props = _compareSelected;
+  if(!props || props.length < 2) return;
+
+  // Date
+  document.getElementById('cpDate').textContent = 'Prepared: ' + new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+
+  // Property photo cards
+  var propsRow = document.getElementById('cpPropsRow');
+  propsRow.innerHTML = '';
+  props.forEach(function(l) {
+    var imgSrc = (l.photos && l.photos.length) ? l.photos[0] : l.photo || (PROP_IMAGES[l.type] || PROP_IMAGES['Single Family'])[0].replace('w=1200','w=400');
+    var card = document.createElement('div');
+    card.className = 'cp-prop-card';
+    card.innerHTML =
+      '<img class="cp-prop-img" src="' + imgSrc + '" alt="' + (l.address||'') + '">' +
+      '<div class="cp-prop-price">$' + (l.price||0).toLocaleString() + '</div>' +
+      '<div class="cp-prop-addr">' + (l.address||'') + '</div>' +
+      '<div class="cp-prop-city">' + (l.city||'') + ', NC</div>';
+    propsRow.appendChild(card);
+  });
+
+  // Table header
+  var thead = document.getElementById('cpTableHead');
+  var headHtml = '<tr><th class="cp-criteria-th">Criteria</th>';
+  props.forEach(function(l) { headHtml += '<th>' + (l.address||'Property') + '</th>'; });
+  thead.innerHTML = headHtml + '</tr>';
+
+  // Table body
+  var tbody = document.getElementById('cpTableBody');
+  tbody.innerHTML = '';
+  _compareRowOrder.forEach(function(field) {
+    var tr = document.createElement('tr');
+    var th = document.createElement('td');
+    th.className = 'cp-criteria-cell';
+    th.textContent = _compareRowLabels[field];
+    tr.appendChild(th);
+    var vals = props.map(function(l){ return getCompareVal(l, field); });
+    var bestIdx = findBestValue(vals, field);
+    props.forEach(function(l, colIdx) {
+      var td = document.createElement('td');
+      td.textContent = formatCompareVal(l, field);
+      if(colIdx === bestIdx) td.classList.add('cp-best');
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+
+  // Broker attribution per property
+  var brokersEl = document.getElementById('cpBrokers');
+  brokersEl.innerHTML = '';
+  props.forEach(function(l) {
+    var parts = [];
+    if(l.listAgent) parts.push(l.listAgent);
+    if(l.listOffice) parts.push(l.listOffice);
+    if(l.mlsId) parts.push('MLS# ' + l.mlsId);
+    if(parts.length > 0) {
+      brokersEl.innerHTML += '<div class="cp-broker-line">' + (l.address||'') + ': Listed by ' + parts.join(' \u2022 ') + '</div>';
+    }
+  });
+
+  // Timestamp
+  document.getElementById('cpUpdated').textContent = 'Data last updated: ' + new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+
+  // Column count class for responsive scaling
+  var printEl = document.getElementById('comparePrintPage');
+  printEl.className = 'compare-print-page cp-cols-' + props.length;
+
+  // Hide single-property print page, show compare print page
+  var singlePrint = document.getElementById('printPage');
+  if(singlePrint) singlePrint.style.display = 'none';
+  window.print();
+  // Restore after print
+  if(singlePrint) singlePrint.style.display = '';
+}
+
+// ═══ PROPERTY HISTORY (Price + Tax) ═══
+
+async function loadPropertyHistory(listing) {
+  var historyEl = document.getElementById('propHistory');
+  var priceBody = document.getElementById('propPriceHistoryBody');
+  var priceEmpty = document.getElementById('propPriceHistoryEmpty');
+  var priceTable = document.getElementById('propPriceHistoryTable');
+  var taxBody = document.getElementById('propTaxHistoryBody');
+  var taxEmpty = document.getElementById('propTaxHistoryEmpty');
+  var taxTable = document.getElementById('propTaxHistoryTable');
+  if(!historyEl) return;
+
+  // Reset
+  priceBody.innerHTML = '';
+  taxBody.innerHTML = '';
+  priceEmpty.style.display = 'none';
+  taxEmpty.style.display = 'none';
+  priceTable.style.display = '';
+  taxTable.style.display = '';
+  historyEl.style.display = '';
+
+  var hasPriceData = false;
+  var hasTaxData = false;
+  var listingKey = listing.listingKey || null;
+
+  // --- Price History from Supabase ---
+  if(listingKey && typeof _sb !== 'undefined' && _sb) {
+    try {
+      var resp = await _sb.from('price_history')
+        .select('price, event_type, recorded_at, source, previous_price')
+        .eq('listing_key', listingKey)
+        .order('recorded_at', { ascending: false });
+      if(resp.data && resp.data.length > 0) {
+        hasPriceData = true;
+        resp.data.forEach(function(row) {
+          var change = '';
+          var changeClass = '';
+          if(row.previous_price && row.price) {
+            var diff = row.price - row.previous_price;
+            var pct = ((diff / row.previous_price) * 100).toFixed(1);
+            var sign = diff > 0 ? '+' : '';
+            change = sign + '$' + Math.abs(diff).toLocaleString() + ' (' + sign + pct + '%)';
+            changeClass = diff > 0 ? 'prop-history-up' : diff < 0 ? 'prop-history-down' : '';
+          }
+          var dateStr = row.recorded_at ? new Date(row.recorded_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+          var eventLabel = (row.event_type || 'Price Change').replace(/_/g,' ').replace(/\b\w/g, function(c){return c.toUpperCase();});
+          priceBody.innerHTML +=
+            '<tr><td>' + dateStr + '</td>' +
+            '<td><span class="prop-history-event">' + eventLabel + '</span></td>' +
+            '<td class="prop-history-price">' + (row.price ? '$' + row.price.toLocaleString() : '—') + '</td>' +
+            '<td class="' + changeClass + '">' + change + '</td>' +
+            '<td class="prop-history-source">' + (row.source || 'MLS') + '</td></tr>';
+        });
+      }
+    } catch(err) { console.warn('[PropHistory] Price error:', err); }
+  }
+
+  // Fallback: construct from listing fields if no DB data
+  if(!hasPriceData && listing.price && listing.mlsId) {
+    if(listing.originalListPrice && listing.originalListPrice !== listing.price) {
+      hasPriceData = true;
+      var listDate = listing.listDate ? new Date(listing.listDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+      priceBody.innerHTML =
+        '<tr><td>' + listDate + '</td><td><span class="prop-history-event">Listed</span></td>' +
+        '<td class="prop-history-price">$' + listing.originalListPrice.toLocaleString() + '</td><td></td><td class="prop-history-source">MLS</td></tr>';
+      var diff = listing.price - listing.originalListPrice;
+      var pct = ((diff / listing.originalListPrice) * 100).toFixed(1);
+      var sign = diff > 0 ? '+' : '';
+      var cls = diff > 0 ? 'prop-history-up' : 'prop-history-down';
+      priceBody.innerHTML +=
+        '<tr><td>—</td><td><span class="prop-history-event">Price Change</span></td>' +
+        '<td class="prop-history-price">$' + listing.price.toLocaleString() + '</td>' +
+        '<td class="' + cls + '">' + sign + '$' + Math.abs(diff).toLocaleString() + ' (' + sign + pct + '%)</td><td class="prop-history-source">MLS</td></tr>';
+    }
+  }
+
+  if(!hasPriceData) {
+    priceEmpty.style.display = '';
+    priceTable.style.display = 'none';
+  }
+
+  // --- Tax History from Supabase ---
+  if(listingKey && typeof _sb !== 'undefined' && _sb) {
+    try {
+      var taxResp = await _sb.from('public_records')
+        .select('year, tax_amount, assessed_value, land_value, improved_value, source_county')
+        .eq('listing_key', listingKey)
+        .order('year', { ascending: false });
+      if(taxResp.data && taxResp.data.length > 0) {
+        hasTaxData = true;
+        taxResp.data.forEach(function(row, i) {
+          var change = '';
+          var changeClass = '';
+          if(i < taxResp.data.length - 1) {
+            var prevTax = taxResp.data[i+1].tax_amount;
+            if(prevTax && row.tax_amount) {
+              var diff = row.tax_amount - prevTax;
+              var pct = ((diff / prevTax) * 100).toFixed(1);
+              change = (diff>0?'+':'') + '$' + Math.round(Math.abs(diff)).toLocaleString() + ' (' + (diff>0?'+':'') + pct + '%)';
+              changeClass = diff > 0 ? 'prop-history-up' : diff < 0 ? 'prop-history-down' : '';
+            }
+          }
+          taxBody.innerHTML +=
+            '<tr><td>' + row.year + '</td>' +
+            '<td class="prop-history-price">$' + Math.round(row.tax_amount || 0).toLocaleString() + '</td>' +
+            '<td class="prop-history-price">$' + Math.round(row.assessed_value || 0).toLocaleString() + '</td>' +
+            '<td class="' + changeClass + '">' + change + '</td></tr>';
+        });
+      }
+    } catch(err) { console.warn('[PropHistory] Tax error:', err); }
+  }
+
+  // Fallback: use single tax year/amount from listing
+  if(!hasTaxData && listing.taxYear && listing.taxAmount) {
+    hasTaxData = true;
+    taxBody.innerHTML = '<tr><td>' + listing.taxYear + '</td>' +
+      '<td class="prop-history-price">$' + Math.round(listing.taxAmount).toLocaleString() + '</td>' +
+      '<td>—</td><td>—</td></tr>';
+  }
+
+  if(!hasTaxData) {
+    taxEmpty.style.display = '';
+    taxTable.style.display = 'none';
+  }
 }
 
 // --- Gate the print button for non-logged-in users ---
@@ -3680,6 +4061,8 @@ openProp = function(listing, townName) {
   }
   var adminPrintBtns = document.getElementById('adminPrintBtns');
   if(adminPrintBtns) adminPrintBtns.style.display = _isAdmin ? '' : 'none';
+  // Load property history (price + tax)
+  setTimeout(function(){ loadPropertyHistory(listing); }, 65);
   // Build Cory's Take
   setTimeout(function(){ buildCorysTake(listing, townName); }, 70);
   // Build Cory's Suggestions
@@ -3810,9 +4193,15 @@ openPage = function(id) {
   setTimeout(gateRestrictionFilters, 150);
 };
 
-// ═══ SIMPLYRETS INIT ═══
-// SimplyRETS requires the site to be hosted on a domain (not opened as a local file)
-if(SIMPLYRETS.enabled) {
+// ═══ LISTING DATA INIT ═══
+// MLS Grid (via Supabase) takes priority when enabled; falls back to SimplyRETS demo data
+if(MLS_GRID.enabled) {
+  MLS_GRID.init().then(function(){
+    if(typeof updateAcctUI === 'function') updateAcctUI();
+    _checkPropDeepLink();
+  });
+  EVENTS.init();
+} else if(SIMPLYRETS.enabled) {
   var isLocal = (window.location.protocol === 'file:');
   if(isLocal) {
     console.log('[SimplyRETS] Skipped — site is running from a local file. SimplyRETS will activate automatically once hosted on your domain.');

@@ -8,8 +8,9 @@
 .env
 .env.*
 
-# Supabase Edge Function (contains secrets — deploy via Supabase CLI)
-index.ts
+# Supabase local config (secrets handled via Supabase CLI env vars)
+supabase/.env
+supabase/.temp/
 
 # OS files
 .DS_Store
