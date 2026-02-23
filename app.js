@@ -586,6 +586,7 @@ var MLS_GRID = {
       .select('*')
       .eq('mlg_can_view', true)
       .in('standard_status', ['Active','Active Under Contract','Pending'])
+      .limit(3000)
       .then(function(res) {
         if(res.error) { console.error('[MLS Grid] Query error:', res.error.message); var _fg = document.getElementById('featuredGrid'); if(_fg) { var _ld = _fg.querySelector('.idx-loading'); if(_ld) _ld.innerHTML = '<div style="margin-bottom:0.8rem;font-size:1.8rem;">&#x26A0;</div>Error loading listings.<div style="margin-top:0.5rem;font-size:0.85rem;opacity:0.6;">' + res.error.message + '</div>'; } return; }
         if(!res.data || !res.data.length) { console.warn('[MLS Grid] No listings found'); var _fg2 = document.getElementById('featuredGrid'); if(_fg2) { var _ld2 = _fg2.querySelector('.idx-loading'); if(_ld2) _ld2.innerHTML = '<div style="margin-bottom:0.8rem;font-size:1.8rem;">&#x1F3E0;</div>No active listings found at this time.<div style="margin-top:0.5rem;font-size:0.85rem;opacity:0.6;">Please check back soon.</div>'; } return; }
@@ -596,9 +597,10 @@ var MLS_GRID = {
         // Full photo gallery loaded on demand in openProp() via MLS_GRID.loadPhotos()
         return _sb.from('mls_media')
           .select('listing_key, local_url, media_url')
-          .eq('order', 1)
+          .eq('"order"', 1)
           .limit(2000)
           .then(function(mediaRes) {
+            if(mediaRes.error) { console.error('[MLS Grid] Media query error:', mediaRes.error.message); }
             var mediaMap = {};
             (mediaRes.data || []).forEach(function(m) {
               mediaMap[m.listing_key] = m.local_url || m.media_url;
