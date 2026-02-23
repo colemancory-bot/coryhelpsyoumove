@@ -722,10 +722,10 @@ if(!MLS_GRID.enabled) {
     window.addEventListener('resize',positionBanner);
   })();
 } else {
-  // MLS_GRID is enabled — show loading state and clear demo data
+  // MLS_GRID is enabled — show loading state and clear what's available now
+  // Note: TOWN_LISTINGS and ALL_LISTINGS are defined later in the file (var hoisting),
+  // so we only clear LISTINGS here. MLS_GRID.init() clears/replaces all three arrays.
   LISTINGS.length = 0;
-  Object.keys(TOWN_LISTINGS).forEach(function(k){ delete TOWN_LISTINGS[k]; });
-  ALL_LISTINGS.length = 0;
   var _loadingHtml = '<div class="idx-loading" style="grid-column:1/-1;text-align:center;padding:3rem 1rem;color:var(--gold);font-family:var(--font-body);font-size:1.1rem;"><div style="margin-bottom:0.8rem;font-size:1.8rem;">&#x1F3E0;</div>Loading live listings from MLS...<div style="margin-top:0.5rem;font-size:0.85rem;opacity:0.6;">Connecting to Carolina Smokies MLS</div></div>';
   var _fg = document.getElementById('featuredGrid');
   if(_fg) _fg.innerHTML = _loadingHtml;
