@@ -752,3 +752,31 @@ CREATE POLICY "Anyone can read public records" ON public_records FOR SELECT USIN
 CREATE POLICY "Admin can manage public records" ON public_records FOR ALL USING (
   EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
+
+-- ═══════════════════════════════════════════════════════════════
+-- MULTI-MLS SUPPORT — Navica/CSAR + MLS Grid coexistence
+-- ═══════════════════════════════════════════════════════════════
+
+-- ═══ 28. Add feed_type to mls_listings (IDX vs BBO distinction) ═══
+-- Navica/CSAR uses FeedTypes to indicate public display approval.
+-- IDX = approved for public display, BBO = broker back office only.
+ALTER TABLE mls_listings ADD COLUMN IF NOT EXISTS feed_type TEXT DEFAULT 'IDX';
+CREATE INDEX IF NOT EXISTS idx_mls_listings_feed_type ON mls_listings(feed_type);
+
+-- ═══ 29. Relax listing_id uniqueness for multi-MLS ═══
+-- ListingId (MLS number) may overlap between different MLS systems.
+-- ListingKey remains globally unique. ListingId is unique per system.
+ALTER TABLE mls_listings DROP CONSTRAINT IF EXISTS mls_listings_listing_id_key;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mls_listings_id_system
+  ON mls_listings(listing_id, originating_system_name);
+
+-- ═══ 30. Navica/CSAR Sync State Rows ═══
+-- Prefixed resource types coexist with MLS Grid rows in mls_sync_state.
+-- MLS Grid uses: Property, Member, Office, OpenHouse
+-- Navica uses:   Navica_Property, Navica_Member, Navica_Office, Navica_OpenHouse
+INSERT INTO mls_sync_state (resource_type, originating_system_name) VALUES
+  ('Navica_Property', 'CSAR'),
+  ('Navica_Member', 'CSAR'),
+  ('Navica_Office', 'CSAR'),
+  ('Navica_OpenHouse', 'CSAR')
+ON CONFLICT (resource_type) DO NOTHING;
