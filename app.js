@@ -574,14 +574,21 @@ var MLS_GRID = {
     };
   },
   init: function() {
-    if(!MLS_GRID.enabled || !_sb) return Promise.resolve();
+    if(!MLS_GRID.enabled) return Promise.resolve();
+    if(!_sb) {
+      console.error('[MLS Grid] Supabase client not available — cannot load listings');
+      var _fg = document.getElementById('featuredGrid');
+      if(_fg) { var _ld = _fg.querySelector('.idx-loading'); if(_ld) _ld.innerHTML = '<div style="margin-bottom:0.8rem;font-size:1.8rem;">&#x26A0;</div>Unable to connect to listing database.<div style="margin-top:0.5rem;font-size:0.85rem;opacity:0.6;">Please refresh the page or try again later.</div>'; }
+      return Promise.resolve();
+    }
     console.log('[MLS Grid] Loading listings from Supabase...');
     return _sb.from('mls_listings')
       .select('*')
       .eq('mlg_can_view', true)
       .in('standard_status', ['Active','Active Under Contract','Pending'])
       .then(function(res) {
-        if(!res.data || !res.data.length) { console.warn('[MLS Grid] No listings found'); return; }
+        if(res.error) { console.error('[MLS Grid] Query error:', res.error.message); var _fg = document.getElementById('featuredGrid'); if(_fg) { var _ld = _fg.querySelector('.idx-loading'); if(_ld) _ld.innerHTML = '<div style="margin-bottom:0.8rem;font-size:1.8rem;">&#x26A0;</div>Error loading listings.<div style="margin-top:0.5rem;font-size:0.85rem;opacity:0.6;">' + res.error.message + '</div>'; } return; }
+        if(!res.data || !res.data.length) { console.warn('[MLS Grid] No listings found'); var _fg2 = document.getElementById('featuredGrid'); if(_fg2) { var _ld2 = _fg2.querySelector('.idx-loading'); if(_ld2) _ld2.innerHTML = '<div style="margin-bottom:0.8rem;font-size:1.8rem;">&#x1F3E0;</div>No active listings found at this time.<div style="margin-top:0.5rem;font-size:0.85rem;opacity:0.6;">Please check back soon.</div>'; } return; }
         console.log('[MLS Grid] Received ' + res.data.length + ' listings');
         var mapped = res.data.map(MLS_GRID.mapListing);
 
@@ -655,6 +662,8 @@ var MLS_GRID = {
           });
       }).catch(function(err){
         console.error('[MLS Grid] Failed to load:', err.message || err);
+        var _fg = document.getElementById('featuredGrid');
+        if(_fg) { var _ld = _fg.querySelector('.idx-loading'); if(_ld) _ld.innerHTML = '<div style="margin-bottom:0.8rem;font-size:1.8rem;">&#x26A0;</div>Unable to load listings. Please refresh the page.<div style="margin-top:0.5rem;font-size:0.85rem;opacity:0.6;">' + (err.message || 'Connection error') + '</div>'; }
       });
   }
 };
@@ -679,37 +688,50 @@ function cardFavHtml(address, city) {
 function renderFeatured(){
   const grid=document.getElementById('featuredGrid');
   if(!grid) return;
+  grid.innerHTML = ''; // Clear loading state / previous cards
   LISTINGS.slice(0,6).forEach(function(l,i){
     const c=document.createElement('div');c.className='f-card reveal';
     const feats=l.type==='Land'?'<span class="f-feat"><strong>'+l.lot+'</strong></span>':'<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+l.sqft.toLocaleString()+'</strong> SF</span>';
     var brokerParts=[];if(l.listAgent)brokerParts.push(l.listAgent);if(l.listOffice)brokerParts.push(l.listOffice);if(l.listOfficePhone)brokerParts.push(l.listOfficePhone);
     var brokerHtml=brokerParts.length?'<div class="f-card-office">Listed by '+brokerParts.join(' &bull; ')+(l.mlsId?' | MLS# '+l.mlsId:'')+'</div>':'';
-    c.innerHTML='<div class="f-card-img"><img src="'+l.photo+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge '+(l.type==='Land'?'land':'')+'">'+l.type+'</div><div class="f-card-demo-badge">DEMO</div>'+cardFavHtml(l.address,l.city)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+l.city+', NC</div><div class="f-card-features">'+feats+'</div>'+brokerHtml+'</div>';
+    var isDemo = l.mlsId && l.mlsId.toString().indexOf('DEMO') === 0;
+    c.innerHTML='<div class="f-card-img"><img src="'+l.photo+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge '+(l.type==='Land'?'land':'')+'">'+l.type+'</div>'+(isDemo?'<div class="f-card-demo-badge">DEMO</div>':'')+cardFavHtml(l.address,l.city)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+l.city+', NC</div><div class="f-card-features">'+feats+'</div>'+brokerHtml+'</div>';
     c.onclick=function(){try{openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,lot:l.lot,restrictions:l.restrictions||'unrestricted',status:l.status||'Active',photo:l.photo||null,photos:l.photos||[],description:l.description||'',listAgent:l.listAgent||'',listOffice:l.listOffice||'',listOfficePhone:l.listOfficePhone||'',mlsId:l.mlsId||''},l.city)}catch(err){console.error(err)}};
     grid.appendChild(c);
   });
   document.querySelectorAll('.f-card.reveal').forEach(function(el){obs.observe(el)});
 }
-renderFeatured();
-
-// ═══ DEMO DATA BANNER ═══
-(function(){
-  if(document.getElementById('demoBanner'))return;
-  var banner=document.createElement('div');
-  banner.id='demoBanner';
-  banner.className='demo-banner';
-  banner.innerHTML='<div class="demo-banner-inner"><span class="demo-banner-icon">\u26A0</span> <span>Sample listings shown for demonstration purposes only. These properties are not real.</span></div>';
-  document.body.appendChild(banner);
-  // Keep banner pinned right below the fixed nav
-  var nav=document.querySelector('.nav');
-  function positionBanner(){
-    if(!nav)return;
-    banner.style.top=nav.offsetHeight+'px';
-  }
-  positionBanner();
-  window.addEventListener('scroll',positionBanner);
-  window.addEventListener('resize',positionBanner);
-})();
+// Only render hardcoded demo data if MLS_GRID is OFF — otherwise wait for live data
+if(!MLS_GRID.enabled) {
+  renderFeatured();
+  // ═══ DEMO DATA BANNER ═══
+  (function(){
+    if(document.getElementById('demoBanner'))return;
+    var banner=document.createElement('div');
+    banner.id='demoBanner';
+    banner.className='demo-banner';
+    banner.innerHTML='<div class="demo-banner-inner"><span class="demo-banner-icon">\u26A0</span> <span>Sample listings shown for demonstration purposes only. These properties are not real.</span></div>';
+    document.body.appendChild(banner);
+    var nav=document.querySelector('.nav');
+    function positionBanner(){
+      if(!nav)return;
+      banner.style.top=nav.offsetHeight+'px';
+    }
+    positionBanner();
+    window.addEventListener('scroll',positionBanner);
+    window.addEventListener('resize',positionBanner);
+  })();
+} else {
+  // MLS_GRID is enabled — show loading state and clear demo data
+  LISTINGS.length = 0;
+  Object.keys(TOWN_LISTINGS).forEach(function(k){ delete TOWN_LISTINGS[k]; });
+  ALL_LISTINGS.length = 0;
+  var _loadingHtml = '<div class="idx-loading" style="grid-column:1/-1;text-align:center;padding:3rem 1rem;color:var(--gold);font-family:var(--font-body);font-size:1.1rem;"><div style="margin-bottom:0.8rem;font-size:1.8rem;">&#x1F3E0;</div>Loading live listings from MLS...<div style="margin-top:0.5rem;font-size:0.85rem;opacity:0.6;">Connecting to Carolina Smokies MLS</div></div>';
+  var _fg = document.getElementById('featuredGrid');
+  if(_fg) _fg.innerHTML = _loadingHtml;
+  // Also show loading on town page grids
+  document.querySelectorAll('[id^="tps-grid-"]').forEach(function(el){ el.innerHTML = _loadingHtml; });
+}
 
 // ═══ IDX DISCLAIMER INJECTION (for town pages) ═══
 (function(){
@@ -719,7 +741,7 @@ renderFeatured();
   if(fb){
     var disc=document.createElement('div');
     disc.className='idx-disclaimer';
-    disc.innerHTML='<p class="idx-source">Listings courtesy of Canopy MLS as distributed by MLS GRID.</p><p>Based on information submitted to the MLS GRID as of February 18, 2026. All data is obtained from various sources and may not have been verified by broker or MLS GRID. Supplied Open House Information is subject to change without notice. All information should be independently reviewed and verified for accuracy. Properties may or may not be listed by the office/agent presenting the information.</p><p>IDX information is provided exclusively for consumers\u2019 personal, non-commercial use and may not be used for any purpose other than to identify prospective properties consumers may be interested in purchasing. Data is deemed reliable but is not guaranteed by MLS GRID.</p><p>Properties displayed may be listed or sold by various participants in the MLS. \u00A9 2026 Carolina Smokies Association of Realtors. All rights reserved.</p><p class="idx-demo-note">Currently displaying demonstration data. Live MLS data pending feed activation.</p><p class="idx-timestamp">Data last updated: February 18, 2026 at 9:00 AM</p>';
+    disc.innerHTML='<p class="idx-source">Listing data provided by Carolina Smokies Association of Realtors (CSAR).</p><p>All data is obtained from various sources and may not have been verified by broker or MLS. Supplied Open House Information is subject to change without notice. All information should be independently reviewed and verified for accuracy. Properties may or may not be listed by the office/agent presenting the information.</p><p>IDX information is provided exclusively for consumers\u2019 personal, non-commercial use and may not be used for any purpose other than to identify prospective properties consumers may be interested in purchasing. Data is deemed reliable but is not guaranteed accurate by the MLS.</p><p>Properties displayed may be listed or sold by various participants in the MLS. \u00A9 2026 Carolina Smokies Association of Realtors. All rights reserved.</p><p class="idx-timestamp" id="idxTimestamp">Data last updated: loading...</p>';
     // DMCA notice (Rule 30)
     var dmca=document.createElement('div');
     dmca.className='idx-dmca';
@@ -1546,7 +1568,9 @@ function renderTownResults(townId,results,townName){
     var statusBadge=l.status==='Under Contract'?'<div style="position:absolute;top:0.75rem;right:0.75rem;padding:0.25rem 0.5rem;font-size:0.5rem;letter-spacing:0.1em;text-transform:uppercase;background:var(--red-soft);color:#fff">Under Contract</div>':'';
     var tBrokerParts=[];if(l.listAgent)tBrokerParts.push(l.listAgent);if(l.listOffice)tBrokerParts.push(l.listOffice);if(l.listOfficePhone)tBrokerParts.push(l.listOfficePhone);
     var tBrokerHtml=tBrokerParts.length?'<div class="f-card-office">Listed by '+tBrokerParts.join(' &bull; ')+(l.mlsId?' | MLS# '+l.mlsId:'')+'</div>':'';
-    c.innerHTML='<div class="f-card-img" style="position:relative"><div style="aspect-ratio:16/10;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.75rem">Property Photo</div><div class="f-card-badge'+badge+'">'+l.type+'</div><div class="f-card-demo-badge">DEMO</div>'+statusBadge+cardFavHtml(l.address,townName)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+townName+', NC</div><div class="f-card-features">'+feats+'</div>'+tBrokerHtml+'</div>';
+    var tIsDemo = l.mlsId && l.mlsId.toString().indexOf('DEMO') === 0;
+    var photoHtml = l.photo ? '<img src="'+l.photo+'" alt="'+l.address+'" loading="lazy">' : '<div style="aspect-ratio:16/10;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.75rem">No Photo Available</div>';
+    c.innerHTML='<div class="f-card-img" style="position:relative">'+photoHtml+'<div class="f-card-badge'+badge+'">'+l.type+'</div>'+(tIsDemo?'<div class="f-card-demo-badge">DEMO</div>':'')+statusBadge+cardFavHtml(l.address,townName)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+townName+', NC</div><div class="f-card-features">'+feats+'</div>'+tBrokerHtml+'</div>';
     (function(listing,town){c.onclick=function(){try{openProp(listing,town)}catch(err){console.error(err)}}})(l,townName);
     grid.appendChild(c);
   });
@@ -4199,6 +4223,15 @@ if(MLS_GRID.enabled) {
   MLS_GRID.init().then(function(){
     if(typeof updateAcctUI === 'function') updateAcctUI();
     _checkPropDeepLink();
+    // Re-render town page listings now that live data is loaded
+    if(_isTownPage) {
+      var pathMatch = window.location.pathname.match(/\/towns\/([a-z-]+)\.html/i);
+      var townSlug = pathMatch ? pathMatch[1].toLowerCase() : '';
+      if(townSlug && TOWN_LISTINGS[townSlug]) {
+        townSearch(townSlug);
+        console.log('[MLS Grid] Town page refreshed: ' + townSlug + ' with ' + TOWN_LISTINGS[townSlug].listings.length + ' listings');
+      }
+    }
   });
   EVENTS.init();
 } else if(SIMPLYRETS.enabled) {
