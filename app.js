@@ -2233,6 +2233,8 @@ var TOWN_COORDS = {
 // Aggregate ALL listings into one searchable array
 var ALL_LISTINGS = [];
 (function(){
+  // When MLS_GRID is enabled, skip demo data population — MLS_GRID.init() handles ALL_LISTINGS
+  if(MLS_GRID.enabled) return;
   // From featured listings
   LISTINGS.forEach(function(l){
     ALL_LISTINGS.push({
