@@ -573,6 +573,26 @@ var MLS_GRID = {
       _src: 'mlsgrid'
     };
   },
+  // Paginated fetch helper — Supabase caps at 1000 rows per request
+  _fetchAll: function(table, selectCols, filters) {
+    var PAGE = 1000;
+    var allRows = [];
+    function fetchPage(offset) {
+      var q = _sb.from(table).select(selectCols).range(offset, offset + PAGE - 1);
+      // Apply filters
+      if(filters) {
+        filters.forEach(function(f) { q = q[f.method].apply(q, f.args); });
+      }
+      return q.then(function(res) {
+        if(res.error) throw new Error(res.error.message);
+        var rows = res.data || [];
+        allRows = allRows.concat(rows);
+        if(rows.length === PAGE) return fetchPage(offset + PAGE); // more pages
+        return allRows;
+      });
+    }
+    return fetchPage(0);
+  },
   init: function() {
     if(!MLS_GRID.enabled) return Promise.resolve();
     if(!_sb) {
@@ -582,91 +602,96 @@ var MLS_GRID = {
       return Promise.resolve();
     }
     console.log('[MLS Grid] Loading listings from Supabase...');
-    return _sb.from('mls_listings')
-      .select('*')
-      .eq('mlg_can_view', true)
-      .in('standard_status', ['Active','Active Under Contract','Pending'])
-      .limit(3000)
-      .then(function(res) {
-        if(res.error) { console.error('[MLS Grid] Query error:', res.error.message); var _fg = document.getElementById('featuredGrid'); if(_fg) { var _ld = _fg.querySelector('.idx-loading'); if(_ld) _ld.innerHTML = '<div style="margin-bottom:0.8rem;font-size:1.8rem;">&#x26A0;</div>Error loading listings.<div style="margin-top:0.5rem;font-size:0.85rem;opacity:0.6;">' + res.error.message + '</div>'; } return; }
-        if(!res.data || !res.data.length) { console.warn('[MLS Grid] No listings found'); var _fg2 = document.getElementById('featuredGrid'); if(_fg2) { var _ld2 = _fg2.querySelector('.idx-loading'); if(_ld2) _ld2.innerHTML = '<div style="margin-bottom:0.8rem;font-size:1.8rem;">&#x1F3E0;</div>No active listings found at this time.<div style="margin-top:0.5rem;font-size:0.85rem;opacity:0.6;">Please check back soon.</div>'; } return; }
-        console.log('[MLS Grid] Received ' + res.data.length + ' listings');
-        var mapped = res.data.map(MLS_GRID.mapListing);
 
-        // Load primary photo (order=1) for each listing — card thumbnails
-        // Full photo gallery loaded on demand in openProp() via MLS_GRID.loadPhotos()
-        return _sb.from('mls_media')
-          .select('listing_key, local_url, media_url')
-          .eq('"order"', 1)
-          .limit(2000)
-          .then(function(mediaRes) {
-            if(mediaRes.error) { console.error('[MLS Grid] Media query error:', mediaRes.error.message); }
-            var mediaMap = {};
-            (mediaRes.data || []).forEach(function(m) {
-              mediaMap[m.listing_key] = m.local_url || m.media_url;
-            });
-            console.log('[MLS Grid] Primary photos loaded: ' + (mediaRes.data||[]).length + ' rows, ' + Object.keys(mediaMap).length + ' unique listings');
-            // Assign primary photo to listings
-            var withPhoto = 0, noPhoto = 0;
-            mapped.forEach(function(l) {
-              l.photo = mediaMap[l.listingKey] || null;
-              l.photos = l.photo ? [l.photo] : [];
-              if(l.photo) withPhoto++; else noPhoto++;
-            });
-            console.log('[MLS Grid] Photo assignment: ' + withPhoto + ' with photo, ' + noPhoto + ' without');
+    // Fetch all listings (paginated) and all primary photos (paginated) in parallel
+    var listingsPromise = MLS_GRID._fetchAll('mls_listings', '*', [
+      { method: 'eq', args: ['mlg_can_view', true] },
+      { method: 'in', args: ['standard_status', ['Active','Active Under Contract','Pending']] }
+    ]);
+    var mediaPromise = MLS_GRID._fetchAll('mls_media', 'listing_key, local_url, media_url', [
+      { method: 'eq', args: ['"order"', 1] }
+    ]);
 
-            // Populate TOWN_LISTINGS
-            var newTowns = {};
-            mapped.forEach(function(l) {
-              var slug = MLS_GRID.resolveTown(l.city);
-              if(!newTowns[slug]) newTowns[slug] = { display: l.city, listings: [] };
-              newTowns[slug].listings.push(l);
-            });
-            Object.keys(TOWN_LISTINGS).forEach(function(k){ delete TOWN_LISTINGS[k]; });
-            Object.keys(newTowns).forEach(function(k){ TOWN_LISTINGS[k] = newTowns[k]; });
+    return Promise.all([listingsPromise, mediaPromise]).then(function(results) {
+        var listingRows = results[0];
+        var mediaRows = results[1];
 
-            // Populate LISTINGS (featured) — top 6 by price with photos
-            var sorted = mapped.filter(function(l){return l.photo}).sort(function(a,b){return b.price-a.price});
-            LISTINGS.length = 0;
-            sorted.slice(0,6).forEach(function(l,i){
-              LISTINGS.push({
-                id:i+1, price:l.price, address:l.address, city:l.city, type:l.type,
-                beds:l.beds, baths:l.baths, sqft:l.sqft, lot:l.lot,
-                photo:l.photo, photos:l.photos, days:l.daysOnMarket,
-                mlsId:l.mlsId, restrictions:l.restrictions, status:l.status,
-                listingKey:l.listingKey,
-                listAgent:l.listAgent, listOffice:l.listOffice, listOfficePhone:l.listOfficePhone
-              });
-            });
+        if(!listingRows || !listingRows.length) {
+          console.warn('[MLS Grid] No listings found');
+          var _fg2 = document.getElementById('featuredGrid');
+          if(_fg2) { var _ld2 = _fg2.querySelector('.idx-loading'); if(_ld2) _ld2.innerHTML = '<div style="margin-bottom:0.8rem;font-size:1.8rem;">&#x1F3E0;</div>No active listings found at this time.<div style="margin-top:0.5rem;font-size:0.85rem;opacity:0.6;">Please check back soon.</div>'; }
+          return;
+        }
+        console.log('[MLS Grid] Received ' + listingRows.length + ' listings');
+        var mapped = listingRows.map(MLS_GRID.mapListing);
 
-            // Rebuild ALL_LISTINGS
-            ALL_LISTINGS.length = 0;
-            mapped.forEach(function(l){
-              ALL_LISTINGS.push({
-                price:l.price, address:l.address, city:l.city, type:l.type,
-                beds:l.beds, baths:l.baths, sqft:l.sqft, lot:l.lot,
-                photo:l.photo, photos:l.photos, status:l.status,
-                restrictions:l.restrictions, _src:'mlsgrid',
-                lat:l.lat, lng:l.lng, mlsId:l.mlsId, description:l.description,
-                daysOnMarket:l.daysOnMarket, listingKey:l.listingKey,
-                listAgent:l.listAgent, listOffice:l.listOffice, listOfficePhone:l.listOfficePhone
-              });
-            });
+        // Build photo lookup from paginated media results
+        var mediaMap = {};
+        mediaRows.forEach(function(m) {
+          mediaMap[m.listing_key] = m.local_url || m.media_url;
+        });
+        console.log('[MLS Grid] Primary photos loaded: ' + mediaRows.length + ' rows, ' + Object.keys(mediaMap).length + ' unique listings');
 
-            // Update timestamp
-            var tsEl = document.getElementById('idxTimestamp');
-            if(tsEl) tsEl.textContent = 'Data last updated: ' + new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) + ' at ' + new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+        // Assign primary photo to listings
+        var withPhoto = 0, noPhoto = 0;
+        mapped.forEach(function(l) {
+          l.photo = mediaMap[l.listingKey] || null;
+          l.photos = l.photo ? [l.photo] : [];
+          if(l.photo) withPhoto++; else noPhoto++;
+        });
+        console.log('[MLS Grid] Photo assignment: ' + withPhoto + ' with photo, ' + noPhoto + ' without');
 
-            // Remove demo banner
-            var demoBanner = document.getElementById('demoBanner');
-            if(demoBanner) demoBanner.remove();
-            var demoNote = document.querySelector('.idx-demo-note');
-            if(demoNote) demoNote.style.display = 'none';
+        // Populate TOWN_LISTINGS
+        var newTowns = {};
+        mapped.forEach(function(l) {
+          var slug = MLS_GRID.resolveTown(l.city);
+          if(!newTowns[slug]) newTowns[slug] = { display: l.city, listings: [] };
+          newTowns[slug].listings.push(l);
+        });
+        Object.keys(TOWN_LISTINGS).forEach(function(k){ delete TOWN_LISTINGS[k]; });
+        Object.keys(newTowns).forEach(function(k){ TOWN_LISTINGS[k] = newTowns[k]; });
 
-            // Re-render
-            renderFeatured();
-            console.log('[MLS Grid] Site updated with ' + ALL_LISTINGS.length + ' listings across ' + Object.keys(TOWN_LISTINGS).length + ' areas');
+        // Populate LISTINGS (featured) — top 6 by price with photos
+        var sorted = mapped.filter(function(l){return l.photo}).sort(function(a,b){return b.price-a.price});
+        LISTINGS.length = 0;
+        sorted.slice(0,6).forEach(function(l,i){
+          LISTINGS.push({
+            id:i+1, price:l.price, address:l.address, city:l.city, type:l.type,
+            beds:l.beds, baths:l.baths, sqft:l.sqft, lot:l.lot,
+            photo:l.photo, photos:l.photos, days:l.daysOnMarket,
+            mlsId:l.mlsId, restrictions:l.restrictions, status:l.status,
+            listingKey:l.listingKey,
+            listAgent:l.listAgent, listOffice:l.listOffice, listOfficePhone:l.listOfficePhone
           });
+        });
+
+        // Rebuild ALL_LISTINGS
+        ALL_LISTINGS.length = 0;
+        mapped.forEach(function(l){
+          ALL_LISTINGS.push({
+            price:l.price, address:l.address, city:l.city, type:l.type,
+            beds:l.beds, baths:l.baths, sqft:l.sqft, lot:l.lot,
+            photo:l.photo, photos:l.photos, status:l.status,
+            restrictions:l.restrictions, _src:'mlsgrid',
+            lat:l.lat, lng:l.lng, mlsId:l.mlsId, description:l.description,
+            daysOnMarket:l.daysOnMarket, listingKey:l.listingKey,
+            listAgent:l.listAgent, listOffice:l.listOffice, listOfficePhone:l.listOfficePhone
+          });
+        });
+
+        // Update timestamp
+        var tsEl = document.getElementById('idxTimestamp');
+        if(tsEl) tsEl.textContent = 'Data last updated: ' + new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) + ' at ' + new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+
+        // Remove demo banner
+        var demoBanner = document.getElementById('demoBanner');
+        if(demoBanner) demoBanner.remove();
+        var demoNote = document.querySelector('.idx-demo-note');
+        if(demoNote) demoNote.style.display = 'none';
+
+        // Re-render
+        renderFeatured();
+        console.log('[MLS Grid] Site updated with ' + ALL_LISTINGS.length + ' listings across ' + Object.keys(TOWN_LISTINGS).length + ' areas');
       }).catch(function(err){
         console.error('[MLS Grid] Failed to load:', err.message || err);
         var _fg = document.getElementById('featuredGrid');
