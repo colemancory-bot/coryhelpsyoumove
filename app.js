@@ -4234,6 +4234,12 @@ if(MLS_GRID.enabled) {
         console.log('[MLS Grid] Town page refreshed: ' + townSlug + ' with ' + TOWN_LISTINGS[townSlug].listings.length + ' listings');
       }
     }
+    // If search overlay is already open, refresh results with live data
+    var srOverlay = document.getElementById('searchOverlay');
+    if(srOverlay && srOverlay.classList.contains('active') && typeof srApplyFilters === 'function') {
+      srApplyFilters();
+      console.log('[MLS Grid] Search results refreshed with live data');
+    }
   });
   EVENTS.init();
 } else if(SIMPLYRETS.enabled) {
