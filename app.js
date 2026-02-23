@@ -2547,8 +2547,26 @@ function srApplyFilters(){
     return true;
   });
 
-  // Text query filter (address, city, mlsId, description — ALL words must match)
-  if(textQuery) {
+  // Fuzzy text search (address, city, mlsId, description)
+  if(textQuery && typeof Fuse !== 'undefined') {
+    var fuse = new Fuse(results, {
+      keys: [
+        { name: 'address', weight: 3 },
+        { name: 'city', weight: 2 },
+        { name: 'mlsId', weight: 2 },
+        { name: 'description', weight: 1 }
+      ],
+      threshold: 0.35,       // 0=exact, 1=match anything — 0.35 is good for typos
+      distance: 300,          // how far into the string to search
+      ignoreLocation: true,   // match anywhere in the string
+      minMatchCharLength: 2,
+      includeScore: true,
+      useExtendedSearch: false
+    });
+    var fuseResults = fuse.search(textQuery);
+    results = fuseResults.map(function(r){ return r.item; });
+  } else if(textQuery) {
+    // Fallback if Fuse.js not loaded: exact substring match
     var words = textQuery.split(/\s+/).filter(function(w){return w.length > 0});
     results = results.filter(function(l){
       var haystack = ((l.address||'') + ' ' + (l.city||'') + ' ' + (l.mlsId||'') + ' ' + (l.description||'')).toLowerCase();
