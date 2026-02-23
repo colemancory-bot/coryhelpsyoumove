@@ -8,7 +8,7 @@
 //
 // Env vars required:
 //   NAVICA_SERVER_TOKEN  — Server Token from Navica API Access page
-//   NAVICA_API_BASE      — Base URL (default: https://navapi.navicamls.net/odata)
+//   NAVICA_DATASET_ID    — Dataset ID (default: nav27 for Carolina Smokies AOR)
 //   SUPABASE_URL         — Supabase project URL
 //   SUPABASE_SERVICE_ROLE_KEY — Supabase service role key
 //   R2_ENDPOINT, R2_ACCESS_KEY, R2_SECRET_KEY, R2_BUCKET, R2_PUBLIC_URL — Cloudflare R2
@@ -16,8 +16,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ── Configuration ──────────────────────────────────────────────
-const NAVICA_API_BASE =
-  Deno.env.get("NAVICA_API_BASE") || "https://navapi.navicamls.net/odata";
+const NAVICA_DATASET_ID = Deno.env.get("NAVICA_DATASET_ID") || "nav27";
+const NAVICA_API_BASE = `https://navapi.navicamls.net/api/v2/OData/${NAVICA_DATASET_ID}`;
 const NAVICA_SERVER_TOKEN = Deno.env.get("NAVICA_SERVER_TOKEN") || "";
 
 const R2_ENDPOINT = Deno.env.get("R2_ENDPOINT") || "";
@@ -30,6 +30,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
 // Originating system name for CSAR records stored in mls_listings
+// Navica returns "Carolina Smokies AOR" — we normalize to "CSAR" for our DB
 const ORIGINATING_SYSTEM = "CSAR";
 
 // Sync state rows use this prefix to coexist with MLS Grid rows
@@ -41,15 +42,34 @@ const REQUEST_DELAY_MS = 600;
 // Max records per page (Navica may enforce its own limit)
 const PAGE_SIZE = 200;
 
+// Default max records per invocation (Supabase Edge Functions have time limits)
+// For initial import, run multiple invocations; each picks up where the last left off
+const DEFAULT_MAX_RECORDS = 500;
+
 // ── Helpers ────────────────────────────────────────────────────
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+// Normalize timestamp to ISO 8601 with Z suffix (not +00:00) for OData filter compatibility
+function normalizeTimestamp(ts: string): string {
+  if (!ts) return ts;
+  // PostgreSQL returns +00:00 but OData filter needs Z suffix
+  return ts.replace(/\+00:00$/, "Z").replace(/\+00$/, "Z");
+}
+
+// Append access_token to a URL (handles existing query params)
+function withToken(url: string): string {
+  // If URL already has access_token (e.g. from @odata.nextLink), skip
+  if (url.includes("access_token=")) return url;
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}access_token=${NAVICA_SERVER_TOKEN}`;
+}
+
 async function navicaFetch(url: string): Promise<any> {
-  const resp = await fetch(url, {
+  const authedUrl = withToken(url);
+  const resp = await fetch(authedUrl, {
     headers: {
-      Authorization: `Bearer ${NAVICA_SERVER_TOKEN}`,
       "Accept-Encoding": "gzip,deflate",
       Accept: "application/json",
     },
@@ -117,21 +137,24 @@ function getFeedType(record: any): string {
 async function syncProperties(
   supabase: any,
   isInitial: boolean,
-  lastTimestamp: string | null
+  lastTimestamp: string | null,
+  maxRecords: number = DEFAULT_MAX_RECORDS,
+  extraFilter: string = ""
 ) {
   let url: string;
-  if (isInitial) {
-    // Initial import: get all properties with media expanded
-    url = `${NAVICA_API_BASE}/Property?$expand=Media&$top=${PAGE_SIZE}`;
-  } else {
-    // Incremental sync: records modified since last sync
-    url = `${NAVICA_API_BASE}/Property?$filter=ModificationTimestamp gt ${lastTimestamp}&$expand=Media&$top=${PAGE_SIZE}`;
+  // Build $filter clause
+  const filters: string[] = [];
+  if (!isInitial && lastTimestamp) {
+    filters.push(`APIModificationTimestamp gt ${normalizeTimestamp(lastTimestamp)}`);
   }
+  if (extraFilter) filters.push(extraFilter);
+  const filterClause = filters.length > 0 ? `$filter=${filters.join(" and ")}&` : "";
+  url = `${NAVICA_API_BASE}/Property?${filterClause}$top=${PAGE_SIZE}&$orderby=APIModificationTimestamp asc`;
 
   let totalSynced = 0;
   let greatestTimestamp = lastTimestamp || "";
 
-  while (url) {
+  while (url && totalSynced < maxRecords) {
     const data = await navicaFetch(url);
     const records = data.value || [];
 
@@ -140,9 +163,11 @@ async function syncProperties(
     );
 
     for (const record of records) {
+      if (totalSynced >= maxRecords) break;
       const listingKey = record.ListingKey || "";
       const listingId = record.ListingId || record.ListingKey || "";
-      const modTs = record.ModificationTimestamp || "";
+      // Use APIModificationTimestamp (Navica-recommended) with fallback to ModificationTimestamp
+      const modTs = record.APIModificationTimestamp || record.ModificationTimestamp || "";
       const stdStatus = record.StandardStatus || "Active";
 
       if (modTs > greatestTimestamp) greatestTimestamp = modTs;
@@ -399,33 +424,36 @@ async function syncProperties(
 
     // Follow @odata.nextLink for pagination (RESO Web API standard)
     url = data["@odata.nextLink"] || "";
-    if (url) await sleep(REQUEST_DELAY_MS);
+    if (url && totalSynced < maxRecords) await sleep(REQUEST_DELAY_MS);
   }
 
-  return { totalSynced, greatestTimestamp };
+  const hasMore = !!url && totalSynced >= maxRecords;
+  return { totalSynced, greatestTimestamp, hasMore };
 }
 
 // ── Member Sync ────────────────────────────────────────────────
 async function syncMembers(
   supabase: any,
   isInitial: boolean,
-  lastTimestamp: string | null
+  lastTimestamp: string | null,
+  maxRecords: number = DEFAULT_MAX_RECORDS
 ) {
-  let url = isInitial
-    ? `${NAVICA_API_BASE}/Member?$top=${PAGE_SIZE}`
-    : `${NAVICA_API_BASE}/Member?$filter=ModificationTimestamp gt ${lastTimestamp}&$top=${PAGE_SIZE}`;
+  let url = (isInitial || !lastTimestamp)
+    ? `${NAVICA_API_BASE}/Member?$top=${PAGE_SIZE}&$orderby=APIModificationTimestamp asc`
+    : `${NAVICA_API_BASE}/Member?$filter=APIModificationTimestamp gt ${normalizeTimestamp(lastTimestamp!)}&$top=${PAGE_SIZE}&$orderby=APIModificationTimestamp asc`;
 
   let totalSynced = 0;
   let greatestTimestamp = lastTimestamp || "";
 
-  while (url) {
+  while (url && totalSynced < maxRecords) {
     const data = await navicaFetch(url);
     const records = data.value || [];
 
     console.log(`[NavicaSync] Member page: ${records.length} records`);
 
     for (const r of records) {
-      const modTs = r.ModificationTimestamp || "";
+      if (totalSynced >= maxRecords) break;
+      const modTs = r.APIModificationTimestamp || r.ModificationTimestamp || "";
       if (modTs > greatestTimestamp) greatestTimestamp = modTs;
       const key = r.MemberKey || "";
       const status = r.MemberStatus || "Active";
@@ -464,33 +492,36 @@ async function syncMembers(
     }
 
     url = data["@odata.nextLink"] || "";
-    if (url) await sleep(REQUEST_DELAY_MS);
+    if (url && totalSynced < maxRecords) await sleep(REQUEST_DELAY_MS);
   }
 
-  return { totalSynced, greatestTimestamp };
+  const hasMore = !!url && totalSynced >= maxRecords;
+  return { totalSynced, greatestTimestamp, hasMore };
 }
 
 // ── Office Sync ────────────────────────────────────────────────
 async function syncOffices(
   supabase: any,
   isInitial: boolean,
-  lastTimestamp: string | null
+  lastTimestamp: string | null,
+  maxRecords: number = DEFAULT_MAX_RECORDS
 ) {
-  let url = isInitial
-    ? `${NAVICA_API_BASE}/Office?$top=${PAGE_SIZE}`
-    : `${NAVICA_API_BASE}/Office?$filter=ModificationTimestamp gt ${lastTimestamp}&$top=${PAGE_SIZE}`;
+  let url = (isInitial || !lastTimestamp)
+    ? `${NAVICA_API_BASE}/Office?$top=${PAGE_SIZE}&$orderby=APIModificationTimestamp asc`
+    : `${NAVICA_API_BASE}/Office?$filter=APIModificationTimestamp gt ${normalizeTimestamp(lastTimestamp!)}&$top=${PAGE_SIZE}&$orderby=APIModificationTimestamp asc`;
 
   let totalSynced = 0;
   let greatestTimestamp = lastTimestamp || "";
 
-  while (url) {
+  while (url && totalSynced < maxRecords) {
     const data = await navicaFetch(url);
     const records = data.value || [];
 
     console.log(`[NavicaSync] Office page: ${records.length} records`);
 
     for (const r of records) {
-      const modTs = r.ModificationTimestamp || "";
+      if (totalSynced >= maxRecords) break;
+      const modTs = r.APIModificationTimestamp || r.ModificationTimestamp || "";
       if (modTs > greatestTimestamp) greatestTimestamp = modTs;
       const key = r.OfficeKey || "";
       const status = r.OfficeStatus || "Active";
@@ -529,26 +560,28 @@ async function syncOffices(
     }
 
     url = data["@odata.nextLink"] || "";
-    if (url) await sleep(REQUEST_DELAY_MS);
+    if (url && totalSynced < maxRecords) await sleep(REQUEST_DELAY_MS);
   }
 
-  return { totalSynced, greatestTimestamp };
+  const hasMore = !!url && totalSynced >= maxRecords;
+  return { totalSynced, greatestTimestamp, hasMore };
 }
 
 // ── OpenHouse Sync ─────────────────────────────────────────────
 async function syncOpenHouses(
   supabase: any,
   isInitial: boolean,
-  lastTimestamp: string | null
+  lastTimestamp: string | null,
+  maxRecords: number = DEFAULT_MAX_RECORDS
 ) {
-  let url = isInitial
-    ? `${NAVICA_API_BASE}/OpenHouse?$top=${PAGE_SIZE}`
-    : `${NAVICA_API_BASE}/OpenHouse?$filter=ModificationTimestamp gt ${lastTimestamp}&$top=${PAGE_SIZE}`;
+  let url = (isInitial || !lastTimestamp)
+    ? `${NAVICA_API_BASE}/OpenHouse?$top=${PAGE_SIZE}&$orderby=APIModificationTimestamp asc`
+    : `${NAVICA_API_BASE}/OpenHouse?$filter=APIModificationTimestamp gt ${normalizeTimestamp(lastTimestamp!)}&$top=${PAGE_SIZE}&$orderby=APIModificationTimestamp asc`;
 
   let totalSynced = 0;
   let greatestTimestamp = lastTimestamp || "";
 
-  while (url) {
+  while (url && totalSynced < maxRecords) {
     const data = await navicaFetch(url);
     const records = data.value || [];
 
@@ -557,7 +590,8 @@ async function syncOpenHouses(
     );
 
     for (const r of records) {
-      const modTs = r.ModificationTimestamp || "";
+      if (totalSynced >= maxRecords) break;
+      const modTs = r.APIModificationTimestamp || r.ModificationTimestamp || "";
       if (modTs > greatestTimestamp) greatestTimestamp = modTs;
       const key = r.OpenHouseKey || "";
 
@@ -586,10 +620,11 @@ async function syncOpenHouses(
     }
 
     url = data["@odata.nextLink"] || "";
-    if (url) await sleep(REQUEST_DELAY_MS);
+    if (url && totalSynced < maxRecords) await sleep(REQUEST_DELAY_MS);
   }
 
-  return { totalSynced, greatestTimestamp };
+  const hasMore = !!url && totalSynced >= maxRecords;
+  return { totalSynced, greatestTimestamp, hasMore };
 }
 
 // ── Main Handler ───────────────────────────────────────────────
@@ -631,12 +666,19 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const action = body.action || "sync"; // "sync" | "initial-import"
+    const action = body.action || "sync"; // "sync" | "initial-import" | "sync-active"
     const resource = body.resource || "all"; // "all" | "Property" | etc.
+    const maxRecords = body.limit || DEFAULT_MAX_RECORDS; // max records per invocation
     const isInitial = action === "initial-import";
+    // Optional OData $filter to pass to Property sync (e.g. "StandardStatus eq 'Active'")
+    const extraFilter = body.filter || "";
+    // Shortcut: "sync-active" action auto-sets filter for active/pending listings
+    const activeFilter = action === "sync-active"
+      ? "StandardStatus eq 'Active' or StandardStatus eq 'Pending' or StandardStatus eq 'Active Under Contract'"
+      : extraFilter;
 
     console.log(
-      `[NavicaSync] Starting ${action} for resource: ${resource}`
+      `[NavicaSync] Starting ${action} for resource: ${resource} (limit: ${maxRecords})${activeFilter ? " filter: " + activeFilter : ""}`
     );
 
     const resources =
@@ -663,40 +705,50 @@ Deno.serve(async (req) => {
         .eq("resource_type", syncStateKey)
         .single();
 
+      // sync-active uses timestamp for resumption across invocations (combined with status filter)
       const lastTs = isInitial
         ? null
         : syncState?.last_modification_timestamp || null;
 
       // Mark as running
-      await supabase
+      const { error: runErr } = await supabase
         .from("mls_sync_state")
         .update({ status: "running", error_message: "" })
         .eq("resource_type", syncStateKey);
+      if (runErr) console.error(`[NavicaSync] Failed to mark ${syncStateKey} running:`, runErr.message);
 
       try {
-        const result = await syncFn(supabase, isInitial, lastTs);
+        // Pass activeFilter only to Property sync (other resources don't need it)
+        const result = res === "Property"
+          ? await syncFn(supabase, isInitial, lastTs, maxRecords, activeFilter)
+          : await syncFn(supabase, isInitial, lastTs, maxRecords);
 
         // Update sync state with results
-        await supabase
+        const updatePayload = {
+          last_modification_timestamp: result.greatestTimestamp || lastTs,
+          last_sync_at: new Date().toISOString(),
+          records_synced: result.totalSynced,
+          status: "idle", // CHECK constraint allows: idle, running, error
+          error_message: result.hasMore
+            ? `Partial: ${result.totalSynced} records synced, more available. Invoke again to continue.`
+            : "",
+          originating_system_name: ORIGINATING_SYSTEM,
+        };
+        console.log(`[NavicaSync] Updating sync state for ${syncStateKey}:`, JSON.stringify(updatePayload));
+        const { error: updateErr } = await supabase
           .from("mls_sync_state")
-          .update({
-            last_modification_timestamp:
-              result.greatestTimestamp || lastTs,
-            last_sync_at: new Date().toISOString(),
-            records_synced: result.totalSynced,
-            status: "idle",
-            error_message: "",
-            originating_system_name: ORIGINATING_SYSTEM,
-          })
+          .update(updatePayload)
           .eq("resource_type", syncStateKey);
+        if (updateErr) console.error(`[NavicaSync] Sync state update FAILED:`, updateErr.message);
 
         results[res] = {
           synced: result.totalSynced,
           lastTimestamp: result.greatestTimestamp,
+          hasMore: result.hasMore,
         };
 
         console.log(
-          `[NavicaSync] ${res}: synced ${result.totalSynced} records`
+          `[NavicaSync] ${res}: synced ${result.totalSynced} records${result.hasMore ? " (more available)" : ""}`
         );
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);

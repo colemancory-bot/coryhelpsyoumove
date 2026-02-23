@@ -265,7 +265,7 @@ var SIMPLYRETS = {
   // Set enabled:true and enter your credentials to pull live MLS data.
   // Demo credentials (simplyrets:simplyrets) show sample Houston data.
   // When your MLS is connected, replace with your real API key/secret.
-  enabled: true,                                     // Live! Using demo data until MLS connected
+  enabled: false,                                    // Disabled — using MLS_GRID (Navica CSAR) instead
   apiKey:  'simplyrets',                             // Your SimplyRETS API key
   apiSecret: 'simplyrets',                           // Your SimplyRETS API secret
   apiUrl: 'https://api.simplyrets.com/properties',   // API endpoint
@@ -517,7 +517,7 @@ var SIMPLYRETS = {
 // When MLS Grid feed is active, this replaces SimplyRETS.
 // Set MLS_GRID.enabled = true and SIMPLYRETS.enabled = false to switch.
 var MLS_GRID = {
-  enabled: false, // Set true when MLS Grid replication is running
+  enabled: true, // Navica CSAR sync is live — queries mls_listings from Supabase
   // Town slugs mapped from MLS city names
   cityMap: {
     'Waynesville': 'waynesville',

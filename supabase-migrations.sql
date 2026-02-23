@@ -489,8 +489,12 @@ CREATE TABLE IF NOT EXISTS mls_listings (
   postal_code TEXT DEFAULT '',
   county_or_parish TEXT DEFAULT '',
   full_address TEXT GENERATED ALWAYS AS (
-    TRIM(CONCAT_WS(' ', street_number, street_name, street_suffix,
-      CASE WHEN unit_number != '' THEN CONCAT('Unit ', unit_number) ELSE NULL END))
+    TRIM(BOTH ' ' FROM
+      COALESCE(street_number, '') || ' ' ||
+      COALESCE(street_name, '') || ' ' ||
+      COALESCE(street_suffix, '') ||
+      CASE WHEN COALESCE(unit_number, '') != '' THEN ' Unit ' || unit_number ELSE '' END
+    )
   ) STORED,
 
   -- Property details
