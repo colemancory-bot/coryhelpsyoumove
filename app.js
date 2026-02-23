@@ -2347,8 +2347,21 @@ var ALL_LISTINGS = [];
 
 var _srMap = null;
 var _srMarkers = [];
+var _srMarkerMap = {};       // listingKey → marker for ID-based lookup
+var _srClusterGroup = null;  // L.markerClusterGroup
 var _srActiveCard = null;
-var _srMobileView = 'list'; // 'list' or 'map'
+var _srMobileView = 'list';  // 'list' or 'map'
+var _srAllFilteredResults = []; // Full dropdown-filtered results (before viewport/spatial)
+var _srViewportDebounce = null;
+
+// Drawing state
+var _srDrawMode = null;          // null | 'radius' | 'polygon' | 'freedraw'
+var _srDrawnLayer = null;        // The drawn L.Circle or L.Polygon on the map
+var _srDrawHandler = null;       // Active Leaflet.draw handler
+var _srSpatialFilter = null;     // function(lat, lng) => boolean
+var _srFreedrawing = false;      // True while freehand drawing in progress
+var _srFreedrawPoints = [];      // LatLng array for freehand
+var _srFreedrawLine = null;      // Temporary polyline during freehand
 
 function openSearchResults(filters){
   filters = filters || {};
@@ -2416,6 +2429,72 @@ function initSearchMap(){
     // Store tile URLs for theme switching
     window._srDarkTiles = darkTiles;
     window._srLightTiles = lightTiles;
+
+    // Marker cluster group
+    if(typeof L.markerClusterGroup === 'function') {
+      _srClusterGroup = L.markerClusterGroup({
+        maxClusterRadius: 50,
+        disableClusteringAtZoom: 15,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: true,
+        chunkedLoading: true,
+        iconCreateFunction: function(cluster) {
+          var count = cluster.getChildCount();
+          var size = count < 20 ? 'small' : count < 50 ? 'medium' : 'large';
+          var px = size === 'small' ? 36 : size === 'medium' ? 44 : 52;
+          return L.divIcon({
+            html: '<div class="sr-cluster sr-cluster-' + size + '">' + count + '</div>',
+            className: 'sr-cluster-wrap',
+            iconSize: L.point(px, px)
+          });
+        }
+      });
+      _srMap.addLayer(_srClusterGroup);
+    }
+
+    // Viewport-based card filtering: update cards on pan/zoom
+    _srMap.on('moveend', function(){
+      if(_srSpatialFilter) return; // Drawing active — skip viewport filter
+      clearTimeout(_srViewportDebounce);
+      _srViewportDebounce = setTimeout(srFilterCardsByViewport, 150);
+    });
+
+    // Leaflet.draw event: shape created
+    _srMap.on('draw:created', function(e) {
+      srHandleDrawCreated(e);
+    });
+
+    // Freehand drawing events
+    _srMap.on('mousedown', function(e) {
+      if(!_srFreedrawing) return;
+      _srFreedrawPoints = [e.latlng];
+      _srFreedrawLine = L.polyline([e.latlng], {color:'#C4B08C', weight:2, dashArray:'6,4'}).addTo(_srMap);
+    });
+    _srMap.on('mousemove', function(e) {
+      if(!_srFreedrawing || !_srFreedrawLine) return;
+      _srFreedrawPoints.push(e.latlng);
+      _srFreedrawLine.addLatLng(e.latlng);
+    });
+    _srMap.on('mouseup', function(e) {
+      if(!_srFreedrawing || !_srFreedrawLine) return;
+      _srFreedrawing = false;
+      _srMap.dragging.enable();
+      _srMap.getContainer().style.cursor = '';
+      if(_srFreedrawLine) { _srMap.removeLayer(_srFreedrawLine); _srFreedrawLine = null; }
+      if(_srFreedrawPoints.length < 5) { _srFreedrawPoints = []; return; } // Too few points
+      // Close the polygon and apply filter
+      if(_srDrawnLayer) { _srMap.removeLayer(_srDrawnLayer); }
+      _srDrawnLayer = L.polygon(_srFreedrawPoints, {color:'#C4B08C', weight:2, fillColor:'#C4B08C', fillOpacity:0.12, dashArray:null}).addTo(_srMap);
+      var verts = _srFreedrawPoints.map(function(p){return [p.lat, p.lng]});
+      _srSpatialFilter = function(lat, lng) { return srPointInPolygon(lat, lng, verts); };
+      _srDrawMode = 'freedraw';
+      srApplySpatialFilter();
+      document.getElementById('srDrawClear').style.display = '';
+      document.querySelectorAll('.sr-draw-btn').forEach(function(b){b.classList.remove('active')});
+      document.getElementById('srDrawFree').classList.add('active');
+    });
+
   } catch(e) {
     console.error('Map init error:', e);
     document.getElementById('srMapLoading').innerHTML = '<span style="color:var(--text-muted)">Map requires internet connection</span>';
@@ -2463,10 +2542,16 @@ function srApplyFilters(){
     return sortDir === 'asc' ? va - vb : vb - va;
   });
 
+  // Apply spatial filter if a shape is drawn
+  if(_srSpatialFilter) {
+    results = results.filter(function(l){
+      return l.lat && l.lng && _srSpatialFilter(l.lat, l.lng);
+    });
+  }
+
   // Update region title
   var region = loc ? document.getElementById('srfLocSelect').options[document.getElementById('srfLocSelect').selectedIndex].text : 'Western NC';
   document.getElementById('srRegion').textContent = region;
-  document.getElementById('srCount').textContent = results.length + ' listing' + (results.length!==1?'s':'');
 
   // Update URL
   var params = new URLSearchParams();
@@ -2479,14 +2564,26 @@ function srApplyFilters(){
   var hashStr = '#search' + (params.toString() ? '?' + params.toString() : '');
   history.replaceState({page:'search'},'',hashStr);
 
-  // Store for map popup access
+  // Store full filtered results (before viewport filtering)
+  _srAllFilteredResults = results;
   _srCurrentResults = results;
 
-  // Render cards
-  srRenderCards(results);
-
-  // Render map markers
+  // Render map markers (all filtered results — clustering handles visibility)
   srRenderMarkers(results);
+
+  // Render cards — if spatial filter active, show all spatial results;
+  // otherwise viewport filtering will handle it via moveend event
+  if(_srSpatialFilter) {
+    document.getElementById('srCount').textContent = results.length + ' listing' + (results.length!==1?'s':'');
+    srRenderCards(results);
+  } else {
+    // Let viewport filtering handle card rendering after fitBounds triggers moveend
+    // But if map isn't ready, render all cards
+    if(!_srMap) {
+      document.getElementById('srCount').textContent = results.length + ' listing' + (results.length!==1?'s':'');
+      srRenderCards(results);
+    }
+  }
 }
 
 function srRenderCards(results){
@@ -2501,7 +2598,8 @@ function srRenderCards(results){
   results.forEach(function(l, i){
     var card = document.createElement('div');
     card.className = 'sr-card';
-    card.setAttribute('data-idx', i);
+    var lid = l.listingKey || l.mlsId || (l.address + '|' + l.city);
+    card.setAttribute('data-lid', lid);
 
     var feats = l.type === 'Land'
       ? '<strong>' + l.lot + '</strong>'
@@ -2526,13 +2624,13 @@ function srRenderCards(results){
         srBrokerHtml +
       '</div>';
 
-    (function(listing, idx){
+    (function(listing, listingId){
       card.onclick = function(){
         try { openProp({price:listing.price,address:listing.address,type:listing.type,beds:listing.beds,baths:listing.baths,sqft:listing.sqft,lot:listing.lot,restrictions:listing.restrictions||'unrestricted',status:listing.status||'Active',photo:listing.photo||null,photos:listing.photos||[],description:listing.description||'',listAgent:listing.listAgent||'',listOffice:listing.listOffice||'',listOfficePhone:listing.listOfficePhone||'',mlsId:listing.mlsId||'',daysOnMarket:listing.daysOnMarket||0,listingKey:listing.listingKey||''}, listing.city); } catch(err){console.error(err)}
       };
-      card.onmouseenter = function(){ srHighlightMarker(idx) };
-      card.onmouseleave = function(){ srUnhighlightMarker(idx) };
-    })(l, i);
+      card.onmouseenter = function(){ srHighlightMarkerById(listingId) };
+      card.onmouseleave = function(){ srUnhighlightMarkerById(listingId) };
+    })(l, lid);
 
     container.appendChild(card);
   });
@@ -2541,29 +2639,37 @@ function srRenderCards(results){
 function srRenderMarkers(results){
   if(!_srMap) return;
 
-  // Clear existing
-  _srMarkers.forEach(function(m){ _srMap.removeLayer(m) });
+  // Clear existing markers
+  if(_srClusterGroup) {
+    _srClusterGroup.clearLayers();
+  } else {
+    _srMarkers.forEach(function(m){ _srMap.removeLayer(m) });
+  }
   _srMarkers = [];
+  _srMarkerMap = {};
 
   if(results.length === 0) return;
 
   var bounds = L.latLngBounds();
+  var markersToAdd = [];
 
   results.forEach(function(l, i){
     if(!l.lat || !l.lng) return;
 
+    var lid = l.listingKey || l.mlsId || (l.address + '|' + l.city);
     var priceLabel = l.price >= 1000000
       ? '$' + (l.price/1000000).toFixed(1) + 'M'
       : '$' + Math.round(l.price/1000) + 'K';
 
     var icon = L.divIcon({
       className: 'sr-price-marker-wrap',
-      html: '<div class="sr-price-marker" data-idx="' + i + '">' + priceLabel + '</div>',
+      html: '<div class="sr-price-marker" data-lid="' + lid + '">' + priceLabel + '</div>',
       iconSize: null,
       iconAnchor: [30, 36]
     });
 
-    var marker = L.marker([l.lat, l.lng], {icon: icon}).addTo(_srMap);
+    var marker = L.marker([l.lat, l.lng], {icon: icon});
+    marker._lid = lid; // Store listing ID on marker
 
     // Popup
     var feats = l.type === 'Land'
@@ -2583,21 +2689,32 @@ function srRenderMarkers(results){
         '<div class="sr-popup-city">' + l.city + ', NC</div>' +
         '<div class="sr-popup-feats">' + feats + '</div>' +
         popBroker +
-        '<button class="sr-popup-btn" onclick="event.stopPropagation();srOpenFromMap(' + i + ')">View Details</button>' +
+        '<button class="sr-popup-btn" onclick="event.stopPropagation();srOpenFromMapById(\'' + lid.replace(/'/g,"\\'") + '\')">View Details</button>' +
       '</div></div>';
 
     marker.bindPopup(popupHtml, {className:'sr-popup', maxWidth:220, minWidth:220, closeButton:false});
 
-    // Hover: highlight corresponding card
-    marker.on('mouseover', function(){ srHighlightCard(i) });
-    marker.on('mouseout', function(){ srUnhighlightCard(i) });
+    // Hover: highlight corresponding card by ID
+    (function(listingId){
+      marker.on('mouseover', function(){ srHighlightCardById(listingId) });
+      marker.on('mouseout', function(){ srUnhighlightCardById(listingId) });
+    })(lid);
 
     _srMarkers.push(marker);
+    _srMarkerMap[lid] = marker;
+    markersToAdd.push(marker);
     bounds.extend([l.lat, l.lng]);
   });
 
+  // Add all markers at once (clustering handles batching)
+  if(_srClusterGroup) {
+    _srClusterGroup.addLayers(markersToAdd);
+  } else {
+    markersToAdd.forEach(function(m){ m.addTo(_srMap); });
+  }
+
   // Fit map to show all markers
-  if(results.length > 0){
+  if(markersToAdd.length > 0){
     _srMap.fitBounds(bounds, {padding:[40,40], maxZoom:13});
   }
 }
@@ -2607,11 +2724,18 @@ var _srCurrentResults = [];
 function srOpenFromMap(idx){
   var l = _srCurrentResults[idx];
   if(!l) return;
-  openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,lot:l.lot,restrictions:l.restrictions||'unrestricted',status:l.status||'Active',photo:l.photo||null,photos:l.photos||[],description:l.description||'',listAgent:l.listAgent||'',listOffice:l.listOffice||'',listOfficePhone:l.listOfficePhone||'',mlsId:l.mlsId||'',daysOnMarket:l.daysOnMarket||0}, l.city);
+  openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,lot:l.lot,restrictions:l.restrictions||'unrestricted',status:l.status||'Active',photo:l.photo||null,photos:l.photos||[],description:l.description||'',listAgent:l.listAgent||'',listOffice:l.listOffice||'',listOfficePhone:l.listOfficePhone||'',mlsId:l.mlsId||'',daysOnMarket:l.daysOnMarket||0,listingKey:l.listingKey||''}, l.city);
+}
+function srOpenFromMapById(lid){
+  var l = _srAllFilteredResults.find(function(x){return (x.listingKey||x.mlsId||(x.address+'|'+x.city))===lid});
+  if(!l) l = _srCurrentResults.find(function(x){return (x.listingKey||x.mlsId||(x.address+'|'+x.city))===lid});
+  if(!l) return;
+  openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,lot:l.lot,restrictions:l.restrictions||'unrestricted',status:l.status||'Active',photo:l.photo||null,photos:l.photos||[],description:l.description||'',listAgent:l.listAgent||'',listOffice:l.listOffice||'',listOfficePhone:l.listOfficePhone||'',mlsId:l.mlsId||'',daysOnMarket:l.daysOnMarket||0,listingKey:l.listingKey||''}, l.city);
 }
 
-function srHighlightMarker(idx){
-  var marker = _srMarkers[idx];
+// ═══ ID-based marker/card highlight sync ═══
+function srHighlightMarkerById(lid){
+  var marker = _srMarkerMap[lid];
   if(!marker) return;
   var el = marker.getElement();
   if(el){
@@ -2619,8 +2743,8 @@ function srHighlightMarker(idx){
     if(pm) pm.classList.add('active');
   }
 }
-function srUnhighlightMarker(idx){
-  var marker = _srMarkers[idx];
+function srUnhighlightMarkerById(lid){
+  var marker = _srMarkerMap[lid];
   if(!marker) return;
   var el = marker.getElement();
   if(el){
@@ -2628,6 +2752,17 @@ function srUnhighlightMarker(idx){
     if(pm) pm.classList.remove('active');
   }
 }
+function srHighlightCardById(lid){
+  var card = document.querySelector('.sr-card[data-lid="' + lid + '"]');
+  if(card) card.classList.add('highlighted');
+}
+function srUnhighlightCardById(lid){
+  var card = document.querySelector('.sr-card[data-lid="' + lid + '"]');
+  if(card) card.classList.remove('highlighted');
+}
+// Legacy index-based (kept for compatibility)
+function srHighlightMarker(idx){ var m = _srMarkers[idx]; if(m) srHighlightMarkerById(m._lid); }
+function srUnhighlightMarker(idx){ var m = _srMarkers[idx]; if(m) srUnhighlightMarkerById(m._lid); }
 function srHighlightCard(idx){
   var cards = document.querySelectorAll('.sr-card');
   if(cards[idx]) cards[idx].classList.add('highlighted');
@@ -2637,6 +2772,133 @@ function srUnhighlightCard(idx){
   if(cards[idx]) cards[idx].classList.remove('highlighted');
 }
 
+// ═══ VIEWPORT-BASED CARD FILTERING ═══
+function srFilterCardsByViewport(){
+  if(!_srMap || !_srAllFilteredResults.length) return;
+  if(_srSpatialFilter) return; // Drawing active — spatial filter controls cards
+  var bounds = _srMap.getBounds();
+  var inView = _srAllFilteredResults.filter(function(l){
+    return l.lat && l.lng && bounds.contains(L.latLng(l.lat, l.lng));
+  });
+  _srCurrentResults = inView;
+  document.getElementById('srCount').textContent = inView.length + ' of ' + _srAllFilteredResults.length + ' listing' + (_srAllFilteredResults.length!==1?'s':'') + ' in view';
+  srRenderCards(inView);
+}
+
+// ═══ SPATIAL MATH ═══
+function srPointInPolygon(lat, lng, verts){
+  // Ray-casting algorithm
+  var inside = false;
+  for(var i = 0, j = verts.length - 1; i < verts.length; j = i++){
+    var yi = verts[i][0], xi = verts[i][1];
+    var yj = verts[j][0], xj = verts[j][1];
+    var intersect = ((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi);
+    if(intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function srPointInCircle(lat, lng, cLat, cLng, radiusMeters){
+  // Haversine distance
+  var R = 6371000; // Earth radius in meters
+  var dLat = (lat - cLat) * Math.PI / 180;
+  var dLng = (lng - cLng) * Math.PI / 180;
+  var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+          Math.cos(cLat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) *
+          Math.sin(dLng/2) * Math.sin(dLng/2);
+  var d = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return d <= radiusMeters;
+}
+
+// ═══ DRAWING TOOLS ═══
+function srApplySpatialFilter(){
+  // Re-run full filter pipeline with spatial filter active
+  srApplyFilters();
+}
+
+function srCancelDrawing(){
+  if(_srDrawHandler) {
+    _srDrawHandler.disable();
+    _srDrawHandler = null;
+  }
+  _srFreedrawing = false;
+  if(_srFreedrawLine) { _srMap.removeLayer(_srFreedrawLine); _srFreedrawLine = null; }
+  _srMap.dragging.enable();
+  _srMap.getContainer().style.cursor = '';
+  document.querySelectorAll('.sr-draw-btn').forEach(function(b){b.classList.remove('active')});
+}
+
+function srStartRadius(){
+  if(!_srMap || typeof L.Draw === 'undefined') return;
+  srCancelDrawing();
+  if(_srDrawnLayer) { _srMap.removeLayer(_srDrawnLayer); _srDrawnLayer = null; _srSpatialFilter = null; }
+  _srDrawMode = 'radius';
+  document.getElementById('srDrawRadius').classList.add('active');
+  _srDrawHandler = new L.Draw.Circle(_srMap, {
+    shapeOptions: { color: '#C4B08C', weight: 2, fillColor: '#C4B08C', fillOpacity: 0.12, dashArray: null }
+  });
+  _srDrawHandler.enable();
+}
+
+function srStartPolygon(){
+  if(!_srMap || typeof L.Draw === 'undefined') return;
+  srCancelDrawing();
+  if(_srDrawnLayer) { _srMap.removeLayer(_srDrawnLayer); _srDrawnLayer = null; _srSpatialFilter = null; }
+  _srDrawMode = 'polygon';
+  document.getElementById('srDrawPolygon').classList.add('active');
+  _srDrawHandler = new L.Draw.Polygon(_srMap, {
+    shapeOptions: { color: '#C4B08C', weight: 2, fillColor: '#C4B08C', fillOpacity: 0.12 },
+    showArea: false
+  });
+  _srDrawHandler.enable();
+}
+
+function srStartFreedraw(){
+  if(!_srMap) return;
+  srCancelDrawing();
+  if(_srDrawnLayer) { _srMap.removeLayer(_srDrawnLayer); _srDrawnLayer = null; _srSpatialFilter = null; }
+  _srDrawMode = 'freedraw';
+  _srFreedrawing = true;
+  _srFreedrawPoints = [];
+  document.getElementById('srDrawFree').classList.add('active');
+  _srMap.dragging.disable();
+  _srMap.getContainer().style.cursor = 'crosshair';
+}
+
+function srHandleDrawCreated(e){
+  var layer = e.layer;
+  if(_srDrawnLayer) { _srMap.removeLayer(_srDrawnLayer); }
+  _srDrawnLayer = layer;
+  layer.setStyle({ color: '#C4B08C', weight: 2, fillColor: '#C4B08C', fillOpacity: 0.12 });
+  _srMap.addLayer(layer);
+  _srDrawHandler = null;
+
+  if(e.layerType === 'circle') {
+    var center = layer.getLatLng();
+    var radius = layer.getRadius();
+    _srSpatialFilter = function(lat, lng) { return srPointInCircle(lat, lng, center.lat, center.lng, radius); };
+  } else if(e.layerType === 'polygon') {
+    var latlngs = layer.getLatLngs()[0];
+    var verts = latlngs.map(function(p){return [p.lat, p.lng]});
+    _srSpatialFilter = function(lat, lng) { return srPointInPolygon(lat, lng, verts); };
+  }
+
+  srApplySpatialFilter();
+  document.getElementById('srDrawClear').style.display = '';
+  document.querySelectorAll('.sr-draw-btn').forEach(function(b){b.classList.remove('active')});
+  if(_srDrawMode === 'radius') document.getElementById('srDrawRadius').classList.add('active');
+  else if(_srDrawMode === 'polygon') document.getElementById('srDrawPolygon').classList.add('active');
+}
+
+function srClearDrawing(){
+  srCancelDrawing();
+  if(_srDrawnLayer) { _srMap.removeLayer(_srDrawnLayer); _srDrawnLayer = null; }
+  _srSpatialFilter = null;
+  _srDrawMode = null;
+  document.getElementById('srDrawClear').style.display = 'none';
+  srApplyFilters(); // Restore full dropdown-filtered results
+}
+
 function srClearFilters(){
   document.getElementById('srfLocSelect').value = '';
   document.getElementById('srfTypeSelect').value = '';
@@ -2644,7 +2906,7 @@ function srClearFilters(){
   document.getElementById('srfBedsSelect').value = '';
   document.getElementById('srfBathsSelect').value = '';
   document.getElementById('srfRestrictSelect').value = '';
-  srApplyFilters();
+  srClearDrawing(); // Also clear any drawn shapes
 }
 
 // Mobile view toggle

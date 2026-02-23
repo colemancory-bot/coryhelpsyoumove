@@ -1196,6 +1196,35 @@ textarea.form-input{resize:vertical;min-height:100px}
 .sr-map-loading span{font-size:0.65rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--text-muted);animation:pulse 1.5s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:0.3}50%{opacity:1}}
 
+/* Marker Cluster Styles */
+.sr-cluster-wrap{background:transparent!important;border:none!important}
+.sr-cluster{display:flex;align-items:center;justify-content:center;border-radius:50%;font-family:'Outfit',sans-serif;font-weight:600;color:var(--bg);letter-spacing:0.03em;cursor:pointer;transition:all 0.3s cubic-bezier(0.16,1,0.3,1);background:linear-gradient(135deg,var(--gold),var(--gold-dark));box-shadow:0 4px 16px rgba(0,0,0,0.45),0 0 0 2px rgba(196,176,140,0.25)}
+.sr-cluster-small{width:36px;height:36px;font-size:0.6rem}
+.sr-cluster-medium{width:44px;height:44px;font-size:0.7rem}
+.sr-cluster-large{width:52px;height:52px;font-size:0.8rem}
+.sr-cluster:hover{transform:scale(1.15);box-shadow:0 6px 24px rgba(196,176,140,0.4),0 0 0 2px var(--gold)}
+[data-theme="light"] .sr-cluster{color:#fff;box-shadow:0 4px 16px rgba(0,0,0,0.2),0 0 0 2px rgba(139,119,72,0.25)}
+.leaflet-cluster-anim .sr-cluster{transition:transform 0.25s ease, opacity 0.25s ease}
+
+/* Drawing Toolbar */
+.sr-draw-toolbar{position:absolute;top:6.5rem;right:1.25rem;z-index:1000;display:flex;flex-direction:column;gap:1px}
+.sr-draw-btn{width:38px;height:38px;display:flex;align-items:center;justify-content:center;background:rgba(12,11,9,0.75);color:var(--gold);border:1px solid rgba(196,176,140,0.25);cursor:pointer;padding:0;backdrop-filter:blur(12px);transition:all 0.3s}
+.sr-draw-btn svg{width:18px;height:18px}
+.sr-draw-btn:first-child{border-radius:4px 4px 0 0}
+.sr-draw-btn:nth-child(3){border-radius:0 0 4px 4px}
+.sr-draw-btn.sr-draw-clear{border-radius:4px;margin-top:6px}
+.sr-draw-btn:hover{background:var(--gold);color:var(--bg);border-color:var(--gold)}
+.sr-draw-btn.active{background:var(--gold);color:var(--bg);border-color:var(--gold)}
+[data-theme="light"] .sr-draw-btn{background:rgba(255,255,255,0.85);color:var(--gold-dark);border:1px solid rgba(139,119,72,0.25)}
+[data-theme="light"] .sr-draw-btn:hover,[data-theme="light"] .sr-draw-btn.active{background:var(--gold);color:#fff;border-color:var(--gold)}
+
+/* Leaflet.draw overrides — gold theme */
+.leaflet-draw-toolbar a{background-color:rgba(12,11,9,0.75)!important;color:var(--gold)!important;border:1px solid rgba(196,176,140,0.25)!important}
+.sr-map-panel .leaflet-draw-section{display:none!important}
+.leaflet-draw-tooltip{background:rgba(12,11,9,0.85)!important;border:1px solid rgba(196,176,140,0.3)!important;color:var(--cream)!important;font-family:'Outfit',sans-serif!important;font-size:0.6rem!important;border-radius:2px!important}
+.leaflet-draw-tooltip-subtext{color:var(--gold)!important}
+.leaflet-draw-guide-dash{background:var(--gold)!important;opacity:0.5}
+
 /* Responsive */
 @media(max-width:900px){
   .sr-body{flex-direction:column}
@@ -1206,6 +1235,9 @@ textarea.form-input{resize:vertical;min-height:100px}
   .sr-body.map-hidden .sr-list-panel{height:100%;flex:1}
   .sr-body.list-hidden .sr-list-panel{display:none}
   .sr-body.list-hidden .sr-map-panel{height:100%;flex:1}
+  .sr-draw-toolbar{top:auto;bottom:5rem;right:0.75rem}
+  .sr-draw-btn{width:34px;height:34px}
+  .sr-draw-btn svg{width:16px;height:16px}
 }
 @media(max-width:600px){
   .sr-topbar{padding:0.65rem 1rem}

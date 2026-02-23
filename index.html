@@ -84,7 +84,12 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Outfit:wght@200;300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
 <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script defer src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script defer src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script defer src="https://www.google.com/recaptcha/api.js?render=6LcZ7WssAAAAAAfFNuMeWyKnQnRcc5a2kvS8yVdx"></script>
 </head>
@@ -595,7 +600,7 @@
 </div>
 
 <!-- ═══════════════ SCRIPTS ═══════════════ -->
-<script defer src="app.js?v=9"></script>
+<script defer src="app.js?v=10"></script>
 
 
 </div>
@@ -1130,6 +1135,21 @@
     <div class="sr-map-panel" id="srMapPanel">
       <div class="sr-map-loading" id="srMapLoading"><span>Loading Map...</span></div>
       <div id="srMap" style="height:100%;width:100%"></div>
+      <!-- Drawing toolbar -->
+      <div class="sr-draw-toolbar" id="srDrawToolbar">
+        <button class="sr-draw-btn" id="srDrawRadius" title="Radius Search" onclick="srStartRadius()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><line x1="12" y1="3" x2="12" y2="6"/></svg>
+        </button>
+        <button class="sr-draw-btn" id="srDrawPolygon" title="Polygon Search" onclick="srStartPolygon()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12,2 22,8.5 19,20 5,20 2,8.5"/></svg>
+        </button>
+        <button class="sr-draw-btn" id="srDrawFree" title="Free Draw Search" onclick="srStartFreedraw()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17c1.5-3 4-5 7-4s4 4 7 3 4-3 4-3"/><path d="M3 12c1.5-3 4-5 7-4s4 4 7 3 4-3 4-3" opacity="0.4"/></svg>
+        </button>
+        <button class="sr-draw-btn sr-draw-clear" id="srDrawClear" title="Clear Drawing" onclick="srClearDrawing()" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
       <div class="sr-map-vignette"></div>
       <div class="sr-map-overlay"></div>
       <div class="sr-map-brand"><div class="sr-map-brand-text">Western North Carolina</div><div class="sr-map-brand-sub">Cory Coleman Real Estate</div></div>
