@@ -948,6 +948,26 @@ function buildChatTranscript(){
   return '--- Chat Transcript ---\n' + lines.join('\n');
 }
 
+// --- Push lead to Follow Up Boss via edge function ---
+function _pushToFUB(leadData){
+  try {
+    fetch(SUPABASE_URL + '/functions/v1/fub-push', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + SUPABASE_KEY,
+        'apikey': SUPABASE_KEY
+      },
+      body: JSON.stringify(leadData)
+    }).then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d.success) console.log('[FUB] Lead pushed successfully');
+        else console.warn('[FUB] Push response:', d);
+      })
+      .catch(function(e){ console.warn('[FUB] Push failed:', e); });
+  } catch(e){ console.warn('[FUB] Push error:', e); }
+}
+
 // --- FUB lead capture from chat ---
 var _chatLeadPushed = false;
 function tryPushChatLead(){
@@ -967,14 +987,16 @@ function tryPushChatLead(){
   if(nameFromConv && (emailMatch || phoneMatch)){
     var parts = nameFromConv.split(/\s+/);
     var transcript = buildChatTranscript();
-    _sb.from('leads').insert({
+    var chatLeadData = {
       first_name: parts[0] || '',
       last_name: parts.slice(1).join(' ') || '',
       email: emailMatch ? emailMatch[0] : '',
       phone: phoneMatch ? phoneMatch[0] : '',
       message: transcript || 'Captured via chatbot conversation',
       source: 'chatbot'
-    }).then(function(){ _chatLeadPushed = true; console.log('[Chat] Lead pushed to FUB with transcript'); })
+    };
+    _sb.from('leads').insert(chatLeadData)
+      .then(function(){ _chatLeadPushed = true; console.log('[Chat] Lead saved'); _pushToFUB(chatLeadData); })
       .catch(function(e){ console.warn('[Chat] Lead push failed:', e); });
   }
 }
@@ -3401,19 +3423,21 @@ async function submitAcct() {
         email: email,
         phone: phone
       });
-      // If they chatted before signing up, push transcript to FUB as a lead
+      // If they chatted before signing up, push transcript as a lead
       if(!_chatLeadPushed && convHistory && convHistory.length > 0){
         var transcript = buildChatTranscript();
         if(transcript){
-          _sb.from('leads').insert({
+          var signupLeadData = {
             first_name: first,
             last_name: last,
             email: email,
             phone: phone,
             message: transcript,
             source: 'chatbot_signup'
-          }).then(function(){ _chatLeadPushed = true; console.log('[Signup] Chat transcript pushed to FUB'); })
-            .catch(function(e){ console.warn('[Signup] Chat transcript push failed:', e); });
+          };
+          _sb.from('leads').insert(signupLeadData)
+            .then(function(){ _chatLeadPushed = true; console.log('[Signup] Lead saved'); _pushToFUB(signupLeadData); })
+            .catch(function(e){ console.warn('[Signup] Lead push failed:', e); });
         }
       }
     }
@@ -3500,14 +3524,16 @@ async function submitConsultation(btn) {
         var transcript = buildChatTranscript();
         if(transcript) leadMsg += '\n\n' + transcript;
       }
-      await _sb.from('leads').insert({
+      var ctaLeadData = {
         first_name: first,
         last_name: last,
         email: email,
         phone: phone,
         message: leadMsg,
         source: 'consultation_form'
-      });
+      };
+      await _sb.from('leads').insert(ctaLeadData);
+      _pushToFUB(ctaLeadData);
       if(convHistory && convHistory.length > 0) _chatLeadPushed = true;
     } catch(e){ console.warn('[Supabase] Lead insert error:', e); }
   }
