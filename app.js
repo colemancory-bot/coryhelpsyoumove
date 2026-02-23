@@ -1002,10 +1002,21 @@ function tryPushChatLead(){
 }
 
 // --- Chat UI ---
+var _chatMinimized = false;
+
 function toggleChat(){
   var cp=document.getElementById('chatPanel');if(!cp)return;
+  // If minimized, restore instead of closing
+  if(_chatMinimized){
+    _chatMinimized = false;
+    cp.classList.remove('minimized');
+    var ci=document.getElementById('chatInput');if(ci)setTimeout(()=>ci.focus(),300);
+    return;
+  }
   chatOpen=!chatOpen;
   cp.classList.toggle('open',chatOpen);
+  cp.classList.remove('minimized');
+  _chatMinimized = false;
   var ct=document.getElementById('chatTrigger');if(ct)ct.classList.toggle('open',chatOpen);
   var cg=document.getElementById('chatGreeting');if(cg)cg.classList.remove('show');
   var cb=document.getElementById('chatBadge');if(cb)cb.classList.remove('show');
@@ -1014,6 +1025,30 @@ function toggleChat(){
     var ci=document.getElementById('chatInput');if(ci)setTimeout(()=>ci.focus(),300);
   }
 }
+
+function minimizeChat(){
+  var cp=document.getElementById('chatPanel');if(!cp)return;
+  if(_chatMinimized){
+    // Restore from minimized
+    _chatMinimized = false;
+    cp.classList.remove('minimized');
+    var ci=document.getElementById('chatInput');if(ci)setTimeout(()=>ci.focus(),300);
+  } else {
+    // Minimize
+    _chatMinimized = true;
+    cp.classList.add('minimized');
+  }
+}
+
+// Click minimized header to restore
+document.addEventListener('click', function(e){
+  if(!_chatMinimized) return;
+  var hdr = document.getElementById('chatHeader');
+  if(hdr && hdr.contains(e.target) && !e.target.closest('.chat-hbtn')){
+    minimizeChat();
+  }
+});
+
 var _chatTriggerEl=document.getElementById('chatTrigger');
 if(_chatTriggerEl) _chatTriggerEl.addEventListener('click',toggleChat);
 
