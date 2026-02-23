@@ -1245,14 +1245,17 @@ function setSearchType(type,btn){
   const restrictField=document.getElementById('hsRestrictField');
   const note=document.getElementById('hsNote');
   const searchBtn=document.getElementById('hsSearchBtn');
+  const textRow=document.getElementById('heroSearchText');
 
   if(type==='sell'){
     searchBar.style.display='none';
     sellForm.style.display='';
+    if(textRow) textRow.style.display='none';
     note.textContent='Get a complimentary market analysis for your WNC property';
   }else{
     searchBar.style.display='';
     sellForm.style.display='none';
+    if(textRow) textRow.style.display='';
     restrictField.style.display='';
     if(type==='land'){
       bedField.style.display='none';
@@ -1275,6 +1278,7 @@ function heroSearch(){
   var beds=document.getElementById('hsBeds').value;
   var baths=document.getElementById('hsBaths').value;
   var restrict=document.getElementById('hsRestrict').value;
+  var query=(document.getElementById('hsTextQuery')||{}).value||'';
 
   // Map hero type values to search type values
   var typeMap = {'home':'Single Family','cabin':'Cabin','land':'Land','townhome':'Townhome / Condo'};
@@ -1286,7 +1290,8 @@ function heroSearch(){
     price: price || '',
     beds: beds || '',
     baths: baths || '',
-    restrictions: restrict || ''
+    restrictions: restrict || '',
+    query: query.trim()
   });
 }
 
@@ -2381,6 +2386,10 @@ function openSearchResults(filters){
   bathsSel.value = filters.baths || '';
   restrictSel.value = filters.restrictions || '';
 
+  // Set text query in search overlay
+  var srTextInput = document.getElementById('srfTextQuery');
+  if(srTextInput) srTextInput.value = filters.query || '';
+
   // Show overlay
   var overlay = document.getElementById('searchOverlay');
   overlay.classList.add('active');
@@ -2509,12 +2518,16 @@ function srApplyFilters(){
   var baths = document.getElementById('srfBathsSelect').value;
   var restrict = document.getElementById('srfRestrictSelect').value;
   var sort = document.getElementById('srSort').value;
+  var textQuery = ((document.getElementById('srfTextQuery')||{}).value||'').trim().toLowerCase();
 
   // Highlight active filters
   document.querySelectorAll('.sr-filter-chip').forEach(function(c){
     var sel = c.querySelector('select');
     if(sel) c.classList.toggle('active', sel.value !== '');
   });
+  // Highlight text search chip if has content
+  var textChip = document.getElementById('srfTextChip');
+  if(textChip) textChip.classList.toggle('active', textQuery.length > 0);
 
   // Filter
   var results = ALL_LISTINGS.filter(function(l){
@@ -2533,6 +2546,15 @@ function srApplyFilters(){
     if(restrict && l.restrictions !== restrict) return false;
     return true;
   });
+
+  // Text query filter (address, city, mlsId, description — ALL words must match)
+  if(textQuery) {
+    var words = textQuery.split(/\s+/).filter(function(w){return w.length > 0});
+    results = results.filter(function(l){
+      var haystack = ((l.address||'') + ' ' + (l.city||'') + ' ' + (l.mlsId||'') + ' ' + (l.description||'')).toLowerCase();
+      return words.every(function(w){ return haystack.indexOf(w) !== -1; });
+    });
+  }
 
   // Sort
   var sortParts = sort.split('-');
@@ -2906,6 +2928,10 @@ function srClearFilters(){
   document.getElementById('srfBedsSelect').value = '';
   document.getElementById('srfBathsSelect').value = '';
   document.getElementById('srfRestrictSelect').value = '';
+  var srText = document.getElementById('srfTextQuery');
+  if(srText) srText.value = '';
+  var hsText = document.getElementById('hsTextQuery');
+  if(hsText) hsText.value = '';
   srClearDrawing(); // Also clear any drawn shapes
 }
 

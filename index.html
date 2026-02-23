@@ -250,6 +250,11 @@
           Search
         </button>
       </div>
+      <!-- Text search row -->
+      <div class="hero-search-text" id="heroSearchText">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input type="text" class="hs-text-input" id="hsTextQuery" placeholder="Search by address, MLS#, or keyword..." autocomplete="off" onkeydown="if(event.key==='Enter')heroSearch()">
+      </div>
       <!-- SELL FORM (hidden by default, shown when Sell tab active) -->
       <div class="hero-sell-form" id="heroSellForm" style="display:none">
         <div class="hsf-row">
@@ -600,7 +605,7 @@
 </div>
 
 <!-- ═══════════════ SCRIPTS ═══════════════ -->
-<script defer src="app.js?v=10"></script>
+<script defer src="app.js?v=11"></script>
 
 
 </div>
@@ -1126,6 +1131,10 @@
         <option value="hoa">HOA Community</option>
       </select>
       <div class="restrict-lock-overlay" id="srRestrictOverlay"><span>Create account to filter</span></div>
+    </div>
+    <div class="sr-filter-chip sr-text-search" id="srfTextChip">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input type="text" class="sr-text-input" id="srfTextQuery" placeholder="Address, MLS#, keyword..." onkeyup="srApplyFilters()" autocomplete="off">
     </div>
     <button class="sr-filter-clear" id="srfClear" onclick="srClearFilters()">Clear All</button>
   </div>
