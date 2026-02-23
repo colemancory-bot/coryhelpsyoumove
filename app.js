@@ -596,18 +596,22 @@ var MLS_GRID = {
         // Full photo gallery loaded on demand in openProp() via MLS_GRID.loadPhotos()
         return _sb.from('mls_media')
           .select('listing_key, local_url, media_url')
-          .eq('"order"', 1)
+          .eq('order', 1)
           .limit(2000)
           .then(function(mediaRes) {
             var mediaMap = {};
             (mediaRes.data || []).forEach(function(m) {
               mediaMap[m.listing_key] = m.local_url || m.media_url;
             });
+            console.log('[MLS Grid] Primary photos loaded: ' + (mediaRes.data||[]).length + ' rows, ' + Object.keys(mediaMap).length + ' unique listings');
             // Assign primary photo to listings
+            var withPhoto = 0, noPhoto = 0;
             mapped.forEach(function(l) {
               l.photo = mediaMap[l.listingKey] || null;
               l.photos = l.photo ? [l.photo] : [];
+              if(l.photo) withPhoto++; else noPhoto++;
             });
+            console.log('[MLS Grid] Photo assignment: ' + withPhoto + ' with photo, ' + noPhoto + ' without');
 
             // Populate TOWN_LISTINGS
             var newTowns = {};
@@ -671,9 +675,9 @@ var MLS_GRID = {
   loadPhotos: function(listingKey) {
     if(!_sb || !listingKey) return Promise.resolve([]);
     return _sb.from('mls_media')
-      .select('local_url, media_url, "order"')
+      .select('local_url, media_url, order')
       .eq('listing_key', listingKey)
-      .order('"order"', {ascending: true})
+      .order('order', {ascending: true})
       .limit(50)
       .then(function(res) {
         if(!res.data || !res.data.length) return [];
