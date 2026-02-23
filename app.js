@@ -592,21 +592,21 @@ var MLS_GRID = {
         console.log('[MLS Grid] Received ' + res.data.length + ' listings');
         var mapped = res.data.map(MLS_GRID.mapListing);
 
-        // Load media for each listing (first photo)
+        // Load primary photo (order=1) for each listing — card thumbnails
+        // Full photo gallery loaded on demand in openProp() via MLS_GRID.loadPhotos()
         return _sb.from('mls_media')
-          .select('listing_key, local_url, media_url, "order"')
-          .order('"order"', {ascending: true})
+          .select('listing_key, local_url, media_url')
+          .eq('"order"', 1)
+          .limit(2000)
           .then(function(mediaRes) {
             var mediaMap = {};
             (mediaRes.data || []).forEach(function(m) {
-              if(!mediaMap[m.listing_key]) mediaMap[m.listing_key] = [];
-              mediaMap[m.listing_key].push(m.local_url || m.media_url);
+              mediaMap[m.listing_key] = m.local_url || m.media_url;
             });
-            // Assign photos to listings
+            // Assign primary photo to listings
             mapped.forEach(function(l) {
-              var photos = mediaMap[l.listingKey] || [];
-              l.photo = photos[0] || null;
-              l.photos = photos;
+              l.photo = mediaMap[l.listingKey] || null;
+              l.photos = l.photo ? [l.photo] : [];
             });
 
             // Populate TOWN_LISTINGS
@@ -628,6 +628,7 @@ var MLS_GRID = {
                 beds:l.beds, baths:l.baths, sqft:l.sqft, lot:l.lot,
                 photo:l.photo, photos:l.photos, days:l.daysOnMarket,
                 mlsId:l.mlsId, restrictions:l.restrictions, status:l.status,
+                listingKey:l.listingKey,
                 listAgent:l.listAgent, listOffice:l.listOffice, listOfficePhone:l.listOfficePhone
               });
             });
@@ -641,7 +642,7 @@ var MLS_GRID = {
                 photo:l.photo, photos:l.photos, status:l.status,
                 restrictions:l.restrictions, _src:'mlsgrid',
                 lat:l.lat, lng:l.lng, mlsId:l.mlsId, description:l.description,
-                daysOnMarket:l.daysOnMarket,
+                daysOnMarket:l.daysOnMarket, listingKey:l.listingKey,
                 listAgent:l.listAgent, listOffice:l.listOffice, listOfficePhone:l.listOfficePhone
               });
             });
@@ -664,6 +665,22 @@ var MLS_GRID = {
         console.error('[MLS Grid] Failed to load:', err.message || err);
         var _fg = document.getElementById('featuredGrid');
         if(_fg) { var _ld = _fg.querySelector('.idx-loading'); if(_ld) _ld.innerHTML = '<div style="margin-bottom:0.8rem;font-size:1.8rem;">&#x26A0;</div>Unable to load listings. Please refresh the page.<div style="margin-top:0.5rem;font-size:0.85rem;opacity:0.6;">' + (err.message || 'Connection error') + '</div>'; }
+      });
+  },
+  // Load all photos for a specific listing (on-demand for property detail overlay)
+  loadPhotos: function(listingKey) {
+    if(!_sb || !listingKey) return Promise.resolve([]);
+    return _sb.from('mls_media')
+      .select('local_url, media_url, "order"')
+      .eq('listing_key', listingKey)
+      .order('"order"', {ascending: true})
+      .limit(50)
+      .then(function(res) {
+        if(!res.data || !res.data.length) return [];
+        return res.data.map(function(m) { return m.local_url || m.media_url; });
+      }).catch(function(err) {
+        console.warn('[MLS Grid] Failed to load photos for ' + listingKey, err);
+        return [];
       });
   }
 };
@@ -696,7 +713,7 @@ function renderFeatured(){
     var brokerHtml=brokerParts.length?'<div class="f-card-office">Listed by '+brokerParts.join(' &bull; ')+(l.mlsId?' | MLS# '+l.mlsId:'')+'</div>':'';
     var isDemo = l.mlsId && l.mlsId.toString().indexOf('DEMO') === 0;
     c.innerHTML='<div class="f-card-img"><img src="'+l.photo+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge '+(l.type==='Land'?'land':'')+'">'+l.type+'</div>'+(isDemo?'<div class="f-card-demo-badge">DEMO</div>':'')+cardFavHtml(l.address,l.city)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+l.city+', NC</div><div class="f-card-features">'+feats+'</div>'+brokerHtml+'</div>';
-    c.onclick=function(){try{openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,lot:l.lot,restrictions:l.restrictions||'unrestricted',status:l.status||'Active',photo:l.photo||null,photos:l.photos||[],description:l.description||'',listAgent:l.listAgent||'',listOffice:l.listOffice||'',listOfficePhone:l.listOfficePhone||'',mlsId:l.mlsId||''},l.city)}catch(err){console.error(err)}};
+    c.onclick=function(){try{openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,lot:l.lot,restrictions:l.restrictions||'unrestricted',status:l.status||'Active',photo:l.photo||null,photos:l.photos||[],description:l.description||'',listAgent:l.listAgent||'',listOffice:l.listOffice||'',listOfficePhone:l.listOfficePhone||'',mlsId:l.mlsId||'',listingKey:l.listingKey||''},l.city)}catch(err){console.error(err)}};
     grid.appendChild(c);
   });
   document.querySelectorAll('.f-card.reveal').forEach(function(el){obs.observe(el)});
@@ -1709,7 +1726,7 @@ function openProp(listing, townName) {
   var o = document.getElementById('propOverlay');
   if (!o) {console.error('propOverlay not found');return;}
 
-  // Images — use listing photos from API if available, fallback to stock
+  // Images — show primary photo immediately, then load full gallery from DB
   var imgs;
   if(listing.photos && listing.photos.length > 0) {
     imgs = listing.photos;
@@ -1726,21 +1743,38 @@ function openProp(listing, townName) {
   window._propImgs = imgs;
   window._propImgIdx = 0;
 
-  // Thumbnails
-  var thumbsEl = document.getElementById('propThumbs');
-  thumbsEl.innerHTML = '';
-  imgs.forEach(function(src, i) {
-    var d = document.createElement('div');
-    d.className = 'prop-thumb' + (i === 0 ? ' active' : '');
-    d.innerHTML = '<img src="' + (src.indexOf('unsplash')>-1 ? src.replace('w=1200','w=200').replace('w=700','w=200') : src) + '" alt="Photo ' + (i+1) + '">';
-    d.onclick = function(e) {
-      e.stopPropagation();
-      propGoTo(i);
-      openLightbox(i);
-    };
-    thumbsEl.appendChild(d);
-  });
-  document.getElementById('propImgCount').textContent = '1 / ' + imgs.length;
+  // Thumbnails — render what we have now
+  function _renderThumbs(imgArr) {
+    var thumbsEl = document.getElementById('propThumbs');
+    thumbsEl.innerHTML = '';
+    imgArr.forEach(function(src, i) {
+      var d = document.createElement('div');
+      d.className = 'prop-thumb' + (i === 0 ? ' active' : '');
+      d.innerHTML = '<img src="' + src + '" alt="Photo ' + (i+1) + '">';
+      d.onclick = function(e) {
+        e.stopPropagation();
+        propGoTo(i);
+        openLightbox(i);
+      };
+      thumbsEl.appendChild(d);
+    });
+    document.getElementById('propImgCount').textContent = '1 / ' + imgArr.length;
+  }
+  _renderThumbs(imgs);
+
+  // Load full photo gallery from Supabase (on-demand)
+  if(MLS_GRID.enabled && listing.listingKey && typeof MLS_GRID.loadPhotos === 'function') {
+    MLS_GRID.loadPhotos(listing.listingKey).then(function(allPhotos) {
+      if(allPhotos && allPhotos.length > 1) {
+        window._propImgs = allPhotos;
+        window._propImgIdx = 0;
+        document.getElementById('propHeroImg').src = allPhotos[0];
+        _renderThumbs(allPhotos);
+        // Update the listing's cached photos for future opens
+        listing.photos = allPhotos;
+      }
+    });
+  }
 
   // Status
   var statusEl = document.getElementById('propStatus');
@@ -2463,7 +2497,7 @@ function srRenderCards(results){
 
     (function(listing, idx){
       card.onclick = function(){
-        try { openProp({price:listing.price,address:listing.address,type:listing.type,beds:listing.beds,baths:listing.baths,sqft:listing.sqft,lot:listing.lot,restrictions:listing.restrictions||'unrestricted',status:listing.status||'Active',photo:listing.photo||null,photos:listing.photos||[],description:listing.description||'',listAgent:listing.listAgent||'',listOffice:listing.listOffice||'',listOfficePhone:listing.listOfficePhone||'',mlsId:listing.mlsId||'',daysOnMarket:listing.daysOnMarket||0}, listing.city); } catch(err){console.error(err)}
+        try { openProp({price:listing.price,address:listing.address,type:listing.type,beds:listing.beds,baths:listing.baths,sqft:listing.sqft,lot:listing.lot,restrictions:listing.restrictions||'unrestricted',status:listing.status||'Active',photo:listing.photo||null,photos:listing.photos||[],description:listing.description||'',listAgent:listing.listAgent||'',listOffice:listing.listOffice||'',listOfficePhone:listing.listOfficePhone||'',mlsId:listing.mlsId||'',daysOnMarket:listing.daysOnMarket||0,listingKey:listing.listingKey||''}, listing.city); } catch(err){console.error(err)}
       };
       card.onmouseenter = function(){ srHighlightMarker(idx) };
       card.onmouseleave = function(){ srUnhighlightMarker(idx) };
