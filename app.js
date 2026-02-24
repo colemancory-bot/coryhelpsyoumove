@@ -2093,6 +2093,7 @@ function openProp(listing, townName) {
 
   // Listing broker attribution (IDX compliance)
   var brokerEl = document.getElementById('propListingBroker');
+  console.log('[Broker Debug] element:', !!brokerEl, 'agent:', listing.listAgent, 'office:', listing.listOffice, 'mlsId:', listing.mlsId);
   if(brokerEl) {
     var parts = [];
     if(listing.listAgent) parts.push('Listed by ' + listing.listAgent);
