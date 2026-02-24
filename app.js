@@ -620,7 +620,11 @@ var MLS_GRID = {
     console.log('[MLS Grid] Loading listings from Supabase...');
 
     // Fetch all listings (paginated) and all primary photos (paginated) in parallel
-    var listingsPromise = MLS_GRID._fetchAll('mls_listings', '*', [
+    var listingsPromise = MLS_GRID._fetchAll('mls_listings',
+      'listing_id,listing_key,list_price,full_address,city,property_type,property_sub_type,' +
+      'bedrooms_total,bathrooms_total_integer,living_area,lot_size_acres,lot_size_square_feet,' +
+      'standard_status,association_fee,latitude,longitude,year_built,days_on_market,' +
+      'public_remarks,list_agent_full_name,list_office_name,list_office_phone', [
       { method: 'eq', args: ['mlg_can_view', true] },
       { method: 'in', args: ['standard_status', ['Active','Active Under Contract','Pending']] }
     ]);
@@ -694,6 +698,15 @@ var MLS_GRID = {
             listAgent:l.listAgent, listOffice:l.listOffice, listOfficePhone:l.listOfficePhone
           });
         });
+
+        // Cache listings for instant load on next visit
+        try {
+          localStorage.setItem('cc_listings_cache', JSON.stringify({
+            ts: Date.now(),
+            listings: ALL_LISTINGS
+          }));
+          console.log('[MLS Grid] Cached ' + ALL_LISTINGS.length + ' listings to localStorage');
+        } catch(e) { console.warn('[MLS Grid] Cache write failed:', e.message); }
 
         // Update timestamp
         var tsEl = document.getElementById('idxTimestamp');
@@ -2873,7 +2886,11 @@ function srRenderCards(results){
   container.innerHTML = '';
 
   if(results.length === 0){
-    container.innerHTML = '<div class="sr-no-results"><h3>No Properties Found</h3><p>Try adjusting your filters, or contact Cory for off-market opportunities.</p><a href="tel:8285066413" class="btn-primary" style="display:inline-flex"><span>Call (828) 506-6413</span></a></div>';
+    if(ALL_LISTINGS.length === 0 && MLS_GRID.enabled) {
+      container.innerHTML = '<div class="sr-no-results"><div style="margin:0 auto 1rem;width:36px;height:36px;border:3px solid var(--gold);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite"></div><style>@keyframes spin{to{transform:rotate(360deg)}}</style><p>Loading properties...</p></div>';
+    } else {
+      container.innerHTML = '<div class="sr-no-results"><h3>No Properties Found</h3><p>Try adjusting your filters, or contact Cory for off-market opportunities.</p><a href="tel:8285066413" class="btn-primary" style="display:inline-flex"><span>Call (828) 506-6413</span></a></div>';
+    }
     return;
   }
 
@@ -4839,6 +4856,37 @@ openPage = function(id) {
 // ═══ LISTING DATA INIT ═══
 // MLS Grid (via Supabase) takes priority when enabled; falls back to SimplyRETS demo data
 if(MLS_GRID.enabled) {
+  // Restore cached listings for instant search while fresh data loads
+  try {
+    var _cached = JSON.parse(localStorage.getItem('cc_listings_cache'));
+    if(_cached && _cached.listings && _cached.listings.length > 0) {
+      ALL_LISTINGS.length = 0;
+      _cached.listings.forEach(function(l){ ALL_LISTINGS.push(l); });
+      // Rebuild TOWN_LISTINGS from cache
+      var _cachedTowns = {};
+      ALL_LISTINGS.forEach(function(l){
+        var slug = MLS_GRID.resolveTown(l.city);
+        if(!_cachedTowns[slug]) _cachedTowns[slug] = { display: l.city, listings: [] };
+        _cachedTowns[slug].listings.push(l);
+      });
+      Object.keys(TOWN_LISTINGS).forEach(function(k){ delete TOWN_LISTINGS[k]; });
+      Object.keys(_cachedTowns).forEach(function(k){ TOWN_LISTINGS[k] = _cachedTowns[k]; });
+      // Rebuild LISTINGS (featured) from cache — top 6 by price with photos
+      var _cachedSorted = ALL_LISTINGS.filter(function(l){return l.photo}).sort(function(a,b){return b.price-a.price});
+      LISTINGS.length = 0;
+      _cachedSorted.slice(0,6).forEach(function(l,i){
+        LISTINGS.push({ id:i+1, price:l.price, address:l.address, city:l.city, type:l.type,
+          beds:l.beds, baths:l.baths, sqft:l.sqft, lot:l.lot,
+          photo:l.photo, photos:l.photos, days:l.daysOnMarket,
+          mlsId:l.mlsId, restrictions:l.restrictions, status:l.status,
+          listingKey:l.listingKey, listAgent:l.listAgent, listOffice:l.listOffice, listOfficePhone:l.listOfficePhone });
+      });
+      renderFeatured();
+      console.log('[MLS Grid] Loaded ' + ALL_LISTINGS.length + ' cached listings (fresh fetch in background)');
+    }
+  } catch(e) { console.warn('[MLS Grid] Cache restore failed:', e.message); }
+
+  // Fetch fresh data from Supabase (overwrites cache when done)
   MLS_GRID.init().then(function(){
     if(typeof updateAcctUI === 'function') updateAcctUI();
     _checkPropDeepLink();
