@@ -904,7 +904,7 @@ textarea.form-input{resize:vertical;min-height:100px}
 .prop-hero::after{content:'';position:absolute;inset:0;background:#000;opacity:var(--hero-fade,0);pointer-events:none;z-index:1;transition:opacity 0.1s ease}
 .prop-hero-img{width:100%;height:100%;object-fit:cover;transition:opacity 0.5s ease;cursor:zoom-in}
 .prop-hero-img.fade{opacity:0}
-.prop-hero-content{position:absolute;bottom:1rem;left:1.25rem;z-index:2}
+.prop-hero-content{position:absolute;bottom:1rem;left:1.25rem;right:1.25rem;z-index:2;display:flex;align-items:flex-end;gap:0.75rem}
 /* Scroll-over gradient — sits between sticky image and content */
 .prop-content-area{position:relative;z-index:2;background:var(--bg)}
 .prop-content-area::before{
@@ -921,8 +921,9 @@ textarea.form-input{resize:vertical;min-height:100px}
 .prop-nav-right{right:0;background:linear-gradient(-90deg,rgba(0,0,0,0.3) 0%,transparent 100%)}
 .prop-nav svg{width:32px;height:32px;stroke:#fff;stroke-width:2;fill:none;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))}
 .prop-nav:active svg{transform:scale(0.9)}
-/* Image counter */
-.prop-img-count{position:absolute;bottom:1rem;left:50%;transform:translateX(-50%);z-index:3;font-size:0.6rem;letter-spacing:0.2em;color:rgba(255,255,255,0.7);background:rgba(0,0,0,0.35);backdrop-filter:blur(8px);padding:0.35rem 0.85rem;text-transform:uppercase}
+/* Image counter — overlays active thumbnail */
+.prop-img-count{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:0.5rem;letter-spacing:0.15em;color:#fff;background:rgba(0,0,0,0.45);backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:opacity 0.3s;text-transform:uppercase}
+.prop-thumb.active .prop-img-count{opacity:1}
 /* Fullscreen hint */
 .prop-hero-expand{position:absolute;top:1.25rem;left:1.25rem;z-index:3;background:rgba(0,0,0,0.4);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.15);padding:0.4rem 0.75rem;display:flex;align-items:center;gap:0.4rem;cursor:pointer;opacity:0;transition:opacity 0.35s;color:rgba(255,255,255,0.8);font-size:0.58rem;letter-spacing:0.15em;text-transform:uppercase}
 .prop-hero:hover .prop-hero-expand{opacity:1}
@@ -969,8 +970,9 @@ textarea.form-input{resize:vertical;min-height:100px}
 
 
 /* Gallery thumbnails */
-.prop-thumbs{display:flex;gap:0.5rem;position:absolute;bottom:3rem;right:4rem;z-index:2}
-.prop-thumb{width:72px;height:52px;border:2px solid transparent;cursor:zoom-in;overflow:hidden;opacity:0.6;transition:all 0.3s}
+.prop-thumbs{display:flex;gap:0.4rem;overflow-x:auto;scrollbar-width:none}
+.prop-thumbs::-webkit-scrollbar{display:none}
+.prop-thumb{position:relative;width:64px;height:46px;border:2px solid transparent;cursor:zoom-in;overflow:hidden;opacity:0.6;transition:all 0.3s;flex-shrink:0}
 .prop-thumb:hover,.prop-thumb.active{opacity:1;border-color:var(--gold)}
 .prop-thumb img{width:100%;height:100%;object-fit:cover}
 
@@ -1064,8 +1066,7 @@ textarea.form-input{resize:vertical;min-height:100px}
 @media(max-width:1024px){
   .prop-body{grid-template-columns:1fr;gap:2.5rem;padding:2.5rem 2rem}
   .prop-sidebar{position:static}
-  .prop-hero-content{padding:0 2rem 2.5rem}
-  .prop-thumbs{right:2rem;bottom:2.5rem}
+  .prop-hero-content{left:1rem;right:1rem}
   .prop-similar{padding:3rem 2rem}
 }
 @media(max-width:768px){

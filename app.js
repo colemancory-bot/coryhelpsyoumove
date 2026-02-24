@@ -75,10 +75,8 @@ if(_isTownPage){
       '<img class="prop-hero-img" id="propHeroImg" src="" alt="Property listing photo">' +
       '<div class="prop-nav prop-nav-left" onclick="propImgNav(-1)"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></div>' +
       '<div class="prop-nav prop-nav-right" onclick="propImgNav(1)"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>' +
-      '<div class="prop-img-count" id="propImgCount">1 / 1</div>' +
       '<div class="prop-hero-expand" onclick="openLightbox()"><svg viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg> View Photos</div>' +
-      '<div class="prop-hero-content"><div class="prop-hero-status active-status" id="propStatus">Active Listing</div><div class="prop-demo-notice" id="propDemoNotice">Sample Listing — Demo Data</div></div>' +
-      '<div class="prop-thumbs" id="propThumbs"></div>' +
+      '<div class="prop-hero-content"><div class="prop-hero-status active-status" id="propStatus">Active Listing</div><div class="prop-demo-notice" id="propDemoNotice">Sample Listing — Demo Data</div><div class="prop-thumbs" id="propThumbs"></div></div>' +
     '</div></div>' +
     '<div class="prop-info-bar"><div class="prop-info-bar-inner">' +
       '<div class="prop-info-left"><div class="prop-hero-price" id="propPrice"></div><div class="prop-hero-addr" id="propAddr"></div><div class="prop-hero-city" id="propCity"></div><div class="prop-listing-broker" id="propListingBroker"></div></div>' +
@@ -1997,7 +1995,7 @@ function openProp(listing, townName) {
     imgArr.forEach(function(src, i) {
       var d = document.createElement('div');
       d.className = 'prop-thumb' + (i === 0 ? ' active' : '');
-      d.innerHTML = '<img src="' + src + '" alt="Photo ' + (i+1) + '">';
+      d.innerHTML = '<img src="' + src + '" alt="Photo ' + (i+1) + '"><span class="prop-img-count">' + (i+1) + ' / ' + imgArr.length + '</span>';
       d.onclick = function(e) {
         e.stopPropagation();
         propGoTo(i);
@@ -2005,7 +2003,6 @@ function openProp(listing, townName) {
       };
       thumbsEl.appendChild(d);
     });
-    document.getElementById('propImgCount').textContent = '1 / ' + imgArr.length;
   }
   _renderThumbs(imgs);
 
@@ -2407,7 +2404,6 @@ function propGoTo(idx) {
     heroImg.src = imgs[idx];
     heroImg.classList.remove('fade');
   }, 250);
-  document.getElementById('propImgCount').textContent = (idx + 1) + ' / ' + imgs.length;
   var thumbs = document.querySelectorAll('.prop-thumb');
   thumbs.forEach(function(t, i) { t.classList.toggle('active', i === idx) });
 }
