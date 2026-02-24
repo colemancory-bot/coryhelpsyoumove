@@ -89,9 +89,9 @@ async function syncProperties(
 ) {
   let url: string;
   if (isInitial) {
-    url = `${MLS_GRID_API}/Property?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true&$expand=Media,Rooms,UnitTypes`;
+    url = `${MLS_GRID_API}/Property?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true and PropertyType ne 'Residential Lease'&$expand=Media,Rooms,UnitTypes`;
   } else {
-    url = `${MLS_GRID_API}/Property?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and ModificationTimestamp gt ${lastTimestamp}&$expand=Media,Rooms,UnitTypes`;
+    url = `${MLS_GRID_API}/Property?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and ModificationTimestamp gt ${lastTimestamp} and PropertyType ne 'Residential Lease'&$expand=Media,Rooms,UnitTypes`;
   }
 
   let totalSynced = 0;

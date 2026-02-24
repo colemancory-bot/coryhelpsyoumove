@@ -144,6 +144,8 @@ async function syncProperties(
   let url: string;
   // Build $filter clause
   const filters: string[] = [];
+  // Always exclude rental listings
+  filters.push("PropertyType ne 'Residential Lease'");
   if (!isInitial && lastTimestamp) {
     filters.push(`APIModificationTimestamp gt ${normalizeTimestamp(lastTimestamp)}`);
   }

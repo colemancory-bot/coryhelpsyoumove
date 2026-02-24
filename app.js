@@ -626,7 +626,8 @@ var MLS_GRID = {
       'standard_status,association_fee,latitude,longitude,year_built,days_on_market,' +
       'public_remarks,list_agent_full_name,list_office_name,list_office_phone', [
       { method: 'eq', args: ['mlg_can_view', true] },
-      { method: 'in', args: ['standard_status', ['Active','Active Under Contract','Pending']] }
+      { method: 'in', args: ['standard_status', ['Active','Active Under Contract','Pending']] },
+      { method: 'neq', args: ['property_type', 'Residential Lease'] }
     ]);
     var mediaPromise = MLS_GRID._fetchAll('mls_media', 'listing_key, local_url, media_url', [
       { method: 'eq', args: ['"order"', 1] }
