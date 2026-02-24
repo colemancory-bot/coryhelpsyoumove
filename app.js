@@ -829,7 +829,35 @@ if(!MLS_GRID.enabled) {
 })();
 
 // ═══ CHATBOT ═══
-let chatOpen=false,isTyping=false,convHistory=[];
+var CHAT_SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+
+// --- Chat persistence across page navigations ---
+function _saveChatState(){
+  try{
+    localStorage.setItem('cc_chat_conv', JSON.stringify({
+      history: convHistory,
+      ts: Date.now(),
+      leadPushed: _chatLeadPushed || false,
+      previewDismissed: _chatPreviewDismissed || false
+    }));
+  }catch(e){}
+}
+function _loadChatState(){
+  try{
+    var raw = localStorage.getItem('cc_chat_conv');
+    if(!raw) return null;
+    var state = JSON.parse(raw);
+    if(Date.now() - state.ts > CHAT_SESSION_TIMEOUT){ _clearChatState(); return null; }
+    return state;
+  }catch(e){ return null; }
+}
+function _clearChatState(){
+  try{ localStorage.removeItem('cc_chat_conv'); }catch(e){}
+}
+
+// Restore conversation history from localStorage (flags restored at their declaration sites)
+var _savedChatState = _loadChatState();
+let chatOpen=false,isTyping=false,convHistory=(_savedChatState && _savedChatState.history && _savedChatState.history.length > 0) ? _savedChatState.history : [];
 
 // --- Rate limiting ---
 var _chatLimits = {
@@ -986,7 +1014,7 @@ function _pushToFUB(leadData){
 }
 
 // --- FUB lead capture from chat ---
-var _chatLeadPushed = false;
+var _chatLeadPushed = (_savedChatState && _savedChatState.leadPushed) || false;
 function tryPushChatLead(){
   if(_chatLeadPushed || !_sb) return;
   var fullText = convHistory.map(function(m){ return m.content }).join(' ');
@@ -1020,7 +1048,7 @@ function tryPushChatLead(){
 
 // --- Chat UI ---
 var _chatMinimized = false;
-var _chatPreviewDismissed = false;
+var _chatPreviewDismissed = (_savedChatState && _savedChatState.previewDismissed) || false;
 
 function toggleChat(){
   var cp=document.getElementById('chatPanel');if(!cp)return;
@@ -1050,7 +1078,7 @@ function toggleChat(){
   chatOpen = true;
   cp.classList.add('open');
   var ct=document.getElementById('chatTrigger');if(ct)ct.classList.add('open');
-  var cm=document.getElementById('chatMessages');if(cm&&!cm.children.length)addInitMsg();
+  var cm=document.getElementById('chatMessages');if(cm&&!cm.children.length){ if(!_restoreChatMessages()) addInitMsg(); }
   var ci=document.getElementById('chatInput');if(ci)setTimeout(()=>ci.focus(),300);
 }
 
@@ -1083,18 +1111,21 @@ function openChatFromPreview(text){
   if(cp){ cp.classList.add('open'); cp.classList.remove('minimized'); _chatMinimized = false; }
   var ct=document.getElementById('chatTrigger');if(ct){ ct.classList.add('open'); ct.classList.add('compact'); }
 
-  // 3. Add greeting if chat is empty
+  // 3. Restore previous conversation or add greeting if chat is empty
   var cm=document.getElementById('chatMessages');
   if(cm && !cm.children.length){
-    var greeting = "Hey! Looking to buy, sell, or just explore Western NC? Ask me anything.";
-    if(_acctLoggedIn){
-      try{
-        var prof=localStorage.getItem('cc_profile');
-        if(prof){ var p=JSON.parse(prof); if(p.firstName) greeting="Welcome back, "+p.firstName+"! How can I help you today?"; }
-      }catch(e){}
+    if(!_restoreChatMessages()){
+      var greeting = "Hey! Looking to buy, sell, or just explore Western NC? Ask me anything.";
+      if(_acctLoggedIn){
+        try{
+          var prof=localStorage.getItem('cc_profile');
+          if(prof){ var p=JSON.parse(prof); if(p.firstName) greeting="Welcome back, "+p.firstName+"! How can I help you today?"; }
+        }catch(e){}
+      }
+      addMsg('assistant', greeting);
+      convHistory.push({role:'assistant',content:'Greeted visitor.'});
+      _saveChatState();
     }
-    addMsg('assistant', greeting);
-    convHistory.push({role:'assistant',content:'Greeted visitor.'});
   }
 
   // 4. Inject user message and send
@@ -1164,6 +1195,29 @@ function addInitMsg(){
   convHistory.push({role:'assistant',content:'Greeted visitor.'});
 }
 
+// Rebuild chat DOM from saved convHistory (for cross-page persistence)
+function _restoreChatMessages(){
+  var cm = document.getElementById('chatMessages');
+  if(!cm || !convHistory.length) return false;
+  cm.innerHTML = '';
+  for(var i=0; i<convHistory.length; i++){
+    var m = convHistory[i];
+    if(m.content === 'Greeted visitor.'){
+      // Reconstruct the greeting text
+      var g = "Hey! Looking to buy, sell, or just explore Western NC? Ask me anything.";
+      if(_acctLoggedIn){
+        try{ var p=JSON.parse(localStorage.getItem('cc_profile')||'{}'); if(p.firstName) g="Welcome back, "+p.firstName+"! How can I help you today?"; }catch(e){}
+      }
+      addMsg('assistant', g);
+    } else {
+      var html = m.content.replace(/\n/g,'<br>');
+      addMsg(m.role, html);
+    }
+  }
+  cm.scrollTop = cm.scrollHeight;
+  return true;
+}
+
 function showTyping(){const c=document.getElementById('chatMessages');if(!c)return;var t=document.createElement('div');t.className='typing-indicator';t.id='typInd';t.innerHTML='<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';c.appendChild(t);c.scrollTop=c.scrollHeight}
 function hideTyping(){const e=document.getElementById('typInd');if(e)e.remove()}
 
@@ -1229,6 +1283,7 @@ async function sendMessage(){
     }
     let t = rawText.replace(/\[.*?\]/g,'').trim().replace(/\n/g,'<br>');
     addMsg('assistant',t);convHistory.push({role:'assistant',content:t.replace(/<br>/g,'\n')});
+    _saveChatState();
     tryPushChatLead();
     // Trigger search if bot detected search intent
     if(searchFilters){
@@ -1307,7 +1362,7 @@ updateAcctUI = function() {
   }
 };
 
-function clearChat(){convHistory=[];_chatLimits.exchangeCount=0;_chatLeadPushed=false;var cm=document.getElementById('chatMessages');if(cm)cm.innerHTML='';addInitMsg()}
+function clearChat(){convHistory=[];_chatLimits.exchangeCount=0;_chatLeadPushed=false;_clearChatState();var cm=document.getElementById('chatMessages');if(cm)cm.innerHTML='';addInitMsg()}
 
 const chatInp=document.getElementById('chatInput');
 if(chatInp){
