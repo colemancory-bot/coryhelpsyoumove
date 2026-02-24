@@ -462,7 +462,8 @@ var SIMPLYRETS = {
           var c=document.createElement('div');c.className='f-card reveal vis';
           var feats=l.type==='Land'?'<span class="f-feat"><strong>'+l.lot+'</strong></span>':'<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+l.sqft.toLocaleString()+'</strong> SF</span>';
           var imgSrc = l.photo || 'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=700&q=80';
-          c.innerHTML='<div class="f-card-img"><img src="'+imgSrc+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge '+(l.type==='Land'?'land':'')+'">'+l.type+'</div>'+cardFavHtml(l.address,l.city)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+l.city+', NC</div><div class="f-card-features">'+feats+'</div></div>';
+          var hpStatus=l.status==='Under Contract'?'<div class="card-status-tag">Under Contract</div>':'';
+          c.innerHTML='<div class="f-card-img"><img src="'+imgSrc+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge '+(l.type==='Land'?'land':'')+'">'+l.type+'</div>'+hpStatus+cardFavHtml(l.address,l.city)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+l.city+', NC</div><div class="f-card-features">'+feats+'</div></div>';
           c.onclick=function(){try{openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,lot:l.lot,restrictions:l.restrictions||'unrestricted',status:l.status||'Active',photo:l.photo||null,photos:l.photos||[],description:l.description||''},l.city)}catch(err){console.error(err)}};
           grid.appendChild(c);
         });
@@ -773,7 +774,8 @@ function renderFeatured(){
     var brokerParts=[];if(l.listAgent)brokerParts.push(l.listAgent);if(l.listOffice)brokerParts.push(l.listOffice);if(l.listOfficePhone)brokerParts.push(l.listOfficePhone);
     var brokerHtml=brokerParts.length?'<div class="f-card-office">Listed by '+brokerParts.join(' &bull; ')+(l.mlsId?' | MLS# '+l.mlsId:'')+'</div>':'';
     var isDemo = l.mlsId && l.mlsId.toString().indexOf('DEMO') === 0;
-    c.innerHTML='<div class="f-card-img"><img src="'+l.photo+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge '+(l.type==='Land'?'land':'')+'">'+l.type+'</div>'+(isDemo?'<div class="f-card-demo-badge">DEMO</div>':'')+cardFavHtml(l.address,l.city)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+l.city+', NC</div><div class="f-card-features">'+feats+'</div>'+brokerHtml+'</div>';
+    var rfStatus=l.status==='Under Contract'?'<div class="card-status-tag">Under Contract</div>':'';
+    c.innerHTML='<div class="f-card-img"><img src="'+l.photo+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge '+(l.type==='Land'?'land':'')+'">'+l.type+'</div>'+(isDemo?'<div class="f-card-demo-badge">DEMO</div>':'')+rfStatus+cardFavHtml(l.address,l.city)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+l.city+', NC</div><div class="f-card-features">'+feats+'</div>'+brokerHtml+'</div>';
     c.onclick=function(){try{openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,lot:l.lot,restrictions:l.restrictions||'unrestricted',status:l.status||'Active',photo:l.photo||null,photos:l.photos||[],description:l.description||'',listAgent:l.listAgent||'',listOffice:l.listOffice||'',listOfficePhone:l.listOfficePhone||'',mlsId:l.mlsId||'',listingKey:l.listingKey||''},l.city)}catch(err){console.error(err)}};
     grid.appendChild(c);
   });
@@ -1846,7 +1848,7 @@ function renderTownResults(townId,results,townName){
     var c=document.createElement('div');c.className='f-card';
     var feats=l.type==='Land'?'<span class="f-feat"><strong>'+l.lot+'</strong></span>':'<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+l.sqft.toLocaleString()+'</strong> SF</span>';
     var badge=l.type==='Land'?' land':'';
-    var statusBadge=l.status==='Under Contract'?'<div style="position:absolute;top:0.75rem;right:0.75rem;padding:0.25rem 0.5rem;font-size:0.5rem;letter-spacing:0.1em;text-transform:uppercase;background:var(--red-soft);color:#fff">Under Contract</div>':'';
+    var statusBadge=l.status==='Under Contract'?'<div class="card-status-tag">Under Contract</div>':'';
     var tBrokerParts=[];if(l.listAgent)tBrokerParts.push(l.listAgent);if(l.listOffice)tBrokerParts.push(l.listOffice);if(l.listOfficePhone)tBrokerParts.push(l.listOfficePhone);
     var tBrokerHtml=tBrokerParts.length?'<div class="f-card-office">Listed by '+tBrokerParts.join(' &bull; ')+(l.mlsId?' | MLS# '+l.mlsId:'')+'</div>':'';
     var tIsDemo = l.mlsId && l.mlsId.toString().indexOf('DEMO') === 0;
@@ -2910,17 +2912,16 @@ function srRenderCards(results){
       : '<div style="width:100%;height:100%;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.55rem">Photo</div>';
 
     var badgeClass = l.type === 'Land' ? 'sr-card-badge land' : 'sr-card-badge';
-    var statusHtml = l.status === 'Under Contract' ? '<div class="sr-card-status">Under Contract</div>' : '';
+    var statusTag = l.status === 'Under Contract' ? '<div class="card-status-tag">Under Contract</div>' : '';
 
     var srBrokerParts=[];if(l.listAgent)srBrokerParts.push(l.listAgent);if(l.listOffice)srBrokerParts.push(l.listOffice);
     var srBrokerHtml=srBrokerParts.length?'<div class="sr-card-office">Listed by '+srBrokerParts.join(' &bull; ')+(l.mlsId?' | MLS# '+l.mlsId:'')+'</div>':'';
-    card.innerHTML = '<div class="sr-card-img">' + imgHtml + '<div class="' + badgeClass + '">' + l.type + '</div>' + cardFavHtml(l.address, l.city) + '</div>' +
+    card.innerHTML = '<div class="sr-card-img">' + imgHtml + '<div class="' + badgeClass + '">' + l.type + '</div>' + statusTag + cardFavHtml(l.address, l.city) + '</div>' +
       '<div class="sr-card-body">' +
         '<div class="sr-card-price">$' + l.price.toLocaleString() + '</div>' +
         '<div class="sr-card-addr">' + l.address + '</div>' +
         '<div class="sr-card-city">' + l.city + ', NC</div>' +
         '<div class="sr-card-feats">' + feats + '</div>' +
-        statusHtml +
         srBrokerHtml +
       '</div>';
 
@@ -4191,7 +4192,8 @@ function buildCorysSuggestions(currentListing, townName) {
       ? '<span class="f-feat"><strong>'+l.lot+'</strong></span>'
       : '<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+(l.sqft||0).toLocaleString()+'</strong> SF</span>';
     var imgSrc = l.photo || (PROP_IMAGES[l.type]||PROP_IMAGES['Single Family'])[0].replace('w=1200','w=700');
-    c.innerHTML = '<div class="f-card-img"><img src="'+imgSrc+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge'+(l.type==='Land'?' land':'')+'">' + l.type + '</div><div class="f-card-badge" style="right:auto;left:0.75rem;background:var(--gold);color:var(--bg);font-size:0.5rem">Suggested</div>'+cardFavHtml(l.address, l.city||townName)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+(l.city||townName)+', NC</div><div class="f-card-features">'+feats+'</div></div>';
+    var sgStatus=l.status==='Under Contract'?'<div class="card-status-tag">Under Contract</div>':'';
+    c.innerHTML = '<div class="f-card-img"><img src="'+imgSrc+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge'+(l.type==='Land'?' land':'')+'">' + l.type + '</div><div class="f-card-badge" style="right:auto;left:0.75rem;background:var(--gold);color:var(--bg);font-size:0.5rem">Suggested</div>'+sgStatus+cardFavHtml(l.address, l.city||townName)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+(l.city||townName)+', NC</div><div class="f-card-features">'+feats+'</div></div>';
     c.onclick = function(){ openProp(l, l.city||townName); };
     grid.appendChild(c);
   });
