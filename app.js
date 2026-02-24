@@ -1909,6 +1909,20 @@ function openPropFromTown(lid){
           TOWN_LISTINGS[id].listings.forEach(function(l){if(l.address===addr&&l.price===price)match=l});
         }
         if(match){
+          // Update photo if the static card has a placeholder
+          if(match.photo && imgWrap){
+            var existingImg = imgWrap.querySelector('img');
+            if(!existingImg){
+              var placeholder = imgWrap.querySelector('div[style]');
+              if(placeholder){
+                var img = document.createElement('img');
+                img.src = match.photo;
+                img.alt = addr;
+                img.loading = 'lazy';
+                imgWrap.replaceChild(img, placeholder);
+              }
+            }
+          }
           card.onclick=function(e){if(e.target.closest('.card-fav-heart'))return;try{openProp(match,townName)}catch(err){console.error(err)}};
         } else {
           // Fallback: build listing from card HTML
