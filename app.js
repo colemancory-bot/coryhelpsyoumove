@@ -2406,6 +2406,10 @@ function propGoTo(idx) {
   }, 250);
   var thumbs = document.querySelectorAll('.prop-thumb');
   thumbs.forEach(function(t, i) { t.classList.toggle('active', i === idx) });
+  // Auto-scroll thumbnail strip to keep active thumb visible
+  if(thumbs[idx]){
+    thumbs[idx].scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
+  }
 }
 function propImgNav(dir) {
   propGoTo((window._propImgIdx || 0) + dir);
