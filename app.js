@@ -261,6 +261,10 @@ setTimeout(()=>{document.querySelectorAll('.reveal:not(.vis)').forEach(el=>el.cl
       if(e.isIntersecting){
         var ct = document.getElementById('chatTrigger');
         if(ct && !ct.classList.contains('open')) ct.classList.add('compact');
+        var cprev = document.getElementById('chatPreview');
+        if(cprev) cprev.classList.remove('show');
+        var cb = document.getElementById('chatBadge');
+        if(cb) cb.classList.remove('show');
         compactObs.unobserve(areasEl);
       }
     });
@@ -1542,13 +1546,17 @@ function submitSellForm(){
 }
 
 
-// Show chat preview after 3.5s — only if not logged in and chat not open
+// Show chat preview after 3.5s — only once per day on first external landing
 setTimeout(function(){
   try{
-    var profile=localStorage.getItem('cc_profile');
-    if(!chatOpen && !profile && !_chatPreviewDismissed){
+    var today = new Date().toDateString();
+    var lastShown = localStorage.getItem('cc_preview_shown_date');
+    var referrer = document.referrer || '';
+    var isInternal = referrer.indexOf('coryhelpsyoumove.com') !== -1;
+    if(!chatOpen && lastShown !== today && !isInternal){
       var cp=document.getElementById('chatPreview');if(cp)cp.classList.add('show');
       var cb=document.getElementById('chatBadge');if(cb)cb.classList.add('show');
+      localStorage.setItem('cc_preview_shown_date', today);
     }
   }catch(e){}
 },3500);
