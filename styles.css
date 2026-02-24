@@ -538,6 +538,8 @@ textarea.form-input{resize:vertical;min-height:100px}
 [data-theme="light"] .chat-trigger:hover{box-shadow:0 12px 48px rgba(0,0,0,0.12),0 0 20px rgba(139,119,72,0.1),inset 0 1px 0 rgba(255,255,255,0.6)}
 .chat-trigger.open{border-radius:50%;padding:0.85rem;gap:0}
 .chat-trigger.open .chat-trigger-av,.chat-trigger.open .chat-trigger-label,.chat-trigger.open .chat-trigger-dot{display:none}
+.chat-trigger.compact{border-radius:50%;padding:0.65rem;gap:0}
+.chat-trigger.compact .chat-trigger-label,.chat-trigger.compact .chat-trigger-dot{display:none}
 @keyframes chatEntrance{0%{opacity:0;transform:translateY(20px) scale(0.9)}100%{opacity:1;transform:translateY(0) scale(1)}}
 @keyframes shimmer{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
 

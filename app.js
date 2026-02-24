@@ -210,7 +210,7 @@ if(_isTownPage){
 
   // Now that chat elements exist, re-bind listeners
   var ct = document.getElementById('chatTrigger');
-  if(ct) ct.addEventListener('click', toggleChat);
+  if(ct){ ct.addEventListener('click', toggleChat); ct.classList.add('compact'); }
   bindPreviewListeners();
 
   // Re-bind chatInput listeners
@@ -256,6 +256,22 @@ const obs=new IntersectionObserver(entries=>{entries.forEach(e=>{if(e.isIntersec
 document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
 // Fallback: if elements haven't revealed after 2s, force them visible
 setTimeout(()=>{document.querySelectorAll('.reveal:not(.vis)').forEach(el=>el.classList.add('vis'))},2000);
+
+// ═══ COMPACT CHAT TRIGGER ON SCROLL (homepage only) ═══
+(function(){
+  var areasEl = document.getElementById('areas');
+  if(!areasEl) return; // not homepage — handled elsewhere
+  var compactObs = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){
+        var ct = document.getElementById('chatTrigger');
+        if(ct && !ct.classList.contains('open')) ct.classList.add('compact');
+        compactObs.unobserve(areasEl);
+      }
+    });
+  }, {threshold: 0.1});
+  compactObs.observe(areasEl);
+})();
 
 // ═══ SMOOTH SCROLL ═══
 document.querySelectorAll('a[href^="#"]').forEach(a=>{a.addEventListener('click',function(e){e.preventDefault();const t=document.querySelector(this.getAttribute('href'));if(t)t.scrollIntoView({behavior:'smooth',block:'start'})})});
@@ -1065,7 +1081,7 @@ function openChatFromPreview(text){
   chatOpen = true;
   var cp=document.getElementById('chatPanel');
   if(cp){ cp.classList.add('open'); cp.classList.remove('minimized'); _chatMinimized = false; }
-  var ct=document.getElementById('chatTrigger');if(ct)ct.classList.add('open');
+  var ct=document.getElementById('chatTrigger');if(ct){ ct.classList.add('open'); ct.classList.add('compact'); }
 
   // 3. Add greeting if chat is empty
   var cm=document.getElementById('chatMessages');
@@ -1096,6 +1112,7 @@ function bindPreviewListeners(){
     var cprev=document.getElementById('chatPreview');if(cprev)cprev.classList.remove('show');
     var cb=document.getElementById('chatBadge');if(cb)cb.classList.remove('show');
     _chatPreviewDismissed = true;
+    var ct=document.getElementById('chatTrigger');if(ct&&!ct.classList.contains('open'))ct.classList.add('compact');
   });
 
   document.querySelectorAll('[data-preview-chip]').forEach(function(chip){
@@ -1489,7 +1506,10 @@ setTimeout(function(){
 setTimeout(function(){
   try{
     var cp=document.getElementById('chatPreview');
-    if(cp && cp.classList.contains('show') && !chatOpen) cp.classList.remove('show');
+    if(cp && cp.classList.contains('show') && !chatOpen){
+      cp.classList.remove('show');
+      var ct=document.getElementById('chatTrigger');if(ct&&!ct.classList.contains('open'))ct.classList.add('compact');
+    }
   }catch(e){}
 },30000);
 
