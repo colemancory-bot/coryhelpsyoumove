@@ -587,7 +587,23 @@
 </footer>
 
 <!-- ═══════════════ CHATBOT ═══════════════ -->
-<div class="chat-greeting" id="chatGreeting"><button class="chat-greeting-close" onclick="document.getElementById('chatGreeting').classList.remove('show');document.getElementById('chatBadge').classList.remove('show');">&times;</button><strong>Hey there!</strong> I'm Cory's assistant. Looking to buy, sell, or explore Western NC? I'm here to help.</div>
+<div class="chat-preview" id="chatPreview">
+  <div class="chat-preview-header">
+    <div class="chat-preview-hinfo"><div class="chat-av">CC</div><div><div class="chat-hname">Cory's Assistant</div><div class="chat-hstatus">Online now</div></div></div>
+    <button class="chat-hbtn" id="chatPreviewClose" title="Close"><svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+  </div>
+  <div class="chat-preview-body">
+    <div class="msg assistant"><div class="msg-bubble">Hey! Looking to buy, sell, or just explore Western NC? Ask me anything.</div></div>
+    <div class="quick-actions" id="previewChips">
+      <button class="chip" data-preview-chip>I'm looking to buy</button>
+      <button class="chip" data-preview-chip>I want to sell</button>
+      <button class="chip" data-preview-chip>Tell me about the area</button>
+    </div>
+  </div>
+  <div class="chat-preview-input">
+    <div class="chat-input-wrap"><input type="text" class="chat-input" id="chatPreviewInput" placeholder="Type a message..." maxlength="500"><button class="chat-send" id="chatPreviewSend"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button></div>
+  </div>
+</div>
 <button class="chat-trigger" id="chatTrigger">
   <div class="chat-trigger-av">CC</div>
   <div class="chat-trigger-label">
@@ -606,7 +622,7 @@
 </div>
 
 <!-- ═══════════════ SCRIPTS ═══════════════ -->
-<script defer src="app.js?v=13"></script>
+<script defer src="app.js?v=14"></script>
 
 
 </div>

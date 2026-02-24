@@ -201,16 +201,17 @@ if(_isTownPage){
   html += '<div class="notif-panel" id="notifPanel" style="display:none"><div class="notif-header"><span>Notifications</span><button onclick="markAllNotifsRead()" style="background:none;border:none;color:var(--gold);cursor:pointer;font-size:0.72rem">Mark all read</button></div><div class="notif-list" id="notifList"></div></div>';
 
   // --- Chat Widget ---
-  html += '<div class="chat-greeting" id="chatGreeting"><button class="chat-greeting-close" onclick="var cg=document.getElementById(\'chatGreeting\');if(cg)cg.classList.remove(\'show\');var cb=document.getElementById(\'chatBadge\');if(cb)cb.classList.remove(\'show\');">&times;</button><strong>Hey there!</strong> I\'m Cory\'s assistant. Looking to buy, sell, or explore Western NC? I\'m here to help.</div>' +
+  html += '<div class="chat-preview" id="chatPreview"><div class="chat-preview-header"><div class="chat-preview-hinfo"><div class="chat-av">CC</div><div><div class="chat-hname">Cory\'s Assistant</div><div class="chat-hstatus">Online now</div></div></div><button class="chat-hbtn" id="chatPreviewClose" title="Close"><svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div><div class="chat-preview-body"><div class="msg assistant"><div class="msg-bubble">Hey! Looking to buy, sell, or just explore Western NC? Ask me anything.</div></div><div class="quick-actions" id="previewChips"><button class="chip" data-preview-chip>I\'m looking to buy</button><button class="chip" data-preview-chip>I want to sell</button><button class="chip" data-preview-chip>Tell me about the area</button></div></div><div class="chat-preview-input"><div class="chat-input-wrap"><input type="text" class="chat-input" id="chatPreviewInput" placeholder="Type a message..." maxlength="500"><button class="chat-send" id="chatPreviewSend"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button></div></div></div>' +
     '<button class="chat-trigger" id="chatTrigger" onclick="toggleChat()"><div class="chat-trigger-av">CC</div><div class="chat-trigger-label"><span class="chat-trigger-name">Chat with Cory</span><span class="chat-trigger-status">Online Now</span></div><div class="chat-trigger-dot"></div><svg id="triggerIcon" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" fill="none"/></svg><div class="chat-badge" id="chatBadge">1</div></button>' +
-    '<div class="chat-panel" id="chatPanel"><div class="chat-header"><div class="chat-hinfo"><div class="chat-av">CC</div><div><div class="chat-hname">Cory\'s Assistant</div><div class="chat-hstatus">Online now</div></div></div><div style="display:flex;gap:0.4rem"><button class="chat-hbtn" onclick="clearChat()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button><button class="chat-hbtn" onclick="toggleChat()"><svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div></div><div class="chat-messages" id="chatMessages"></div><div class="chat-input-area"><input type="text" class="chat-hp" id="chatHp" tabindex="-1" autocomplete="off"><div class="chat-input-wrap"><textarea class="chat-input" id="chatInput" placeholder="Type your message..." rows="1" maxlength="500"></textarea><button class="chat-send" id="chatSend" onclick="sendMessage()"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button></div><div class="chat-powered">Powered by AI &middot; Cory Coleman Realty</div></div></div>';
+    '<div class="chat-panel" id="chatPanel"><div class="chat-header" id="chatHeader"><div class="chat-hinfo"><div class="chat-av">CC</div><div><div class="chat-hname">Cory\'s Assistant</div><div class="chat-hstatus">Online now</div></div></div><div style="display:flex;gap:0.4rem"><button class="chat-hbtn" onclick="clearChat()" title="New chat"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button><button class="chat-hbtn" onclick="minimizeChat()" title="Minimize"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button><button class="chat-hbtn" onclick="toggleChat()" title="Close"><svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div></div><div class="chat-messages" id="chatMessages"></div><div class="chat-input-area"><input type="text" class="chat-hp" id="chatHp" tabindex="-1" autocomplete="off"><div class="chat-input-wrap"><textarea class="chat-input" id="chatInput" placeholder="Type your message..." rows="1" maxlength="500"></textarea><button class="chat-send" id="chatSend" onclick="sendMessage()"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button></div><div class="chat-powered">Powered by AI &middot; Cory Coleman Realty</div></div></div>';
 
   // Inject all HTML into the page
   document.body.insertAdjacentHTML('beforeend', html);
 
-  // Now that chat elements exist, re-bind the chat trigger listener
+  // Now that chat elements exist, re-bind listeners
   var ct = document.getElementById('chatTrigger');
   if(ct) ct.addEventListener('click', toggleChat);
+  bindPreviewListeners();
 
   // Re-bind chatInput listeners
   var ci = document.getElementById('chatInput');
@@ -1003,27 +1004,38 @@ function tryPushChatLead(){
 
 // --- Chat UI ---
 var _chatMinimized = false;
+var _chatPreviewDismissed = false;
 
 function toggleChat(){
   var cp=document.getElementById('chatPanel');if(!cp)return;
-  // If minimized, restore instead of closing
+
+  // Always hide preview when toggling
+  var cprev=document.getElementById('chatPreview');
+  if(cprev) cprev.classList.remove('show');
+  var cb2=document.getElementById('chatBadge');
+  if(cb2) cb2.classList.remove('show');
+
+  // If minimized → fully close (second close)
   if(_chatMinimized){
     _chatMinimized = false;
-    cp.classList.remove('minimized');
-    var ci=document.getElementById('chatInput');if(ci)setTimeout(()=>ci.focus(),300);
+    chatOpen = false;
+    cp.classList.remove('minimized','open');
+    var ct=document.getElementById('chatTrigger');if(ct)ct.classList.remove('open');
     return;
   }
-  chatOpen=!chatOpen;
-  cp.classList.toggle('open',chatOpen);
-  cp.classList.remove('minimized');
-  _chatMinimized = false;
-  var ct=document.getElementById('chatTrigger');if(ct)ct.classList.toggle('open',chatOpen);
-  var cg=document.getElementById('chatGreeting');if(cg)cg.classList.remove('show');
-  var cb=document.getElementById('chatBadge');if(cb)cb.classList.remove('show');
+
+  // If open (full size) → minimize instead of closing
   if(chatOpen){
-    var cm=document.getElementById('chatMessages');if(cm&&!cm.children.length)addInitMsg();
-    var ci=document.getElementById('chatInput');if(ci)setTimeout(()=>ci.focus(),300);
+    minimizeChat();
+    return;
   }
+
+  // If closed → open
+  chatOpen = true;
+  cp.classList.add('open');
+  var ct=document.getElementById('chatTrigger');if(ct)ct.classList.add('open');
+  var cm=document.getElementById('chatMessages');if(cm&&!cm.children.length)addInitMsg();
+  var ci=document.getElementById('chatInput');if(ci)setTimeout(()=>ci.focus(),300);
 }
 
 function minimizeChat(){
@@ -1040,6 +1052,66 @@ function minimizeChat(){
   }
 }
 
+// --- Chat Preview → Full Chat transition ---
+function openChatFromPreview(text){
+  // 1. Hide preview
+  var preview=document.getElementById('chatPreview');
+  if(preview) preview.classList.remove('show');
+  var cb=document.getElementById('chatBadge');
+  if(cb) cb.classList.remove('show');
+  _chatPreviewDismissed = true;
+
+  // 2. Open full chat panel
+  chatOpen = true;
+  var cp=document.getElementById('chatPanel');
+  if(cp){ cp.classList.add('open'); cp.classList.remove('minimized'); _chatMinimized = false; }
+  var ct=document.getElementById('chatTrigger');if(ct)ct.classList.add('open');
+
+  // 3. Add greeting if chat is empty
+  var cm=document.getElementById('chatMessages');
+  if(cm && !cm.children.length){
+    var greeting = "Hey! Looking to buy, sell, or just explore Western NC? Ask me anything.";
+    if(_acctLoggedIn){
+      try{
+        var prof=localStorage.getItem('cc_profile');
+        if(prof){ var p=JSON.parse(prof); if(p.firstName) greeting="Welcome back, "+p.firstName+"! How can I help you today?"; }
+      }catch(e){}
+    }
+    addMsg('assistant', greeting);
+    convHistory.push({role:'assistant',content:'Greeted visitor.'});
+  }
+
+  // 4. Inject user message and send
+  var inp=document.getElementById('chatInput');
+  if(inp){
+    inp.value = text;
+    setTimeout(function(){ sendMessage(); inp.focus(); }, 150);
+  }
+}
+
+// --- Bind preview widget listeners (reusable for town page injection) ---
+function bindPreviewListeners(){
+  var closeBtn=document.getElementById('chatPreviewClose');
+  if(closeBtn) closeBtn.addEventListener('click', function(){
+    var cprev=document.getElementById('chatPreview');if(cprev)cprev.classList.remove('show');
+    var cb=document.getElementById('chatBadge');if(cb)cb.classList.remove('show');
+    _chatPreviewDismissed = true;
+  });
+
+  document.querySelectorAll('[data-preview-chip]').forEach(function(chip){
+    chip.addEventListener('click', function(){ openChatFromPreview(chip.textContent); });
+  });
+
+  var prevInput=document.getElementById('chatPreviewInput');
+  var prevSend=document.getElementById('chatPreviewSend');
+  if(prevInput) prevInput.addEventListener('keydown', function(e){
+    if(e.key==='Enter'){ e.preventDefault(); var t=prevInput.value.trim(); if(t) openChatFromPreview(t); }
+  });
+  if(prevSend) prevSend.addEventListener('click', function(){
+    var t=prevInput?prevInput.value.trim():''; if(t) openChatFromPreview(t);
+  });
+}
+
 // Click minimized header to restore
 document.addEventListener('click', function(e){
   if(!_chatMinimized) return;
@@ -1051,6 +1123,7 @@ document.addEventListener('click', function(e){
 
 var _chatTriggerEl=document.getElementById('chatTrigger');
 if(_chatTriggerEl) _chatTriggerEl.addEventListener('click',toggleChat);
+bindPreviewListeners();
 
 function addMsg(role,text,chips){
   const c=document.getElementById('chatMessages');if(!c)return;var w=document.createElement('div');
@@ -1060,7 +1133,7 @@ function addMsg(role,text,chips){
 }
 
 function addInitMsg(){
-  var greeting = "Hey there! I'm Cory's assistant. Whether you're looking to buy, sell, or explore Western NC — I'm here to help. What brings you here today?";
+  var greeting = "Hey! Looking to buy, sell, or just explore Western NC? Ask me anything.";
   if(_acctLoggedIn){
     try{
       var prof = localStorage.getItem('cc_profile');
@@ -1402,17 +1475,23 @@ function submitSellForm(){
 }
 
 
-// Show greeting after 3.5s — but only if not logged in and chat not open
-setTimeout(()=>{
+// Show chat preview after 3.5s — only if not logged in and chat not open
+setTimeout(function(){
   try{
-    const profile=localStorage.getItem('cc_profile');
-    if(!chatOpen && !profile){
-      var _cg=document.getElementById('chatGreeting');if(_cg)_cg.classList.add('show');
-      var _cb=document.getElementById('chatBadge');if(_cb)_cb.classList.add('show');
+    var profile=localStorage.getItem('cc_profile');
+    if(!chatOpen && !profile && !_chatPreviewDismissed){
+      var cp=document.getElementById('chatPreview');if(cp)cp.classList.add('show');
+      var cb=document.getElementById('chatBadge');if(cb)cb.classList.add('show');
     }
   }catch(e){}
 },3500);
-setTimeout(()=>{try{var _cg2=document.getElementById('chatGreeting');if(_cg2)_cg2.classList.remove('show')}catch(e){}},12000);
+// Auto-hide preview after 30s if user hasn't interacted
+setTimeout(function(){
+  try{
+    var cp=document.getElementById('chatPreview');
+    if(cp && cp.classList.contains('show') && !chatOpen) cp.classList.remove('show');
+  }catch(e){}
+},30000);
 
 // ═══ PAGE OVERLAYS (Towns + Blogs) ═══
 function openPage(id){
