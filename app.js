@@ -100,7 +100,8 @@ if(_isTownPage){
         '<div class="gated-wrap locked" id="gatedNeighborhood" onclick="onGatedClick()"><div class="gated-prompt"><svg class="gated-prompt-icon" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg><div class="gated-prompt-text"><strong>Create a free account</strong> to see neighborhood details</div><div class="gated-prompt-sub">Click anywhere to sign up</div></div><div class="gated-content"><div class="prop-section-label" style="margin-top:2.5rem">Neighborhood Details</div><div class="neighborhood-dive" id="neighborhoodDive"></div></div></div>' +
         '<div class="gated-wrap locked" id="gatedDistances" onclick="onGatedClick()"><div class="gated-prompt"><svg class="gated-prompt-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><div class="gated-prompt-text"><strong>Create a free account</strong> to see drive times</div><div class="gated-prompt-sub">Click anywhere to sign up</div></div><div class="gated-content"><div class="prop-section-label" style="margin-top:2.5rem">Distances & Drive Times</div><div class="prop-distances" id="propDistances"></div></div></div>' +
         '<div class="prop-section-label" style="margin-top:2.5rem">Location</div>' +
-        '<div class="prop-map"><div class="prop-map-text"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><p id="propMapText">Interactive map available on request</p></div></div>' +
+        '<div class="prop-map" id="propMapContainer"></div>' +
+        '<div class="prop-listing-broker" id="propListingBroker"></div>' +
       '</div>' +
       '<div class="prop-sidebar">' +
         '<div class="prop-agent"><div class="prop-agent-header"><div class="prop-agent-avatar">CC</div><div><div class="prop-agent-name">Cory Coleman</div><div class="prop-agent-brokerage">Keller Williams Great Smokies</div></div></div>' +
@@ -771,7 +772,7 @@ function renderFeatured(){
   LISTINGS.slice(0,6).forEach(function(l,i){
     const c=document.createElement('div');c.className='f-card reveal';
     const feats=l.type==='Land'?'<span class="f-feat"><strong>'+l.lot+'</strong></span>':'<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+l.sqft.toLocaleString()+'</strong> SF</span>';
-    var brokerParts=[];if(l.listAgent)brokerParts.push(l.listAgent);if(l.listOffice)brokerParts.push(l.listOffice);if(l.listOfficePhone)brokerParts.push(l.listOfficePhone);
+    var brokerParts=[];if(l.listAgent)brokerParts.push(l.listAgent);if(l.listOffice)brokerParts.push(l.listOffice);
     var brokerHtml=brokerParts.length?'<div class="f-card-office">Listed by '+brokerParts.join(' &bull; ')+(l.mlsId?' | MLS# '+l.mlsId:'')+'</div>':'';
     var isDemo = l.mlsId && l.mlsId.toString().indexOf('DEMO') === 0;
     var rfStatus=l.status==='Under Contract'?'<div class="card-status-tag">Under Contract</div>':'';
@@ -1850,7 +1851,7 @@ function renderTownResults(townId,results,townName){
     var feats=l.type==='Land'?'<span class="f-feat"><strong>'+l.lot+'</strong></span>':'<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+l.sqft.toLocaleString()+'</strong> SF</span>';
     var badge=l.type==='Land'?' land':'';
     var statusBadge=l.status==='Under Contract'?'<div class="card-status-tag">Under Contract</div>':'';
-    var tBrokerParts=[];if(l.listAgent)tBrokerParts.push(l.listAgent);if(l.listOffice)tBrokerParts.push(l.listOffice);if(l.listOfficePhone)tBrokerParts.push(l.listOfficePhone);
+    var tBrokerParts=[];if(l.listAgent)tBrokerParts.push(l.listAgent);if(l.listOffice)tBrokerParts.push(l.listOffice);
     var tBrokerHtml=tBrokerParts.length?'<div class="f-card-office">Listed by '+tBrokerParts.join(' &bull; ')+(l.mlsId?' | MLS# '+l.mlsId:'')+'</div>':'';
     var tIsDemo = l.mlsId && l.mlsId.toString().indexOf('DEMO') === 0;
     var photoHtml = l.photo ? '<img src="'+l.photo+'" alt="'+l.address+'" loading="lazy">' : '<div style="aspect-ratio:16/10;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.75rem">No Photo Available</div>';
@@ -2097,7 +2098,6 @@ function openProp(listing, townName) {
     var parts = [];
     if(listing.listAgent) parts.push('Listed by ' + listing.listAgent);
     if(listing.listOffice) parts.push(listing.listOffice);
-    if(listing.listOfficePhone) parts.push(listing.listOfficePhone);
     var brokerText = parts.join(' \u2022 ');
     if(listing.mlsId) brokerText += ' | MLS# ' + listing.mlsId;
     brokerEl.textContent = brokerText || '';
@@ -2180,8 +2180,24 @@ function openProp(listing, townName) {
   ];
   hlEl.innerHTML = hls.map(function(h){return '<div class="prop-highlight"><svg viewBox="0 0 24 24">'+h.icon+'</svg><div class="prop-highlight-title">'+h.title+'</div><div class="prop-highlight-desc">'+h.desc+'</div></div>'}).join('');
 
-  // Map text
-  document.getElementById('propMapText').textContent = listing.address + ', ' + townName + ', NC';
+  // Property map — real Leaflet map
+  var mapContainer = document.getElementById('propMapContainer');
+  if(mapContainer && typeof L !== 'undefined') {
+    // Destroy previous map instance if any
+    if(window._propMap) { try { window._propMap.remove(); } catch(e){} window._propMap = null; }
+    mapContainer.innerHTML = '';
+    var mapLat = listing.lat || (TOWN_COORDS[townName] ? TOWN_COORDS[townName].lat : 35.38);
+    var mapLng = listing.lng || (TOWN_COORDS[townName] ? TOWN_COORDS[townName].lng : -83.18);
+    var zoom = (listing.lat && listing.lng) ? 15 : 12;
+    window._propMap = L.map(mapContainer, {zoomControl:true, attributionControl:true, scrollWheelZoom:false}).setView([mapLat, mapLng], zoom);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      attribution:'&copy; <a href="https://carto.com/">CARTO</a>',
+      maxZoom:18
+    }).addTo(window._propMap);
+    L.marker([mapLat, mapLng]).addTo(window._propMap).bindPopup('<strong>'+listing.address+'</strong><br>'+townName+', NC');
+    // Invalidate size after overlay animation completes
+    setTimeout(function(){ if(window._propMap) window._propMap.invalidateSize(); }, 400);
+  }
 
   // Mortgage calc
   var price = listing.price;
@@ -2204,6 +2220,8 @@ function openProp(listing, townName) {
 }
 
 function closeProp(fromPopstate) {
+  // Clean up property map
+  if(window._propMap) { try { window._propMap.remove(); } catch(e){} window._propMap = null; }
   var o = document.getElementById('propOverlay');
   if (o) o.classList.remove('active');
   // On town pages, simply hide and restore scroll — no navigation

@@ -1014,11 +1014,9 @@ textarea.form-input{resize:vertical;min-height:100px}
 .prop-highlight-title{font-family:'Cormorant Garamond',Georgia,serif;font-size:1rem;color:var(--cream);margin-bottom:0.25rem}
 .prop-highlight-desc{font-size:0.72rem;color:var(--text-muted);line-height:1.5}
 
-/* Map placeholder */
-.prop-map{position:relative;height:300px;background:var(--surface);border:1px solid var(--border);margin:2rem 0;overflow:hidden;display:flex;align-items:center;justify-content:center}
-.prop-map-text{text-align:center;color:var(--text-muted)}
-.prop-map-text svg{width:32px;height:32px;stroke:var(--gold);fill:none;stroke-width:1.5;margin-bottom:0.5rem}
-.prop-map-text p{font-size:0.75rem;letter-spacing:0.1em}
+/* Property detail map */
+.prop-map{position:relative;height:300px;background:var(--surface);border:1px solid var(--border);margin:2rem 0;overflow:hidden;border-radius:4px;z-index:1}
+.prop-map .leaflet-container{height:100%;width:100%}
 
 /* Right column — sidebar */
 .prop-sidebar{position:sticky;top:2rem;align-self:start}
@@ -2521,12 +2519,12 @@ textarea.form-input{resize:vertical;min-height:100px}
   opacity: 0.8;
 }
 
-/* Listing broker attribution in property overlay */
+/* Listing broker attribution below property map */
 .prop-listing-broker {
   font-family: 'Outfit', sans-serif;
-  font-size: 0.8rem;
-  color: var(--text-body);
-  margin-top: 0.4rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 0.6rem;
   letter-spacing: 0.02em;
   line-height: 1.4;
 }
