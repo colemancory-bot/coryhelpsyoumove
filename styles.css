@@ -2524,9 +2524,9 @@ textarea.form-input{resize:vertical;min-height:100px}
 /* Listing broker attribution in property overlay */
 .prop-listing-broker {
   font-family: 'Outfit', sans-serif;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  margin-top: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--text-body);
+  margin-top: 0.4rem;
   letter-spacing: 0.02em;
   line-height: 1.4;
 }
