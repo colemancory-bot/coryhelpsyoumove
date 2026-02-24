@@ -159,7 +159,7 @@ if(_isTownPage){
       '<div class="sr-filter-chip sr-restrict-gated" id="srfRestrict" onclick="if(!_acctLoggedIn){event.preventDefault();event.stopPropagation();openAcctModal();}"><select id="srfRestrictSelect" onchange="srApplyFilters()" class="sr-restrict-select" disabled><option value="">Any Restrictions</option><option value="unrestricted">Unrestricted</option><option value="restricted">Deed Restricted</option><option value="light">Lightly Restricted</option><option value="hoa">HOA Community</option></select><div class="restrict-lock-overlay" id="srRestrictOverlay"><span>Create account to filter</span></div></div>' +
       '<button class="sr-filter-clear" id="srfClear" onclick="srClearFilters()">Clear All</button>' +
     '</div>' +
-    '<div class="sr-body" id="srBody"><div class="sr-map-panel" id="srMapPanel"><div class="sr-map-loading" id="srMapLoading"><span>Loading Map...</span></div><div id="srMap" style="height:100%;width:100%"></div><div class="sr-map-vignette"></div><div class="sr-map-overlay"></div><div class="sr-map-brand"><div class="sr-map-brand-text">Western North Carolina</div><div class="sr-map-brand-sub">Cory Coleman Real Estate</div></div></div><div class="sr-list-panel" id="srListPanel"><div class="sr-sort"><span>Sort by</span><select id="srSort" onchange="srApplyFilters()"><option value="relevance">Best Match</option><option value="price-asc">Price: Low to High</option><option value="price-desc">Price: High to Low</option><option value="beds-desc">Most Bedrooms</option><option value="sqft-desc">Largest</option></select></div><div class="sr-cards" id="srCards"></div></div></div>' +
+    '<div class="sr-body" id="srBody"><div class="sr-map-panel" id="srMapPanel"><div class="sr-map-loading" id="srMapLoading"><span>Loading Map...</span></div><div id="srMap" style="height:100%;width:100%"></div><div class="sr-map-vignette"></div><div class="sr-map-overlay"></div><div class="sr-map-brand"><div class="sr-map-brand-text">Western North Carolina</div><div class="sr-map-brand-sub">Cory Coleman Real Estate</div></div></div><div class="sr-list-panel" id="srListPanel"><div class="sr-sort"><span>Sort by</span><select id="srSort" onchange="srApplyFilters()"><option value="relevance">Best Match</option><option value="daysOnMarket-asc">Newest</option><option value="price-asc">Price: Low to High</option><option value="price-desc">Price: High to Low</option><option value="beds-desc">Most Bedrooms</option><option value="sqft-desc">Largest</option></select></div><div class="sr-cards" id="srCards"></div></div></div>' +
     '<button class="sr-view-toggle" id="srViewToggle" onclick="srToggleView()"><svg viewBox="0 0 24 24" id="srToggleIcon"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span id="srToggleLabel">Show Map</span></button>' +
   '</div>';
 
@@ -2896,7 +2896,7 @@ function srApplyFilters(){
   if(textQuery) {
     if(sortEl && sortEl.value !== 'relevance') sortEl.value = 'relevance';
   } else {
-    if(sortEl && sortEl.value === 'relevance') sortEl.value = 'price-asc';
+    if(sortEl && sortEl.value === 'relevance') sortEl.value = 'daysOnMarket-asc';
   }
   var sort = sortEl.value;
 
@@ -2993,18 +2993,23 @@ function srApplyFilters(){
   // Render map markers (all filtered results — clustering handles visibility)
   srRenderMarkers(results);
 
-  // Render cards — if spatial filter active, show all spatial results;
-  // otherwise viewport filtering will handle it via moveend event
+  // Render cards — always render immediately, then viewport filter can refine
   if(_srSpatialFilter) {
     document.getElementById('srCount').textContent = results.length + ' listing' + (results.length!==1?'s':'');
     srRenderCards(results);
+  } else if(_srMap) {
+    // Map is active — render viewport-filtered cards immediately
+    // (don't rely solely on moveend, which may not fire if bounds don't change)
+    var bounds = _srMap.getBounds();
+    var inView = results.filter(function(l){
+      return l.lat && l.lng && bounds.contains(L.latLng(l.lat, l.lng));
+    });
+    _srCurrentResults = inView;
+    document.getElementById('srCount').textContent = inView.length + ' of ' + results.length + ' listing' + (results.length!==1?'s':'') + ' in view';
+    srRenderCards(inView);
   } else {
-    // Let viewport filtering handle card rendering after fitBounds triggers moveend
-    // But if map isn't ready, render all cards
-    if(!_srMap) {
-      document.getElementById('srCount').textContent = results.length + ' listing' + (results.length!==1?'s':'');
-      srRenderCards(results);
-    }
+    document.getElementById('srCount').textContent = results.length + ' listing' + (results.length!==1?'s':'');
+    srRenderCards(results);
   }
 }
 
