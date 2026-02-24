@@ -1876,65 +1876,69 @@ function openPropFromTown(lid){
   var data=window[lid];
   if(data)openProp(data.l,data.t);
 }
-// Wire static featured cards in town pages on open + inject heart icons
+// Wire static featured cards — match to MLS data, inject photos + hearts + click handlers
+function _wireFeaturedCards(containerEl, townSlug){
+  if(!containerEl) return;
+  var townName = TOWN_LISTINGS[townSlug] ? TOWN_LISTINGS[townSlug].display : townSlug.replace(/-/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase()});
+  var cards=containerEl.querySelectorAll('.f-card');
+  cards.forEach(function(card){
+    if(card._propWired)return;
+    card._propWired=true;
+    var priceEl=card.querySelector('.f-card-price');
+    var addrEl=card.querySelector('.f-card-addr');
+    if(!priceEl||!addrEl)return;
+    var price=parseInt(priceEl.textContent.replace(/[^0-9]/g,''));
+    var addr=addrEl.textContent;
+    var cityEl=card.querySelector('.f-card-city');
+    var city=cityEl?cityEl.textContent.replace(/,\s*NC$/i,'').trim():townName;
+
+    // Inject heart icon if not already present
+    var imgWrap=card.querySelector('.f-card-img');
+    if(imgWrap && !imgWrap.querySelector('.card-fav-heart')){
+      imgWrap.insertAdjacentHTML('beforeend', cardFavHtml(addr, city));
+    }
+
+    // Wire click — try to match from TOWN_LISTINGS for full data, else build from card
+    var match=null;
+    if(TOWN_LISTINGS[townSlug]){
+      TOWN_LISTINGS[townSlug].listings.forEach(function(l){if(l.address===addr&&l.price===price)match=l});
+    }
+    if(match){
+      // Update photo if the static card has a placeholder
+      if(match.photo && imgWrap){
+        var existingImg = imgWrap.querySelector('img');
+        if(!existingImg){
+          var placeholder = imgWrap.querySelector('div[style]');
+          if(placeholder){
+            var img = document.createElement('img');
+            img.src = match.photo;
+            img.alt = addr;
+            img.loading = 'lazy';
+            imgWrap.replaceChild(img, placeholder);
+          }
+        }
+      }
+      card.onclick=function(e){if(e.target.closest('.card-fav-heart'))return;try{openProp(match,townName)}catch(err){console.error(err)}};
+    } else {
+      // Fallback: build listing from card HTML
+      var badgeEl=card.querySelector('.f-card-badge');
+      var type=badgeEl?badgeEl.textContent.trim():'Single Family';
+      var feats=card.querySelectorAll('.f-feat strong');
+      var beds=0,baths=0,sqft=0,lot='';
+      if(type==='Land'){lot=feats[0]?feats[0].textContent:'';}
+      else{beds=feats[0]?parseInt(feats[0].textContent):0;baths=feats[1]?parseInt(feats[1].textContent):0;sqft=feats[2]?parseInt(feats[2].textContent.replace(/,/g,'')):0;}
+      card.onclick=function(e){if(e.target.closest('.card-fav-heart'))return;try{openProp({price:price,address:addr,type:type,beds:beds,baths:baths,sqft:sqft,lot:lot,restrictions:'unrestricted',status:'Active'},city)}catch(err){console.error(err)}};
+    }
+  });
+}
+// Call on SPA navigation from homepage
 (function(){
   var origOpen=openPage;
   openPage=function(id){
     origOpen(id);
     setTimeout(function(){
       var page=document.getElementById('page-'+id);
-      if(!page)return;
-      var townName = TOWN_LISTINGS[id] ? TOWN_LISTINGS[id].display : id.replace(/-/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase()});
-      var cards=page.querySelectorAll('.f-card');
-      cards.forEach(function(card){
-        if(card._propWired)return;
-        card._propWired=true;
-        var priceEl=card.querySelector('.f-card-price');
-        var addrEl=card.querySelector('.f-card-addr');
-        if(!priceEl||!addrEl)return;
-        var price=parseInt(priceEl.textContent.replace(/[^0-9]/g,''));
-        var addr=addrEl.textContent;
-        var cityEl=card.querySelector('.f-card-city');
-        var city=cityEl?cityEl.textContent.replace(/,\s*NC$/i,'').trim():townName;
-
-        // Inject heart icon if not already present
-        var imgWrap=card.querySelector('.f-card-img');
-        if(imgWrap && !imgWrap.querySelector('.card-fav-heart')){
-          imgWrap.insertAdjacentHTML('beforeend', cardFavHtml(addr, city));
-        }
-
-        // Wire click — try to match from TOWN_LISTINGS for full data, else build from card
-        var match=null;
-        if(TOWN_LISTINGS[id]){
-          TOWN_LISTINGS[id].listings.forEach(function(l){if(l.address===addr&&l.price===price)match=l});
-        }
-        if(match){
-          // Update photo if the static card has a placeholder
-          if(match.photo && imgWrap){
-            var existingImg = imgWrap.querySelector('img');
-            if(!existingImg){
-              var placeholder = imgWrap.querySelector('div[style]');
-              if(placeholder){
-                var img = document.createElement('img');
-                img.src = match.photo;
-                img.alt = addr;
-                img.loading = 'lazy';
-                imgWrap.replaceChild(img, placeholder);
-              }
-            }
-          }
-          card.onclick=function(e){if(e.target.closest('.card-fav-heart'))return;try{openProp(match,townName)}catch(err){console.error(err)}};
-        } else {
-          // Fallback: build listing from card HTML
-          var badgeEl=card.querySelector('.f-card-badge');
-          var type=badgeEl?badgeEl.textContent.trim():'Single Family';
-          var feats=card.querySelectorAll('.f-feat strong');
-          var beds=0,baths=0,sqft=0,lot='';
-          if(type==='Land'){lot=feats[0]?feats[0].textContent:'';}
-          else{beds=feats[0]?parseInt(feats[0].textContent):0;baths=feats[1]?parseInt(feats[1].textContent):0;sqft=feats[2]?parseInt(feats[2].textContent.replace(/,/g,'')):0;}
-          card.onclick=function(e){if(e.target.closest('.card-fav-heart'))return;try{openProp({price:price,address:addr,type:type,beds:beds,baths:baths,sqft:sqft,lot:lot,restrictions:'unrestricted',status:'Active'},city)}catch(err){console.error(err)}};
-        }
-      });
+      _wireFeaturedCards(page, id);
     },100);
   };
 })();
@@ -4831,6 +4835,8 @@ if(MLS_GRID.enabled) {
       var townSlug = pathMatch ? pathMatch[1].toLowerCase() : '';
       if(townSlug && TOWN_LISTINGS[townSlug]) {
         townSearch(townSlug);
+        // Update static featured cards with real photos + click handlers
+        _wireFeaturedCards(document, townSlug);
         console.log('[MLS Grid] Town page refreshed: ' + townSlug + ' with ' + TOWN_LISTINGS[townSlug].listings.length + ' listings');
       }
     }
