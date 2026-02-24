@@ -2232,9 +2232,9 @@ function openProp(listing, townName) {
   // Fetch BBO data for admin
   if(_isAdmin && listing.listingKey && _sb) {
     _sb.from('mls_listings')
-      .select('private_remarks,showing_instructions,directions,buyer_agent_full_name,buyer_office_name,list_agent_email,list_agent_phone,feed_type,lock_box_type,lock_box_serial_number,lock_box_location,showing_contact_name,showing_contact_phone,showing_contact_type,buyer_agency_compensation,sub_agency_compensation,transaction_broker_compensation,occupant_name,occupant_phone,occupant_type,listing_agreement,special_listing_conditions,concessions_amount,concessions_comments')
+      .select('*')
       .eq('listing_key', listing.listingKey)
-      .single()
+      .maybeSingle()
       .then(function(resp){
         if(!resp.data) return;
         var d = resp.data;
@@ -2755,7 +2755,32 @@ function openSearchResults(filters){
 
   locSel.value = filters.location || '';
   typeSel.value = filters.type || '';
-  priceSel.value = filters.price || '';
+
+  // Price: if value doesn't match a dropdown option, add a custom one
+  var priceVal = filters.price || '';
+  if(priceVal) {
+    // Remove any previous custom option
+    var existing = priceSel.querySelector('option[data-custom]');
+    if(existing) existing.remove();
+    // Try setting the value
+    priceSel.value = priceVal;
+    // If select didn't accept it (no matching option), create a custom option
+    if(priceSel.value !== priceVal) {
+      var parts = priceVal.split('-');
+      var lo = parseInt(parts[0]), hi = parseInt(parts[1]);
+      var fmtK = function(v){ return v >= 1000000 ? '$' + (v/1000000).toFixed(1) + 'M' : '$' + Math.round(v/1000) + 'K'; };
+      var label = lo === 0 ? 'Under ' + fmtK(hi) : fmtK(lo) + ' – ' + fmtK(hi);
+      var opt = document.createElement('option');
+      opt.value = priceVal;
+      opt.textContent = label;
+      opt.setAttribute('data-custom', '1');
+      priceSel.appendChild(opt);
+      priceSel.value = priceVal;
+    }
+  } else {
+    priceSel.value = '';
+  }
+
   bedsSel.value = filters.beds || '';
   bathsSel.value = filters.baths || '';
   restrictSel.value = filters.restrictions || '';

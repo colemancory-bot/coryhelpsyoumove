@@ -820,3 +820,22 @@ ALTER TABLE mls_listings ADD COLUMN IF NOT EXISTS video_url TEXT DEFAULT '';
 -- Seller concessions
 ALTER TABLE mls_listings ADD COLUMN IF NOT EXISTS concessions_amount NUMERIC;
 ALTER TABLE mls_listings ADD COLUMN IF NOT EXISTS concessions_comments TEXT DEFAULT '';
+
+-- ═══ 32. Reviews (Google/Zillow/etc testimonials) ═══
+CREATE TABLE IF NOT EXISTS reviews (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  reviewer_name TEXT NOT NULL,
+  review_text TEXT DEFAULT '',
+  rating INTEGER DEFAULT 5 CHECK (rating >= 1 AND rating <= 5),
+  source TEXT DEFAULT 'Google',
+  review_date DATE DEFAULT CURRENT_DATE,
+  is_published BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
+-- Public can read published reviews
+CREATE POLICY "Anyone can read published reviews" ON reviews FOR SELECT USING (is_published = true);
+-- Admin can manage all reviews
+CREATE POLICY "Admin full access to reviews" ON reviews FOR ALL USING (
+  EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+);
