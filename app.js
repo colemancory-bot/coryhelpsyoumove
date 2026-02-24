@@ -3424,7 +3424,7 @@ async function initSupabaseAuth() {
       if(session && session.user) {
         _acctLoggedIn = true;
         _currentUser = session.user;
-        if(event === 'SIGNED_IN') { loadFavoritesFromCloud(); checkAdminRole(); }
+        if(event === 'SIGNED_IN') { loadFavoritesFromCloud(); checkAdminRole(); checkReengagement(); }
       } else if(event === 'SIGNED_OUT') {
         _acctLoggedIn = false;
         _currentUser = null;
@@ -4696,6 +4696,7 @@ openProp = function(listing, townName) {
   if(_acctLoggedIn && _currentUser) {
     logViewingHistory(key, listing, townName);
     logActivity('view', key, {address: listing.address, city: townName});
+    checkHighIntent(key, listing.address || key);
   }
   // Show/hide Ask Cory section
   var askCory = document.getElementById('propAskCory');
@@ -5044,6 +5045,65 @@ async function logActivity(type, propertyKey, metadata) {
   } catch(e) { /* silent fail */ }
 }
 
+// ═══ ACTIVITY ALERTS → FOLLOW UP BOSS ═══
+
+// Re-engagement: detect users returning after 7+ days of inactivity
+async function checkReengagement() {
+  if(!_sb || !_currentUser) return;
+  var sentKey = 'cc_reengagement_' + new Date().toDateString();
+  if(localStorage.getItem(sentKey)) return;
+  try {
+    var resp = await _sb.from('user_activity')
+      .select('created_at')
+      .eq('user_id', _currentUser.id)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    if(!resp.data || !resp.data.length) return; // brand new user, no history yet
+    var lastActivity = new Date(resp.data[0].created_at);
+    var daysSince = Math.floor((Date.now() - lastActivity.getTime()) / 86400000);
+    if(daysSince >= 7) {
+      localStorage.setItem(sentKey, '1');
+      var prof = {}; try { prof = JSON.parse(localStorage.getItem('cc_profile')||'{}'); } catch(e){}
+      var userName = ((prof.firstName||'') + ' ' + (prof.lastName||'')).trim() || _currentUser.email;
+      _pushToFUB({
+        email: _currentUser.email,
+        first_name: prof.firstName || '',
+        last_name: prof.lastName || '',
+        source: 'reengagement',
+        message: 'Re-engaged after ' + daysSince + ' days — ' + userName + ' is back on CoryHelpsYouMove.com'
+      });
+      console.log('[Activity] Re-engagement alert sent (' + daysSince + ' days)');
+    }
+  } catch(e) { console.warn('[Reengagement] Check failed:', e); }
+}
+
+// High-intent: detect when a user views the same property 3+ times
+async function checkHighIntent(propertyKey, address) {
+  if(!_sb || !_currentUser) return;
+  var alertKey = 'cc_highintent_' + propertyKey;
+  if(localStorage.getItem(alertKey)) return;
+  try {
+    var resp = await _sb.from('user_activity')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', _currentUser.id)
+      .eq('activity_type', 'view')
+      .eq('property_key', propertyKey);
+    if(resp.count >= 3) {
+      localStorage.setItem(alertKey, '1');
+      var prof = {}; try { prof = JSON.parse(localStorage.getItem('cc_profile')||'{}'); } catch(e){}
+      var userName = ((prof.firstName||'') + ' ' + (prof.lastName||'')).trim() || _currentUser.email;
+      _pushToFUB({
+        email: _currentUser.email,
+        first_name: prof.firstName || '',
+        last_name: prof.lastName || '',
+        source: 'high_intent',
+        message: 'High intent — ' + userName + ' viewed ' + address + ' ' + resp.count + ' times'
+      });
+      console.log('[Activity] High-intent alert sent for ' + address + ' (' + resp.count + ' views)');
+    }
+  } catch(e) { console.warn('[HighIntent] Check failed:', e); }
+}
+
 // ═══ NOTIFICATION CENTER ═══
 async function loadNotificationCount() {
   if(!_sb || !_currentUser) return;
@@ -5142,6 +5202,16 @@ async function submitShowingRequest() {
       user_name: (prof.firstName||'')+' '+(prof.lastName||''), user_email: prof.email||'', user_phone: prof.phone||''
     });
     logActivity('showing_request', _currentPropKey, {slots: slots});
+    // Push showing request to Follow Up Boss
+    _pushToFUB({
+      email: prof.email || _currentUser.email,
+      first_name: prof.firstName || '',
+      last_name: prof.lastName || '',
+      phone: prof.phone || '',
+      source: 'showing_request',
+      message: 'Showing requested for ' + (window._currentListing.address || _currentPropKey) +
+        ' — ' + slots.map(function(s){ return s.date + ' ' + s.time; }).join(', ')
+    });
     var form = document.getElementById('showingRequestForm');
     if(form) form.innerHTML = '<div class="showing-success"><svg viewBox="0 0 24 24" style="width:32px;height:32px;stroke:var(--gold);fill:none;stroke-width:2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg><h4>Request Sent!</h4><p>I\'ll get back to you shortly to confirm a time.</p></div>';
   } catch(e) { alert('Could not send request. Please try again.'); if(btn) { btn.textContent = 'Request Showing'; btn.disabled = false; } }

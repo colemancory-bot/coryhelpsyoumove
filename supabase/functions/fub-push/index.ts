@@ -22,9 +22,15 @@ function mapSourceToType(source: string): string {
     case "chatbot":
       return "General Inquiry";
     case "chatbot_signup":
+    case "account_signup":
       return "Registration";
     case "consultation_form":
+    case "high_intent":
+    case "price_drop":
+    case "showing_request":
       return "Property Inquiry";
+    case "reengagement":
+      return "Website Activity";
     default:
       return "General Inquiry";
   }

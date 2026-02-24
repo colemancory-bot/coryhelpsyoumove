@@ -314,7 +314,7 @@ async function syncProperties(
 
       const { data: existing } = await supabase
         .from("mls_listings")
-        .select("list_price, standard_status")
+        .select("list_price, standard_status, full_address, city")
         .eq("listing_key", listingKey)
         .single();
 
@@ -342,6 +342,55 @@ async function syncProperties(
             source: "CSAR",
             previous_price: prevPrice,
           });
+
+          // ── Price Drop → Notify favoriting users via FUB ──
+          if (currentPrice < prevPrice) {
+            try {
+              const propKey = ((existing.full_address || "") + "|" + (existing.city || "")).toLowerCase();
+              const { data: favUsers } = await supabase
+                .from("favorites")
+                .select("user_id")
+                .eq("property_key", propKey);
+
+              if (favUsers && favUsers.length > 0) {
+                const address = existing.full_address || `${record.StreetNumber || ""} ${record.StreetName || ""} ${record.StreetSuffix || ""}`.trim();
+                const userIds = favUsers.map((f: { user_id: string }) => f.user_id);
+                const { data: profiles } = await supabase
+                  .from("profiles")
+                  .select("id, email, first_name")
+                  .in("id", userIds);
+
+                const fmt = (n: number) => n.toLocaleString("en-US");
+                for (const profile of (profiles || [])) {
+                  // In-app notification
+                  await supabase.from("alert_notifications").insert({
+                    user_id: profile.id,
+                    alert_type: "price_drop",
+                    property_key: propKey,
+                    title: "Price Drop: " + address,
+                    message: "Price reduced from $" + fmt(prevPrice) + " to $" + fmt(currentPrice),
+                  });
+                  // Push to FUB
+                  const fubUrl = Deno.env.get("SUPABASE_URL") + "/functions/v1/fub-push";
+                  const fubKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+                  await fetch(fubUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + fubKey },
+                    body: JSON.stringify({
+                      email: profile.email,
+                      first_name: profile.first_name || "",
+                      source: "price_drop",
+                      message: "Price drop on favorited property: " + address +
+                        " — $" + fmt(prevPrice) + " → $" + fmt(currentPrice),
+                    }),
+                  }).catch((err: unknown) => console.warn("[Price Drop FUB] Push failed:", err));
+                }
+                console.log(`[Navica Sync] Price drop alerts sent for ${address} to ${(profiles || []).length} users`);
+              }
+            } catch (err) {
+              console.warn("[Navica Sync] Price drop notification error:", err);
+            }
+          }
         }
 
         // Detect status transitions
