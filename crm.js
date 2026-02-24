@@ -1439,6 +1439,8 @@ function renderListingDetail(l) {
   html += ldField('Original Price', l.original_list_price ? '$' + l.original_list_price.toLocaleString() : '');
   html += ldField('Close Price', l.close_price ? '$' + l.close_price.toLocaleString() : '');
   html += ldField('Close Date', l.close_date);
+  if (l.virtual_tour_url) html += '<div class="ld-field"><span class="ld-field-label">Virtual Tour</span><span class="ld-field-value"><a href="' + esc(l.virtual_tour_url) + '" target="_blank" style="color:var(--crm-accent)">Open Tour ↗</a></span></div>';
+  if (l.video_url) html += '<div class="ld-field"><span class="ld-field-label">Video</span><span class="ld-field-value"><a href="' + esc(l.video_url) + '" target="_blank" style="color:var(--crm-accent)">Watch ↗</a></span></div>';
   html += '</div></div>';
 
   // Section 2: Property Details
@@ -1461,15 +1463,56 @@ function renderListingDetail(l) {
     html += '<div class="ld-section"><div class="ld-section-title">Public Remarks</div><div class="ld-text">' + esc(l.public_remarks) + '</div></div>';
   }
 
-  // Section 4: BBO / Agent Notes (gold border)
-  var hasBBO = l.private_remarks || l.showing_instructions || l.directions;
-  if (hasBBO) {
-    html += '<div class="ld-section ld-bbo"><div class="ld-section-title">Agent Notes <span class="ld-bbo-badge">BBO</span></div>';
-    if (l.private_remarks) html += '<div class="ld-bbo-field"><div class="ld-bbo-label">Private Remarks</div><div class="ld-text">' + esc(l.private_remarks) + '</div></div>';
-    if (l.showing_instructions) html += '<div class="ld-bbo-field"><div class="ld-bbo-label">Showing Instructions</div><div class="ld-text">' + esc(l.showing_instructions) + '</div></div>';
-    if (l.directions) html += '<div class="ld-bbo-field"><div class="ld-bbo-label">Directions</div><div class="ld-text">' + esc(l.directions) + '</div></div>';
-    html += '</div>';
+  // Section 4: BBO / Agent Notes (gold border) — all broker-only fields
+  html += '<div class="ld-section ld-bbo"><div class="ld-section-title">Agent Notes <span class="ld-bbo-badge">BBO</span></div>';
+
+  if (l.private_remarks) html += '<div class="ld-bbo-field"><div class="ld-bbo-label">Private Remarks</div><div class="ld-text">' + esc(l.private_remarks) + '</div></div>';
+  if (l.showing_instructions) html += '<div class="ld-bbo-field"><div class="ld-bbo-label">Showing Instructions</div><div class="ld-text">' + esc(l.showing_instructions) + '</div></div>';
+  if (l.directions) html += '<div class="ld-bbo-field"><div class="ld-bbo-label">Directions</div><div class="ld-text">' + esc(l.directions) + '</div></div>';
+
+  // Lock box
+  if (l.lock_box_type || l.lock_box_serial_number || l.lock_box_location) {
+    html += '<div class="ld-bbo-field"><div class="ld-bbo-label">Lock Box</div><div class="ld-grid">';
+    html += ldField('Type', l.lock_box_type); html += ldField('Serial #', l.lock_box_serial_number); html += ldField('Location', l.lock_box_location);
+    html += '</div></div>';
   }
+
+  // Showing contact
+  if (l.showing_contact_name || l.showing_contact_phone) {
+    html += '<div class="ld-bbo-field"><div class="ld-bbo-label">Showing Contact</div><div class="ld-grid">';
+    html += ldField('Name', l.showing_contact_name); html += ldField('Phone', l.showing_contact_phone); html += ldField('Type', l.showing_contact_type);
+    html += '</div></div>';
+  }
+
+  // Commission
+  if (l.buyer_agency_compensation || l.sub_agency_compensation || l.transaction_broker_compensation) {
+    html += '<div class="ld-bbo-field"><div class="ld-bbo-label">Compensation</div><div class="ld-grid">';
+    html += ldField('Buyer Agency', l.buyer_agency_compensation); html += ldField('Sub-Agency', l.sub_agency_compensation); html += ldField('Transaction Broker', l.transaction_broker_compensation);
+    html += '</div></div>';
+  }
+
+  // Occupant
+  if (l.occupant_name || l.occupant_phone || l.occupant_type) {
+    html += '<div class="ld-bbo-field"><div class="ld-bbo-label">Occupant</div><div class="ld-grid">';
+    html += ldField('Name', l.occupant_name); html += ldField('Phone', l.occupant_phone); html += ldField('Type', l.occupant_type);
+    html += '</div></div>';
+  }
+
+  // Listing terms
+  if (l.listing_agreement || l.special_listing_conditions) {
+    html += '<div class="ld-bbo-field"><div class="ld-bbo-label">Listing Terms</div><div class="ld-grid">';
+    html += ldField('Agreement', l.listing_agreement); html += ldField('Special Conditions', l.special_listing_conditions);
+    html += '</div></div>';
+  }
+
+  // Seller concessions
+  if (l.concessions_amount || l.concessions_comments) {
+    html += '<div class="ld-bbo-field"><div class="ld-bbo-label">Seller Concessions</div><div class="ld-grid">';
+    html += ldField('Amount', l.concessions_amount ? '$' + parseFloat(l.concessions_amount).toLocaleString() : ''); html += ldField('Comments', l.concessions_comments);
+    html += '</div></div>';
+  }
+
+  html += '</div>';
 
   // Section 5: Agent & Office
   html += '<div class="ld-section"><div class="ld-section-title">Agent & Office</div><div class="ld-grid">';

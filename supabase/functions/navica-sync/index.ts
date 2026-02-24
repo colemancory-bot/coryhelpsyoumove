@@ -303,6 +303,38 @@ async function syncProperties(
         zoning: record.Zoning || "",
         restrictions: record.Restrictions || [],
 
+        // BBO: Lock box
+        lock_box_type: record.LockBoxType || "",
+        lock_box_serial_number: record.LockBoxSerialNumber || "",
+        lock_box_location: record.LockBoxLocation || "",
+
+        // BBO: Showing contact
+        showing_contact_name: record.ShowingContactName || "",
+        showing_contact_phone: record.ShowingContactPhone || "",
+        showing_contact_type: record.ShowingContactType || "",
+
+        // BBO: Commission / compensation
+        buyer_agency_compensation: record.BuyerAgencyCompensation || "",
+        sub_agency_compensation: record.SubAgencyCompensation || "",
+        transaction_broker_compensation: record.TransactionBrokerCompensation || "",
+
+        // BBO: Occupant info
+        occupant_name: record.OccupantName || "",
+        occupant_phone: record.OccupantPhone || "",
+        occupant_type: record.OccupantType || "",
+
+        // BBO: Listing terms
+        listing_agreement: record.ListingAgreement || "",
+        special_listing_conditions: record.SpecialListingConditions || "",
+
+        // Virtual tour / video
+        virtual_tour_url: record.VirtualTourURLUnbranded || record.VirtualTourURLBranded || "",
+        video_url: record.VideoURL || "",
+
+        // Seller concessions
+        concessions_amount: record.ConcessionsAmount || null,
+        concessions_comments: record.ConcessionsComments || "",
+
         // Raw JSON (complete record for unmapped fields)
         raw_data: record,
 

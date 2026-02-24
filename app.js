@@ -2232,41 +2232,71 @@ function openProp(listing, townName) {
   // Fetch BBO data for admin
   if(_isAdmin && listing.listingKey && _sb) {
     _sb.from('mls_listings')
-      .select('private_remarks,showing_instructions,directions,buyer_agent_full_name,buyer_office_name,list_agent_email,list_agent_phone,feed_type')
+      .select('private_remarks,showing_instructions,directions,buyer_agent_full_name,buyer_office_name,list_agent_email,list_agent_phone,feed_type,lock_box_type,lock_box_serial_number,lock_box_location,showing_contact_name,showing_contact_phone,showing_contact_type,buyer_agency_compensation,sub_agency_compensation,transaction_broker_compensation,occupant_name,occupant_phone,occupant_type,listing_agreement,special_listing_conditions,concessions_amount,concessions_comments')
       .eq('listing_key', listing.listingKey)
       .single()
       .then(function(resp){
         if(!resp.data) return;
         var d = resp.data;
-        var hasData = false;
         var notesEl = document.getElementById('propAdminNotes');
         if(!notesEl) return;
+        var html = '';
 
-        function renderField(elId, label, value) {
-          if(!value || !value.trim()) return;
-          hasData = true;
-          document.getElementById(elId).innerHTML =
-            '<div class="prop-admin-field-label">' + label + '</div>' +
-            '<div class="prop-admin-field-value">' + value.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
+        function bf(label, value) {
+          if(!value || (typeof value === 'string' && !value.trim())) return '';
+          var safe = String(value).replace(/</g,'&lt;').replace(/>/g,'&gt;');
+          return '<div class="prop-admin-field"><div class="prop-admin-field-label">' + label + '</div><div class="prop-admin-field-value">' + safe + '</div></div>';
         }
 
-        renderField('propPrivateRemarks', 'Private Remarks', d.private_remarks);
-        renderField('propShowingInstructions', 'Showing Instructions', d.showing_instructions);
-        renderField('propDirections', 'Directions', d.directions);
+        html += bf('Private Remarks', d.private_remarks);
+        html += bf('Showing Instructions', d.showing_instructions);
+        html += bf('Directions', d.directions);
+
+        // Lock box
+        var lb = [d.lock_box_type, d.lock_box_serial_number ? '#' + d.lock_box_serial_number : '', d.lock_box_location].filter(Boolean).join(' \u2022 ');
+        html += bf('Lock Box', lb);
+
+        // Showing contact
+        var sc = [d.showing_contact_name, d.showing_contact_phone, d.showing_contact_type ? '(' + d.showing_contact_type + ')' : ''].filter(Boolean).join(' \u2022 ');
+        html += bf('Showing Contact', sc);
+
+        // Commission
+        var comp = [];
+        if(d.buyer_agency_compensation) comp.push('Buyer: ' + d.buyer_agency_compensation);
+        if(d.sub_agency_compensation) comp.push('Sub-Agency: ' + d.sub_agency_compensation);
+        if(d.transaction_broker_compensation) comp.push('Trans Broker: ' + d.transaction_broker_compensation);
+        html += bf('Compensation', comp.join(' \u2022 '));
+
+        // Occupant
+        var occ = [d.occupant_name, d.occupant_phone, d.occupant_type ? '(' + d.occupant_type + ')' : ''].filter(Boolean).join(' \u2022 ');
+        html += bf('Occupant', occ);
 
         // Buyer agent
-        var buyerParts = [];
-        if(d.buyer_agent_full_name) buyerParts.push(d.buyer_agent_full_name);
-        if(d.buyer_office_name) buyerParts.push(d.buyer_office_name);
-        if(buyerParts.length) renderField('propBuyerAgent', 'Buyer Agent', buyerParts.join(' \u2022 '));
+        var ba = [d.buyer_agent_full_name, d.buyer_office_name].filter(Boolean).join(' \u2022 ');
+        html += bf('Buyer Agent', ba);
 
-        // List agent contact details
-        var contactParts = [];
-        if(d.list_agent_email) contactParts.push(d.list_agent_email);
-        if(d.list_agent_phone) contactParts.push(d.list_agent_phone);
-        if(contactParts.length) renderField('propListAgentContact', 'List Agent Contact', contactParts.join(' \u2022 '));
+        // List agent contact
+        var lac = [d.list_agent_email, d.list_agent_phone].filter(Boolean).join(' \u2022 ');
+        html += bf('List Agent Contact', lac);
 
-        if(hasData) notesEl.style.display = '';
+        // Listing terms
+        var terms = [d.listing_agreement, d.special_listing_conditions].filter(Boolean).join(' \u2022 ');
+        html += bf('Listing Terms', terms);
+
+        // Concessions
+        var conc = [];
+        if(d.concessions_amount) conc.push('$' + parseFloat(d.concessions_amount).toLocaleString());
+        if(d.concessions_comments) conc.push(d.concessions_comments);
+        html += bf('Seller Concessions', conc.join(' — '));
+
+        if(html) {
+          // Clear individual field containers and inject all at once
+          ['propPrivateRemarks','propShowingInstructions','propDirections','propBuyerAgent','propListAgentContact'].forEach(function(id){
+            var el = document.getElementById(id); if(el) el.innerHTML = '';
+          });
+          notesEl.querySelector('.prop-section-label').insertAdjacentHTML('afterend', html);
+          notesEl.style.display = '';
+        }
       }).catch(function(e){ console.error('[BBO] fetch error:', e); });
   }
 
