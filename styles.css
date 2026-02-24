@@ -1028,7 +1028,7 @@ textarea.form-input{resize:vertical;min-height:100px}
 .prop-agent-header{display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem}
 .prop-agent-avatar{width:56px;height:56px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',Georgia,serif;font-size:1.2rem;color:var(--bg);font-weight:500}
 .prop-agent-name{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.2rem;color:var(--cream);font-weight:400}
-.prop-agent-brokerage{font-size:0.62rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--text-muted)}
+.prop-agent-brokerage{font-size:0.75rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold);font-weight:500}
 .prop-agent-cta{width:100%;padding:0.9rem;font-family:'Outfit',sans-serif;font-size:0.68rem;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;cursor:pointer;transition:all 0.3s;display:flex;align-items:center;justify-content:center;gap:0.6rem;border:none;margin-bottom:0.65rem;text-decoration:none}
 .prop-agent-cta.primary{background:var(--gold);color:var(--bg)}
 .prop-agent-cta.primary:hover{background:var(--gold-light)}
