@@ -4946,7 +4946,22 @@ async function loadViewingHistoryUI() {
       card.className = 'suggestion-mini';
       card.style.cursor = 'pointer';
       card.innerHTML = '<img class="suggestion-mini-img" src="' + (d.photo||'') + '" alt=""><div class="suggestion-mini-info"><div class="suggestion-mini-price">$' + (d.price||0).toLocaleString() + '</div><div class="suggestion-mini-addr">' + (d.address||'') + ', ' + (d.city||'') + '</div></div>';
-      card.onclick = function() { closeAcctModal(); var match = ALL_LISTINGS.find(function(l){ return propKey(l, l.city) === v.property_key; }); if(match) openProp(match, match.city); };
+      card.onclick = function() {
+        closeAcctModal();
+        var match = ALL_LISTINGS.find(function(l){ return propKey(l, l.city) === v.property_key; });
+        if(match) { openProp(match, match.city); }
+        else if(d.address) {
+          // Fallback: use saved property data snapshot
+          openProp({
+            price:d.price||0, address:d.address, type:d.type||'Single Family',
+            beds:d.beds||0, baths:d.baths||0, sqft:d.sqft||0, lot:d.lot||'',
+            restrictions:d.restrictions||'unrestricted', status:d.status||'Active',
+            photo:d.photo||null, photos:d.photos||[], description:d.description||'',
+            mlsId:d.mlsId||'', listingKey:d.listingKey||'',
+            listAgent:d.listAgent||'', listOffice:d.listOffice||'', listOfficePhone:d.listOfficePhone||''
+          }, d.city||'');
+        }
+      };
       container.appendChild(card);
     });
   } catch(e) { container.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem">Could not load history</p>'; }
