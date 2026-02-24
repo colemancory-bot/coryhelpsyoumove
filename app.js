@@ -1,7 +1,4 @@
-// ═══ DEV BYPASS — remove before production ═══
 var _isAdmin = false;
-function devUnlock(){ _acctLoggedIn=true; _isAdmin=true; updateAcctUI(); updateGatedFeatures(); updatePrintGate(); var nw=document.getElementById('propNotesWrap');if(nw)nw.style.display=''; console.log('🔓 Dev mode: account + admin unlocked'); }
-function devLock(){ _acctLoggedIn=false; _isAdmin=false; updateAcctUI(); updateGatedFeatures(); updatePrintGate(); var nw=document.getElementById('propNotesWrap');if(nw)nw.style.display='none'; console.log('🔒 Dev mode: account + admin locked'); }
 
 // ═══ CTRL+P INTERCEPT — Custom print for logged-in users ═══
 window.addEventListener('keydown', function(e){
