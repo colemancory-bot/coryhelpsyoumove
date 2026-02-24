@@ -809,8 +809,9 @@ if(!MLS_GRID.enabled) {
   var _loadingHtml = '<div class="idx-loading" style="grid-column:1/-1;text-align:center;padding:3rem 1rem;color:var(--gold);font-family:var(--font-body);font-size:1.1rem;"><div style="margin-bottom:0.8rem;font-size:1.8rem;">&#x1F3E0;</div>Loading live listings from MLS...<div style="margin-top:0.5rem;font-size:0.85rem;opacity:0.6;">Connecting to Carolina Smokies MLS</div></div>';
   var _fg = document.getElementById('featuredGrid');
   if(_fg) _fg.innerHTML = _loadingHtml;
-  // Also show loading on town page grids
+  // Also show loading on town page grids (search + featured)
   document.querySelectorAll('[id^="tps-grid-"]').forEach(function(el){ el.innerHTML = _loadingHtml; });
+  document.querySelectorAll('[id^="tp-featured-"]').forEach(function(el){ el.innerHTML = _loadingHtml; });
 }
 
 // ═══ IDX DISCLAIMER INJECTION (for town pages) ═══
@@ -1897,6 +1898,28 @@ function openPropFromTown(lid){
   var data=window[lid];
   if(data)openProp(data.l,data.t);
 }
+// Render top 3 MLS listings into the town page featured grid
+function renderTownFeatured(townSlug){
+  var grid = document.getElementById('tp-featured-'+townSlug);
+  if(!grid) return;
+  var data = TOWN_LISTINGS[townSlug];
+  if(!data || !data.listings || !data.listings.length){ grid.innerHTML=''; return; }
+  var townName = data.display;
+  grid.innerHTML = '';
+  data.listings.slice(0,3).forEach(function(l){
+    var c=document.createElement('div');c.className='f-card';
+    var feats=l.type==='Land'?'<span class="f-feat"><strong>'+l.lot+'</strong></span>':'<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+l.sqft.toLocaleString()+'</strong> SF</span>';
+    var badge=l.type==='Land'?' land':'';
+    var statusBadge=l.status==='Under Contract'?'<div class="card-status-tag">Under Contract</div>':'';
+    var photoHtml=l.photo?'<img src="'+l.photo+'" alt="'+l.address+'" loading="lazy">':'<div style="aspect-ratio:16/10;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.75rem">No Photo Available</div>';
+    var tBrokerParts=[];if(l.listAgent)tBrokerParts.push(l.listAgent);if(l.listOffice)tBrokerParts.push(l.listOffice);
+    var tBrokerHtml=tBrokerParts.length?'<div class="f-card-office">Listed by '+tBrokerParts.join(' &bull; ')+(l.mlsId?' | MLS# '+l.mlsId:'')+'</div>':'';
+    c.innerHTML='<div class="f-card-img" style="position:relative">'+photoHtml+'<div class="f-card-badge'+badge+'">'+l.type+'</div>'+statusBadge+cardFavHtml(l.address,townName)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+townName+', NC</div><div class="f-card-features">'+feats+'</div>'+tBrokerHtml+'</div>';
+    (function(listing,town){c.onclick=function(e){if(e.target.closest('.card-fav-heart'))return;try{openProp(listing,town)}catch(err){console.error(err)}}})(l,townName);
+    grid.appendChild(c);
+  });
+}
+
 // Wire static featured cards — match to MLS data, inject photos + hearts + click handlers
 function _wireFeaturedCards(containerEl, townSlug){
   if(!containerEl) return;
@@ -1958,8 +1981,7 @@ function _wireFeaturedCards(containerEl, townSlug){
   openPage=function(id){
     origOpen(id);
     setTimeout(function(){
-      var page=document.getElementById('page-'+id);
-      _wireFeaturedCards(page, id);
+      renderTownFeatured(id);
     },100);
   };
 })();
@@ -4885,6 +4907,12 @@ if(MLS_GRID.enabled) {
           listingKey:l.listingKey, listAgent:l.listAgent, listOffice:l.listOffice, listOfficePhone:l.listOfficePhone });
       });
       renderFeatured();
+      // Also populate town featured grid from cache
+      if(_isTownPage) {
+        var _cPathMatch = window.location.pathname.match(/\/towns\/([a-z-]+)\.html/i);
+        var _cTownSlug = _cPathMatch ? _cPathMatch[1].toLowerCase() : '';
+        if(_cTownSlug && TOWN_LISTINGS[_cTownSlug]) { renderTownFeatured(_cTownSlug); townSearch(_cTownSlug); }
+      }
       console.log('[MLS Grid] Loaded ' + ALL_LISTINGS.length + ' cached listings (fresh fetch in background)');
     }
   } catch(e) { console.warn('[MLS Grid] Cache restore failed:', e.message); }
@@ -4899,8 +4927,8 @@ if(MLS_GRID.enabled) {
       var townSlug = pathMatch ? pathMatch[1].toLowerCase() : '';
       if(townSlug && TOWN_LISTINGS[townSlug]) {
         townSearch(townSlug);
-        // Update static featured cards with real photos + click handlers
-        _wireFeaturedCards(document, townSlug);
+        // Populate featured grid with real MLS listings
+        renderTownFeatured(townSlug);
         console.log('[MLS Grid] Town page refreshed: ' + townSlug + ' with ' + TOWN_LISTINGS[townSlug].listings.length + ' listings');
       }
     }
