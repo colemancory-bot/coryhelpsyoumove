@@ -3660,23 +3660,22 @@ async function submitAcct() {
         email: email,
         phone: phone
       });
-      // If they chatted before signing up, push transcript as a lead
+      // Always push to FUB on signup — append chat transcript if they chatted first
+      var signupLeadData = {
+        first_name: first,
+        last_name: last,
+        email: email,
+        phone: phone,
+        source: 'account_signup',
+        message: 'New account signup'
+      };
       if(!_chatLeadPushed && convHistory && convHistory.length > 0){
         var transcript = buildChatTranscript();
-        if(transcript){
-          var signupLeadData = {
-            first_name: first,
-            last_name: last,
-            email: email,
-            phone: phone,
-            message: transcript,
-            source: 'chatbot_signup'
-          };
-          _sb.from('leads').insert(signupLeadData)
-            .then(function(){ _chatLeadPushed = true; console.log('[Signup] Lead saved'); _pushToFUB(signupLeadData); })
-            .catch(function(e){ console.warn('[Signup] Lead push failed:', e); });
-        }
+        if(transcript){ signupLeadData.message += '\n\n' + transcript; signupLeadData.source = 'chatbot_signup'; }
       }
+      _sb.from('leads').insert(signupLeadData)
+        .then(function(){ _chatLeadPushed = true; console.log('[Signup] Lead saved'); _pushToFUB(signupLeadData); })
+        .catch(function(e){ console.warn('[Signup] Lead push failed:', e); });
     }
     _acctLoggedIn = true;
     // Save profile to localStorage (used by chatbot)
