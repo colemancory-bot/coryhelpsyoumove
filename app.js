@@ -102,6 +102,7 @@ if(_isTownPage){
         '<div class="prop-section-label" style="margin-top:2.5rem">Location</div>' +
         '<div class="prop-map" id="propMapContainer"></div>' +
         '<div class="prop-listing-broker" id="propListingBroker"></div>' +
+        '<div class="prop-admin-notes" id="propAdminNotes" style="display:none"><div class="prop-section-label" style="margin-top:2rem">Agent Notes <span class="admin-badge">Admin Only</span></div><div class="prop-admin-field" id="propPrivateRemarks"></div><div class="prop-admin-field" id="propShowingInstructions"></div><div class="prop-admin-field" id="propDirections"></div><div class="prop-admin-field" id="propBuyerAgent"></div><div class="prop-admin-field" id="propListAgentContact"></div></div>' +
       '</div>' +
       '<div class="prop-sidebar">' +
         '<div class="prop-agent"><div class="prop-agent-header"><div class="prop-agent-avatar">CC</div><div><div class="prop-agent-name">Cory Coleman</div><div class="prop-agent-brokerage">Keller Williams Great Smokies</div></div></div>' +
@@ -2211,11 +2212,64 @@ function openProp(listing, townName) {
   document.getElementById('calcLoan').textContent = '$' + loan.toLocaleString();
   document.getElementById('calcMonthly').textContent = '$' + monthly.toLocaleString();
 
+  // Admin BBO notes — reset then fetch
+  var adminNotesEl = document.getElementById('propAdminNotes');
+  if(adminNotesEl) {
+    adminNotesEl.style.display = 'none';
+    document.getElementById('propPrivateRemarks').innerHTML = '';
+    document.getElementById('propShowingInstructions').innerHTML = '';
+    document.getElementById('propDirections').innerHTML = '';
+    document.getElementById('propBuyerAgent').innerHTML = '';
+    document.getElementById('propListAgentContact').innerHTML = '';
+  }
+
   // Show overlay
   o.classList.add('active');
   o.scrollTop = 0;
   document.body.style.overflow = 'hidden';
   try{history.pushState({page:'property'},'','#property')}catch(he){}
+
+  // Fetch BBO data for admin
+  if(_isAdmin && listing.listingKey && _sb) {
+    _sb.from('mls_listings')
+      .select('private_remarks,showing_instructions,directions,buyer_agent_full_name,buyer_office_name,list_agent_email,list_agent_phone,feed_type')
+      .eq('listing_key', listing.listingKey)
+      .single()
+      .then(function(resp){
+        if(!resp.data) return;
+        var d = resp.data;
+        var hasData = false;
+        var notesEl = document.getElementById('propAdminNotes');
+        if(!notesEl) return;
+
+        function renderField(elId, label, value) {
+          if(!value || !value.trim()) return;
+          hasData = true;
+          document.getElementById(elId).innerHTML =
+            '<div class="prop-admin-field-label">' + label + '</div>' +
+            '<div class="prop-admin-field-value">' + value.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
+        }
+
+        renderField('propPrivateRemarks', 'Private Remarks', d.private_remarks);
+        renderField('propShowingInstructions', 'Showing Instructions', d.showing_instructions);
+        renderField('propDirections', 'Directions', d.directions);
+
+        // Buyer agent
+        var buyerParts = [];
+        if(d.buyer_agent_full_name) buyerParts.push(d.buyer_agent_full_name);
+        if(d.buyer_office_name) buyerParts.push(d.buyer_office_name);
+        if(buyerParts.length) renderField('propBuyerAgent', 'Buyer Agent', buyerParts.join(' \u2022 '));
+
+        // List agent contact details
+        var contactParts = [];
+        if(d.list_agent_email) contactParts.push(d.list_agent_email);
+        if(d.list_agent_phone) contactParts.push(d.list_agent_phone);
+        if(contactParts.length) renderField('propListAgentContact', 'List Agent Contact', contactParts.join(' \u2022 '));
+
+        if(hasData) notesEl.style.display = '';
+      }).catch(function(e){ console.error('[BBO] fetch error:', e); });
+  }
+
   }catch(err){console.error('openProp error:',err)}
 }
 

@@ -122,7 +122,8 @@ var SIDEBAR_TABS = [
   { id: 'transactions', label: 'Transactions', icon: '<svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>' },
   { id: 'showings', label: 'Showings', icon: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' },
   { id: 'questions', label: 'Questions', icon: '<svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>' },
-  { id: 'analytics', label: 'Analytics', icon: '<svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>' }
+  { id: 'analytics', label: 'Analytics', icon: '<svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>' },
+  { id: 'listings', label: 'Listings', icon: '<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M9 22V12h6v10"/></svg>' }
 ];
 
 function renderSidebar() {
@@ -156,6 +157,7 @@ function switchTab(tab) {
   else if (tab === 'showings') loadShowings();
   else if (tab === 'questions') loadQuestions();
   else if (tab === 'analytics') loadAnalytics();
+  else if (tab === 'listings') loadListings();
 }
 
 // ── Global Search ──
@@ -184,12 +186,20 @@ async function runGlobalSearch(query) {
   var results = document.getElementById('globalSearchResults');
   var q = '%' + query + '%';
   try {
-    var [contactsResp, txResp, docsResp] = await Promise.all([
+    var [contactsResp, txResp, docsResp, listingsResp] = await Promise.all([
       _sb.from('contacts').select('id, first_name, last_name, email, stage').or('first_name.ilike.' + q + ',last_name.ilike.' + q + ',email.ilike.' + q + ',phone.ilike.' + q).limit(5),
       _sb.from('transactions').select('id, property_address, status').ilike('property_address', q).limit(3),
-      _sb.from('documents').select('id, file_name, category').ilike('file_name', q).limit(3)
+      _sb.from('documents').select('id, file_name, category').ilike('file_name', q).limit(3),
+      _sb.from('mls_listings').select('listing_key, listing_id, full_address, city, list_price, standard_status').or('full_address.ilike.' + q + ',listing_id.ilike.' + q + ',city.ilike.' + q).limit(5)
     ]);
     var html = '';
+    if (listingsResp.data && listingsResp.data.length) {
+      html += '<div class="crm-search-category">Listings</div>';
+      listingsResp.data.forEach(function(l) {
+        html += '<div class="crm-search-item" onclick="_listingsFilters.search=\'' + esc(l.full_address || l.listing_id) + '\';switchTab(\'listings\')">' +
+          '<span>' + esc(l.full_address || '') + '</span><span class="crm-badge" style="font-size:0.65rem">' + (l.list_price ? '$' + l.list_price.toLocaleString() : '') + '</span></div>';
+      });
+    }
     if (contactsResp.data && contactsResp.data.length) {
       html += '<div class="crm-search-category">Contacts</div>';
       contactsResp.data.forEach(function(c) {
@@ -1218,4 +1228,373 @@ function renderActivityList(activities) {
   });
   html += '</div>';
   return html;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LISTINGS TAB — Full MLS Research Tool
+// ═══════════════════════════════════════════════════════════════
+
+var _listingsCache = [];
+var _listingsFilters = { search: '', status: '', type: '', city: '', feed: '', priceMin: '', priceMax: '' };
+var _listingsSort = { col: 'list_price', asc: false };
+var _listingsDetailOpen = null; // listing_key of expanded row
+
+async function loadListings() {
+  var main = document.getElementById('crmMain');
+  if (!_listingsCache.length) {
+    main.innerHTML = '<div class="crm-loading"><div class="crm-spinner"></div></div>';
+    try {
+      var data = [];
+      var from = 0;
+      var pageSize = 1000;
+      while (true) {
+        var resp = await _sb.from('mls_listings').select('*').range(from, from + pageSize - 1);
+        if (resp.error) throw resp.error;
+        if (!resp.data || !resp.data.length) break;
+        data = data.concat(resp.data);
+        if (resp.data.length < pageSize) break;
+        from += pageSize;
+      }
+      _listingsCache = data;
+    } catch(e) {
+      console.error('[Listings]', e);
+      main.innerHTML = '<div class="crm-empty-state"><div class="crm-empty-state-title">Error loading listings</div><div class="crm-empty-state-text">' + esc(e.message || 'Unknown error') + '</div></div>';
+      return;
+    }
+  }
+  renderListingsTab();
+}
+
+function renderListingsTab() {
+  var main = document.getElementById('crmMain');
+  var filtered = filterListings();
+
+  // Unique cities for dropdown
+  var cities = {};
+  _listingsCache.forEach(function(l) { if (l.city) cities[l.city] = true; });
+  var cityOptions = Object.keys(cities).sort();
+
+  var html = '<div class="crm-page-header"><div><div class="crm-page-title fd">MLS Listings</div><div class="crm-page-subtitle">' + filtered.length + ' of ' + _listingsCache.length + ' listings</div></div></div>';
+
+  // Filters
+  html += '<div class="listings-filters">';
+  html += '<input class="crm-input listings-search" placeholder="Search address, MLS#, agent..." value="' + esc(_listingsFilters.search) + '" oninput="filterListingsBy(\'search\',this.value)" />';
+  html += '<select class="crm-select" onchange="filterListingsBy(\'status\',this.value)"><option value="">All Statuses</option>';
+  ['Active', 'Under Contract', 'Closed', 'Expired', 'Withdrawn'].forEach(function(s) {
+    html += '<option value="' + s + '"' + (_listingsFilters.status === s ? ' selected' : '') + '>' + s + '</option>';
+  });
+  html += '</select>';
+  html += '<select class="crm-select" onchange="filterListingsBy(\'type\',this.value)"><option value="">All Types</option>';
+  ['Single Family', 'Cabin', 'Land', 'Condo', 'Townhouse', 'Multi Family'].forEach(function(s) {
+    html += '<option value="' + s + '"' + (_listingsFilters.type === s ? ' selected' : '') + '>' + s + '</option>';
+  });
+  html += '</select>';
+  html += '<select class="crm-select" onchange="filterListingsBy(\'city\',this.value)"><option value="">All Cities</option>';
+  cityOptions.forEach(function(c) {
+    html += '<option value="' + c + '"' + (_listingsFilters.city === c ? ' selected' : '') + '>' + c + '</option>';
+  });
+  html += '</select>';
+  html += '<select class="crm-select" onchange="filterListingsBy(\'feed\',this.value)"><option value="">All Feeds</option><option value="IDX"' + (_listingsFilters.feed === 'IDX' ? ' selected' : '') + '>IDX Only</option><option value="BBO"' + (_listingsFilters.feed === 'BBO' ? ' selected' : '') + '>BBO Only</option></select>';
+  html += '<select class="crm-select" onchange="filterListingsBy(\'priceMax\',this.value)"><option value="">Any Price</option>';
+  [200000,400000,700000,1000000,2000000].forEach(function(p) {
+    html += '<option value="' + p + '"' + (_listingsFilters.priceMax == p ? ' selected' : '') + '>Under $' + (p >= 1000000 ? (p/1000000) + 'M' : (p/1000) + 'K') + '</option>';
+  });
+  html += '</select>';
+  html += '</div>';
+
+  // Table
+  html += '<div class="crm-table-wrap listings-table-wrap"><table class="crm-table listings-table"><thead><tr>';
+  var cols = [
+    { key: 'standard_status', label: 'Status', w: '90px' },
+    { key: 'listing_id', label: 'MLS#', w: '90px' },
+    { key: 'full_address', label: 'Address', w: '' },
+    { key: 'city', label: 'City', w: '110px' },
+    { key: 'property_type', label: 'Type', w: '100px' },
+    { key: 'list_price', label: 'Price', w: '100px' },
+    { key: 'days_on_market', label: 'DOM', w: '55px' },
+    { key: 'list_agent_full_name', label: 'List Agent', w: '130px' },
+    { key: 'list_office_name', label: 'Office', w: '140px' },
+    { key: 'feed_type', label: 'Feed', w: '55px' }
+  ];
+  cols.forEach(function(c) {
+    var arrow = _listingsSort.col === c.key ? (_listingsSort.asc ? ' ↑' : ' ↓') : '';
+    html += '<th style="' + (c.w ? 'width:' + c.w : '') + ';cursor:pointer" onclick="sortListings(\'' + c.key + '\')">' + c.label + arrow + '</th>';
+  });
+  html += '</tr></thead><tbody>';
+
+  if (filtered.length) {
+    filtered.slice(0, 200).forEach(function(l) {
+      var statusClass = (l.standard_status || '').toLowerCase().replace(/\s+/g, '-');
+      html += '<tr class="listings-row" onclick="toggleListingDetail(\'' + esc(l.listing_key) + '\')">';
+      html += '<td><span class="listings-status-dot ' + statusClass + '">' + esc(l.standard_status || '—') + '</span></td>';
+      html += '<td class="crm-table-muted">' + esc(l.listing_id || '') + '</td>';
+      html += '<td>' + esc(l.full_address || '') + '</td>';
+      html += '<td>' + esc(l.city || '') + '</td>';
+      html += '<td>' + esc(l.property_type || '') + '</td>';
+      html += '<td>$' + (l.list_price ? l.list_price.toLocaleString() : '—') + '</td>';
+      html += '<td class="crm-table-muted">' + (l.days_on_market || '—') + '</td>';
+      html += '<td class="crm-table-muted">' + esc(l.list_agent_full_name || '') + '</td>';
+      html += '<td class="crm-table-muted">' + esc(l.list_office_name || '') + '</td>';
+      html += '<td><span class="listings-feed-badge ' + (l.feed_type === 'IDX' ? 'idx' : 'bbo') + '">' + esc(l.feed_type || '—') + '</span></td>';
+      html += '</tr>';
+      // Inline detail row
+      if (_listingsDetailOpen === l.listing_key) {
+        html += '<tr class="listings-detail-row"><td colspan="10">' + renderListingDetail(l) + '</td></tr>';
+      }
+    });
+    if (filtered.length > 200) {
+      html += '<tr><td colspan="10" class="crm-table-muted" style="text-align:center;padding:1rem">Showing first 200 of ' + filtered.length + ' results. Use filters to narrow down.</td></tr>';
+    }
+  } else {
+    html += '<tr><td colspan="10"><div class="crm-empty-state"><div class="crm-empty-state-text">No listings match your filters</div></div></td></tr>';
+  }
+  html += '</tbody></table></div>';
+  main.innerHTML = html;
+}
+
+function filterListings() {
+  var results = _listingsCache.slice();
+  var f = _listingsFilters;
+  if (f.status) results = results.filter(function(l) { return l.standard_status === f.status; });
+  if (f.type) results = results.filter(function(l) { return l.property_type === f.type; });
+  if (f.city) results = results.filter(function(l) { return l.city === f.city; });
+  if (f.feed) results = results.filter(function(l) {
+    if (f.feed === 'BBO') return !l.mlg_can_view;
+    return l.mlg_can_view === true;
+  });
+  if (f.priceMax) results = results.filter(function(l) { return l.list_price && l.list_price <= parseInt(f.priceMax); });
+  if (f.search) {
+    var s = f.search.toLowerCase();
+    results = results.filter(function(l) {
+      return (l.full_address || '').toLowerCase().includes(s) ||
+        (l.listing_id || '').toLowerCase().includes(s) ||
+        (l.listing_key || '').toLowerCase().includes(s) ||
+        (l.list_agent_full_name || '').toLowerCase().includes(s) ||
+        (l.list_office_name || '').toLowerCase().includes(s) ||
+        (l.city || '').toLowerCase().includes(s);
+    });
+  }
+  // Sort
+  var col = _listingsSort.col;
+  var asc = _listingsSort.asc;
+  results.sort(function(a, b) {
+    var va = a[col], vb = b[col];
+    if (va == null) va = '';
+    if (vb == null) vb = '';
+    if (typeof va === 'number' && typeof vb === 'number') return asc ? va - vb : vb - va;
+    va = String(va).toLowerCase(); vb = String(vb).toLowerCase();
+    return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+  });
+  return results;
+}
+
+function filterListingsBy(key, val) {
+  _listingsFilters[key] = val;
+  renderListingsTab();
+}
+
+function sortListings(col) {
+  if (_listingsSort.col === col) _listingsSort.asc = !_listingsSort.asc;
+  else { _listingsSort.col = col; _listingsSort.asc = true; }
+  renderListingsTab();
+}
+
+function toggleListingDetail(listingKey) {
+  _listingsDetailOpen = (_listingsDetailOpen === listingKey) ? null : listingKey;
+  renderListingsTab();
+  // Scroll to detail row
+  if (_listingsDetailOpen) {
+    setTimeout(function() {
+      var row = document.querySelector('.listings-detail-row');
+      if (row) row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 50);
+  }
+}
+
+function renderListingDetail(l) {
+  var html = '<div class="listings-detail">';
+
+  // Two column layout
+  html += '<div class="listings-detail-grid">';
+
+  // Left: photos placeholder + map
+  html += '<div class="listings-detail-left">';
+  html += '<div class="listings-detail-photos" id="ldPhotos_' + esc(l.listing_key) + '"><div class="crm-loading" style="padding:2rem"><div class="crm-spinner"></div></div></div>';
+  if (l.latitude && l.longitude) {
+    html += '<div class="listings-detail-map" id="ldMap_' + esc(l.listing_key) + '"></div>';
+  }
+  html += '</div>';
+
+  // Right: all fields
+  html += '<div class="listings-detail-right">';
+
+  // Section 1: Listing Info
+  html += '<div class="ld-section"><div class="ld-section-title">Listing Info</div><div class="ld-grid">';
+  html += ldField('Price', l.list_price ? '$' + l.list_price.toLocaleString() : '—');
+  html += ldField('Status', l.standard_status);
+  html += ldField('MLS#', l.listing_id);
+  html += ldField('DOM', l.days_on_market);
+  html += ldField('List Date', l.list_date);
+  html += ldField('Feed Type', l.feed_type);
+  html += ldField('Original Price', l.original_list_price ? '$' + l.original_list_price.toLocaleString() : '');
+  html += ldField('Close Price', l.close_price ? '$' + l.close_price.toLocaleString() : '');
+  html += ldField('Close Date', l.close_date);
+  html += '</div></div>';
+
+  // Section 2: Property Details
+  html += '<div class="ld-section"><div class="ld-section-title">Property Details</div><div class="ld-grid">';
+  html += ldField('Type', l.property_type);
+  html += ldField('Sub Type', l.property_sub_type);
+  html += ldField('Beds', l.bedrooms_total);
+  html += ldField('Baths', l.bathrooms_total_integer);
+  html += ldField('Half Baths', l.bathrooms_half);
+  html += ldField('Sqft', l.living_area ? parseFloat(l.living_area).toLocaleString() : '');
+  html += ldField('Lot Acres', l.lot_size_acres);
+  html += ldField('Year Built', l.year_built);
+  html += ldField('Stories', l.stories);
+  html += ldField('Garage', l.garage_spaces);
+  html += ldField('Parking', l.parking_total);
+  html += '</div></div>';
+
+  // Section 3: Description
+  if (l.public_remarks) {
+    html += '<div class="ld-section"><div class="ld-section-title">Public Remarks</div><div class="ld-text">' + esc(l.public_remarks) + '</div></div>';
+  }
+
+  // Section 4: BBO / Agent Notes (gold border)
+  var hasBBO = l.private_remarks || l.showing_instructions || l.directions;
+  if (hasBBO) {
+    html += '<div class="ld-section ld-bbo"><div class="ld-section-title">Agent Notes <span class="ld-bbo-badge">BBO</span></div>';
+    if (l.private_remarks) html += '<div class="ld-bbo-field"><div class="ld-bbo-label">Private Remarks</div><div class="ld-text">' + esc(l.private_remarks) + '</div></div>';
+    if (l.showing_instructions) html += '<div class="ld-bbo-field"><div class="ld-bbo-label">Showing Instructions</div><div class="ld-text">' + esc(l.showing_instructions) + '</div></div>';
+    if (l.directions) html += '<div class="ld-bbo-field"><div class="ld-bbo-label">Directions</div><div class="ld-text">' + esc(l.directions) + '</div></div>';
+    html += '</div>';
+  }
+
+  // Section 5: Agent & Office
+  html += '<div class="ld-section"><div class="ld-section-title">Agent & Office</div><div class="ld-grid">';
+  html += ldField('List Agent', l.list_agent_full_name);
+  html += ldField('Agent Email', l.list_agent_email);
+  html += ldField('Agent Phone', l.list_agent_phone);
+  html += ldField('List Office', l.list_office_name);
+  html += ldField('Office Phone', l.list_office_phone);
+  html += ldField('Buyer Agent', l.buyer_agent_full_name);
+  html += ldField('Buyer Office', l.buyer_office_name);
+  html += '</div></div>';
+
+  // Section 6: Features
+  var featureArrays = [
+    ['Interior', l.interior_features], ['Exterior', l.exterior_features],
+    ['Appliances', l.appliances], ['Heating', l.heating], ['Cooling', l.cooling],
+    ['Roof', l.roof], ['Flooring', l.flooring], ['Foundation', l.foundation_details],
+    ['Construction', l.construction_materials], ['View', l.view],
+    ['Waterfront', l.waterfront_features]
+  ];
+  var hasFeatures = featureArrays.some(function(f) { return f[1] && f[1].length; });
+  if (hasFeatures) {
+    html += '<div class="ld-section"><div class="ld-section-title">Features</div><div class="ld-grid">';
+    featureArrays.forEach(function(f) {
+      if (f[1] && f[1].length) {
+        var val = Array.isArray(f[1]) ? f[1].join(', ') : f[1];
+        html += ldField(f[0], val);
+      }
+    });
+    html += '</div></div>';
+  }
+
+  // Section 7: Utilities
+  var hasUtilities = l.water_source || l.sewer || l.electric || l.internet_whole_listing;
+  if (hasUtilities) {
+    html += '<div class="ld-section"><div class="ld-section-title">Utilities</div><div class="ld-grid">';
+    html += ldField('Water', arrayOrStr(l.water_source));
+    html += ldField('Sewer', arrayOrStr(l.sewer));
+    html += ldField('Electric', arrayOrStr(l.electric));
+    html += ldField('Internet', arrayOrStr(l.internet_whole_listing));
+    html += '</div></div>';
+  }
+
+  // Section 8: Financial
+  html += '<div class="ld-section"><div class="ld-section-title">Financial</div><div class="ld-grid">';
+  html += ldField('HOA Fee', l.association_fee ? '$' + l.association_fee : '');
+  html += ldField('HOA Frequency', l.association_fee_frequency);
+  html += ldField('HOA Name', l.association_name);
+  html += ldField('Tax Amount', l.tax_annual_amount ? '$' + parseFloat(l.tax_annual_amount).toLocaleString() : '');
+  html += ldField('Tax Year', l.tax_year);
+  html += ldField('Zoning', l.zoning);
+  html += ldField('Restrictions', arrayOrStr(l.restrictions));
+  html += '</div></div>';
+
+  // Section 9: Location
+  html += '<div class="ld-section"><div class="ld-section-title">Location</div><div class="ld-grid">';
+  html += ldField('Address', l.full_address);
+  html += ldField('City', l.city);
+  html += ldField('County', l.county_or_parish);
+  html += ldField('State', l.state_or_province);
+  html += ldField('Zip', l.postal_code);
+  html += ldField('Lat', l.latitude);
+  html += ldField('Lng', l.longitude);
+  html += '</div></div>';
+
+  // Section 10: Raw Data (collapsible)
+  if (l.raw_data) {
+    html += '<div class="ld-section"><details class="ld-raw"><summary class="ld-section-title" style="cursor:pointer">Raw MLS Data ▸</summary><pre class="ld-raw-json">' + esc(JSON.stringify(l.raw_data, null, 2)) + '</pre></details></div>';
+  }
+
+  html += '</div>'; // end right
+  html += '</div>'; // end grid
+  html += '</div>'; // end detail
+
+  // Load photos async
+  setTimeout(function() { loadListingPhotos(l.listing_key); }, 100);
+  // Init map async
+  if (l.latitude && l.longitude) {
+    setTimeout(function() { initListingDetailMap(l.listing_key, l.latitude, l.longitude, l.full_address, l.city); }, 200);
+  }
+
+  return html;
+}
+
+function ldField(label, value) {
+  if (value == null || value === '' || value === undefined) return '';
+  return '<div class="ld-field"><span class="ld-field-label">' + label + '</span><span class="ld-field-value">' + esc(String(value)) + '</span></div>';
+}
+
+function arrayOrStr(val) {
+  if (!val) return '';
+  if (Array.isArray(val)) return val.join(', ');
+  return String(val);
+}
+
+async function loadListingPhotos(listingKey) {
+  var container = document.getElementById('ldPhotos_' + listingKey);
+  if (!container) return;
+  try {
+    var resp = await _sb.from('mls_media').select('local_url,media_url,order').eq('listing_key', listingKey).order('order', { ascending: true }).limit(20);
+    if (!resp.data || !resp.data.length) {
+      container.innerHTML = '<div class="ld-no-photos">No photos available</div>';
+      return;
+    }
+    var html = '<div class="ld-photo-scroll">';
+    resp.data.forEach(function(p, i) {
+      var src = p.local_url || p.media_url;
+      html += '<img class="ld-photo" src="' + esc(src) + '" alt="Photo ' + (i+1) + '" loading="lazy" onclick="window.open(\'' + esc(src) + '\',\'_blank\')" />';
+    });
+    html += '</div>';
+    container.innerHTML = html;
+  } catch(e) { container.innerHTML = '<div class="ld-no-photos">Error loading photos</div>'; }
+}
+
+var _ldMaps = {};
+function initListingDetailMap(listingKey, lat, lng, address, city) {
+  var container = document.getElementById('ldMap_' + listingKey);
+  if (!container || typeof L === 'undefined') return;
+  // Clean up previous map for this key
+  if (_ldMaps[listingKey]) { try { _ldMaps[listingKey].remove(); } catch(e){} }
+  var map = L.map(container, { zoomControl: true, scrollWheelZoom: false }).setView([parseFloat(lat), parseFloat(lng)], 15);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://carto.com/">CARTO</a>', maxZoom: 18
+  }).addTo(map);
+  L.marker([parseFloat(lat), parseFloat(lng)]).addTo(map).bindPopup('<strong>' + esc(address || '') + '</strong><br>' + esc(city || '') + ', NC');
+  _ldMaps[listingKey] = map;
+  setTimeout(function() { map.invalidateSize(); }, 300);
 }

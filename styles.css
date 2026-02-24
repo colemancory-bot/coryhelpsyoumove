@@ -1018,6 +1018,15 @@ textarea.form-input{resize:vertical;min-height:100px}
 .prop-map{position:relative;height:300px;background:var(--surface);border:1px solid var(--border);margin:2rem 0;overflow:hidden;border-radius:4px;z-index:1}
 .prop-map .leaflet-container{height:100%;width:100%}
 
+/* BBO Admin Notes (property overlay) */
+.prop-admin-notes{margin-top:2rem;padding:1.25rem 1.5rem;border-left:3px solid var(--gold);background:rgba(196,176,140,0.06);border-radius:0 4px 4px 0}
+.prop-admin-notes .prop-section-label{margin-top:0;display:flex;align-items:center;gap:0.6rem}
+.admin-badge{font-size:0.55rem;letter-spacing:0.1em;text-transform:uppercase;background:var(--gold);color:var(--bg);padding:0.15rem 0.5rem;border-radius:10px;font-weight:600;font-family:'Outfit',sans-serif}
+.prop-admin-field{margin-top:1rem}
+.prop-admin-field:empty{display:none}
+.prop-admin-field-label{font-size:0.68rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:0.3rem;font-family:'Outfit',sans-serif}
+.prop-admin-field-value{font-size:0.85rem;color:var(--text);line-height:1.6;white-space:pre-wrap}
+
 /* Right column — sidebar */
 .prop-sidebar{position:sticky;top:2rem;align-self:start}
 
