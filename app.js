@@ -157,7 +157,7 @@ if(_isTownPage){
       '<div class="sr-filter-chip sr-restrict-gated" id="srfRestrict" onclick="if(!_acctLoggedIn){event.preventDefault();event.stopPropagation();openAcctModal();}"><select id="srfRestrictSelect" onchange="srApplyFilters()" class="sr-restrict-select" disabled><option value="">Any Restrictions</option><option value="unrestricted">Unrestricted</option><option value="restricted">Deed Restricted</option><option value="light">Lightly Restricted</option><option value="hoa">HOA Community</option></select><div class="restrict-lock-overlay" id="srRestrictOverlay"><span>Create account to filter</span></div></div>' +
       '<button class="sr-filter-clear" id="srfClear" onclick="srClearFilters()">Clear All</button>' +
     '</div>' +
-    '<div class="sr-body" id="srBody"><div class="sr-map-panel" id="srMapPanel"><div class="sr-map-loading" id="srMapLoading"><span>Loading Map...</span></div><div id="srMap" style="height:100%;width:100%"></div><div class="sr-map-vignette"></div><div class="sr-map-overlay"></div><div class="sr-map-brand"><div class="sr-map-brand-text">Western North Carolina</div><div class="sr-map-brand-sub">Cory Coleman Real Estate</div></div></div><div class="sr-list-panel" id="srListPanel"><div class="sr-sort"><span>Sort by</span><select id="srSort" onchange="srApplyFilters()"><option value="price-asc">Price: Low to High</option><option value="price-desc">Price: High to Low</option><option value="beds-desc">Most Bedrooms</option><option value="sqft-desc">Largest</option></select></div><div class="sr-cards" id="srCards"></div></div></div>' +
+    '<div class="sr-body" id="srBody"><div class="sr-map-panel" id="srMapPanel"><div class="sr-map-loading" id="srMapLoading"><span>Loading Map...</span></div><div id="srMap" style="height:100%;width:100%"></div><div class="sr-map-vignette"></div><div class="sr-map-overlay"></div><div class="sr-map-brand"><div class="sr-map-brand-text">Western North Carolina</div><div class="sr-map-brand-sub">Cory Coleman Real Estate</div></div></div><div class="sr-list-panel" id="srListPanel"><div class="sr-sort"><span>Sort by</span><select id="srSort" onchange="srApplyFilters()"><option value="relevance">Best Match</option><option value="price-asc">Price: Low to High</option><option value="price-desc">Price: High to Low</option><option value="beds-desc">Most Bedrooms</option><option value="sqft-desc">Largest</option></select></div><div class="sr-cards" id="srCards"></div></div></div>' +
     '<button class="sr-view-toggle" id="srViewToggle" onclick="srToggleView()"><svg viewBox="0 0 24 24" id="srToggleIcon"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span id="srToggleLabel">Show Map</span></button>' +
   '</div>';
 
@@ -2751,8 +2751,14 @@ function srApplyFilters(){
   var beds = document.getElementById('srfBedsSelect').value;
   var baths = document.getElementById('srfBathsSelect').value;
   var restrict = document.getElementById('srfRestrictSelect').value;
-  var sort = document.getElementById('srSort').value;
   var textQuery = ((document.getElementById('srfTextQuery')||{}).value||'').trim().toLowerCase();
+  var sortEl = document.getElementById('srSort');
+  if(textQuery) {
+    if(sortEl && sortEl.value !== 'relevance') sortEl.value = 'relevance';
+  } else {
+    if(sortEl && sortEl.value === 'relevance') sortEl.value = 'price-asc';
+  }
+  var sort = sortEl.value;
 
   // Highlight active filters
   document.querySelectorAll('.sr-filter-chip').forEach(function(c){
@@ -2808,13 +2814,15 @@ function srApplyFilters(){
     });
   }
 
-  // Sort
-  var sortParts = sort.split('-');
-  var sortKey = sortParts[0], sortDir = sortParts[1];
-  results.sort(function(a,b){
-    var va = a[sortKey]||0, vb = b[sortKey]||0;
-    return sortDir === 'asc' ? va - vb : vb - va;
-  });
+  // Sort (skip when "relevance" — preserve Fuse.js best-match order)
+  if(sort !== 'relevance') {
+    var sortParts = sort.split('-');
+    var sortKey = sortParts[0], sortDir = sortParts[1];
+    results.sort(function(a,b){
+      var va = a[sortKey]||0, vb = b[sortKey]||0;
+      return sortDir === 'asc' ? va - vb : vb - va;
+    });
+  }
 
   // Apply spatial filter if a shape is drawn
   if(_srSpatialFilter) {
