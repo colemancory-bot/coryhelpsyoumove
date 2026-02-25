@@ -131,7 +131,7 @@ if(_isTownPage){
 
   // --- Property Detail Overlay ---
   html += '<div class="prop-overlay" id="propOverlay">' +
-    '<div class="prop-demo-banner"><span class="demo-banner-icon">\u26A0</span> Sample listings shown for demonstration purposes only. These properties are not real.</div>' +
+    '<div class="prop-demo-banner" id="propDemoBanner" style="display:none"><span class="demo-banner-icon">\u26A0</span> Sample listings shown for demonstration purposes only. These properties are not real.</div>' +
     '<button class="prop-close" onclick="closeProp()">&times;</button>' +
     '<div class="prop-theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode"><span class="prop-toggle-sun">☀</span><span class="prop-toggle-moon">☽</span></div>' +
     '<div class="prop-hero-wrap"><div class="prop-hero" id="propHeroZone">' +
@@ -139,7 +139,7 @@ if(_isTownPage){
       '<div class="prop-nav prop-nav-left" onclick="propImgNav(-1)"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></div>' +
       '<div class="prop-nav prop-nav-right" onclick="propImgNav(1)"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>' +
       '<div class="prop-hero-expand" onclick="openLightbox()"><svg viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg> View Photos</div>' +
-      '<div class="prop-hero-content"><div class="prop-hero-status active-status" id="propStatus">Active Listing</div><div class="prop-demo-notice" id="propDemoNotice">Sample Listing — Demo Data</div><div class="prop-thumbs" id="propThumbs"></div></div>' +
+      '<div class="prop-hero-content"><div class="prop-hero-status active-status" id="propStatus">Active Listing</div><div class="prop-demo-notice" id="propDemoNotice" style="display:none">Sample Listing — Demo Data</div><div class="prop-thumbs" id="propThumbs"></div></div>' +
     '</div></div>' +
     '<div class="prop-info-bar"><div class="prop-info-bar-inner">' +
       '<div class="prop-info-left"><div class="prop-hero-price" id="propPrice"></div><div class="prop-hero-addr" id="propAddr"></div><div class="prop-hero-city" id="propCity"></div><div class="prop-listing-broker" id="propListingBroker"></div></div>' +
@@ -458,7 +458,7 @@ var SIMPLYRETS = {
         }
         newTowns[slug].listings.push({
           price:l.price, address:l.address, type:l.type, beds:l.beds, baths:l.baths,
-          sqft:l.sqft, lot:l.lot, status:l.status, restrictions:l.restrictions,
+          sqft:l.sqft, sqftRange:l.sqftRange||'', lot:l.lot, status:l.status, restrictions:l.restrictions,
           photo:l.photo, photos:l.photos, lat:l.lat, lng:l.lng,
           mlsId:l.mlsId, listingId:l.listingId, yearBuilt:l.yearBuilt,
           daysOnMarket:l.daysOnMarket, description:l.description
@@ -475,7 +475,7 @@ var SIMPLYRETS = {
       sorted.slice(0,6).forEach(function(l,i){
         LISTINGS.push({
           id:i+1, price:l.price, address:l.address, city:l.city, type:l.type,
-          beds:l.beds, baths:l.baths, sqft:l.sqft, lot:l.lot,
+          beds:l.beds, baths:l.baths, sqft:l.sqft, sqftRange:l.sqftRange||'', lot:l.lot,
           photo:l.photo, photos:l.photos, days:l.daysOnMarket,
           mlsId:l.mlsId, restrictions:l.restrictions, status:l.status
         });
@@ -486,7 +486,7 @@ var SIMPLYRETS = {
       LISTINGS.forEach(function(l){
         ALL_LISTINGS.push({
           price:l.price, address:l.address, city:l.city, type:l.type,
-          beds:l.beds, baths:l.baths, sqft:l.sqft, lot:l.lot,
+          beds:l.beds, baths:l.baths, sqft:l.sqft, sqftRange:l.sqftRange||'', lot:l.lot,
           photo:l.photo, photos:l.photos, status:l.status||'Active',
           restrictions:l.restrictions||'unrestricted', _src:'featured',
           lat:null, lng:null, mlsId:l.mlsId
@@ -499,7 +499,7 @@ var SIMPLYRETS = {
           if(!isDup){
             ALL_LISTINGS.push({
               price:l.price, address:l.address, city:td.display, type:l.type,
-              beds:l.beds, baths:l.baths, sqft:l.sqft, lot:l.lot,
+              beds:l.beds, baths:l.baths, sqft:l.sqft, sqftRange:l.sqftRange||'', lot:l.lot,
               photo:l.photo||null, photos:l.photos||[], status:l.status||'Active',
               restrictions:l.restrictions||'unrestricted', _src:'simplyrets',
               lat:l.lat||null, lng:l.lng||null, mlsId:l.mlsId
@@ -528,7 +528,7 @@ var SIMPLYRETS = {
         grid.innerHTML = '';
         LISTINGS.slice(0,6).forEach(function(l,i){
           var c=document.createElement('div');c.className='f-card reveal vis';
-          var feats=l.type==='Land'?'<span class="f-feat"><strong>'+l.lot+'</strong></span>':'<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+l.sqft.toLocaleString()+'</strong> SF</span>';
+          var feats=l.type==='Land'?'<span class="f-feat"><strong>'+l.lot+'</strong></span>':'<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+_formatSqft(l)+'</strong> '+_sqftLabel(l)+'</span>';
           var imgSrc = l.photo || 'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=700&q=80';
           var hpStatus=l.status==='Under Contract'?'<div class="card-status-tag">Under Contract</div>':'';
           c.innerHTML='<div class="f-card-img"><img src="'+imgSrc+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge '+(l.type==='Land'?'land':'')+'">'+l.type+'</div>'+hpStatus+cardFavHtml(l.address,l.city)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+l.city+', NC</div><div class="f-card-features">'+feats+'</div></div>';
@@ -642,6 +642,7 @@ var MLS_GRID = {
       beds: row.bedrooms_total || 0,
       baths: row.bathrooms_total_integer || 0,
       sqft: row.living_area ? parseInt(row.living_area) : 0,
+      sqftRange: row.living_area_range || '',
       lot: lotAc,
       status: status,
       restrictions: restrict,
@@ -655,8 +656,62 @@ var MLS_GRID = {
       listAgent: row.list_agent_full_name || '',
       listOffice: row.list_office_name || '',
       listOfficePhone: row.list_office_phone || '',
+      attributionContact: row.attribution_contact || '',
+      originatingSystem: row.originating_system_name || '',
       _src: 'mlsgrid'
     };
+  },
+  // Readable MLS source label from originating_system_name
+  _mlsLabel: function(sys) {
+    if(!sys) return 'MLS';
+    var s = sys.toLowerCase();
+    if(s === 'csar' || s.indexOf('carolina smokies') > -1) return 'CSAR';
+    // Canopy MLS / MLS Grid — the originating system name from MLS Grid
+    return 'Canopy MLS';
+  },
+  // Merge duplicate listings that appear in both CSAR and Canopy MLS.
+  // Match by normalized address+city. The merged listing keeps the data from
+  // the version with the most complete info (photo, description, etc.) and
+  // stores an mlsSources array crediting each MLS feed.
+  _deduplicateListings: function(listings) {
+    var groups = {};
+    listings.forEach(function(l) {
+      // Normalize: lowercase, strip punctuation/whitespace, combine address+city
+      var key = (l.address + '|' + l.city).toLowerCase().replace(/[^a-z0-9|]/g, '');
+      if(!groups[key]) groups[key] = [];
+      groups[key].push(l);
+    });
+    var merged = [];
+    Object.keys(groups).forEach(function(key) {
+      var group = groups[key];
+      if(group.length === 1) {
+        // Single source — wrap in mlsSources for consistent downstream access
+        var single = group[0];
+        single.mlsSources = [{ system: MLS_GRID._mlsLabel(single.originatingSystem), mlsId: single.mlsId, attributionContact: single.attributionContact }];
+        merged.push(single);
+      } else {
+        // Multiple sources — pick the one with best data as primary
+        group.sort(function(a, b) {
+          // Prefer: has photo > has description > lower days on market
+          var aScore = (a.photo ? 100 : 0) + (a.description ? 10 : 0) + (a.sqft ? 1 : 0);
+          var bScore = (b.photo ? 100 : 0) + (b.description ? 10 : 0) + (b.sqft ? 1 : 0);
+          return bScore - aScore;
+        });
+        var primary = group[0];
+        // Build mlsSources from all versions
+        primary.mlsSources = group.map(function(l) {
+          return { system: MLS_GRID._mlsLabel(l.originatingSystem), mlsId: l.mlsId, attributionContact: l.attributionContact };
+        });
+        // If primary lacks a photo but another has one, take it
+        if(!primary.photo) {
+          for(var i = 1; i < group.length; i++) {
+            if(group[i].photo) { primary.photo = group[i].photo; primary.photos = group[i].photos; break; }
+          }
+        }
+        merged.push(primary);
+      }
+    });
+    return merged;
   },
   // Paginated fetch helper — Supabase caps at 1000 rows per request
   _fetchAll: function(table, selectCols, filters) {
@@ -691,9 +746,9 @@ var MLS_GRID = {
     // Fetch all listings (paginated) and all primary photos (paginated) in parallel
     var listingsPromise = MLS_GRID._fetchAll('mls_listings',
       'listing_id,listing_key,list_price,full_address,city,property_type,property_sub_type,' +
-      'bedrooms_total,bathrooms_total_integer,living_area,lot_size_acres,lot_size_square_feet,' +
+      'bedrooms_total,bathrooms_total_integer,living_area,living_area_range,lot_size_acres,lot_size_square_feet,' +
       'standard_status,association_fee,latitude,longitude,year_built,days_on_market,' +
-      'public_remarks,list_agent_full_name,list_office_name,list_office_phone', [
+      'public_remarks,list_agent_full_name,list_office_name,list_office_phone,attribution_contact,originating_system_name', [
       { method: 'eq', args: ['mlg_can_view', true] },
       { method: 'in', args: ['standard_status', ['Active','Active Under Contract','Pending']] },
       { method: 'neq', args: ['property_type', 'Residential Lease'] }
@@ -731,6 +786,16 @@ var MLS_GRID = {
         });
         console.log('[MLS Grid] Photo assignment: ' + withPhoto + ' with photo, ' + noPhoto + ' without');
 
+        // ── Multi-MLS deduplication ─────────────────────────────
+        // Both CSAR (Navica) and Canopy MLS (MLS Grid) write to the same table.
+        // If the same property appears in both feeds, merge into a single listing
+        // with mlsSources array crediting both MLSs and both MLS numbers.
+        var preDedupCount = mapped.length;
+        mapped = MLS_GRID._deduplicateListings(mapped);
+        if(preDedupCount !== mapped.length) {
+          console.log('[MLS Grid] Deduplicated: ' + preDedupCount + ' → ' + mapped.length + ' listings (' + (preDedupCount - mapped.length) + ' duplicates merged)');
+        }
+
         // Populate TOWN_LISTINGS
         var newTowns = {};
         mapped.forEach(function(l) {
@@ -747,11 +812,13 @@ var MLS_GRID = {
         sorted.slice(0,6).forEach(function(l,i){
           LISTINGS.push({
             id:i+1, price:l.price, address:l.address, city:l.city, type:l.type,
-            beds:l.beds, baths:l.baths, sqft:l.sqft, lot:l.lot,
+            beds:l.beds, baths:l.baths, sqft:l.sqft, sqftRange:l.sqftRange||'', lot:l.lot,
             photo:l.photo, photos:l.photos, days:l.daysOnMarket,
             mlsId:l.mlsId, restrictions:l.restrictions, status:l.status,
             listingKey:l.listingKey,
-            listAgent:l.listAgent, listOffice:l.listOffice, listOfficePhone:l.listOfficePhone
+            listAgent:l.listAgent, listOffice:l.listOffice, listOfficePhone:l.listOfficePhone,
+            attributionContact:l.attributionContact,
+            originatingSystem:l.originatingSystem, mlsSources:l.mlsSources
           });
         });
 
@@ -760,12 +827,14 @@ var MLS_GRID = {
         mapped.forEach(function(l){
           ALL_LISTINGS.push({
             price:l.price, address:l.address, city:l.city, type:l.type,
-            beds:l.beds, baths:l.baths, sqft:l.sqft, lot:l.lot,
+            beds:l.beds, baths:l.baths, sqft:l.sqft, sqftRange:l.sqftRange||'', lot:l.lot,
             photo:l.photo, photos:l.photos, status:l.status,
             restrictions:l.restrictions, _src:'mlsgrid',
             lat:l.lat, lng:l.lng, mlsId:l.mlsId, description:l.description,
             daysOnMarket:l.daysOnMarket, listingKey:l.listingKey,
-            listAgent:l.listAgent, listOffice:l.listOffice, listOfficePhone:l.listOfficePhone
+            listAgent:l.listAgent, listOffice:l.listOffice, listOfficePhone:l.listOfficePhone,
+            attributionContact:l.attributionContact,
+            originatingSystem:l.originatingSystem, mlsSources:l.mlsSources
           });
         });
 
@@ -778,9 +847,14 @@ var MLS_GRID = {
           console.log('[MLS Grid] Cached ' + ALL_LISTINGS.length + ' listings to localStorage');
         } catch(e) { console.warn('[MLS Grid] Cache write failed:', e.message); }
 
-        // Update timestamp
+        // Update timestamps
+        var _tsNow = new Date();
+        var _tsFormatted = _tsNow.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) + ' at ' + _tsNow.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
         var tsEl = document.getElementById('idxTimestamp');
-        if(tsEl) tsEl.textContent = 'Data last updated: ' + new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) + ' at ' + new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+        if(tsEl) tsEl.textContent = 'Data last updated: ' + _tsFormatted;
+        // Rule 24 compliance: MLS GRID data timestamp in disclaimer
+        var gridTsEl = document.getElementById('idxGridTimestamp');
+        if(gridTsEl) gridTsEl.textContent = _tsFormatted;
 
         // Remove demo banner
         var demoBanner = document.getElementById('demoBanner');
@@ -817,13 +891,49 @@ var MLS_GRID = {
 
 // ═══ DEMO LISTINGS ═══
 var LISTINGS=[
-  {id:1,price:389900,address:"74 Mountain View Rd",city:"Waynesville",type:"Single Family",beds:3,baths:2,sqft:1840,lot:"0.82 ac",photo:"https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=700&q=80",days:12,listAgent:"Sarah Mitchell",listOffice:"Blue Ridge Realty Group",listOfficePhone:"(828) 555-0142",mlsId:"DEMO-1001"},
-  {id:2,price:549000,address:"218 Ridge Top Lane",city:"Sylva",type:"Single Family",beds:4,baths:3,sqft:2680,lot:"1.45 ac",photo:"https://images.unsplash.com/photo-1605276374104-dee2a0ed3cd6?w=700&q=80",days:7,listAgent:"Mark Thompson",listOffice:"Mountain Home Real Estate",listOfficePhone:"(828) 555-0287",mlsId:"DEMO-1002"},
-  {id:3,price:159900,address:"Lot 12, Smoky Hollow Rd",city:"Maggie Valley",type:"Land",beds:0,baths:0,sqft:0,lot:"3.2 ac",photo:"https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=700&q=80",days:34,listAgent:"Cory Coleman",listOffice:"Keller Williams Great Smokies",listOfficePhone:"(828) 506-6413",mlsId:"DEMO-1003"},
-  {id:4,price:895000,address:"42 Whitewater Falls Dr",city:"Cashiers",type:"Single Family",beds:5,baths:4,sqft:3920,lot:"2.1 ac",photo:"https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?w=700&q=80",days:18,listAgent:"Jennifer Adams",listOffice:"Cashiers Valley Real Estate",listOfficePhone:"(828) 555-0391",mlsId:"DEMO-1004"},
-  {id:5,price:274900,address:"155 Tuckasegee River Rd",city:"Bryson City",type:"Cabin",beds:2,baths:2,sqft:1280,lot:"0.65 ac",photo:"https://images.unsplash.com/photo-1518780664697-55e3ad937233?w=700&q=80",days:5,listAgent:"David Harmon",listOffice:"Smoky Mountain Properties",listOfficePhone:"(828) 555-0518",mlsId:"DEMO-1005"},
-  {id:6,price:1250000,address:"1 Summit Overlook",city:"Cashiers",type:"Single Family",beds:6,baths:5,sqft:5200,lot:"3.5 ac",photo:"https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?w=700&q=80",days:28,listAgent:"Patricia Wells",listOffice:"Highlands Sotheby's International",listOfficePhone:"(828) 555-0672",mlsId:"DEMO-1006"}
+  {id:1,price:389900,address:"74 Mountain View Rd",city:"Waynesville",type:"Single Family",beds:3,baths:2,sqft:1840,lot:"0.82 ac",photo:"https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=700&q=80",days:12,listAgent:"Sarah Mitchell",listOffice:"Blue Ridge Realty Group",listOfficePhone:"(828) 555-0142",attributionContact:"(828) 555-0142",mlsId:"DEMO-1001",originatingSystem:"CSAR",mlsSources:[{system:"CSAR",mlsId:"DEMO-1001",attributionContact:"(828) 555-0142"}]},
+  {id:2,price:549000,address:"218 Ridge Top Lane",city:"Sylva",type:"Single Family",beds:4,baths:3,sqft:2680,lot:"1.45 ac",photo:"https://images.unsplash.com/photo-1605276374104-dee2a0ed3cd6?w=700&q=80",days:7,listAgent:"Mark Thompson",listOffice:"Mountain Home Real Estate",listOfficePhone:"(828) 555-0287",attributionContact:"(828) 555-0287",mlsId:"DEMO-1002",originatingSystem:"Canopy MLS",mlsSources:[{system:"Canopy MLS",mlsId:"DEMO-1002",attributionContact:"(828) 555-0287"}]},
+  {id:3,price:159900,address:"Lot 12, Smoky Hollow Rd",city:"Maggie Valley",type:"Land",beds:0,baths:0,sqft:0,lot:"3.2 ac",photo:"https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=700&q=80",days:34,listAgent:"Cory Coleman",listOffice:"Keller Williams Great Smokies",listOfficePhone:"(828) 506-6413",attributionContact:"(828) 506-6413",mlsId:"DEMO-1003",originatingSystem:"CSAR",mlsSources:[{system:"CSAR",mlsId:"DEMO-1003",attributionContact:"(828) 506-6413"},{system:"Canopy MLS",mlsId:"DEMO-7003",attributionContact:"(828) 506-6413"}]},
+  {id:4,price:895000,address:"42 Whitewater Falls Dr",city:"Cashiers",type:"Single Family",beds:5,baths:4,sqft:3920,lot:"2.1 ac",photo:"https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?w=700&q=80",days:18,listAgent:"Jennifer Adams",listOffice:"Cashiers Valley Real Estate",listOfficePhone:"(828) 555-0391",attributionContact:"(828) 555-0391",mlsId:"DEMO-1004",originatingSystem:"Canopy MLS",mlsSources:[{system:"Canopy MLS",mlsId:"DEMO-1004",attributionContact:"(828) 555-0391"}]},
+  {id:5,price:274900,address:"155 Tuckasegee River Rd",city:"Bryson City",type:"Cabin",beds:2,baths:2,sqft:1280,lot:"0.65 ac",photo:"https://images.unsplash.com/photo-1518780664697-55e3ad937233?w=700&q=80",days:5,listAgent:"David Harmon",listOffice:"Smoky Mountain Properties",listOfficePhone:"(828) 555-0518",attributionContact:"(828) 555-0518",mlsId:"DEMO-1005",originatingSystem:"CSAR",mlsSources:[{system:"CSAR",mlsId:"DEMO-1005",attributionContact:"(828) 555-0518"}]},
+  {id:6,price:1250000,address:"1 Summit Overlook",city:"Cashiers",type:"Single Family",beds:6,baths:5,sqft:5200,lot:"3.5 ac",photo:"https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?w=700&q=80",days:28,listAgent:"Patricia Wells",listOffice:"Highlands Sotheby's International",listOfficePhone:"(828) 555-0672",attributionContact:"(828) 555-0672",mlsId:"DEMO-1006",originatingSystem:"CSAR",mlsSources:[{system:"CSAR",mlsId:"DEMO-1006",attributionContact:"(828) 555-0672"},{system:"Canopy MLS",mlsId:"DEMO-7006",attributionContact:"(828) 555-0672"}]}
 ];
+
+// Helper: display square footage — use exact sqft if available, fall back to range
+// Returns formatted string like "1,840" or "1,500–2,000" or "—"
+function _formatSqft(l) {
+  if(l.sqft && l.sqft > 0) return l.sqft.toLocaleString();
+  if(l.sqftRange) {
+    // Range might come as "1000-1500" or "1,000 - 1,500" or similar
+    var parts = l.sqftRange.replace(/,/g,'').split(/\s*[-–—]\s*/);
+    if(parts.length === 2) {
+      var lo = parseInt(parts[0]), hi = parseInt(parts[1]);
+      if(!isNaN(lo) && !isNaN(hi)) return lo.toLocaleString() + '–' + hi.toLocaleString();
+    }
+    return l.sqftRange; // Return raw value if we can't parse it
+  }
+  return '—';
+}
+
+// Helper: build the sqft label for cards — "SF" for exact, "SF (est.)" for range
+function _sqftLabel(l) {
+  if(l.sqft && l.sqft > 0) return 'SF';
+  if(l.sqftRange) return 'SF (range)';
+  return 'SF';
+}
+
+// Helper: format MLS numbers from mlsSources array for display
+// Single source: "MLS# 12345"
+// Dual source:   "CSAR MLS# 12345 | Canopy MLS# 67890"
+function _formatMlsNums(l) {
+  if(l.mlsSources && l.mlsSources.length > 1) {
+    return l.mlsSources.map(function(s) { return s.system + ' MLS# ' + s.mlsId; }).join(' | ');
+  }
+  if(l.mlsSources && l.mlsSources.length === 1) {
+    return 'MLS# ' + l.mlsSources[0].mlsId;
+  }
+  return l.mlsId ? 'MLS# ' + l.mlsId : '';
+}
 
 // Helper: generate heart icon HTML for a property card (defined early so all card renderers can use it)
 function cardFavHtml(address, city) {
@@ -838,13 +948,14 @@ function renderFeatured(){
   grid.innerHTML = ''; // Clear loading state / previous cards
   LISTINGS.slice(0,6).forEach(function(l,i){
     const c=document.createElement('div');c.className='f-card reveal';
-    const feats=l.type==='Land'?'<span class="f-feat"><strong>'+l.lot+'</strong></span>':'<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+l.sqft.toLocaleString()+'</strong> SF</span>';
+    const feats=l.type==='Land'?'<span class="f-feat"><strong>'+l.lot+'</strong></span>':'<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+_formatSqft(l)+'</strong> '+_sqftLabel(l)+'</span>';
     var brokerParts=[];if(l.listAgent)brokerParts.push(l.listAgent);if(l.listOffice)brokerParts.push(l.listOffice);
-    var brokerHtml=brokerParts.length?'<div class="f-card-office">Listed by '+brokerParts.join(' &bull; ')+(l.mlsId?' | MLS# '+l.mlsId:'')+'</div>':'';
+    var mlsNums = _formatMlsNums(l);
+    var brokerHtml=brokerParts.length?'<div class="f-card-office">Listed by '+brokerParts.join(' &bull; ')+(mlsNums?' | '+mlsNums:'')+'</div>':'';
     var isDemo = l.mlsId && l.mlsId.toString().indexOf('DEMO') === 0;
     var rfStatus=l.status==='Under Contract'?'<div class="card-status-tag">Under Contract</div>':'';
     c.innerHTML='<div class="f-card-img"><img src="'+l.photo+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge '+(l.type==='Land'?'land':'')+'">'+l.type+'</div>'+(isDemo?'<div class="f-card-demo-badge">DEMO</div>':'')+rfStatus+cardFavHtml(l.address,l.city)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+l.city+', NC</div><div class="f-card-features">'+feats+'</div>'+brokerHtml+'</div>';
-    c.onclick=function(){try{openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,lot:l.lot,restrictions:l.restrictions||'unrestricted',status:l.status||'Active',photo:l.photo||null,photos:l.photos||[],description:l.description||'',listAgent:l.listAgent||'',listOffice:l.listOffice||'',listOfficePhone:l.listOfficePhone||'',mlsId:l.mlsId||'',listingKey:l.listingKey||''},l.city)}catch(err){console.error(err)}};
+    c.onclick=function(){try{openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,sqftRange:l.sqftRange||'',lot:l.lot,restrictions:l.restrictions||'unrestricted',status:l.status||'Active',photo:l.photo||null,photos:l.photos||[],description:l.description||'',listAgent:l.listAgent||'',listOffice:l.listOffice||'',listOfficePhone:l.listOfficePhone||'',attributionContact:l.attributionContact||'',mlsId:l.mlsId||'',listingKey:l.listingKey||'',originatingSystem:l.originatingSystem||'',mlsSources:l.mlsSources||[]},l.city)}catch(err){console.error(err)}};
     grid.appendChild(c);
   });
   document.querySelectorAll('.f-card.reveal').forEach(function(el){obs.observe(el)});
@@ -1939,7 +2050,7 @@ initSlider=function(id){
 };
 
 // ═══ TOWN PAGE SEARCH ═══
-var TOWN_LISTINGS = {"waynesville": {"display": "Waynesville", "listings": [{"price": 389900, "address": "74 Mountain View Rd", "type": "Single Family", "beds": 3, "baths": 2, "sqft": 1840, "lot": "0.82 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Cory Coleman", "listOffice": "Keller Williams Great Smokies", "listOfficePhone": "(828) 506-6413", "mlsId": "DEMO-2001"}, {"price": 529000, "address": "12 Plott Balsam Dr", "type": "Single Family", "beds": 4, "baths": 3, "sqft": 2450, "lot": "1.2 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Janet Holbrook", "listOffice": "Blue Ridge Realty", "listOfficePhone": "(828) 555-3201", "mlsId": "DEMO-2002"}, {"price": 179900, "address": "Lot 8, Fines Creek Rd", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "5.7 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Randy Messer", "listOffice": "Appalachian Land Co.", "listOfficePhone": "(828) 555-4410", "mlsId": "DEMO-2003"}, {"price": 315000, "address": "220 Dellwood Rd", "type": "Single Family", "beds": 3, "baths": 2, "sqft": 1560, "lot": "0.45 ac", "status": "Active", "restrictions": "restricted", "listAgent": "Susan Whitfield", "listOffice": "Mountain Home Real Estate", "listOfficePhone": "(828) 555-2718", "mlsId": "DEMO-2004"}, {"price": 675000, "address": "88 Eagles Nest Trail", "type": "Single Family", "beds": 4, "baths": 4, "sqft": 3200, "lot": "2.3 ac", "status": "Active", "restrictions": "hoa", "listAgent": "Tom Braddock", "listOffice": "Great Smokies Realty", "listOfficePhone": "(828) 555-8190", "mlsId": "DEMO-2005"}, {"price": 249000, "address": "16 Jonathan Creek Rd", "type": "Cabin", "beds": 2, "baths": 1, "sqft": 980, "lot": "0.6 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Donna Riggs", "listOffice": "Smoky Mountain Properties", "listOfficePhone": "(828) 555-5523", "mlsId": "DEMO-2006"}, {"price": 139900, "address": "Lot 22, Crabtree Rd", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "8.1 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Mike Ensley", "listOffice": "WNC Real Estate Group", "listOfficePhone": "(828) 555-6347", "mlsId": "DEMO-2007"}, {"price": 425000, "address": "55 Laurel Ridge Dr", "type": "Single Family", "beds": 3, "baths": 2, "sqft": 1980, "lot": "0.75 ac", "status": "Under Contract", "restrictions": "light", "listAgent": "Karen Plemmons", "listOffice": "Highland Properties", "listOfficePhone": "(828) 555-7082", "mlsId": "DEMO-2008"}]}, "sylva": {"display": "Sylva", "listings": [{"price": 349900, "address": "88 Mill Creek Rd", "type": "Single Family", "beds": 3, "baths": 2, "sqft": 1650, "lot": "0.6 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Cory Coleman", "listOffice": "Keller Williams Great Smokies", "listOfficePhone": "(828) 506-6413", "mlsId": "DEMO-2009"}, {"price": 549000, "address": "218 Ridge Top Lane", "type": "Single Family", "beds": 4, "baths": 3, "sqft": 2680, "lot": "1.45 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "David Buchanan", "listOffice": "Tuckasegee Realty", "listOfficePhone": "(828) 555-1145", "mlsId": "DEMO-2010"}, {"price": 139900, "address": "Lot 3, Webster Rd", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "4.1 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Lisa Hooper", "listOffice": "Appalachian Land Co.", "listOfficePhone": "(828) 555-4410", "mlsId": "DEMO-2011"}, {"price": 289000, "address": "44 Skyland Dr", "type": "Single Family", "beds": 2, "baths": 2, "sqft": 1320, "lot": "0.5 ac", "status": "Active", "restrictions": "restricted", "listAgent": "Brian Pressley", "listOffice": "Mountain Home Real Estate", "listOfficePhone": "(828) 555-2718", "mlsId": "DEMO-2012"}, {"price": 475000, "address": "120 Balsam Ridge", "type": "Single Family", "beds": 4, "baths": 3, "sqft": 2400, "lot": "1.8 ac", "status": "Active", "restrictions": "hoa", "listAgent": "Angela Davis", "listOffice": "Blue Ridge Realty", "listOfficePhone": "(828) 555-3201", "mlsId": "DEMO-2013"}, {"price": 199900, "address": "Lot 9, Speedwell Rd", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "6.5 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Greg Stillwell", "listOffice": "WNC Real Estate Group", "listOfficePhone": "(828) 555-6347", "mlsId": "DEMO-2014"}]}, "cashiers-highlands": {"display": "Cashiers / Highlands", "listings": [{"price": 895000, "address": "42 Whitewater Falls Dr", "type": "Single Family", "beds": 5, "baths": 4, "sqft": 3920, "lot": "2.1 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Cory Coleman", "listOffice": "Keller Williams Great Smokies", "listOfficePhone": "(828) 506-6413", "mlsId": "DEMO-2015"}, {"price": 1250000, "address": "1 Summit Overlook", "type": "Single Family", "beds": 6, "baths": 5, "sqft": 5200, "lot": "3.5 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Patricia Neville", "listOffice": "Cashiers Valley Real Estate", "listOfficePhone": "(828) 555-9301", "mlsId": "DEMO-2016"}, {"price": 425000, "address": "Lot 19, Sapphire Valley", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "2.8 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Robert Zachary", "listOffice": "Highland Properties", "listOfficePhone": "(828) 555-7082", "mlsId": "DEMO-2017"}, {"price": 725000, "address": "88 Glenville Lake Rd", "type": "Single Family", "beds": 4, "baths": 3, "sqft": 2800, "lot": "1.5 ac", "status": "Active", "restrictions": "restricted", "listAgent": "Ellen Crawford", "listOffice": "Blue Ridge Realty", "listOfficePhone": "(828) 555-3201", "mlsId": "DEMO-2018"}, {"price": 2100000, "address": "15 Chattooga Club Dr", "type": "Single Family", "beds": 5, "baths": 5, "sqft": 4800, "lot": "4.2 ac", "status": "Active", "restrictions": "hoa", "listAgent": "William Hightower", "listOffice": "Cashiers Valley Real Estate", "listOfficePhone": "(828) 555-9301", "mlsId": "DEMO-2019"}, {"price": 599000, "address": "Lot 7, Whiteside Cove", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "5.0 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Nancy Talley", "listOffice": "Appalachian Land Co.", "listOfficePhone": "(828) 555-4410", "mlsId": "DEMO-2020"}]}, "bryson-city": {"display": "Bryson City", "listings": [{"price": 274900, "address": "155 Tuckasegee River Rd", "type": "Cabin", "beds": 2, "baths": 2, "sqft": 1280, "lot": "0.65 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Cory Coleman", "listOffice": "Keller Williams Great Smokies", "listOfficePhone": "(828) 506-6413", "mlsId": "DEMO-2021"}, {"price": 459000, "address": "320 Deep Creek Rd", "type": "Single Family", "beds": 3, "baths": 3, "sqft": 2100, "lot": "1.8 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Mark Sutton", "listOffice": "Fontana Realty Group", "listOfficePhone": "(828) 555-8865", "mlsId": "DEMO-2022"}, {"price": 99900, "address": "Lot 5, Alarka Rd", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "6.2 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Teresa Hyde", "listOffice": "Smoky Mountain Properties", "listOfficePhone": "(828) 555-5523", "mlsId": "DEMO-2023"}, {"price": 339000, "address": "72 Nantahala View", "type": "Cabin", "beds": 3, "baths": 2, "sqft": 1450, "lot": "0.8 ac", "status": "Active", "restrictions": "restricted", "listAgent": "James Wiggins", "listOffice": "Great Smokies Realty", "listOfficePhone": "(828) 555-8190", "mlsId": "DEMO-2024"}, {"price": 549000, "address": "10 Fontana Ridge", "type": "Single Family", "beds": 4, "baths": 3, "sqft": 2650, "lot": "2.5 ac", "status": "Active", "restrictions": "hoa", "listAgent": "Carol Ann Bradley", "listOffice": "Fontana Realty Group", "listOfficePhone": "(828) 555-8865", "mlsId": "DEMO-2025"}, {"price": 189000, "address": "Lot 11, Governor's Island", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "3.4 ac", "status": "Under Contract", "restrictions": "unrestricted", "listAgent": "Steve Monteith", "listOffice": "Appalachian Land Co.", "listOfficePhone": "(828) 555-4410", "mlsId": "DEMO-2026"}]}, "maggie-valley": {"display": "Maggie Valley", "listings": [{"price": 329000, "address": "44 Campbell Creek Rd", "type": "Cabin", "beds": 2, "baths": 2, "sqft": 1100, "lot": "0.5 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Cory Coleman", "listOffice": "Keller Williams Great Smokies", "listOfficePhone": "(828) 506-6413", "mlsId": "DEMO-2027"}, {"price": 489000, "address": "102 Soco Falls Dr", "type": "Single Family", "beds": 3, "baths": 3, "sqft": 2200, "lot": "1.1 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Ray Caldwell", "listOffice": "Smoky Mountain Properties", "listOfficePhone": "(828) 555-5523", "mlsId": "DEMO-2028"}, {"price": 159900, "address": "Lot 12, Smoky Hollow Rd", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "3.2 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Pamela Reeves", "listOffice": "WNC Real Estate Group", "listOfficePhone": "(828) 555-6347", "mlsId": "DEMO-2029"}, {"price": 375000, "address": "88 Dellwood Loop", "type": "Cabin", "beds": 3, "baths": 2, "sqft": 1600, "lot": "0.7 ac", "status": "Active", "restrictions": "restricted", "listAgent": "Wayne Ferguson", "listOffice": "Mountain Home Real Estate", "listOfficePhone": "(828) 555-2718", "mlsId": "DEMO-2030"}, {"price": 269000, "address": "210 Soco Rd", "type": "Single Family", "beds": 2, "baths": 1, "sqft": 1050, "lot": "0.35 ac", "status": "Active", "restrictions": "hoa", "listAgent": "Brenda Parton", "listOffice": "Great Smokies Realty", "listOfficePhone": "(828) 555-8190", "mlsId": "DEMO-2031"}, {"price": 119900, "address": "Lot 4, Jonathan Creek", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "4.8 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Keith Hampton", "listOffice": "Appalachian Land Co.", "listOfficePhone": "(828) 555-4410", "mlsId": "DEMO-2032"}]}, "franklin": {"display": "Franklin", "listings": [{"price": 279000, "address": "55 Riverview Terrace", "type": "Single Family", "beds": 3, "baths": 2, "sqft": 1520, "lot": "0.4 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Cory Coleman", "listOffice": "Keller Williams Great Smokies", "listOfficePhone": "(828) 506-6413", "mlsId": "DEMO-2033"}, {"price": 449000, "address": "1200 Burningtown Rd", "type": "Single Family", "beds": 4, "baths": 3, "sqft": 2600, "lot": "3.8 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Beverly Shook", "listOffice": "Blue Ridge Realty", "listOfficePhone": "(828) 555-3201", "mlsId": "DEMO-2034"}, {"price": 89900, "address": "Lot 22, Otto Rd", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "7.5 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Dale Higdon", "listOffice": "Appalachian Land Co.", "listOfficePhone": "(828) 555-4410", "mlsId": "DEMO-2035"}, {"price": 335000, "address": "78 Cartoogechaye Creek", "type": "Single Family", "beds": 3, "baths": 2, "sqft": 1700, "lot": "1.2 ac", "status": "Active", "restrictions": "restricted", "listAgent": "Linda Mashburn", "listOffice": "Mountain Home Real Estate", "listOfficePhone": "(828) 555-2718", "mlsId": "DEMO-2036"}, {"price": 195000, "address": "Lot 15, Nantahala Gorge", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "12 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Russell Peek", "listOffice": "WNC Real Estate Group", "listOfficePhone": "(828) 555-6347", "mlsId": "DEMO-2037"}, {"price": 525000, "address": "42 Cowee Mountain", "type": "Single Family", "beds": 4, "baths": 3, "sqft": 2800, "lot": "5.0 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Sharon Potts", "listOffice": "Smoky Mountain Properties", "listOfficePhone": "(828) 555-5523", "mlsId": "DEMO-2038"}]}, "dillsboro": {"display": "Dillsboro", "listings": [{"price": 339000, "address": "18 Front Street", "type": "Single Family", "beds": 2, "baths": 2, "sqft": 1350, "lot": "0.3 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Cory Coleman", "listOffice": "Keller Williams Great Smokies", "listOfficePhone": "(828) 506-6413", "mlsId": "DEMO-2039"}, {"price": 475000, "address": "44 Riverwatch Rd", "type": "Single Family", "beds": 3, "baths": 2, "sqft": 1900, "lot": "0.85 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Dennis Cope", "listOffice": "Tuckasegee Realty", "listOfficePhone": "(828) 555-1145", "mlsId": "DEMO-2040"}, {"price": 119900, "address": "Lot 7, Webster Heights", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "2.3 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Martha Howell", "listOffice": "Appalachian Land Co.", "listOfficePhone": "(828) 555-4410", "mlsId": "DEMO-2041"}, {"price": 399000, "address": "22 Monteith Gap Rd", "type": "Single Family", "beds": 3, "baths": 2, "sqft": 1750, "lot": "1.1 ac", "status": "Active", "restrictions": "restricted", "listAgent": "Gary Nations", "listOffice": "Mountain Home Real Estate", "listOfficePhone": "(828) 555-2718", "mlsId": "DEMO-2042"}]}, "cullowhee": {"display": "Cullowhee", "listings": [{"price": 259000, "address": "90 University Heights", "type": "Single Family", "beds": 3, "baths": 2, "sqft": 1400, "lot": "0.35 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Cory Coleman", "listOffice": "Keller Williams Great Smokies", "listOfficePhone": "(828) 506-6413", "mlsId": "DEMO-2043"}, {"price": 399000, "address": "55 Caney Fork Rd", "type": "Single Family", "beds": 3, "baths": 2, "sqft": 1800, "lot": "1.5 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Amanda Leatherwood", "listOffice": "Tuckasegee Realty", "listOfficePhone": "(828) 555-1145", "mlsId": "DEMO-2044"}, {"price": 109900, "address": "Lot 14, East LaPorte", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "3.4 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Philip McCall", "listOffice": "Appalachian Land Co.", "listOfficePhone": "(828) 555-4410", "mlsId": "DEMO-2045"}, {"price": 310000, "address": "120 Tuckasegee Rd", "type": "Single Family", "beds": 3, "baths": 2, "sqft": 1550, "lot": "0.6 ac", "status": "Active", "restrictions": "restricted", "listAgent": "Cindy Bowers", "listOffice": "Blue Ridge Realty", "listOfficePhone": "(828) 555-3201", "mlsId": "DEMO-2046"}, {"price": 475000, "address": "8 Panthertown Way", "type": "Single Family", "beds": 4, "baths": 3, "sqft": 2300, "lot": "2.0 ac", "status": "Active", "restrictions": "hoa", "listAgent": "Troy Wilson", "listOffice": "Highland Properties", "listOfficePhone": "(828) 555-7082", "mlsId": "DEMO-2047"}]}};
+var TOWN_LISTINGS = {"waynesville": {"display": "Waynesville", "listings": [{"price": 389900, "address": "74 Mountain View Rd", "type": "Single Family", "beds": 3, "baths": 2, "sqft": 1840, "lot": "0.82 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Cory Coleman", "listOffice": "Keller Williams Great Smokies", "listOfficePhone": "(828) 506-6413", "attributionContact": "(828) 506-6413", "mlsId": "DEMO-2001"}, {"price": 529000, "address": "12 Plott Balsam Dr", "type": "Single Family", "beds": 4, "baths": 3, "sqft": 2450, "lot": "1.2 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Janet Holbrook", "listOffice": "Blue Ridge Realty", "listOfficePhone": "(828) 555-3201", "attributionContact": "(828) 555-3201", "mlsId": "DEMO-2002"}, {"price": 179900, "address": "Lot 8, Fines Creek Rd", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "5.7 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Randy Messer", "listOffice": "Appalachian Land Co.", "listOfficePhone": "(828) 555-4410", "attributionContact": "(828) 555-4410", "mlsId": "DEMO-2003"}, {"price": 315000, "address": "220 Dellwood Rd", "type": "Single Family", "beds": 3, "baths": 2, "sqft": 1560, "lot": "0.45 ac", "status": "Active", "restrictions": "restricted", "listAgent": "Susan Whitfield", "listOffice": "Mountain Home Real Estate", "listOfficePhone": "(828) 555-2718", "attributionContact": "(828) 555-2718", "mlsId": "DEMO-2004"}, {"price": 675000, "address": "88 Eagles Nest Trail", "type": "Single Family", "beds": 4, "baths": 4, "sqft": 3200, "lot": "2.3 ac", "status": "Active", "restrictions": "hoa", "listAgent": "Tom Braddock", "listOffice": "Great Smokies Realty", "listOfficePhone": "(828) 555-8190", "attributionContact": "(828) 555-8190", "mlsId": "DEMO-2005"}, {"price": 249000, "address": "16 Jonathan Creek Rd", "type": "Cabin", "beds": 2, "baths": 1, "sqft": 980, "lot": "0.6 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Donna Riggs", "listOffice": "Smoky Mountain Properties", "listOfficePhone": "(828) 555-5523", "attributionContact": "(828) 555-5523", "mlsId": "DEMO-2006"}, {"price": 139900, "address": "Lot 22, Crabtree Rd", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "8.1 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Mike Ensley", "listOffice": "WNC Real Estate Group", "listOfficePhone": "(828) 555-6347", "attributionContact": "(828) 555-6347", "mlsId": "DEMO-2007"}, {"price": 425000, "address": "55 Laurel Ridge Dr", "type": "Single Family", "beds": 3, "baths": 2, "sqft": 1980, "lot": "0.75 ac", "status": "Under Contract", "restrictions": "light", "listAgent": "Karen Plemmons", "listOffice": "Highland Properties", "listOfficePhone": "(828) 555-7082", "attributionContact": "(828) 555-7082", "mlsId": "DEMO-2008"}]}, "sylva": {"display": "Sylva", "listings": [{"price": 349900, "address": "88 Mill Creek Rd", "type": "Single Family", "beds": 3, "baths": 2, "sqft": 1650, "lot": "0.6 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Cory Coleman", "listOffice": "Keller Williams Great Smokies", "listOfficePhone": "(828) 506-6413", "attributionContact": "(828) 506-6413", "mlsId": "DEMO-2009"}, {"price": 549000, "address": "218 Ridge Top Lane", "type": "Single Family", "beds": 4, "baths": 3, "sqft": 2680, "lot": "1.45 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "David Buchanan", "listOffice": "Tuckasegee Realty", "listOfficePhone": "(828) 555-1145", "attributionContact": "(828) 555-1145", "mlsId": "DEMO-2010"}, {"price": 139900, "address": "Lot 3, Webster Rd", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "4.1 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Lisa Hooper", "listOffice": "Appalachian Land Co.", "listOfficePhone": "(828) 555-4410", "attributionContact": "(828) 555-4410", "mlsId": "DEMO-2011"}, {"price": 289000, "address": "44 Skyland Dr", "type": "Single Family", "beds": 2, "baths": 2, "sqft": 1320, "lot": "0.5 ac", "status": "Active", "restrictions": "restricted", "listAgent": "Brian Pressley", "listOffice": "Mountain Home Real Estate", "listOfficePhone": "(828) 555-2718", "attributionContact": "(828) 555-2718", "mlsId": "DEMO-2012"}, {"price": 475000, "address": "120 Balsam Ridge", "type": "Single Family", "beds": 4, "baths": 3, "sqft": 2400, "lot": "1.8 ac", "status": "Active", "restrictions": "hoa", "listAgent": "Angela Davis", "listOffice": "Blue Ridge Realty", "listOfficePhone": "(828) 555-3201", "attributionContact": "(828) 555-3201", "mlsId": "DEMO-2013"}, {"price": 199900, "address": "Lot 9, Speedwell Rd", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "6.5 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Greg Stillwell", "listOffice": "WNC Real Estate Group", "listOfficePhone": "(828) 555-6347", "attributionContact": "(828) 555-6347", "mlsId": "DEMO-2014"}]}, "cashiers-highlands": {"display": "Cashiers / Highlands", "listings": [{"price": 895000, "address": "42 Whitewater Falls Dr", "type": "Single Family", "beds": 5, "baths": 4, "sqft": 3920, "lot": "2.1 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Cory Coleman", "listOffice": "Keller Williams Great Smokies", "listOfficePhone": "(828) 506-6413", "attributionContact": "(828) 506-6413", "mlsId": "DEMO-2015"}, {"price": 1250000, "address": "1 Summit Overlook", "type": "Single Family", "beds": 6, "baths": 5, "sqft": 5200, "lot": "3.5 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Patricia Neville", "listOffice": "Cashiers Valley Real Estate", "listOfficePhone": "(828) 555-9301", "attributionContact": "(828) 555-9301", "mlsId": "DEMO-2016"}, {"price": 425000, "address": "Lot 19, Sapphire Valley", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "2.8 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Robert Zachary", "listOffice": "Highland Properties", "listOfficePhone": "(828) 555-7082", "attributionContact": "(828) 555-7082", "mlsId": "DEMO-2017"}, {"price": 725000, "address": "88 Glenville Lake Rd", "type": "Single Family", "beds": 4, "baths": 3, "sqft": 2800, "lot": "1.5 ac", "status": "Active", "restrictions": "restricted", "listAgent": "Ellen Crawford", "listOffice": "Blue Ridge Realty", "listOfficePhone": "(828) 555-3201", "attributionContact": "(828) 555-3201", "mlsId": "DEMO-2018"}, {"price": 2100000, "address": "15 Chattooga Club Dr", "type": "Single Family", "beds": 5, "baths": 5, "sqft": 4800, "lot": "4.2 ac", "status": "Active", "restrictions": "hoa", "listAgent": "William Hightower", "listOffice": "Cashiers Valley Real Estate", "listOfficePhone": "(828) 555-9301", "attributionContact": "(828) 555-9301", "mlsId": "DEMO-2019"}, {"price": 599000, "address": "Lot 7, Whiteside Cove", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "5.0 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Nancy Talley", "listOffice": "Appalachian Land Co.", "listOfficePhone": "(828) 555-4410", "attributionContact": "(828) 555-4410", "mlsId": "DEMO-2020"}]}, "bryson-city": {"display": "Bryson City", "listings": [{"price": 274900, "address": "155 Tuckasegee River Rd", "type": "Cabin", "beds": 2, "baths": 2, "sqft": 1280, "lot": "0.65 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Cory Coleman", "listOffice": "Keller Williams Great Smokies", "listOfficePhone": "(828) 506-6413", "attributionContact": "(828) 506-6413", "mlsId": "DEMO-2021"}, {"price": 459000, "address": "320 Deep Creek Rd", "type": "Single Family", "beds": 3, "baths": 3, "sqft": 2100, "lot": "1.8 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Mark Sutton", "listOffice": "Fontana Realty Group", "listOfficePhone": "(828) 555-8865", "attributionContact": "(828) 555-8865", "mlsId": "DEMO-2022"}, {"price": 99900, "address": "Lot 5, Alarka Rd", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "6.2 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Teresa Hyde", "listOffice": "Smoky Mountain Properties", "listOfficePhone": "(828) 555-5523", "attributionContact": "(828) 555-5523", "mlsId": "DEMO-2023"}, {"price": 339000, "address": "72 Nantahala View", "type": "Cabin", "beds": 3, "baths": 2, "sqft": 1450, "lot": "0.8 ac", "status": "Active", "restrictions": "restricted", "listAgent": "James Wiggins", "listOffice": "Great Smokies Realty", "listOfficePhone": "(828) 555-8190", "attributionContact": "(828) 555-8190", "mlsId": "DEMO-2024"}, {"price": 549000, "address": "10 Fontana Ridge", "type": "Single Family", "beds": 4, "baths": 3, "sqft": 2650, "lot": "2.5 ac", "status": "Active", "restrictions": "hoa", "listAgent": "Carol Ann Bradley", "listOffice": "Fontana Realty Group", "listOfficePhone": "(828) 555-8865", "attributionContact": "(828) 555-8865", "mlsId": "DEMO-2025"}, {"price": 189000, "address": "Lot 11, Governor's Island", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "3.4 ac", "status": "Under Contract", "restrictions": "unrestricted", "listAgent": "Steve Monteith", "listOffice": "Appalachian Land Co.", "listOfficePhone": "(828) 555-4410", "attributionContact": "(828) 555-4410", "mlsId": "DEMO-2026"}]}, "maggie-valley": {"display": "Maggie Valley", "listings": [{"price": 329000, "address": "44 Campbell Creek Rd", "type": "Cabin", "beds": 2, "baths": 2, "sqft": 1100, "lot": "0.5 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Cory Coleman", "listOffice": "Keller Williams Great Smokies", "listOfficePhone": "(828) 506-6413", "attributionContact": "(828) 506-6413", "mlsId": "DEMO-2027"}, {"price": 489000, "address": "102 Soco Falls Dr", "type": "Single Family", "beds": 3, "baths": 3, "sqft": 2200, "lot": "1.1 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Ray Caldwell", "listOffice": "Smoky Mountain Properties", "listOfficePhone": "(828) 555-5523", "attributionContact": "(828) 555-5523", "mlsId": "DEMO-2028"}, {"price": 159900, "address": "Lot 12, Smoky Hollow Rd", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "3.2 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Pamela Reeves", "listOffice": "WNC Real Estate Group", "listOfficePhone": "(828) 555-6347", "attributionContact": "(828) 555-6347", "mlsId": "DEMO-2029"}, {"price": 375000, "address": "88 Dellwood Loop", "type": "Cabin", "beds": 3, "baths": 2, "sqft": 1600, "lot": "0.7 ac", "status": "Active", "restrictions": "restricted", "listAgent": "Wayne Ferguson", "listOffice": "Mountain Home Real Estate", "listOfficePhone": "(828) 555-2718", "attributionContact": "(828) 555-2718", "mlsId": "DEMO-2030"}, {"price": 269000, "address": "210 Soco Rd", "type": "Single Family", "beds": 2, "baths": 1, "sqft": 1050, "lot": "0.35 ac", "status": "Active", "restrictions": "hoa", "listAgent": "Brenda Parton", "listOffice": "Great Smokies Realty", "listOfficePhone": "(828) 555-8190", "attributionContact": "(828) 555-8190", "mlsId": "DEMO-2031"}, {"price": 119900, "address": "Lot 4, Jonathan Creek", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "4.8 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Keith Hampton", "listOffice": "Appalachian Land Co.", "listOfficePhone": "(828) 555-4410", "attributionContact": "(828) 555-4410", "mlsId": "DEMO-2032"}]}, "franklin": {"display": "Franklin", "listings": [{"price": 279000, "address": "55 Riverview Terrace", "type": "Single Family", "beds": 3, "baths": 2, "sqft": 1520, "lot": "0.4 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Cory Coleman", "listOffice": "Keller Williams Great Smokies", "listOfficePhone": "(828) 506-6413", "attributionContact": "(828) 506-6413", "mlsId": "DEMO-2033"}, {"price": 449000, "address": "1200 Burningtown Rd", "type": "Single Family", "beds": 4, "baths": 3, "sqft": 2600, "lot": "3.8 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Beverly Shook", "listOffice": "Blue Ridge Realty", "listOfficePhone": "(828) 555-3201", "attributionContact": "(828) 555-3201", "mlsId": "DEMO-2034"}, {"price": 89900, "address": "Lot 22, Otto Rd", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "7.5 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Dale Higdon", "listOffice": "Appalachian Land Co.", "listOfficePhone": "(828) 555-4410", "attributionContact": "(828) 555-4410", "mlsId": "DEMO-2035"}, {"price": 335000, "address": "78 Cartoogechaye Creek", "type": "Single Family", "beds": 3, "baths": 2, "sqft": 1700, "lot": "1.2 ac", "status": "Active", "restrictions": "restricted", "listAgent": "Linda Mashburn", "listOffice": "Mountain Home Real Estate", "listOfficePhone": "(828) 555-2718", "attributionContact": "(828) 555-2718", "mlsId": "DEMO-2036"}, {"price": 195000, "address": "Lot 15, Nantahala Gorge", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "12 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Russell Peek", "listOffice": "WNC Real Estate Group", "listOfficePhone": "(828) 555-6347", "attributionContact": "(828) 555-6347", "mlsId": "DEMO-2037"}, {"price": 525000, "address": "42 Cowee Mountain", "type": "Single Family", "beds": 4, "baths": 3, "sqft": 2800, "lot": "5.0 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Sharon Potts", "listOffice": "Smoky Mountain Properties", "listOfficePhone": "(828) 555-5523", "attributionContact": "(828) 555-5523", "mlsId": "DEMO-2038"}]}, "dillsboro": {"display": "Dillsboro", "listings": [{"price": 339000, "address": "18 Front Street", "type": "Single Family", "beds": 2, "baths": 2, "sqft": 1350, "lot": "0.3 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Cory Coleman", "listOffice": "Keller Williams Great Smokies", "listOfficePhone": "(828) 506-6413", "attributionContact": "(828) 506-6413", "mlsId": "DEMO-2039"}, {"price": 475000, "address": "44 Riverwatch Rd", "type": "Single Family", "beds": 3, "baths": 2, "sqft": 1900, "lot": "0.85 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Dennis Cope", "listOffice": "Tuckasegee Realty", "listOfficePhone": "(828) 555-1145", "attributionContact": "(828) 555-1145", "mlsId": "DEMO-2040"}, {"price": 119900, "address": "Lot 7, Webster Heights", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "2.3 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Martha Howell", "listOffice": "Appalachian Land Co.", "listOfficePhone": "(828) 555-4410", "attributionContact": "(828) 555-4410", "mlsId": "DEMO-2041"}, {"price": 399000, "address": "22 Monteith Gap Rd", "type": "Single Family", "beds": 3, "baths": 2, "sqft": 1750, "lot": "1.1 ac", "status": "Active", "restrictions": "restricted", "listAgent": "Gary Nations", "listOffice": "Mountain Home Real Estate", "listOfficePhone": "(828) 555-2718", "attributionContact": "(828) 555-2718", "mlsId": "DEMO-2042"}]}, "cullowhee": {"display": "Cullowhee", "listings": [{"price": 259000, "address": "90 University Heights", "type": "Single Family", "beds": 3, "baths": 2, "sqft": 1400, "lot": "0.35 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Cory Coleman", "listOffice": "Keller Williams Great Smokies", "listOfficePhone": "(828) 506-6413", "attributionContact": "(828) 506-6413", "mlsId": "DEMO-2043"}, {"price": 399000, "address": "55 Caney Fork Rd", "type": "Single Family", "beds": 3, "baths": 2, "sqft": 1800, "lot": "1.5 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Amanda Leatherwood", "listOffice": "Tuckasegee Realty", "listOfficePhone": "(828) 555-1145", "attributionContact": "(828) 555-1145", "mlsId": "DEMO-2044"}, {"price": 109900, "address": "Lot 14, East LaPorte", "type": "Land", "beds": 0, "baths": 0, "sqft": 0, "lot": "3.4 ac", "status": "Active", "restrictions": "unrestricted", "listAgent": "Philip McCall", "listOffice": "Appalachian Land Co.", "listOfficePhone": "(828) 555-4410", "attributionContact": "(828) 555-4410", "mlsId": "DEMO-2045"}, {"price": 310000, "address": "120 Tuckasegee Rd", "type": "Single Family", "beds": 3, "baths": 2, "sqft": 1550, "lot": "0.6 ac", "status": "Active", "restrictions": "restricted", "listAgent": "Cindy Bowers", "listOffice": "Blue Ridge Realty", "listOfficePhone": "(828) 555-3201", "attributionContact": "(828) 555-3201", "mlsId": "DEMO-2046"}, {"price": 475000, "address": "8 Panthertown Way", "type": "Single Family", "beds": 4, "baths": 3, "sqft": 2300, "lot": "2.0 ac", "status": "Active", "restrictions": "hoa", "listAgent": "Troy Wilson", "listOffice": "Highland Properties", "listOfficePhone": "(828) 555-7082", "attributionContact": "(828) 555-7082", "mlsId": "DEMO-2047"}]}};
 
 function townSearch(townId){
   var data=TOWN_LISTINGS[townId];
@@ -1978,11 +2089,12 @@ function renderTownResults(townId,results,townName){
   info.innerHTML='<div class="tp-results-info">'+results.length+' propert'+(results.length===1?'y':'ies')+' found <button class="tp-clear" onclick="clearTownSearch(\''+townId+'\')">Clear Filters</button></div>';
   results.forEach(function(l){
     var c=document.createElement('div');c.className='f-card';
-    var feats=l.type==='Land'?'<span class="f-feat"><strong>'+l.lot+'</strong></span>':'<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+l.sqft.toLocaleString()+'</strong> SF</span>';
+    var feats=l.type==='Land'?'<span class="f-feat"><strong>'+l.lot+'</strong></span>':'<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+_formatSqft(l)+'</strong> '+_sqftLabel(l)+'</span>';
     var badge=l.type==='Land'?' land':'';
     var statusBadge=l.status==='Under Contract'?'<div class="card-status-tag">Under Contract</div>':'';
     var tBrokerParts=[];if(l.listAgent)tBrokerParts.push(l.listAgent);if(l.listOffice)tBrokerParts.push(l.listOffice);
-    var tBrokerHtml=tBrokerParts.length?'<div class="f-card-office">Listed by '+tBrokerParts.join(' &bull; ')+(l.mlsId?' | MLS# '+l.mlsId:'')+'</div>':'';
+    var tMlsNums = _formatMlsNums(l);
+    var tBrokerHtml=tBrokerParts.length?'<div class="f-card-office">Listed by '+tBrokerParts.join(' &bull; ')+(tMlsNums?' | '+tMlsNums:'')+'</div>':'';
     var tIsDemo = l.mlsId && l.mlsId.toString().indexOf('DEMO') === 0;
     var photoHtml = l.photo ? '<img src="'+l.photo+'" alt="'+l.address+'" loading="lazy">' : '<div style="aspect-ratio:16/10;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.75rem">No Photo Available</div>';
     c.innerHTML='<div class="f-card-img" style="position:relative">'+photoHtml+'<div class="f-card-badge'+badge+'">'+l.type+'</div>'+(tIsDemo?'<div class="f-card-demo-badge">DEMO</div>':'')+statusBadge+cardFavHtml(l.address,townName)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+townName+', NC</div><div class="f-card-features">'+feats+'</div>'+tBrokerHtml+'</div>';
@@ -2019,11 +2131,11 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var active=
 function openPropFromCard(idx){
   var l=window._FLIST[idx];
   if(!l){console.error('Listing not found at index',idx);return}
-  openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,lot:l.lot,
+  openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,sqftRange:l.sqftRange||'',lot:l.lot,
     restrictions:l.restrictions||'unrestricted',status:l.status||'Active',
     photo:l.photo||null,photos:l.photos||[],description:l.description||'',
     mlsId:l.mlsId||null,yearBuilt:l.yearBuilt||null,daysOnMarket:l.daysOnMarket||0,
-    listAgent:l.listAgent||'',listOffice:l.listOffice||'',listOfficePhone:l.listOfficePhone||''},l.city);
+    listAgent:l.listAgent||'',listOffice:l.listOffice||'',listOfficePhone:l.listOfficePhone||'',attributionContact:l.attributionContact||'',originatingSystem:l.originatingSystem||'',mlsSources:l.mlsSources||[]},l.city);
 }
 function openPropFromTown(lid){
   var data=window[lid];
@@ -2039,12 +2151,13 @@ function renderTownFeatured(townSlug){
   grid.innerHTML = '';
   data.listings.slice(0,3).forEach(function(l){
     var c=document.createElement('div');c.className='f-card';
-    var feats=l.type==='Land'?'<span class="f-feat"><strong>'+l.lot+'</strong></span>':'<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+l.sqft.toLocaleString()+'</strong> SF</span>';
+    var feats=l.type==='Land'?'<span class="f-feat"><strong>'+l.lot+'</strong></span>':'<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+_formatSqft(l)+'</strong> '+_sqftLabel(l)+'</span>';
     var badge=l.type==='Land'?' land':'';
     var statusBadge=l.status==='Under Contract'?'<div class="card-status-tag">Under Contract</div>':'';
     var photoHtml=l.photo?'<img src="'+l.photo+'" alt="'+l.address+'" loading="lazy">':'<div style="aspect-ratio:16/10;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.75rem">No Photo Available</div>';
     var tBrokerParts=[];if(l.listAgent)tBrokerParts.push(l.listAgent);if(l.listOffice)tBrokerParts.push(l.listOffice);
-    var tBrokerHtml=tBrokerParts.length?'<div class="f-card-office">Listed by '+tBrokerParts.join(' &bull; ')+(l.mlsId?' | MLS# '+l.mlsId:'')+'</div>':'';
+    var tMlsNums2 = _formatMlsNums(l);
+    var tBrokerHtml=tBrokerParts.length?'<div class="f-card-office">Listed by '+tBrokerParts.join(' &bull; ')+(tMlsNums2?' | '+tMlsNums2:'')+'</div>':'';
     c.innerHTML='<div class="f-card-img" style="position:relative">'+photoHtml+'<div class="f-card-badge'+badge+'">'+l.type+'</div>'+statusBadge+cardFavHtml(l.address,townName)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+townName+', NC</div><div class="f-card-features">'+feats+'</div>'+tBrokerHtml+'</div>';
     (function(listing,town){c.onclick=function(e){if(e.target.closest('.card-fav-heart'))return;try{openProp(listing,town)}catch(err){console.error(err)}}})(l,townName);
     grid.appendChild(c);
@@ -2164,6 +2277,13 @@ function openProp(listing, townName) {
   var o = document.getElementById('propOverlay');
   if (!o) {console.error('propOverlay not found');return;}
 
+  // Show/hide demo indicators based on whether listing has DEMO mlsId
+  var _isDemo = listing.mlsId && listing.mlsId.toString().indexOf('DEMO') === 0;
+  var _demoBanner = document.getElementById('propDemoBanner');
+  if(_demoBanner) _demoBanner.style.display = _isDemo ? '' : 'none';
+  var _demoNotice = document.getElementById('propDemoNotice');
+  if(_demoNotice) _demoNotice.style.display = _isDemo ? '' : 'none';
+
   // Images — show primary photo immediately, then load full gallery from DB
   var imgs;
   if(listing.photos && listing.photos.length > 0) {
@@ -2223,16 +2343,39 @@ function openProp(listing, townName) {
   document.getElementById('propAddr').textContent = listing.address;
   document.getElementById('propCity').textContent = townName + ', North Carolina';
 
-  // Listing broker attribution (IDX compliance)
+  // Listing broker attribution (IDX compliance — multi-MLS aware)
   var brokerEl = document.getElementById('propListingBroker');
   if(brokerEl) {
     var parts = [];
     if(listing.listAgent) parts.push('Listed by ' + listing.listAgent);
     if(listing.listOffice) parts.push(listing.listOffice);
+    if(listing.attributionContact) parts.push(listing.attributionContact);
     var brokerText = parts.join(' \u2022 ');
-    if(listing.mlsId) brokerText += ' | MLS# ' + listing.mlsId;
+    // Show MLS numbers — dual-source listings get both credited
+    var mlsNums = _formatMlsNums(listing);
+    if(mlsNums) brokerText += ' | ' + mlsNums;
     brokerEl.textContent = brokerText || '';
     brokerEl.style.display = brokerText ? '' : 'none';
+  }
+
+  // IDX source attribution — dynamic per listing source(s) + Rule 24 required verbiage
+  var idxSrcEl = document.getElementById('propIdxSource');
+  if(idxSrcEl) {
+    var sources = listing.mlsSources || [];
+    var srcParts = [];
+    var hasCsar = false, hasCanopy = false;
+    sources.forEach(function(s) {
+      if(s.system === 'CSAR') hasCsar = true;
+      else hasCanopy = true;
+    });
+    if(hasCsar) srcParts.push('Carolina Smokies Association of Realtors');
+    if(hasCanopy) srcParts.push('Canopy MLS as distributed by MLS GRID');
+    // Fallback if no mlsSources (demo data or cache without sources)
+    if(!srcParts.length) srcParts.push('Canopy MLS as distributed by MLS GRID');
+    // Rule 24 compliant disclaimer with MLS GRID timestamp
+    var _gridTs = document.getElementById('idxGridTimestamp');
+    var _gridTsText = (_gridTs && _gridTs.textContent !== 'the last data refresh') ? _gridTs.textContent : new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) + ' at ' + new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+    idxSrcEl.textContent = 'Listing courtesy of ' + srcParts.join(' and ') + '. Based on information submitted to the MLS GRID as of ' + _gridTsText + '. All data is obtained from various sources and may not have been verified by broker or MLS GRID. Supplied Open House Information is subject to change without notice. All information should be independently reviewed and verified for accuracy. Properties may or may not be listed by the office/agent presenting the information.';
   }
 
   // Stats ribbon
@@ -2247,7 +2390,7 @@ function openProp(listing, townName) {
     statsEl.innerHTML =
       '<div class="prop-stat"><div class="prop-stat-val">' + listing.beds + '</div><div class="prop-stat-label">Bedrooms</div></div>' +
       '<div class="prop-stat"><div class="prop-stat-val">' + listing.baths + '</div><div class="prop-stat-label">Bathrooms</div></div>' +
-      '<div class="prop-stat"><div class="prop-stat-val">' + listing.sqft.toLocaleString() + '</div><div class="prop-stat-label">Square Feet</div></div>' +
+      '<div class="prop-stat"><div class="prop-stat-val">' + _formatSqft(listing) + '</div><div class="prop-stat-label">Square Feet' + ((!listing.sqft || listing.sqft === 0) && listing.sqftRange ? ' (range)' : '') + '</div></div>' +
       '<div class="prop-stat"><div class="prop-stat-val">' + listing.lot + '</div><div class="prop-stat-label">Lot Size</div></div>';
   }
 
@@ -2282,7 +2425,8 @@ function openProp(listing, townName) {
   var featEl = document.getElementById('propFeatures');
   var feats = [];
   if (listing.type !== 'Land') {
-    feats.push({icon:'<path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M9 22V12h6v10"/>',val:listing.sqft.toLocaleString()+' SF',label:'Living Area'});
+    var _sqftDisplay = _formatSqft(listing) + ' ' + _sqftLabel(listing);
+    feats.push({icon:'<path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M9 22V12h6v10"/>',val:_sqftDisplay,label:'Living Area'});
     feats.push({icon:'<path d="M2 4v16h20V4H2zm0 8h20"/><path d="M6 8v0"/>',val:listing.beds+' Beds / '+listing.baths+' Baths',label:'Bedrooms & Bathrooms'});
     feats.push({icon:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/>',val:listing.lot,label:'Lot Size'});
     if(listing.yearBuilt){feats.push({icon:'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',val:listing.yearBuilt.toString(),label:'Year Built'});}
@@ -2565,8 +2709,7 @@ function propShare(type) {
       var ndData = NEIGHBORHOOD_DATA[tn];
       if(ndData) {
         printNdGrid.innerHTML =
-          '<div class="print-nd-card"><div class="print-nd-label">Schools</div><div class="print-nd-value">' + ndData.schools.rating + '/10</div><div class="print-nd-detail">' + ndData.schools.details + '</div></div>' +
-          '<div class="print-nd-card"><div class="print-nd-label">Safety</div><div class="print-nd-value">' + ndData.safety.rating + '</div><div class="print-nd-detail">' + ndData.safety.details + '</div></div>' +
+          '<div class="print-nd-card"><div class="print-nd-label">Schools</div><div class="print-nd-value">' + ndData.schools.range + '/10</div><div class="print-nd-detail">' + ndData.schools.district + ' (via GreatSchools.org)</div></div>' +
           '<div class="print-nd-card"><div class="print-nd-label">Walkability</div><div class="print-nd-value">' + ndData.walkability.score + '</div><div class="print-nd-detail">' + ndData.walkability.label + '</div></div>' +
           '<div class="print-nd-card"><div class="print-nd-label">Commute</div><div class="print-nd-value">' + ndData.commute.avg + ' min</div><div class="print-nd-detail">To ' + ndData.commute.to + '</div></div>';
         printNdAm.innerHTML =
@@ -2854,10 +2997,12 @@ var ALL_LISTINGS = [];
   LISTINGS.forEach(function(l){
     ALL_LISTINGS.push({
       price:l.price, address:l.address, city:l.city, type:l.type,
-      beds:l.beds, baths:l.baths, sqft:l.sqft, lot:l.lot,
+      beds:l.beds, baths:l.baths, sqft:l.sqft, sqftRange:l.sqftRange||'', lot:l.lot,
       photo:l.photo, photos:l.photos||[], status:l.status||'Active', restrictions:l.restrictions||'unrestricted',
       listAgent:l.listAgent||'', listOffice:l.listOffice||'', listOfficePhone:l.listOfficePhone||'',
+      attributionContact:l.attributionContact||'',
       mlsId:l.mlsId||'', description:l.description||'', daysOnMarket:l.daysOnMarket||l.days||0,
+      originatingSystem:l.originatingSystem||'', mlsSources:l.mlsSources||[],
       _src:'featured'
     });
   });
@@ -2870,10 +3015,12 @@ var ALL_LISTINGS = [];
       if(!isDup){
         ALL_LISTINGS.push({
           price:l.price, address:l.address, city:td.display, type:l.type,
-          beds:l.beds, baths:l.baths, sqft:l.sqft, lot:l.lot,
+          beds:l.beds, baths:l.baths, sqft:l.sqft, sqftRange:l.sqftRange||'', lot:l.lot,
           photo:l.photo||null, photos:l.photos||[], status:l.status||'Active', restrictions:l.restrictions||'unrestricted',
           listAgent:l.listAgent||'', listOffice:l.listOffice||'', listOfficePhone:l.listOfficePhone||'',
+          attributionContact:l.attributionContact||'',
           mlsId:l.mlsId||'', description:l.description||'', daysOnMarket:l.daysOnMarket||0,
+          originatingSystem:l.originatingSystem||'', mlsSources:l.mlsSources||[],
           _src:'town'
         });
       }
@@ -3234,7 +3381,7 @@ function srRenderCards(results){
 
     var feats = l.type === 'Land'
       ? '<strong>' + l.lot + '</strong>'
-      : '<span><strong>' + l.beds + '</strong> Bed</span><span><strong>' + l.baths + '</strong> Bath</span><span><strong>' + (l.sqft||0).toLocaleString() + '</strong> SF</span>';
+      : '<span><strong>' + l.beds + '</strong> Bed</span><span><strong>' + l.baths + '</strong> Bath</span><span><strong>' + _formatSqft(l) + '</strong> ' + _sqftLabel(l) + '</span>';
 
     var imgHtml = l.photo
       ? '<img src="' + l.photo + '" alt="' + l.address + '" loading="lazy">'
@@ -3244,7 +3391,8 @@ function srRenderCards(results){
     var statusTag = l.status === 'Under Contract' ? '<div class="card-status-tag">Under Contract</div>' : '';
 
     var srBrokerParts=[];if(l.listAgent)srBrokerParts.push(l.listAgent);if(l.listOffice)srBrokerParts.push(l.listOffice);
-    var srBrokerHtml=srBrokerParts.length?'<div class="sr-card-office">Listed by '+srBrokerParts.join(' &bull; ')+(l.mlsId?' | MLS# '+l.mlsId:'')+'</div>':'';
+    var srMlsNums = _formatMlsNums(l);
+    var srBrokerHtml=srBrokerParts.length?'<div class="sr-card-office">Listed by '+srBrokerParts.join(' &bull; ')+(srMlsNums?' | '+srMlsNums:'')+'</div>':'';
     card.innerHTML = '<div class="sr-card-img">' + imgHtml + '<div class="' + badgeClass + '">' + l.type + '</div>' + statusTag + cardFavHtml(l.address, l.city) + '</div>' +
       '<div class="sr-card-body">' +
         '<div class="sr-card-price">$' + l.price.toLocaleString() + '</div>' +
@@ -3256,7 +3404,7 @@ function srRenderCards(results){
 
     (function(listing, listingId){
       card.onclick = function(){
-        try { openProp({price:listing.price,address:listing.address,type:listing.type,beds:listing.beds,baths:listing.baths,sqft:listing.sqft,lot:listing.lot,restrictions:listing.restrictions||'unrestricted',status:listing.status||'Active',photo:listing.photo||null,photos:listing.photos||[],description:listing.description||'',listAgent:listing.listAgent||'',listOffice:listing.listOffice||'',listOfficePhone:listing.listOfficePhone||'',mlsId:listing.mlsId||'',daysOnMarket:listing.daysOnMarket||0,listingKey:listing.listingKey||''}, listing.city); } catch(err){console.error(err)}
+        try { openProp({price:listing.price,address:listing.address,type:listing.type,beds:listing.beds,baths:listing.baths,sqft:listing.sqft,sqftRange:listing.sqftRange||'',lot:listing.lot,restrictions:listing.restrictions||'unrestricted',status:listing.status||'Active',photo:listing.photo||null,photos:listing.photos||[],description:listing.description||'',listAgent:listing.listAgent||'',listOffice:listing.listOffice||'',listOfficePhone:listing.listOfficePhone||'',attributionContact:listing.attributionContact||'',mlsId:listing.mlsId||'',daysOnMarket:listing.daysOnMarket||0,listingKey:listing.listingKey||'',originatingSystem:listing.originatingSystem||'',mlsSources:listing.mlsSources||[]}, listing.city); } catch(err){console.error(err)}
       };
       card.onmouseenter = function(){ srHighlightMarkerById(listingId) };
       card.onmouseleave = function(){ srUnhighlightMarkerById(listingId) };
@@ -3304,7 +3452,7 @@ function srRenderMarkers(results){
     // Popup
     var feats = l.type === 'Land'
       ? l.lot
-      : l.beds + ' Bed · ' + l.baths + ' Bath · ' + (l.sqft||0).toLocaleString() + ' SF';
+      : l.beds + ' Bed · ' + l.baths + ' Bath · ' + _formatSqft(l) + ' ' + _sqftLabel(l);
 
     var popupImg = l.photo
       ? '<img class="sr-popup-img" src="' + l.photo + '" alt="' + l.address + '">'
@@ -3354,13 +3502,13 @@ var _srCurrentResults = [];
 function srOpenFromMap(idx){
   var l = _srCurrentResults[idx];
   if(!l) return;
-  openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,lot:l.lot,restrictions:l.restrictions||'unrestricted',status:l.status||'Active',photo:l.photo||null,photos:l.photos||[],description:l.description||'',listAgent:l.listAgent||'',listOffice:l.listOffice||'',listOfficePhone:l.listOfficePhone||'',mlsId:l.mlsId||'',daysOnMarket:l.daysOnMarket||0,listingKey:l.listingKey||''}, l.city);
+  openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,lot:l.lot,restrictions:l.restrictions||'unrestricted',status:l.status||'Active',photo:l.photo||null,photos:l.photos||[],description:l.description||'',listAgent:l.listAgent||'',listOffice:l.listOffice||'',listOfficePhone:l.listOfficePhone||'',attributionContact:l.attributionContact||'',mlsId:l.mlsId||'',daysOnMarket:l.daysOnMarket||0,listingKey:l.listingKey||'',originatingSystem:l.originatingSystem||'',mlsSources:l.mlsSources||[]}, l.city);
 }
 function srOpenFromMapById(lid){
   var l = _srAllFilteredResults.find(function(x){return (x.listingKey||x.mlsId||(x.address+'|'+x.city))===lid});
   if(!l) l = _srCurrentResults.find(function(x){return (x.listingKey||x.mlsId||(x.address+'|'+x.city))===lid});
   if(!l) return;
-  openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,lot:l.lot,restrictions:l.restrictions||'unrestricted',status:l.status||'Active',photo:l.photo||null,photos:l.photos||[],description:l.description||'',listAgent:l.listAgent||'',listOffice:l.listOffice||'',listOfficePhone:l.listOfficePhone||'',mlsId:l.mlsId||'',daysOnMarket:l.daysOnMarket||0,listingKey:l.listingKey||''}, l.city);
+  openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,lot:l.lot,restrictions:l.restrictions||'unrestricted',status:l.status||'Active',photo:l.photo||null,photos:l.photos||[],description:l.description||'',listAgent:l.listAgent||'',listOffice:l.listOffice||'',listOfficePhone:l.listOfficePhone||'',attributionContact:l.attributionContact||'',mlsId:l.mlsId||'',daysOnMarket:l.daysOnMarket||0,listingKey:l.listingKey||'',originatingSystem:l.originatingSystem||'',mlsSources:l.mlsSources||[]}, l.city);
 }
 
 // ═══ ID-based marker/card highlight sync ═══
@@ -4543,7 +4691,7 @@ function buildCorysSuggestions(currentListing, townName) {
     c.className = 'f-card'; c.style.cursor = 'pointer';
     var feats = l.type === 'Land'
       ? '<span class="f-feat"><strong>'+l.lot+'</strong></span>'
-      : '<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+(l.sqft||0).toLocaleString()+'</strong> SF</span>';
+      : '<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+_formatSqft(l)+'</strong> '+_sqftLabel(l)+'</span>';
     var imgSrc = l.photo || (PROP_IMAGES[l.type]||PROP_IMAGES['Single Family'])[0].replace('w=1200','w=700');
     var sgStatus=l.status==='Under Contract'?'<div class="card-status-tag">Under Contract</div>':'';
     c.innerHTML = '<div class="f-card-img"><img src="'+imgSrc+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge'+(l.type==='Land'?' land':'')+'">' + l.type + '</div><div class="f-card-badge" style="right:auto;left:0.75rem;background:var(--gold);color:var(--bg);font-size:0.5rem">Suggested</div>'+sgStatus+cardFavHtml(l.address, l.city||townName)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+(l.city||townName)+', NC</div><div class="f-card-features">'+feats+'</div></div>';
@@ -4632,7 +4780,8 @@ function renderCompareFavGrid() {
     card.className = 'compare-fav-card';
     card.setAttribute('data-compare-key', l._compareKey);
     var imgSrc = l.photo || (PROP_IMAGES[l.type]||PROP_IMAGES['Single Family'])[0].replace('w=1200','w=400');
-    var cmpBroker = l.listOffice ? '<div class="compare-fav-card-office">Listed by '+l.listOffice+(l.mlsId?' | MLS# '+l.mlsId:'')+'</div>' : '';
+    var cmpMlsNums = _formatMlsNums(l);
+    var cmpBroker = l.listOffice ? '<div class="compare-fav-card-office">Listed by '+l.listOffice+(cmpMlsNums?' | '+cmpMlsNums:'')+'</div>' : '';
     card.innerHTML = '<img class="compare-fav-card-img" src="'+imgSrc+'" alt="'+l.address+'" loading="lazy">'+
       '<div class="compare-fav-card-price">$'+l.price.toLocaleString()+'</div>'+
       '<div class="compare-fav-card-addr">'+l.address+'</div>'+
@@ -4744,7 +4893,7 @@ function formatCompareVal(listing, field) {
     case 'price': return '$'+(listing.price||0).toLocaleString();
     case 'beds': return (listing.beds||0)+' Bed'+(listing.beds!==1?'s':'');
     case 'baths': return (listing.baths||0)+' Bath'+(listing.baths!==1?'s':'');
-    case 'sqft': return listing.sqft ? listing.sqft.toLocaleString()+' SF' : 'N/A';
+    case 'sqft': var _sf = _formatSqft(listing); return _sf !== '—' ? _sf + ' ' + _sqftLabel(listing) : 'N/A';
     case 'lot': return listing.lot || 'N/A';
     case 'daysOnMarket': return (listing.daysOnMarket||0)+' days';
     case 'type': return listing.type || 'N/A';
@@ -4834,14 +4983,16 @@ function printComparison() {
     tbody.appendChild(tr);
   });
 
-  // Broker attribution per property
+  // Broker attribution per property (multi-MLS aware)
   var brokersEl = document.getElementById('cpBrokers');
   brokersEl.innerHTML = '';
   props.forEach(function(l) {
     var parts = [];
     if(l.listAgent) parts.push(l.listAgent);
     if(l.listOffice) parts.push(l.listOffice);
-    if(l.mlsId) parts.push('MLS# ' + l.mlsId);
+    if(l.attributionContact) parts.push(l.attributionContact);
+    var cpMlsNums = _formatMlsNums(l);
+    if(cpMlsNums) parts.push(cpMlsNums);
     if(parts.length > 0) {
       brokersEl.innerHTML += '<div class="cp-broker-line">' + (l.address||'') + ': Listed by ' + parts.join(' \u2022 ') + '</div>';
     }
@@ -5234,10 +5385,10 @@ if(MLS_GRID.enabled) {
       LISTINGS.length = 0;
       _cachedSorted.slice(0,6).forEach(function(l,i){
         LISTINGS.push({ id:i+1, price:l.price, address:l.address, city:l.city, type:l.type,
-          beds:l.beds, baths:l.baths, sqft:l.sqft, lot:l.lot,
+          beds:l.beds, baths:l.baths, sqft:l.sqft, sqftRange:l.sqftRange||'', lot:l.lot,
           photo:l.photo, photos:l.photos, days:l.daysOnMarket,
           mlsId:l.mlsId, restrictions:l.restrictions, status:l.status,
-          listingKey:l.listingKey, listAgent:l.listAgent, listOffice:l.listOffice, listOfficePhone:l.listOfficePhone });
+          listingKey:l.listingKey, listAgent:l.listAgent, listOffice:l.listOffice, listOfficePhone:l.listOfficePhone, attributionContact:l.attributionContact, originatingSystem:l.originatingSystem, mlsSources:l.mlsSources });
       });
       renderFeatured();
       // Also populate town featured grid from cache
@@ -5321,7 +5472,7 @@ function _checkPropDeepLink(){
         }
       }
       if(match){
-        setTimeout(function(){ openProp({price:match.price,address:match.address,type:match.type,beds:match.beds,baths:match.baths,sqft:match.sqft,lot:match.lot,restrictions:match.restrictions||'unrestricted',status:match.status||'Active',photo:match.photo||null,photos:match.photos||[],description:match.description||''}, match.city||propCity); }, 300);
+        setTimeout(function(){ openProp({price:match.price,address:match.address,type:match.type,beds:match.beds,baths:match.baths,sqft:match.sqft,sqftRange:match.sqftRange||'',lot:match.lot,restrictions:match.restrictions||'unrestricted',status:match.status||'Active',photo:match.photo||null,photos:match.photos||[],description:match.description||''}, match.city||propCity); }, 300);
       }
     }
   } catch(e){ console.warn('[DeepLink] Error:', e); }
@@ -5389,7 +5540,8 @@ async function loadViewingHistoryUI() {
             restrictions:d.restrictions||'unrestricted', status:d.status||'Active',
             photo:d.photo||null, photos:d.photos||[], description:d.description||'',
             mlsId:d.mlsId||'', listingKey:d.listingKey||'',
-            listAgent:d.listAgent||'', listOffice:d.listOffice||'', listOfficePhone:d.listOfficePhone||''
+            listAgent:d.listAgent||'', listOffice:d.listOffice||'', listOfficePhone:d.listOfficePhone||'',
+            attributionContact:d.attributionContact||''
           }, d.city||'');
         }
       };
@@ -5619,14 +5771,14 @@ async function submitPropertyQuestion() {
 
 // ═══ NEIGHBORHOOD DATA (static) ═══
 var NEIGHBORHOOD_DATA = {
-  'waynesville': { schools: {rating:7, details:'Haywood County Schools — strong elementary through high school programs'}, safety: {rating:'A-', details:'Low crime, active community policing'}, walkability: {score:52, label:'Somewhat Walkable'}, commute: {avg:25, to:'Asheville'}, amenities: {restaurants:45, breweries:4, parks:8, trailheads:12} },
-  'sylva': { schools: {rating:6, details:'Jackson County Schools — good smaller school options, close to WCU'}, safety: {rating:'B+', details:'Low crime small-town feel'}, walkability: {score:48, label:'Car-Dependent'}, commute: {avg:50, to:'Asheville'}, amenities: {restaurants:30, breweries:3, parks:5, trailheads:8} },
-  'maggie-valley': { schools: {rating:6, details:'Haywood County Schools — family-friendly area'}, safety: {rating:'A', details:'Very low crime, quiet mountain community'}, walkability: {score:20, label:'Car-Dependent'}, commute: {avg:40, to:'Asheville'}, amenities: {restaurants:25, breweries:1, parks:3, trailheads:15} },
-  'bryson-city': { schools: {rating:6, details:'Swain County Schools — small class sizes'}, safety: {rating:'A', details:'Very safe, tight-knit community'}, walkability: {score:45, label:'Somewhat Walkable'}, commute: {avg:65, to:'Asheville'}, amenities: {restaurants:35, breweries:2, parks:4, trailheads:20} },
-  'cashiers-highlands': { schools: {rating:7, details:'Jackson & Macon County Schools — Summit Charter School nearby'}, safety: {rating:'A', details:'Very low crime'}, walkability: {score:25, label:'Car-Dependent'}, commute: {avg:75, to:'Asheville'}, amenities: {restaurants:40, breweries:1, parks:6, trailheads:10} },
-  'franklin': { schools: {rating:6, details:'Macon County Schools — solid options with community involvement'}, safety: {rating:'B+', details:'Low crime rate'}, walkability: {score:40, label:'Car-Dependent'}, commute: {avg:60, to:'Asheville'}, amenities: {restaurants:35, breweries:2, parks:5, trailheads:8} },
-  'dillsboro': { schools: {rating:6, details:'Jackson County Schools — small-town charm'}, safety: {rating:'A', details:'Very safe historic village'}, walkability: {score:55, label:'Somewhat Walkable'}, commute: {avg:52, to:'Asheville'}, amenities: {restaurants:12, breweries:1, parks:3, trailheads:6} },
-  'cullowhee': { schools: {rating:7, details:'Jackson County Schools — university community feel (WCU)'}, safety: {rating:'B+', details:'College-town environment'}, walkability: {score:35, label:'Car-Dependent'}, commute: {avg:55, to:'Asheville'}, amenities: {restaurants:15, breweries:1, parks:4, trailheads:7} }
+  'waynesville': { schools: {district:'Haywood County Schools', range:'4–9', url:'https://www.greatschools.org/north-carolina/waynesville/'}, walkability: {score:52, label:'Somewhat Walkable'}, commute: {avg:25, to:'Asheville'}, amenities: {restaurants:45, breweries:4, parks:8, trailheads:12} },
+  'sylva': { schools: {district:'Jackson County Public Schools', range:'5–7', url:'https://www.greatschools.org/north-carolina/sylva/'}, walkability: {score:48, label:'Car-Dependent'}, commute: {avg:50, to:'Asheville'}, amenities: {restaurants:30, breweries:3, parks:5, trailheads:8} },
+  'maggie-valley': { schools: {district:'Haywood County Schools', range:'4–9', url:'https://www.greatschools.org/north-carolina/maggie-valley/'}, walkability: {score:20, label:'Car-Dependent'}, commute: {avg:40, to:'Asheville'}, amenities: {restaurants:25, breweries:1, parks:3, trailheads:15} },
+  'bryson-city': { schools: {district:'Swain County Schools', range:'2–7', url:'https://www.greatschools.org/north-carolina/bryson-city/'}, walkability: {score:45, label:'Somewhat Walkable'}, commute: {avg:65, to:'Asheville'}, amenities: {restaurants:35, breweries:2, parks:4, trailheads:20} },
+  'cashiers-highlands': { schools: {district:'Jackson & Macon County Schools', range:'4–6', url:'https://www.greatschools.org/north-carolina/cashiers/'}, walkability: {score:25, label:'Car-Dependent'}, commute: {avg:75, to:'Asheville'}, amenities: {restaurants:40, breweries:1, parks:6, trailheads:10} },
+  'franklin': { schools: {district:'Macon County Schools', range:'5–8', url:'https://www.greatschools.org/north-carolina/franklin/'}, walkability: {score:40, label:'Car-Dependent'}, commute: {avg:60, to:'Asheville'}, amenities: {restaurants:35, breweries:2, parks:5, trailheads:8} },
+  'dillsboro': { schools: {district:'Jackson County Public Schools', range:'5–7', url:'https://www.greatschools.org/north-carolina/sylva/'}, walkability: {score:55, label:'Somewhat Walkable'}, commute: {avg:52, to:'Asheville'}, amenities: {restaurants:12, breweries:1, parks:3, trailheads:6} },
+  'cullowhee': { schools: {district:'Jackson County Public Schools', range:'2–7', url:'https://www.greatschools.org/north-carolina/cullowhee/'}, walkability: {score:35, label:'Car-Dependent'}, commute: {avg:55, to:'Asheville'}, amenities: {restaurants:15, breweries:1, parks:4, trailheads:7} }
 };
 function renderNeighborhoodDive(townSlug) {
   var container = document.getElementById('neighborhoodDive');
@@ -5635,12 +5787,12 @@ function renderNeighborhoodDive(townSlug) {
   if(!data) { container.innerHTML = ''; return; }
   container.innerHTML =
     '<div class="nd-grid">' +
-      '<div class="nd-card"><div class="nd-card-icon"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg></div><div class="nd-card-label">Schools</div><div class="nd-card-value">' + data.schools.rating + '/10</div><div class="nd-card-detail">' + data.schools.details + '</div></div>' +
-      '<div class="nd-card"><div class="nd-card-icon"><svg viewBox="0 0 24 24"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z"/></svg></div><div class="nd-card-label">Safety</div><div class="nd-card-value">' + data.safety.rating + '</div><div class="nd-card-detail">' + data.safety.details + '</div></div>' +
+      '<div class="nd-card"><div class="nd-card-icon"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg></div><div class="nd-card-label">Schools</div><div class="nd-card-value">' + data.schools.range + '/10</div><div class="nd-card-detail"><a href="' + data.schools.url + '" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">' + data.schools.district + '</a></div></div>' +
       '<div class="nd-card"><div class="nd-card-icon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div><div class="nd-card-label">Walkability</div><div class="nd-card-value">' + data.walkability.score + '</div><div class="nd-card-detail">' + data.walkability.label + '</div></div>' +
       '<div class="nd-card"><div class="nd-card-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div><div class="nd-card-label">Commute</div><div class="nd-card-value">' + data.commute.avg + ' min</div><div class="nd-card-detail">To ' + data.commute.to + '</div></div>' +
     '</div>' +
-    '<div class="nd-amenities"><span class="nd-am-tag">' + data.amenities.restaurants + ' Restaurants</span><span class="nd-am-tag">' + data.amenities.breweries + ' Breweries</span><span class="nd-am-tag">' + data.amenities.parks + ' Parks</span><span class="nd-am-tag">' + data.amenities.trailheads + ' Trailheads</span></div>';
+    '<div class="nd-amenities"><span class="nd-am-tag">' + data.amenities.restaurants + ' Restaurants</span><span class="nd-am-tag">' + data.amenities.breweries + ' Breweries</span><span class="nd-am-tag">' + data.amenities.parks + ' Parks</span><span class="nd-am-tag">' + data.amenities.trailheads + ' Trailheads</span></div>' +
+    '<div class="nd-source" style="margin-top:0.75rem;font-size:0.7rem;opacity:0.45;text-align:center">School ratings provided by <a href="https://www.greatschools.org" target="_blank" rel="noopener" style="color:inherit">GreatSchools.org</a>. Walkability estimates via <a href="https://www.walkscore.com" target="_blank" rel="noopener" style="color:inherit">Walk Score</a>. Amenity counts are approximate.</div>';
 }
 
 // ═══ COMMUTE / DISTANCE CALCULATOR (static) ═══

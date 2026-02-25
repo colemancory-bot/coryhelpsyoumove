@@ -228,6 +228,7 @@ async function syncProperties(
         bathrooms_total_integer: record.BathroomsTotalInteger || 0,
         bathrooms_half: record.BathroomsHalf || 0,
         living_area: record.LivingArea || null,
+        living_area_range: record.LivingAreaRange || "",
         living_area_units: record.LivingAreaUnits || "Square Feet",
         lot_size_acres: record.LotSizeAcres || null,
         lot_size_square_feet: record.LotSizeSquareFeet || null,
@@ -253,6 +254,7 @@ async function syncProperties(
         list_office_key: record.ListOfficeKey || "",
         list_office_name: record.ListOfficeName || "",
         list_office_phone: record.ListOfficePhone || "",
+        attribution_contact: record.AttributionContact || "",
 
         // Buyer agent
         buyer_agent_key: record.BuyerAgentKey || "",

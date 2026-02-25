@@ -447,6 +447,12 @@ Every page added to this site MUST have:
 - [ ] Submit sitemap to Google Search Console
 - [ ] Claim Google Business Profile
 
+### MLS Grid IDX Compliance — Verify Once Live Data Flows
+These passed architectural review (Canopy MLS compliance form, ticket #CMDLA00483263) but require manual verification with real data:
+- [ ] **Rule 7 — Address Withholding:** Confirm listings with "Address on Internet = No" do NOT appear on the site and their map pins don't reveal location
+- [ ] **Rule 8 — Seller IDX Opt-Out:** Confirm listings with "Internet Listing = No" are fully suppressed (not in search, cards, or map)
+- [ ] **Rule 11B — Data Removal on Refresh:** Confirm that expired/withdrawn listings are removed after the next sync cycle (check a listing that expired yesterday)
+
 ### Future Features
 - Google Calendar sync for showing requests
 - BBO feed integration from Canopy MLS (agent copy print fields)

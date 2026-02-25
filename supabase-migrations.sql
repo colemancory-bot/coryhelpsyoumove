@@ -504,6 +504,7 @@ CREATE TABLE IF NOT EXISTS mls_listings (
   bathrooms_total_integer INT DEFAULT 0,
   bathrooms_half INT DEFAULT 0,
   living_area NUMERIC,
+  living_area_range TEXT DEFAULT '',
   living_area_units TEXT DEFAULT 'Square Feet',
   lot_size_acres NUMERIC,
   lot_size_square_feet NUMERIC,
@@ -526,6 +527,7 @@ CREATE TABLE IF NOT EXISTS mls_listings (
   list_office_key TEXT DEFAULT '',
   list_office_name TEXT DEFAULT '',
   list_office_phone TEXT DEFAULT '',
+  attribution_contact TEXT DEFAULT '', -- Agent's chosen contact for IDX display (RESO AttributionContact)
   buyer_agent_key TEXT DEFAULT '',
   buyer_agent_full_name TEXT DEFAULT '',
   buyer_office_key TEXT DEFAULT '',
