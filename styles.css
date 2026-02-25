@@ -304,8 +304,6 @@ ul{list-style:none}
 @media(max-width:768px){
   .hero-search-bar{flex-direction:column}
   .hs-field{border-right:none;border-bottom:1px solid rgba(196,176,140,0.1);padding:0.7rem 1rem}
-  /* Fix: hp-field flex-basis is 175px (= height in column layout) — reset to auto */
-  .hp-field{flex:0 0 auto!important;min-width:0!important;max-width:none!important}
   .hs-btn{padding:0.9rem 2rem}
 }
 
@@ -2817,6 +2815,8 @@ textarea.form-input{resize:vertical;min-height:100px}
   .hs-label{font-size:0.58rem}
   .hs-select,.hs-input{font-size:0.88rem}
   .hs-btn{padding:1rem 2rem;font-size:0.72rem;min-height:52px}
+  /* Fix: hp-field flex-basis=175px becomes HEIGHT in column layout — must come after line 714 base rule */
+  .hp-field{flex:0 0 auto!important;min-width:0!important;max-width:none!important}
 
   /* ── PROPERTY DETAIL OVERLAY ── */
   .prop-hero-price{font-size:2.8rem}
