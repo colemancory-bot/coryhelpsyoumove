@@ -82,7 +82,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Outfit:wght@200;300;400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=39">
+<link rel="stylesheet" href="styles.css?v=40">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
@@ -150,7 +150,8 @@
         <input type="password" id="mobileLoginPass" placeholder="Password">
       </div>
       <button class="mobile-acct-submit" onclick="mobileLogin()">Sign In</button>
-      <div class="mobile-acct-toggle" onclick="toggleMobileSignup()">Don't have an account? <strong>Create one free</strong></div>
+      <p class="mobile-acct-privacy">Your information stays private and is never shared.</p>
+      <button class="mobile-acct-create" onclick="toggleMobileSignup()">Create a Free Account</button>
     </div>
 
     <!-- Create Account (hidden, expands on tap) -->
@@ -165,6 +166,7 @@
       <div class="mobile-acct-field"><input type="tel" id="mobileSignupPhone" placeholder="Phone number"></div>
       <div class="mobile-acct-field"><input type="password" id="mobileSignupPass" placeholder="Create a password" minlength="6"></div>
       <button class="mobile-acct-submit" onclick="mobileSignup()">Create Free Account</button>
+      <p class="mobile-acct-privacy">Your information stays private and is never shared.</p>
       <div class="mobile-acct-toggle" onclick="toggleMobileSignup()">Already have an account? <strong>Sign in</strong></div>
     </div>
   </div>
@@ -690,7 +692,7 @@
 </div>
 
 <!-- ═══════════════ SCRIPTS ═══════════════ -->
-<script defer src="app.js?v=39"></script>
+<script defer src="app.js?v=40"></script>
 
 
 </div>

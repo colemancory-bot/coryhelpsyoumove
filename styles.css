@@ -695,7 +695,7 @@ textarea.form-input{resize:vertical;min-height:100px}
   .about-values{grid-template-columns:1fr}
   .about-kw{left:0.75rem}
   .chat-preview{width:calc(100vw - 4rem);right:2rem;bottom:5.5rem}
-  .chat-panel{width:100vw;height:100vh;max-height:100vh;bottom:0;right:0;border:none}
+  .chat-panel{width:calc(100vw - 1.5rem);height:calc(100vh - 5rem);max-height:calc(100vh - 5rem);bottom:0.75rem;right:0.75rem;border:1px solid var(--border);border-radius:12px}
   .chat-panel.minimized{width:280px;height:auto;max-height:none;bottom:2rem;right:2rem;border:1px solid var(--border)}
   .chat-trigger{padding:0.55rem 1rem 0.55rem 0.55rem}
   .chat-trigger-av{width:32px;height:32px;font-size:0.85rem}
@@ -2757,6 +2757,9 @@ textarea.form-input{resize:vertical;min-height:100px}
 .mobile-acct-field input::placeholder{color:var(--text-muted)}
 .mobile-acct-submit{width:100%;padding:0.75rem;background:linear-gradient(135deg,var(--gold),var(--gold-dark));color:var(--bg);font-family:'Outfit',sans-serif;font-size:0.78rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;border:none;cursor:pointer;transition:all 0.3s;margin-top:0.25rem}
 .mobile-acct-submit:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(196,176,140,0.3)}
+.mobile-acct-create{width:100%;padding:0.7rem;background:transparent;border:1px solid var(--gold);color:var(--gold);font-family:'Outfit',sans-serif;font-size:0.75rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;transition:all 0.3s;margin-top:0.5rem}
+.mobile-acct-create:hover{background:rgba(196,176,140,0.15);transform:translateY(-1px)}
+.mobile-acct-privacy{text-align:center;font-size:0.6rem;color:var(--text-muted);margin:0.6rem 0 0;line-height:1.4;opacity:0.7}
 .mobile-acct-toggle{text-align:center;font-size:0.7rem;color:var(--gold);cursor:pointer;margin-top:0.75rem;transition:color 0.3s}
 .mobile-acct-toggle:hover{color:var(--gold-light)}
 .mobile-acct-error{background:rgba(192,112,112,0.15);color:#e07070;padding:0.5rem 0.75rem;font-size:0.75rem;margin-bottom:0.5rem;line-height:1.4;border:1px solid rgba(192,112,112,0.25)}
