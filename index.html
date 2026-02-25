@@ -82,7 +82,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Outfit:wght@200;300;400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=38">
+<link rel="stylesheet" href="styles.css?v=39">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
@@ -308,9 +308,7 @@
           <select class="hs-select hs-restrict-select" id="hsRestrict" disabled>
             <option value="">Any</option>
             <option value="unrestricted">Unrestricted</option>
-            <option value="restricted">Deed Restricted</option>
-            <option value="light">Lightly Restricted</option>
-            <option value="hoa">HOA Community</option>
+            <option value="restricted">Restrictions</option>
           </select>
           <div class="hs-restrict-lock-overlay" id="hsRestrictOverlay">
             <span>Create account to filter</span>
@@ -692,7 +690,7 @@
 </div>
 
 <!-- ═══════════════ SCRIPTS ═══════════════ -->
-<script defer src="app.js?v=38"></script>
+<script defer src="app.js?v=39"></script>
 
 
 </div>
@@ -1218,9 +1216,7 @@
       <select id="srfRestrictSelect" onchange="srApplyFilters()" class="sr-restrict-select" disabled>
         <option value="">Any Restrictions</option>
         <option value="unrestricted">Unrestricted</option>
-        <option value="restricted">Deed Restricted</option>
-        <option value="light">Lightly Restricted</option>
-        <option value="hoa">HOA Community</option>
+        <option value="restricted">Restrictions</option>
       </select>
       <div class="restrict-lock-overlay" id="srRestrictOverlay"><span>Create account to filter</span></div>
     </div>

@@ -222,7 +222,7 @@ if(_isTownPage){
       '<div class="sr-filter-chip" id="srfPrice"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg><select id="srfPriceSelect" onchange="srApplyFilters()"><option value="">Any Price</option><option value="0-200000">Under $200K</option><option value="200000-400000">$200K – $400K</option><option value="400000-700000">$400K – $700K</option><option value="700000-1000000">$700K – $1M</option><option value="1000000-99999999">$1M+</option></select></div>' +
       '<div class="sr-filter-chip" id="srfBeds"><select id="srfBedsSelect" onchange="srApplyFilters()"><option value="">Any Beds</option><option value="2">2+ Beds</option><option value="3">3+ Beds</option><option value="4">4+ Beds</option><option value="5">5+ Beds</option></select></div>' +
       '<div class="sr-filter-chip" id="srfBaths"><select id="srfBathsSelect" onchange="srApplyFilters()"><option value="">Any Baths</option><option value="1">1+ Bath</option><option value="2">2+ Baths</option><option value="3">3+ Baths</option><option value="4">4+ Baths</option></select></div>' +
-      '<div class="sr-filter-chip sr-restrict-gated" id="srfRestrict" onclick="if(!_acctLoggedIn){event.preventDefault();event.stopPropagation();openAcctModal();}"><select id="srfRestrictSelect" onchange="srApplyFilters()" class="sr-restrict-select" disabled><option value="">Any Restrictions</option><option value="unrestricted">Unrestricted</option><option value="restricted">Deed Restricted</option><option value="light">Lightly Restricted</option><option value="hoa">HOA Community</option></select><div class="restrict-lock-overlay" id="srRestrictOverlay"><span>Create account to filter</span></div></div>' +
+      '<div class="sr-filter-chip sr-restrict-gated" id="srfRestrict" onclick="if(!_acctLoggedIn){event.preventDefault();event.stopPropagation();openAcctModal();}"><select id="srfRestrictSelect" onchange="srApplyFilters()" class="sr-restrict-select" disabled><option value="">Any Restrictions</option><option value="unrestricted">Unrestricted</option><option value="restricted">Restrictions</option></select><div class="restrict-lock-overlay" id="srRestrictOverlay"><span>Create account to filter</span></div></div>' +
       '<button class="sr-filter-clear" id="srfClear" onclick="srClearFilters()">Clear All</button>' +
     '</div>' +
     '<div class="sr-body" id="srBody"><div class="sr-map-panel" id="srMapPanel"><div class="sr-map-loading" id="srMapLoading"><span>Loading Map...</span></div><div id="srMap" style="height:100%;width:100%"></div><div class="sr-map-vignette"></div><div class="sr-map-overlay"></div><div class="sr-map-brand"><div class="sr-map-brand-text">Western North Carolina</div><div class="sr-map-brand-sub">Cory Coleman Real Estate</div></div></div><div class="sr-list-panel" id="srListPanel"><div class="sr-sort"><span>Sort by</span><select id="srSort" onchange="srApplyFilters()"><option value="relevance">Best Match</option><option value="daysOnMarket-asc">Newest</option><option value="price-asc">Price: Low to High</option><option value="price-desc">Price: High to Low</option><option value="beds-desc">Most Bedrooms</option><option value="sqft-desc">Largest</option></select></div><div class="sr-cards" id="srCards"></div></div></div>' +
@@ -1937,7 +1937,8 @@ function townSearch(townId){
     if(priceVal){var parts=priceVal.split('-');if(l.price<parseInt(parts[0])||l.price>parseInt(parts[1]))return false;}
     if(bedsVal && l.beds<parseInt(bedsVal))return false;
     if(bathsVal && l.baths<parseInt(bathsVal))return false;
-    if(restrictVal && l.restrictions!==restrictVal)return false;
+    if(restrictVal==='unrestricted' && l.restrictions!=='unrestricted')return false;
+    if(restrictVal==='restricted' && l.restrictions==='unrestricted')return false;
     return true;
   });
   renderTownResults(townId,results,data.display);
@@ -2134,7 +2135,7 @@ var PROP_DESCRIPTIONS = {
   ]
 };
 
-var RESTRICT_LABELS = {'unrestricted':'Unrestricted — No HOA','restricted':'Deed Restricted','light':'Lightly Restricted','hoa':'HOA Community'};
+var RESTRICT_LABELS = {'unrestricted':'Unrestricted — No HOA','restricted':'Has Restrictions','light':'Has Restrictions','hoa':'Has Restrictions'};
 
 function openProp(listing, townName) {
   hideMobileCta();
@@ -3094,7 +3095,8 @@ function srApplyFilters(){
     }
     if(beds && l.beds < parseInt(beds)) return false;
     if(baths && l.baths < parseInt(baths)) return false;
-    if(restrict && l.restrictions !== restrict) return false;
+    if(restrict === 'unrestricted' && l.restrictions !== 'unrestricted') return false;
+    if(restrict === 'restricted' && l.restrictions === 'unrestricted') return false;
     return true;
   });
 
