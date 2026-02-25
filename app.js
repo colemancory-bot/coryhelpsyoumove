@@ -51,8 +51,70 @@ document.addEventListener('DOMContentLoaded', function(){
 const nav=document.getElementById('nav');
 if(nav) window.addEventListener('scroll',()=>nav.classList.toggle('scrolled',window.scrollY>50));
 var _navToggle=document.getElementById('navToggle');
-if(_navToggle) _navToggle.addEventListener('click',()=>{var mm=document.getElementById('mobileMenu');if(mm)mm.classList.toggle('open')});
-function closeMobile(){var mm=document.getElementById('mobileMenu');if(mm)mm.classList.remove('open')}
+if(_navToggle) _navToggle.addEventListener('click',function(){var mm=document.getElementById('mobileMenu');if(mm){mm.classList.toggle('open');document.body.style.overflow=mm.classList.contains('open')?'hidden':''}});
+function closeMobile(){var mm=document.getElementById('mobileMenu');if(mm)mm.classList.remove('open');document.body.style.overflow=''}
+
+// ═══ MOBILE MENU INLINE AUTH ═══
+function toggleMobileSignup(){
+  var login=document.getElementById('mobileLoginFields');
+  var signup=document.getElementById('mobileSignupFields');
+  if(!login||!signup)return;
+  if(signup.style.display==='none'){login.style.display='none';signup.style.display=''}
+  else{signup.style.display='none';login.style.display=''}
+}
+
+function _showMobileError(id,msg){var el=document.getElementById(id);if(el){el.textContent=msg;el.style.display=''}}
+function _clearMobileErrors(){['mobileLoginError','mobileSignupError'].forEach(function(id){var el=document.getElementById(id);if(el){el.style.display='none';el.textContent=''}})}
+
+async function mobileLogin(){
+  _clearMobileErrors();
+  var email=document.getElementById('mobileLoginEmail').value.trim();
+  var pass=document.getElementById('mobileLoginPass').value;
+  if(!email||email.indexOf('@')<1){_showMobileError('mobileLoginError','Please enter a valid email');return}
+  if(!pass){_showMobileError('mobileLoginError','Please enter your password');return}
+  var btn=document.querySelector('#mobileLoginFields .mobile-acct-submit');
+  btn.textContent='Signing In...';btn.disabled=true;
+  if(!_sb){_showMobileError('mobileLoginError','Service unavailable');btn.textContent='Sign In';btn.disabled=false;return}
+  try{
+    var result=await _sb.auth.signInWithPassword({email:email,password:pass});
+    if(result.error){_showMobileError('mobileLoginError','Invalid email or password');btn.textContent='Sign In';btn.disabled=false;return}
+    _acctLoggedIn=true;_currentUser=result.data.user;
+    await loadFavoritesFromCloud();
+    updateAcctUI();checkAdminRole();
+    btn.textContent='Sign In';btn.disabled=false;
+    document.getElementById('mobileLoginEmail').value='';
+    document.getElementById('mobileLoginPass').value='';
+  }catch(e){_showMobileError('mobileLoginError','Something went wrong');btn.textContent='Sign In';btn.disabled=false}
+}
+
+async function mobileSignup(){
+  _clearMobileErrors();
+  var first=document.getElementById('mobileSignupFirst').value.trim();
+  var last=document.getElementById('mobileSignupLast').value.trim();
+  var email=document.getElementById('mobileSignupEmail').value.trim();
+  var phone=document.getElementById('mobileSignupPhone').value.trim();
+  var pass=document.getElementById('mobileSignupPass').value;
+  if(!first){_showMobileError('mobileSignupError','First name is required');return}
+  if(!last){_showMobileError('mobileSignupError','Last name is required');return}
+  if(!email||email.indexOf('@')<1){_showMobileError('mobileSignupError','Valid email is required');return}
+  if(!phone){_showMobileError('mobileSignupError','Phone number is required');return}
+  if(!pass||pass.length<6){_showMobileError('mobileSignupError','Password must be at least 6 characters');return}
+  var btn=document.querySelector('#mobileSignupFields .mobile-acct-submit');
+  btn.textContent='Creating Account...';btn.disabled=true;
+  if(!_sb){_showMobileError('mobileSignupError','Service unavailable');btn.textContent='Create Free Account';btn.disabled=false;return}
+  try{
+    var result=await _sb.auth.signUp({email:email,password:pass});
+    if(result.error){_showMobileError('mobileSignupError',result.error.message||'Sign up failed');btn.textContent='Create Free Account';btn.disabled=false;return}
+    _currentUser=result.data.user;
+    await _sb.from('profiles').insert({id:result.data.user.id,first_name:first,last_name:last,email:email,phone:phone});
+    var leadData={first_name:first,last_name:last,email:email,phone:phone,message:'New account signup (mobile)',source:'web_form'};
+    if(_sb&&!_chatLeadPushed){_sb.from('leads').insert(leadData).then(function(){_chatLeadPushed=true;_pushToFUB(leadData)}).catch(function(){})}
+    _acctLoggedIn=true;
+    try{localStorage.setItem('cc_profile',JSON.stringify({firstName:first,lastName:last,email:email,phone:phone,password:true}))}catch(e){}
+    updateAcctUI();checkAdminRole();
+    btn.textContent='Create Free Account';btn.disabled=false;
+  }catch(e){_showMobileError('mobileSignupError','Something went wrong');btn.textContent='Create Free Account';btn.disabled=false}
+}
 
 // ═══ MOBILE CTA BAR ═══
 function hideMobileCta(){var el=document.getElementById('mobileCta');if(el)el.classList.add('hidden')}
@@ -3693,11 +3755,23 @@ function updateAcctUI() {
   var notifBell = document.getElementById('navNotifBell');
   if(notifBell) notifBell.style.display = _acctLoggedIn ? '' : 'none';
   if(_acctLoggedIn) loadNotificationCount();
-  // Mirror state to mobile menu
-  var mobileAcctLabel = document.getElementById('mobileMenuAcctLabel');
-  if(mobileAcctLabel) mobileAcctLabel.textContent = _isAdmin ? 'Admin' : (_acctLoggedIn ? 'My Account' : 'Sign In');
+  // Mirror state to mobile menu — toggle guest/user sections
+  var mobileGuest = document.getElementById('mobileAcctGuest');
+  var mobileUser = document.getElementById('mobileAcctUser');
+  if(mobileGuest) mobileGuest.style.display = _acctLoggedIn ? 'none' : '';
+  if(mobileUser) mobileUser.style.display = _acctLoggedIn ? '' : 'none';
   var mobileAdmin = document.getElementById('mobileMenuAdmin');
   if(mobileAdmin) mobileAdmin.style.display = _isAdmin ? '' : 'none';
+  // Populate logged-in user info from profile cache
+  if(_acctLoggedIn){
+    try{
+      var prof=JSON.parse(localStorage.getItem('cc_profile')||'{}');
+      var nameEl=document.getElementById('mobileUserName');
+      var emailEl=document.getElementById('mobileUserEmail');
+      if(nameEl) nameEl.textContent=(prof.firstName||'')+' '+(prof.lastName||'')||'My Account';
+      if(emailEl) emailEl.textContent=prof.email||'';
+    }catch(e){}
+  }
   // Unlock gated content
   document.querySelectorAll('.gated-wrap').forEach(function(el){
     if(_acctLoggedIn) el.classList.remove('locked');

@@ -128,7 +128,7 @@ ul{list-style:none}
 /* Mobile nav */
 .nav-toggle{display:none;flex-direction:column;gap:5px;padding:5px;z-index:1001}
 .nav-toggle span{width:22px;height:1.5px;background:var(--cream);transition:all 0.3s}
-.mobile-menu{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--overlay);z-index:999;flex-direction:column;align-items:center;justify-content:center;gap:2rem;opacity:0;pointer-events:none;transition:opacity 0.4s}
+.mobile-menu{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--overlay);z-index:999;flex-direction:column;align-items:center;justify-content:flex-start;gap:1.5rem;padding:5rem 2rem 3rem;overflow-y:auto;-webkit-overflow-scrolling:touch;opacity:0;pointer-events:none;transition:opacity 0.4s}
 .mobile-menu.open{opacity:1;pointer-events:all}
 .mobile-menu a{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.8rem;font-weight:300;color:var(--cream);letter-spacing:0.05em}
 
@@ -2745,10 +2745,38 @@ textarea.form-input{resize:vertical;min-height:100px}
    Everything below is inside @media queries → desktop unchanged
    ═══════════════════════════════════════════════════════════════════════ */
 
-/* Mobile menu divider + account/admin items */
-.mobile-menu-divider{width:100%;height:1px;background:var(--border);margin:0.75rem 0}
-.mobile-menu-acct,.mobile-menu-admin{font-size:0.82rem!important;opacity:0.85}
-.mobile-menu-acct:hover,.mobile-menu-admin:hover{opacity:1}
+/* Mobile menu divider */
+.mobile-menu-divider{width:100%;max-width:340px;height:1px;background:var(--border);margin:0.5rem 0}
+
+/* ── Mobile Menu: Inline Account Section ── */
+.mobile-acct-section{width:100%;max-width:340px;text-align:left}
+.mobile-acct-badge{font-size:0.5rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--gold);margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem}
+.mobile-acct-badge::before{content:'';width:16px;height:1px;background:var(--gold)}
+.mobile-acct-title{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.4rem;font-weight:300;color:var(--cream);margin-bottom:0.75rem;line-height:1.2}
+.mobile-acct-field{margin-bottom:0.5rem}
+.mobile-acct-field input{width:100%;padding:0.65rem 0.8rem;background:var(--surface);border:1px solid var(--border);color:var(--cream);font-family:'Outfit',sans-serif;font-size:0.82rem;transition:border-color 0.3s;outline:none;box-sizing:border-box}
+.mobile-acct-field input:focus{border-color:var(--gold)}
+.mobile-acct-field input::placeholder{color:var(--text-muted)}
+.mobile-acct-submit{width:100%;padding:0.75rem;background:linear-gradient(135deg,var(--gold),var(--gold-dark));color:var(--bg);font-family:'Outfit',sans-serif;font-size:0.78rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;border:none;cursor:pointer;transition:all 0.3s;margin-top:0.25rem}
+.mobile-acct-submit:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(196,176,140,0.3)}
+.mobile-acct-toggle{text-align:center;font-size:0.7rem;color:var(--gold);cursor:pointer;margin-top:0.75rem;transition:color 0.3s}
+.mobile-acct-toggle:hover{color:var(--gold-light)}
+.mobile-acct-error{background:rgba(192,112,112,0.15);color:#e07070;padding:0.5rem 0.75rem;font-size:0.75rem;margin-bottom:0.5rem;line-height:1.4;border:1px solid rgba(192,112,112,0.25)}
+
+/* Logged-in user section */
+.mobile-acct-user{text-align:center}
+.mobile-acct-avatar{margin-bottom:0.5rem}
+.mobile-acct-avatar svg{width:36px;height:36px;stroke:var(--gold);fill:none;stroke-width:1.5}
+.mobile-acct-email{font-size:0.72rem;color:var(--text-muted);margin-bottom:1rem}
+.mobile-acct-tools{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.4rem;margin-bottom:0.75rem}
+.mobile-tool-btn{display:flex;flex-direction:column;align-items:center;gap:0.25rem;padding:0.55rem 0.3rem;background:var(--surface);border:1px solid var(--border);color:var(--text-body);font-family:'Outfit',sans-serif;font-size:0.55rem;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer;transition:all 0.2s}
+.mobile-tool-btn svg{width:16px;height:16px;stroke:var(--gold);fill:none;stroke-width:1.5}
+.mobile-tool-btn:hover{border-color:var(--gold);color:var(--gold)}
+.mobile-admin-btn{width:100%;padding:0.55rem;border:1px solid var(--gold);background:rgba(196,176,140,0.1);color:var(--gold);font-family:'Outfit',sans-serif;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;transition:all 0.2s;margin-bottom:0.5rem;display:flex;align-items:center;justify-content:center;gap:0.4rem}
+.mobile-admin-btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.5}
+.mobile-admin-btn:hover{background:rgba(196,176,140,0.2)}
+.mobile-signout-btn{width:100%;padding:0.5rem;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-family:'Outfit',sans-serif;font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;transition:all 0.2s}
+.mobile-signout-btn:hover{border-color:#c0392b;color:#e07070}
 
 /* Sticky bottom CTA bar — hidden on desktop */
 .mobile-cta-bar{display:none}
