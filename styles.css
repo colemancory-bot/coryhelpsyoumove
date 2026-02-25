@@ -2713,3 +2713,141 @@ textarea.form-input{resize:vertical;min-height:100px}
 
 /* Hidden on screen */
 .compare-print-page { display: none }
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MOBILE ENHANCEMENT — Bigger text, better touch targets, mobile CTA
+   Everything below is inside @media queries → desktop unchanged
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Sticky bottom CTA bar — hidden on desktop */
+.mobile-cta-bar{display:none}
+
+/* ── Tablet & Mobile (≤768px) ── */
+@media(max-width:768px){
+
+  /* ── STICKY BOTTOM CTA BAR ── */
+  .mobile-cta-bar{
+    display:flex;position:fixed;bottom:0;left:0;right:0;z-index:3500;
+    padding:0.5rem 0.75rem;gap:0.5rem;
+    background:var(--bg);border-top:1px solid var(--border);
+    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  }
+  .mobile-cta-bar.hidden{display:none}
+  .mcta-btn{
+    flex:1;display:flex;align-items:center;justify-content:center;gap:0.5rem;
+    min-height:48px;border-radius:4px;
+    font-family:'Outfit',sans-serif;font-size:0.78rem;
+    font-weight:600;letter-spacing:0.1em;text-transform:uppercase;
+    border:none;cursor:pointer;text-decoration:none;transition:all 0.3s;
+  }
+  .mcta-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2}
+  .mcta-call{background:var(--gold);color:var(--bg)}
+  .mcta-call:hover{background:var(--gold-light)}
+  .mcta-search{background:transparent;border:1px solid var(--gold);color:var(--gold)}
+  .mcta-search:hover{background:rgba(196,176,140,0.1)}
+
+  /* ── GLOBAL TYPOGRAPHY BUMP ── */
+  .section-label{font-size:0.72rem}
+  .section-title{font-size:clamp(1.8rem,5vw,2.8rem)}
+  .stat-number{font-size:2.2rem}
+  .stat-label{font-size:0.72rem}
+
+  /* ── HERO SECTION ── */
+  .hero-badge{font-size:0.68rem;padding:0.55rem 1.2rem}
+  .hs-field{padding:0.85rem 1.1rem;min-height:48px}
+  .hs-label{font-size:0.58rem}
+  .hs-select,.hs-input{font-size:0.88rem}
+  .hs-btn{padding:1rem 2rem;font-size:0.72rem;min-height:52px}
+
+  /* ── PROPERTY DETAIL OVERLAY ── */
+  .prop-hero-price{font-size:2.8rem}
+  .prop-stat{padding:1.25rem 1rem}
+  .prop-stat-val{font-size:1.6rem}
+  .prop-stat-label{font-size:0.65rem}
+  .prop-section-label{font-size:0.65rem}
+  .prop-section-title{font-size:1.6rem}
+  .prop-desc{font-size:1rem;line-height:1.75}
+  .prop-feat{padding:1.1rem 1.15rem;gap:0.75rem}
+  .prop-feat-val{font-size:0.95rem}
+  .prop-feat-label{font-size:0.68rem}
+  .prop-share-btn{font-size:0.7rem;padding:0.75rem;min-height:44px}
+  .prop-map{height:350px}
+  .prop-listing-broker{font-size:0.65rem}
+
+  /* ── SEARCH RESULTS FILTERS ── */
+  .sr-filter-chip{min-height:42px;font-size:0.7rem;padding:0.45rem 0.8rem}
+  .sr-filter-chip svg{width:14px;height:14px}
+  .sr-filter-chip select{font-size:0.78rem}
+  .sr-filter-clear{min-height:42px;font-size:0.65rem;padding:0.45rem 0.85rem}
+  .sr-sort{font-size:0.68rem;padding:0.7rem 0.85rem}
+  .sr-sort select{font-size:0.68rem;padding:0.35rem 0.55rem;min-height:36px}
+
+  /* ── PRICE SLIDER MOBILE BOTTOM SHEET ── */
+  .hp-sheet .hp-pop-slider .ps-track{height:16px;border-radius:8px}
+  .hp-sheet .hp-pop-slider .ps-fill{height:16px;border-radius:8px}
+  .hp-sheet .hp-pop-slider .ps-thumb{width:36px;height:36px;border-width:3px;margin-top:-10px}
+  .hp-sheet .hp-pop-slider .ps-display{font-size:1.3rem;height:1.6rem}
+  .hp-sheet .hp-pop-slider .ps-ticks{font-size:0.75rem;margin-top:0.75rem}
+  .hp-sheet .hp-presets{gap:0.6rem}
+  .hp-sheet .hp-preset{padding:0.95rem 0.7rem;font-size:0.88rem;min-height:48px}
+  .hp-sheet .hp-done{padding:1.1rem;font-size:0.82rem;min-height:52px}
+
+  /* Body bottom padding to account for sticky CTA bar */
+  body{padding-bottom:64px}
+}
+
+/* ── Small Mobile (≤640px) ── */
+@media(max-width:640px){
+
+  /* ── FEATURED LISTING CARDS ── */
+  .f-card-badge{font-size:0.65rem;padding:0.35rem 0.75rem}
+  .f-card-body{padding:1.15rem 1.15rem}
+  .f-card-price{font-size:1.65rem}
+  .f-card-addr{font-size:0.92rem}
+  .f-card-city{font-size:0.75rem}
+  .f-feat{font-size:0.82rem}
+  .card-fav-heart{width:38px;height:38px}
+  .card-fav-heart svg{width:18px;height:18px}
+  .card-status-tag{font-size:0.56rem;padding:0.25rem 0.65rem}
+
+  /* ── AREA CARDS ── */
+  .area-name{font-size:1.6rem}
+  .area-county{font-size:0.72rem}
+
+  /* ── STATS BAR ── */
+  .stat-number{font-size:2rem}
+  .stat-label{font-size:0.7rem}
+
+  /* ── BLOG CARDS ── */
+  .blog-card-cat{font-size:0.62rem}
+  .blog-card-meta{font-size:0.65rem}
+  .blog-card h3{font-size:1.4rem}
+  .blog-card p{font-size:0.88rem}
+  .blog-card-link{font-size:0.65rem}
+
+  /* ── CHAT WIDGET — adjust for CTA bar ── */
+  .chat-trigger{bottom:4.5rem}
+  .chat-preview{bottom:8rem}
+  .chat-trigger-av{width:36px;height:36px;font-size:0.9rem}
+  .chat-trigger-name{font-size:0.78rem}
+  .chat-trigger-status{font-size:0.58rem}
+}
+
+/* ── Narrow Mobile (≤600px) — Search Result Cards ── */
+@media(max-width:600px){
+
+  /* Switch from tiny horizontal cards back to stacked vertical */
+  .sr-card{flex-direction:column}
+  .sr-card-img{width:100%;height:200px}
+  .sr-card-body{padding:0.85rem 1rem}
+  .sr-card-price{font-size:1.35rem}
+  .sr-card-addr{font-size:0.88rem}
+  .sr-card-city{font-size:0.7rem}
+  .sr-card-feats{font-size:0.78rem;gap:0.75rem}
+  .sr-card-img .sr-card-badge{font-size:0.55rem;padding:0.2rem 0.55rem}
+  .sr-card-img .card-status-tag{font-size:0.5rem;padding:0.2rem 0.5rem}
+  .sr-card-img .card-fav-heart{width:36px;height:36px}
+  .sr-card-img .card-fav-heart svg{width:16px;height:16px}
+  .sr-card-office{font-size:0.62rem}
+}

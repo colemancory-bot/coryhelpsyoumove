@@ -54,6 +54,10 @@ var _navToggle=document.getElementById('navToggle');
 if(_navToggle) _navToggle.addEventListener('click',()=>{var mm=document.getElementById('mobileMenu');if(mm)mm.classList.toggle('open')});
 function closeMobile(){var mm=document.getElementById('mobileMenu');if(mm)mm.classList.remove('open')}
 
+// ═══ MOBILE CTA BAR ═══
+function hideMobileCta(){var el=document.getElementById('mobileCta');if(el)el.classList.add('hidden')}
+function showMobileCta(){var el=document.getElementById('mobileCta');if(el)el.classList.remove('hidden')}
+
 // ═══ TOWN PAGE DETECTION & OVERLAY INJECTION ═══
 var _isTownPage = !document.getElementById('propOverlay') && !document.getElementById('featuredGrid');
 if(_isTownPage){
@@ -1083,6 +1087,7 @@ function toggleChat(){
     chatOpen = false;
     cp.classList.remove('minimized','open');
     var ct=document.getElementById('chatTrigger');if(ct)ct.classList.remove('open');
+    showMobileCta();
     return;
   }
 
@@ -1094,6 +1099,7 @@ function toggleChat(){
 
   // If closed → open
   chatOpen = true;
+  hideMobileCta();
   cp.classList.add('open');
   var ct=document.getElementById('chatTrigger');if(ct)ct.classList.add('open');
   var cm=document.getElementById('chatMessages');if(cm&&!cm.children.length){ if(!_restoreChatMessages()) addInitMsg(); }
@@ -2030,6 +2036,7 @@ var PROP_DESCRIPTIONS = {
 var RESTRICT_LABELS = {'unrestricted':'Unrestricted — No HOA','restricted':'Deed Restricted','light':'Lightly Restricted','hoa':'HOA Community'};
 
 function openProp(listing, townName) {
+  hideMobileCta();
   try{
   var o = document.getElementById('propOverlay');
   if (!o) {console.error('propOverlay not found');return;}
@@ -2304,6 +2311,7 @@ function openProp(listing, townName) {
 }
 
 function closeProp(fromPopstate) {
+  showMobileCta();
   // Clean up property map
   if(window._propMap) { try { window._propMap.remove(); } catch(e){} window._propMap = null; }
   var o = document.getElementById('propOverlay');
@@ -2743,6 +2751,7 @@ var _srFreedrawPoints = [];      // LatLng array for freehand
 var _srFreedrawLine = null;      // Temporary polyline during freehand
 
 function openSearchResults(filters){
+  hideMobileCta();
   filters = filters || {};
 
   // Set filter values
@@ -2813,6 +2822,7 @@ function openSearchResults(filters){
 }
 
 function closeSearch(){
+  showMobileCta();
   var overlay = document.getElementById('searchOverlay');
   if(!overlay || !overlay.classList.contains('active')) return;
   overlay.classList.remove('active');
@@ -4388,6 +4398,7 @@ var _compareRowLabels = {
 };
 
 function openCompare() {
+  hideMobileCta();
   if(!_acctLoggedIn) { openAcctModal(); return; }
   _compareSelected = [];
   var overlay = document.getElementById('compareOverlay');
@@ -4398,6 +4409,7 @@ function openCompare() {
 }
 
 function closeCompare() {
+  showMobileCta();
   var overlay = document.getElementById('compareOverlay');
   if(!overlay) return;
   overlay.classList.remove('active');
