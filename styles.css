@@ -637,6 +637,9 @@ textarea.form-input{resize:vertical;min-height:100px}
    RESPONSIVE
    ═══════════════════════════════════════════════════════ */
 @media(max-width:1024px){
+  /* Solid nav background on mobile — prevents hero badge bleeding through */
+  .nav{background:var(--nav-bg)!important;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
+  .nav::before{display:none!important}
   .nav-center,.nav-phone{display:none}
   /* Hide nav-right clutter on mobile — moved to hamburger menu */
   .nav-right .theme-toggle,
