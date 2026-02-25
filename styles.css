@@ -304,6 +304,8 @@ ul{list-style:none}
 @media(max-width:768px){
   .hero-search-bar{flex-direction:column}
   .hs-field{border-right:none;border-bottom:1px solid rgba(196,176,140,0.1);padding:0.7rem 1rem}
+  /* Fix: hp-field flex-basis is 175px (= height in column layout) — reset to auto */
+  .hp-field{flex:0 0 auto!important;min-width:0!important;max-width:none!important}
   .hs-btn{padding:0.9rem 2rem}
 }
 
@@ -2814,7 +2816,7 @@ textarea.form-input{resize:vertical;min-height:100px}
   /* ── PRICE SLIDER MOBILE BOTTOM SHEET ── */
   .hp-sheet .hp-pop-slider .ps-track{height:16px;border-radius:8px}
   .hp-sheet .hp-pop-slider .ps-fill{height:16px;border-radius:8px}
-  .hp-sheet .hp-pop-slider .ps-thumb{width:36px;height:36px;border-width:3px;margin-top:-10px}
+  .hp-sheet .hp-pop-slider .ps-thumb{width:36px;height:36px;border-width:3px}
   .hp-sheet .hp-pop-slider .ps-display{font-size:1.3rem;height:1.6rem}
   .hp-sheet .hp-pop-slider .ps-ticks{font-size:0.75rem;margin-top:0.75rem}
   .hp-sheet .hp-presets{gap:0.6rem}

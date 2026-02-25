@@ -1743,6 +1743,18 @@ function initSlider(id){
     else{var d0=Math.abs(vals[0]-v),d1=Math.abs(vals[1]-v);if(d0<=d1){vals[0]=v;startDrag(0,e)}else{vals[1]=v;startDrag(1,e)}}
     render();
   });
+  // Touch: tap anywhere on track to jump nearest thumb (mobile)
+  track.addEventListener('touchstart',function(e){
+    if(e.target.classList.contains('ps-thumb'))return;
+    var rect=track.getBoundingClientRect();
+    var cx=e.touches[0].clientX;
+    var pct=Math.max(0,Math.min(1,(cx-rect.left)/rect.width));
+    var v=valAt(pct);
+    if(!moved[0]){vals[0]=v;moved[0]=true;startDrag(0,e)}
+    else if(!moved[1]){vals[1]=v;moved[1]=true;startDrag(1,e)}
+    else{var d0=Math.abs(vals[0]-v),d1=Math.abs(vals[1]-v);if(d0<=d1){vals[0]=v;startDrag(0,e)}else{vals[1]=v;startDrag(1,e)}}
+    render();
+  },{passive:false});
 
   wrap._reset=function(){vals=[0,0];moved=[false,false];render()};
   render();
