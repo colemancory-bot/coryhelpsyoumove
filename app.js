@@ -2643,6 +2643,41 @@ document.addEventListener('click', function(e) {
 });
 
 
+// ═══ TOUCH SWIPE HELPER ═══
+function addSwipe(el, onLeft, onRight) {
+  var startX = 0, startY = 0, tracking = false;
+  el.addEventListener('touchstart', function(e) {
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    tracking = true;
+  }, {passive: true});
+  el.addEventListener('touchend', function(e) {
+    if (!tracking) return;
+    tracking = false;
+    var dx = e.changedTouches[0].clientX - startX;
+    var dy = e.changedTouches[0].clientY - startY;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      if (dx < 0) onLeft();
+      else onRight();
+    }
+  }, {passive: true});
+}
+
+// Attach swipe to hero gallery
+(function(){
+  var heroZone = document.getElementById('propHeroZone');
+  if (heroZone && !heroZone._swipeInit) {
+    addSwipe(heroZone, function(){ propImgNav(1); }, function(){ propImgNav(-1); });
+    heroZone._swipeInit = true;
+  }
+  // Attach swipe to lightbox
+  var lb = document.getElementById('propLightbox');
+  if (lb && !lb._swipeInit) {
+    addSwipe(lb, function(){ lbNav(1); }, function(){ lbNav(-1); });
+    lb._swipeInit = true;
+  }
+})();
+
 // Fade in scroll-over gradient + hero darken on scroll
 (function(){
   var overlay = document.getElementById('propOverlay');
@@ -3619,6 +3654,11 @@ function updateAcctUI() {
   var notifBell = document.getElementById('navNotifBell');
   if(notifBell) notifBell.style.display = _acctLoggedIn ? '' : 'none';
   if(_acctLoggedIn) loadNotificationCount();
+  // Mirror state to mobile menu
+  var mobileAcctLabel = document.getElementById('mobileMenuAcctLabel');
+  if(mobileAcctLabel) mobileAcctLabel.textContent = _isAdmin ? 'Admin' : (_acctLoggedIn ? 'My Account' : 'Sign In');
+  var mobileAdmin = document.getElementById('mobileMenuAdmin');
+  if(mobileAdmin) mobileAdmin.style.display = _isAdmin ? '' : 'none';
   // Unlock gated content
   document.querySelectorAll('.gated-wrap').forEach(function(el){
     if(_acctLoggedIn) el.classList.remove('locked');

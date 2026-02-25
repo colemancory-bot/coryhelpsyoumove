@@ -638,6 +638,11 @@ textarea.form-input{resize:vertical;min-height:100px}
    ═══════════════════════════════════════════════════════ */
 @media(max-width:1024px){
   .nav-center,.nav-phone{display:none}
+  /* Hide nav-right clutter on mobile — moved to hamburger menu */
+  .nav-right .theme-toggle,
+  .nav-right .nav-acct,
+  .nav-right .nav-notif,
+  .nav-right .nav-admin-link{display:none!important}
   .nav-toggle{display:flex}
   .mobile-menu{display:flex}
   .about{grid-template-columns:1fr;gap:2.5rem}
@@ -2719,6 +2724,11 @@ textarea.form-input{resize:vertical;min-height:100px}
    MOBILE ENHANCEMENT — Bigger text, better touch targets, mobile CTA
    Everything below is inside @media queries → desktop unchanged
    ═══════════════════════════════════════════════════════════════════════ */
+
+/* Mobile menu divider + account/admin items */
+.mobile-menu-divider{width:100%;height:1px;background:var(--border);margin:0.75rem 0}
+.mobile-menu-acct,.mobile-menu-admin{font-size:0.82rem!important;opacity:0.85}
+.mobile-menu-acct:hover,.mobile-menu-admin:hover{opacity:1}
 
 /* Sticky bottom CTA bar — hidden on desktop */
 .mobile-cta-bar{display:none}
