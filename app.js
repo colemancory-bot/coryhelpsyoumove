@@ -51,8 +51,8 @@ document.addEventListener('DOMContentLoaded', function(){
 const nav=document.getElementById('nav');
 if(nav) window.addEventListener('scroll',()=>nav.classList.toggle('scrolled',window.scrollY>50));
 var _navToggle=document.getElementById('navToggle');
-if(_navToggle) _navToggle.addEventListener('click',function(){var mm=document.getElementById('mobileMenu');if(mm){mm.classList.toggle('open');document.body.style.overflow=mm.classList.contains('open')?'hidden':''}});
-function closeMobile(){var mm=document.getElementById('mobileMenu');if(mm)mm.classList.remove('open');document.body.style.overflow=''}
+if(_navToggle) _navToggle.addEventListener('click',function(){var mm=document.getElementById('mobileMenu');if(mm){var opening=!mm.classList.contains('open');mm.classList.toggle('open');document.body.style.overflow=mm.classList.contains('open')?'hidden':'';if(opening){history.pushState({page:'menu'},'','#menu')}else{if(history.state&&history.state.page==='menu')history.back()}}});
+function closeMobile(fromPopstate){var mm=document.getElementById('mobileMenu');if(mm&&mm.classList.contains('open')){mm.classList.remove('open');document.body.style.overflow='';if(!fromPopstate&&history.state&&history.state.page==='menu')history.back()}}
 
 // ═══ MOBILE MENU INLINE AUTH ═══
 function toggleMobileSignup(){
@@ -1148,6 +1148,7 @@ function toggleChat(){
     _chatMinimized = false;
     chatOpen = false;
     cp.classList.remove('minimized','open');
+    cp.style.height='';cp.style.maxHeight='';
     var ct=document.getElementById('chatTrigger');if(ct)ct.classList.remove('open');
     var nc=document.getElementById('navChat');if(nc)nc.classList.remove('open');
     showMobileCta();
@@ -1158,12 +1159,8 @@ function toggleChat(){
   if(chatOpen){
     if(window.innerWidth <= 1024){
       // Mobile: close fully instead of minimize
-      chatOpen = false;
-      _chatMinimized = false;
-      cp.classList.remove('minimized','open');
-      var ct=document.getElementById('chatTrigger');if(ct)ct.classList.remove('open');
-      var nc=document.getElementById('navChat');if(nc)nc.classList.remove('open');
-      showMobileCta();
+      _closeChat();
+      if(history.state&&history.state.page==='chat')history.back();
     } else {
       minimizeChat();
     }
@@ -1178,6 +1175,15 @@ function toggleChat(){
   var nc=document.getElementById('navChat');if(nc)nc.classList.add('open');
   var cm=document.getElementById('chatMessages');if(cm&&!cm.children.length){ if(!_restoreChatMessages()) addInitMsg(); }
   var ci=document.getElementById('chatInput');if(ci)setTimeout(()=>ci.focus(),300);
+  if(window.innerWidth <= 1024) history.pushState({page:'chat'},'','#chat');
+}
+function _closeChat(){
+  chatOpen=false;_chatMinimized=false;
+  var cp=document.getElementById('chatPanel');
+  if(cp){cp.classList.remove('minimized','open');cp.style.height='';cp.style.maxHeight='';}
+  var ct=document.getElementById('chatTrigger');if(ct)ct.classList.remove('open');
+  var nc=document.getElementById('navChat');if(nc)nc.classList.remove('open');
+  showMobileCta();
 }
 
 function minimizeChat(){
@@ -1192,6 +1198,21 @@ function minimizeChat(){
     _chatMinimized = true;
     cp.classList.add('minimized');
   }
+}
+
+// --- Resize chat panel when mobile keyboard opens/closes ---
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize',function(){
+    var cp=document.getElementById('chatPanel');
+    if(!cp||!chatOpen||window.innerWidth>1024)return;
+    var vh=window.visualViewport.height;
+    var h=vh-80;// 5rem = 80px
+    cp.style.height=h+'px';
+    cp.style.maxHeight=h+'px';
+    // Scroll messages to bottom when keyboard opens
+    var cm=document.getElementById('chatMessages');
+    if(cm)setTimeout(function(){cm.scrollTop=cm.scrollHeight},50);
+  });
 }
 
 // --- Chat Preview → Full Chat transition ---
@@ -2623,6 +2644,11 @@ function propShare(type) {
 // Handle popstate for property page
 var _origPopstate = window.onpopstate;
 window.addEventListener('popstate', function(e) {
+  // Close chat panel if it was open (mobile back button)
+  if(chatOpen||_chatMinimized){_closeChat();return}
+  // Close mobile menu if open (back button)
+  var mm=document.getElementById('mobileMenu');
+  if(mm&&mm.classList.contains('open')){closeMobile(true);return}
   // Close compare overlay if open
   var compareOv = document.getElementById('compareOverlay');
   if(compareOv && compareOv.classList.contains('active')) {

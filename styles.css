@@ -695,7 +695,7 @@ textarea.form-input{resize:vertical;min-height:100px}
   .about-values{grid-template-columns:1fr}
   .about-kw{left:0.75rem}
   .chat-preview{width:calc(100vw - 4rem);right:2rem;bottom:5.5rem}
-  .chat-panel{width:calc(100vw - 1.5rem);height:calc(100vh - 5rem);max-height:calc(100vh - 5rem);bottom:0.75rem;right:0.75rem;border:1px solid var(--border);border-radius:12px}
+  .chat-panel{width:calc(100vw - 1.5rem);height:calc(100dvh - 5rem);max-height:calc(100dvh - 5rem);bottom:0.75rem;right:0.75rem;border:1px solid var(--border);border-radius:12px}
   .chat-panel.minimized{width:280px;height:auto;max-height:none;bottom:2rem;right:2rem;border:1px solid var(--border)}
   .chat-trigger{padding:0.55rem 1rem 0.55rem 0.55rem}
   .chat-trigger-av{width:32px;height:32px;font-size:0.85rem}
