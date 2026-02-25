@@ -528,7 +528,7 @@ var SIMPLYRETS = {
         grid.innerHTML = '';
         LISTINGS.slice(0,6).forEach(function(l,i){
           var c=document.createElement('div');c.className='f-card reveal vis';
-          var feats=l.type==='Land'?'<span class="f-feat"><strong>'+l.lot+'</strong></span>':'<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+_formatSqft(l)+'</strong> '+_sqftLabel(l)+'</span>';
+          var feats=_cardFeats(l);
           var imgSrc = l.photo || 'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=700&q=80';
           var hpStatus=l.status==='Under Contract'?'<div class="card-status-tag">Under Contract</div>':'';
           c.innerHTML='<div class="f-card-img"><img src="'+imgSrc+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge '+(l.type==='Land'?'land':'')+'">'+l.type+'</div>'+hpStatus+cardFavHtml(l.address,l.city)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+l.city+', NC</div><div class="f-card-features">'+feats+'</div></div>';
@@ -899,8 +899,13 @@ var LISTINGS=[
   {id:6,price:1250000,address:"1 Summit Overlook",city:"Cashiers",type:"Single Family",beds:6,baths:5,sqft:5200,lot:"3.5 ac",photo:"https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?w=700&q=80",days:28,listAgent:"Patricia Wells",listOffice:"Highlands Sotheby's International",listOfficePhone:"(828) 555-0672",attributionContact:"(828) 555-0672",mlsId:"DEMO-1006",originatingSystem:"CSAR",mlsSources:[{system:"CSAR",mlsId:"DEMO-1006",attributionContact:"(828) 555-0672"},{system:"Canopy MLS",mlsId:"DEMO-7006",attributionContact:"(828) 555-0672"}]}
 ];
 
+// Helper: check if listing has any square footage data
+function _hasSqftData(l) {
+  return (l.sqft && l.sqft > 0) || (l.sqftRange && l.sqftRange.length > 0);
+}
+
 // Helper: display square footage — use exact sqft if available, fall back to range
-// Returns formatted string like "1,840" or "1,500–2,000" or "—"
+// Returns formatted string like "1,840" or "1,500–2,000" or "" if no data
 function _formatSqft(l) {
   if(l.sqft && l.sqft > 0) return l.sqft.toLocaleString();
   if(l.sqftRange) {
@@ -912,14 +917,28 @@ function _formatSqft(l) {
     }
     return l.sqftRange; // Return raw value if we can't parse it
   }
-  return '—';
+  return '';
 }
 
-// Helper: build the sqft label for cards — "SF" for exact, "SF (est.)" for range
+// Helper: build the sqft label for cards — "SF" for exact, "SF (range)" for range
 function _sqftLabel(l) {
   if(l.sqft && l.sqft > 0) return 'SF';
   if(l.sqftRange) return 'SF (range)';
   return 'SF';
+}
+
+// Helper: build card feature chips for non-Land listings
+// Shows beds, baths, sqft (or lot if no sqft data)
+function _cardFeats(l) {
+  if(l.type === 'Land') return '<span class="f-feat"><strong>' + l.lot + '</strong></span>';
+  var h = '<span class="f-feat"><strong>' + l.beds + '</strong> Beds</span>' +
+          '<span class="f-feat"><strong>' + l.baths + '</strong> Baths</span>';
+  if(_hasSqftData(l)) {
+    h += '<span class="f-feat"><strong>' + _formatSqft(l) + '</strong> ' + _sqftLabel(l) + '</span>';
+  } else if(l.lot) {
+    h += '<span class="f-feat"><strong>' + l.lot + '</strong> Lot</span>';
+  }
+  return h;
 }
 
 // Helper: format MLS numbers from mlsSources array for display
@@ -948,7 +967,7 @@ function renderFeatured(){
   grid.innerHTML = ''; // Clear loading state / previous cards
   LISTINGS.slice(0,6).forEach(function(l,i){
     const c=document.createElement('div');c.className='f-card reveal';
-    const feats=l.type==='Land'?'<span class="f-feat"><strong>'+l.lot+'</strong></span>':'<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+_formatSqft(l)+'</strong> '+_sqftLabel(l)+'</span>';
+    const feats=_cardFeats(l);
     var brokerParts=[];if(l.listAgent)brokerParts.push(l.listAgent);if(l.listOffice)brokerParts.push(l.listOffice);
     var mlsNums = _formatMlsNums(l);
     var brokerHtml=brokerParts.length?'<div class="f-card-office">Listed by '+brokerParts.join(' &bull; ')+(mlsNums?' | '+mlsNums:'')+'</div>':'';
@@ -2089,7 +2108,7 @@ function renderTownResults(townId,results,townName){
   info.innerHTML='<div class="tp-results-info">'+results.length+' propert'+(results.length===1?'y':'ies')+' found <button class="tp-clear" onclick="clearTownSearch(\''+townId+'\')">Clear Filters</button></div>';
   results.forEach(function(l){
     var c=document.createElement('div');c.className='f-card';
-    var feats=l.type==='Land'?'<span class="f-feat"><strong>'+l.lot+'</strong></span>':'<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+_formatSqft(l)+'</strong> '+_sqftLabel(l)+'</span>';
+    var feats=_cardFeats(l);
     var badge=l.type==='Land'?' land':'';
     var statusBadge=l.status==='Under Contract'?'<div class="card-status-tag">Under Contract</div>':'';
     var tBrokerParts=[];if(l.listAgent)tBrokerParts.push(l.listAgent);if(l.listOffice)tBrokerParts.push(l.listOffice);
@@ -2151,7 +2170,7 @@ function renderTownFeatured(townSlug){
   grid.innerHTML = '';
   data.listings.slice(0,3).forEach(function(l){
     var c=document.createElement('div');c.className='f-card';
-    var feats=l.type==='Land'?'<span class="f-feat"><strong>'+l.lot+'</strong></span>':'<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+_formatSqft(l)+'</strong> '+_sqftLabel(l)+'</span>';
+    var feats=_cardFeats(l);
     var badge=l.type==='Land'?' land':'';
     var statusBadge=l.status==='Under Contract'?'<div class="card-status-tag">Under Contract</div>':'';
     var photoHtml=l.photo?'<img src="'+l.photo+'" alt="'+l.address+'" loading="lazy">':'<div style="aspect-ratio:16/10;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.75rem">No Photo Available</div>';
@@ -2387,10 +2406,14 @@ function openProp(listing, townName) {
       '<div class="prop-stat"><div class="prop-stat-val">$' + Math.round(listing.price/parseFloat(listing.lot)).toLocaleString() + '</div><div class="prop-stat-label">Price Per Acre</div></div>' +
       '<div class="prop-stat"><div class="prop-stat-val">' + (listing.days||Math.floor(Math.random()*40+5)) + '</div><div class="prop-stat-label">Days on Market</div></div>';
   } else {
+    var _hasSqft = (listing.sqft && listing.sqft > 0) || listing.sqftRange;
+    var _sqftStat = _hasSqft
+      ? '<div class="prop-stat"><div class="prop-stat-val">' + _formatSqft(listing) + '</div><div class="prop-stat-label">Square Feet' + ((!listing.sqft || listing.sqft === 0) && listing.sqftRange ? ' (range)' : '') + '</div></div>'
+      : '<div class="prop-stat"><div class="prop-stat-val">' + (listing.daysOnMarket || listing.days || '—') + '</div><div class="prop-stat-label">Days on Market</div></div>';
     statsEl.innerHTML =
       '<div class="prop-stat"><div class="prop-stat-val">' + listing.beds + '</div><div class="prop-stat-label">Bedrooms</div></div>' +
       '<div class="prop-stat"><div class="prop-stat-val">' + listing.baths + '</div><div class="prop-stat-label">Bathrooms</div></div>' +
-      '<div class="prop-stat"><div class="prop-stat-val">' + _formatSqft(listing) + '</div><div class="prop-stat-label">Square Feet' + ((!listing.sqft || listing.sqft === 0) && listing.sqftRange ? ' (range)' : '') + '</div></div>' +
+      _sqftStat +
       '<div class="prop-stat"><div class="prop-stat-val">' + listing.lot + '</div><div class="prop-stat-label">Lot Size</div></div>';
   }
 
@@ -2425,8 +2448,10 @@ function openProp(listing, townName) {
   var featEl = document.getElementById('propFeatures');
   var feats = [];
   if (listing.type !== 'Land') {
-    var _sqftDisplay = _formatSqft(listing) + ' ' + _sqftLabel(listing);
-    feats.push({icon:'<path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M9 22V12h6v10"/>',val:_sqftDisplay,label:'Living Area'});
+    if(_hasSqftData(listing)) {
+      var _sqftDisplay = _formatSqft(listing) + ' ' + _sqftLabel(listing);
+      feats.push({icon:'<path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M9 22V12h6v10"/>',val:_sqftDisplay,label:'Living Area'});
+    }
     feats.push({icon:'<path d="M2 4v16h20V4H2zm0 8h20"/><path d="M6 8v0"/>',val:listing.beds+' Beds / '+listing.baths+' Baths',label:'Bedrooms & Bathrooms'});
     feats.push({icon:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/>',val:listing.lot,label:'Lot Size'});
     if(listing.yearBuilt){feats.push({icon:'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',val:listing.yearBuilt.toString(),label:'Year Built'});}
@@ -3381,7 +3406,7 @@ function srRenderCards(results){
 
     var feats = l.type === 'Land'
       ? '<strong>' + l.lot + '</strong>'
-      : '<span><strong>' + l.beds + '</strong> Bed</span><span><strong>' + l.baths + '</strong> Bath</span><span><strong>' + _formatSqft(l) + '</strong> ' + _sqftLabel(l) + '</span>';
+      : '<span><strong>' + l.beds + '</strong> Bed</span><span><strong>' + l.baths + '</strong> Bath</span>' + (_hasSqftData(l) ? '<span><strong>' + _formatSqft(l) + '</strong> ' + _sqftLabel(l) + '</span>' : (l.lot ? '<span><strong>' + l.lot + '</strong> Lot</span>' : ''));
 
     var imgHtml = l.photo
       ? '<img src="' + l.photo + '" alt="' + l.address + '" loading="lazy">'
@@ -3452,7 +3477,7 @@ function srRenderMarkers(results){
     // Popup
     var feats = l.type === 'Land'
       ? l.lot
-      : l.beds + ' Bed · ' + l.baths + ' Bath · ' + _formatSqft(l) + ' ' + _sqftLabel(l);
+      : l.beds + ' Bed · ' + l.baths + ' Bath · ' + (_hasSqftData(l) ? _formatSqft(l) + ' ' + _sqftLabel(l) : (l.lot || ''));
 
     var popupImg = l.photo
       ? '<img class="sr-popup-img" src="' + l.photo + '" alt="' + l.address + '">'
@@ -4689,9 +4714,7 @@ function buildCorysSuggestions(currentListing, townName) {
   suggestions.forEach(function(l){
     var c = document.createElement('div');
     c.className = 'f-card'; c.style.cursor = 'pointer';
-    var feats = l.type === 'Land'
-      ? '<span class="f-feat"><strong>'+l.lot+'</strong></span>'
-      : '<span class="f-feat"><strong>'+l.beds+'</strong> Beds</span><span class="f-feat"><strong>'+l.baths+'</strong> Baths</span><span class="f-feat"><strong>'+_formatSqft(l)+'</strong> '+_sqftLabel(l)+'</span>';
+    var feats = _cardFeats(l);
     var imgSrc = l.photo || (PROP_IMAGES[l.type]||PROP_IMAGES['Single Family'])[0].replace('w=1200','w=700');
     var sgStatus=l.status==='Under Contract'?'<div class="card-status-tag">Under Contract</div>':'';
     c.innerHTML = '<div class="f-card-img"><img src="'+imgSrc+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge'+(l.type==='Land'?' land':'')+'">' + l.type + '</div><div class="f-card-badge" style="right:auto;left:0.75rem;background:var(--gold);color:var(--bg);font-size:0.5rem">Suggested</div>'+sgStatus+cardFavHtml(l.address, l.city||townName)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+(l.city||townName)+', NC</div><div class="f-card-features">'+feats+'</div></div>';
