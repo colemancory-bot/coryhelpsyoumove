@@ -2813,7 +2813,8 @@ textarea.form-input{resize:vertical;min-height:100px}
   .hero-badge{font-size:0.68rem;padding:0.55rem 1.2rem}
   .hs-field{padding:0.85rem 1.1rem;min-height:48px}
   .hs-label{font-size:0.58rem}
-  .hs-select,.hs-input{font-size:0.88rem}
+  .hs-select,.hs-input,.hp-trigger{font-size:0.88rem}
+  .hp-trigger .hp-placeholder{color:#F5F0E8}
   .hs-btn{padding:1rem 2rem;font-size:0.72rem;min-height:52px}
   /* Fix: hp-field flex-basis=175px becomes HEIGHT in column layout — must come after line 714 base rule */
   .hp-field{flex:0 0 auto!important;min-width:0!important;max-width:none!important}
