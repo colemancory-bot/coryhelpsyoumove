@@ -1087,13 +1087,24 @@ function toggleChat(){
     chatOpen = false;
     cp.classList.remove('minimized','open');
     var ct=document.getElementById('chatTrigger');if(ct)ct.classList.remove('open');
+    var nc=document.getElementById('navChat');if(nc)nc.classList.remove('open');
     showMobileCta();
     return;
   }
 
-  // If open (full size) → minimize instead of closing
+  // If open (full size) → close on mobile, minimize on desktop
   if(chatOpen){
-    minimizeChat();
+    if(window.innerWidth <= 1024){
+      // Mobile: close fully instead of minimize
+      chatOpen = false;
+      _chatMinimized = false;
+      cp.classList.remove('minimized','open');
+      var ct=document.getElementById('chatTrigger');if(ct)ct.classList.remove('open');
+      var nc=document.getElementById('navChat');if(nc)nc.classList.remove('open');
+      showMobileCta();
+    } else {
+      minimizeChat();
+    }
     return;
   }
 
@@ -1102,6 +1113,7 @@ function toggleChat(){
   hideMobileCta();
   cp.classList.add('open');
   var ct=document.getElementById('chatTrigger');if(ct)ct.classList.add('open');
+  var nc=document.getElementById('navChat');if(nc)nc.classList.add('open');
   var cm=document.getElementById('chatMessages');if(cm&&!cm.children.length){ if(!_restoreChatMessages()) addInitMsg(); }
   var ci=document.getElementById('chatInput');if(ci)setTimeout(()=>ci.focus(),300);
 }
@@ -1585,7 +1597,8 @@ setTimeout(function(){
     }
   }catch(e){}
 },3500);
-// Auto-hide preview after 30s if user hasn't interacted
+// Auto-hide preview — 8s on mobile, 30s on desktop
+var _previewHideDelay = window.innerWidth <= 1024 ? 8000 : 30000;
 setTimeout(function(){
   try{
     var cp=document.getElementById('chatPreview');
@@ -1594,7 +1607,21 @@ setTimeout(function(){
       var ct=document.getElementById('chatTrigger');if(ct&&!ct.classList.contains('open'))ct.classList.add('compact');
     }
   }catch(e){}
-},30000);
+}, _previewHideDelay);
+
+// Mobile: hide preview on any scroll
+if(window.innerWidth <= 1024){
+  var _mobileScrollHide = false;
+  window.addEventListener('scroll', function(){
+    if(_mobileScrollHide) return;
+    var cp=document.getElementById('chatPreview');
+    if(cp && cp.classList.contains('show')){
+      cp.classList.remove('show');
+      var cb=document.getElementById('chatBadge');if(cb)cb.classList.remove('show');
+      _mobileScrollHide = true;
+    }
+  }, {passive:true});
+}
 
 // ═══ PAGE OVERLAYS (Towns + Blogs) ═══
 function openPage(id){
