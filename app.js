@@ -3193,11 +3193,12 @@ function srApplyFilters(){
   srRenderMarkers(results);
 
   // Render cards — always render immediately, then viewport filter can refine
+  var _mapVisible = _srMap && !document.getElementById('srBody').classList.contains('map-hidden');
   if(_srSpatialFilter) {
     document.getElementById('srCount').textContent = results.length + ' listing' + (results.length!==1?'s':'');
     srRenderCards(results);
-  } else if(_srMap) {
-    // Map is active — render viewport-filtered cards immediately
+  } else if(_mapVisible) {
+    // Map is visible — render viewport-filtered cards immediately
     // (don't rely solely on moveend, which may not fire if bounds don't change)
     var bounds = _srMap.getBounds();
     var inView = results.filter(function(l){
@@ -3405,6 +3406,7 @@ function srUnhighlightCard(idx){
 function srFilterCardsByViewport(){
   if(!_srMap || !_srAllFilteredResults.length) return;
   if(_srSpatialFilter) return; // Drawing active — spatial filter controls cards
+  if(document.getElementById('srBody').classList.contains('map-hidden')) return; // Map hidden on mobile — skip viewport filter
   var bounds = _srMap.getBounds();
   var inView = _srAllFilteredResults.filter(function(l){
     return l.lat && l.lng && bounds.contains(L.latLng(l.lat, l.lng));
@@ -3560,6 +3562,12 @@ function srToggleView(){
     label.textContent = 'Show Map';
     icon.innerHTML = '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>';
     _srMobileView = 'list';
+    // Re-render cards showing all filtered results (no viewport filter when map hidden)
+    if(_srAllFilteredResults.length) {
+      _srCurrentResults = _srAllFilteredResults;
+      document.getElementById('srCount').textContent = _srAllFilteredResults.length + ' listing' + (_srAllFilteredResults.length!==1?'s':'');
+      srRenderCards(_srAllFilteredResults);
+    }
   }
 }
 

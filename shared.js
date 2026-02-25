@@ -20,7 +20,9 @@ window.addEventListener('scroll', function(){
 });
 
 // ═══ MOBILE MENU ═══
+// Only wire hamburger if app.js is NOT loaded (app.js has its own handler with pushState support)
 document.addEventListener('DOMContentLoaded', function(){
+  if(typeof _isTownPage !== 'undefined') return; // app.js is loaded — it handles the menu
   var toggle = document.getElementById('navToggle');
   var menu = document.getElementById('mobileMenu');
   if(toggle && menu){
