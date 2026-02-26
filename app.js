@@ -2646,9 +2646,15 @@ function openProp(listing, townName) {
         // Link Parcel ID to county GIS when available
         var _pin = r.ParcelNumber || '';
         var _county = (r.CountyOrParish || '').toLowerCase();
-        if(_pin && _county === 'jackson') {
-          var _fmtPin = fmtPin(_pin);
-          s4 += bfLink('Parcel ID', _fmtPin, 'https://gis.jacksonnc.org/rpv/?find=' + encodeURIComponent(_fmtPin));
+        var _fmtPin = fmtPin(_pin);
+        var _gisUrls = {
+          'jackson': 'https://gis.jacksonnc.org/rpv/?find=' + encodeURIComponent(_fmtPin),
+          'haywood': 'https://maps.haywoodcountync.gov/?find=' + encodeURIComponent(_fmtPin),
+          'macon':   'https://gis2.maconnc.org/lightmap/Maps/default.htm?pid=' + encodeURIComponent(_pin.replace(/[^0-9]/g,'')),
+          'swain':   'https://maps.swaincountync.gov/gis/?find=' + encodeURIComponent(_fmtPin)
+        };
+        if(_pin && _gisUrls[_county]) {
+          s4 += bfLink('Parcel ID', _fmtPin, _gisUrls[_county]);
         } else {
           s4 += bf('Parcel ID', _pin);
         }
