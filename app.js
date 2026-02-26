@@ -1770,6 +1770,13 @@ function toggleHsLocDropdown(e) {
   var isOpen = dd.classList.contains('open');
   document.querySelectorAll('.sr-multi-dropdown.open').forEach(function(d){ d.classList.remove('open'); });
   if(!isOpen) {
+    // Portal: move dropdown to body to escape stacking contexts
+    var rect = field.getBoundingClientRect();
+    dd.style.position = 'fixed';
+    dd.style.top = (rect.bottom + 4) + 'px';
+    dd.style.left = rect.left + 'px';
+    dd.style.minWidth = rect.width + 'px';
+    document.body.appendChild(dd);
     dd.classList.add('open');
     setTimeout(function(){
       document.addEventListener('click', _closeHsLocDropdown);
@@ -1779,8 +1786,14 @@ function toggleHsLocDropdown(e) {
 function _closeHsLocDropdown(e) {
   var dd = document.getElementById('hsLocDropdown');
   var field = document.getElementById('hsLocField');
-  if(dd && field && !field.contains(e.target)) {
+  if(dd && !dd.contains(e.target) && field && !field.contains(e.target)) {
     dd.classList.remove('open');
+    // Move dropdown back into the field
+    field.appendChild(dd);
+    dd.style.position = '';
+    dd.style.top = '';
+    dd.style.left = '';
+    dd.style.minWidth = '';
     document.removeEventListener('click', _closeHsLocDropdown);
   }
 }
