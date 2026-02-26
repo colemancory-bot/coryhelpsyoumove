@@ -82,7 +82,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Outfit:wght@200;300;400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=53">
+<link rel="stylesheet" href="styles.css?v=54">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
@@ -142,6 +142,11 @@
     <!-- Sign In (default view) -->
     <div id="mobileLoginFields">
       <h3 class="mobile-acct-title">Sign In</h3>
+      <div class="acct-oauth-btns" style="margin-bottom:0.75rem">
+        <button class="acct-oauth-btn acct-oauth-google" onclick="signInWithGoogle()"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg> Continue with Google</button>
+        <button class="acct-oauth-btn acct-oauth-facebook" onclick="signInWithFacebook()"><svg viewBox="0 0 24 24" width="18" height="18" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg> Continue with Facebook</button>
+      </div>
+      <div class="acct-or" style="margin:0.5rem 0">&mdash; or sign in with email &mdash;</div>
       <div class="mobile-acct-error" id="mobileLoginError" style="display:none"></div>
       <div class="mobile-acct-field">
         <input type="email" id="mobileLoginEmail" placeholder="Email address">
@@ -157,13 +162,18 @@
     <!-- Create Account (hidden, expands on tap) -->
     <div id="mobileSignupFields" style="display:none">
       <h3 class="mobile-acct-title">Create Free Account</h3>
+      <div class="acct-oauth-btns" style="margin-bottom:0.75rem">
+        <button class="acct-oauth-btn acct-oauth-google" onclick="signInWithGoogle()"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg> Continue with Google</button>
+        <button class="acct-oauth-btn acct-oauth-facebook" onclick="signInWithFacebook()"><svg viewBox="0 0 24 24" width="18" height="18" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg> Continue with Facebook</button>
+      </div>
+      <div class="acct-or" style="margin:0.5rem 0">&mdash; or create account with email &mdash;</div>
       <div class="mobile-acct-error" id="mobileSignupError" style="display:none"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">
         <div class="mobile-acct-field"><input type="text" id="mobileSignupFirst" placeholder="First name"></div>
         <div class="mobile-acct-field"><input type="text" id="mobileSignupLast" placeholder="Last name"></div>
       </div>
       <div class="mobile-acct-field"><input type="email" id="mobileSignupEmail" placeholder="Email address"></div>
-      <div class="mobile-acct-field"><input type="tel" id="mobileSignupPhone" placeholder="Phone number"></div>
+      <div class="mobile-acct-field"><input type="tel" id="mobileSignupPhone" placeholder="Phone number (optional)"></div>
       <div class="mobile-acct-field"><input type="password" id="mobileSignupPass" placeholder="Create a password" minlength="6"></div>
       <button class="mobile-acct-submit" onclick="mobileSignup()">Create Free Account</button>
       <p class="mobile-acct-privacy">Your information stays private and is never shared.</p>
@@ -585,7 +595,7 @@
       <div class="form-title">Request a Consultation</div>
       <div class="form-sub">I'll get back to you within 24 hours.</div>
       <div class="form-row"><div class="form-group"><label class="form-label">First Name</label><input type="text" class="form-input" id="ctaFirst" placeholder="John"></div><div class="form-group"><label class="form-label">Last Name</label><input type="text" class="form-input" id="ctaLast" placeholder="Smith"></div></div>
-      <div class="form-row"><div class="form-group"><label class="form-label">Email</label><input type="email" class="form-input" id="ctaEmail" placeholder="john@example.com"></div><div class="form-group"><label class="form-label">Phone</label><input type="tel" class="form-input" id="ctaPhone" placeholder="(555) 555-5555"></div></div>
+      <div class="form-row"><div class="form-group"><label class="form-label">Email</label><input type="email" class="form-input" id="ctaEmail" placeholder="john@example.com"></div><div class="form-group"><label class="form-label">Phone <span class="acct-optional">(optional)</span></label><input type="tel" class="form-input" id="ctaPhone" placeholder="(555) 555-5555"></div></div>
       <div class="form-group"><label class="form-label">I'm Interested In</label><select class="form-select" id="ctaType"><option value="">Select an option</option><option>Buying a Home</option><option>Selling a Home</option><option>Buying Land</option><option>Selling Land</option><option>Investment Property</option><option>General Inquiry</option></select></div>
       <div class="form-group"><label class="form-label">Message</label><textarea class="form-input" id="ctaMessage" placeholder="Tell me about what you're looking for..."></textarea></div>
       <div class="form-acct-opt" id="ctaAcctOpt">
@@ -694,7 +704,7 @@
 </div>
 
 <!-- ═══════════════ SCRIPTS ═══════════════ -->
-<script defer src="app.js?v=53"></script>
+<script defer src="app.js?v=54"></script>
 
 
 </div>

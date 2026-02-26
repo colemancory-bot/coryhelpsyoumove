@@ -1384,6 +1384,13 @@ textarea.form-input{resize:vertical;min-height:100px}
 .acct-or{text-align:center;font-size:0.65rem;color:var(--text-muted);margin:1rem 0 0.75rem}
 .acct-login-link{text-align:center;font-size:0.72rem;color:var(--gold);cursor:pointer;transition:color 0.3s}
 .acct-login-link:hover{color:var(--gold-light)}
+.acct-optional{font-weight:300;font-size:0.7rem;color:var(--text-muted);letter-spacing:0}
+.acct-oauth-btns{display:flex;flex-direction:column;gap:0.5rem;margin-bottom:0.75rem}
+.acct-oauth-btn{display:flex;align-items:center;justify-content:center;gap:0.6rem;width:100%;padding:0.7rem 1rem;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--cream);font-family:'Outfit',sans-serif;font-size:0.82rem;font-weight:500;cursor:pointer;transition:all 0.2s;letter-spacing:0.01em}
+.acct-oauth-btn:hover{border-color:var(--gold);background:rgba(196,176,140,0.08)}
+.acct-oauth-btn svg{width:18px;height:18px;flex-shrink:0}
+.acct-oauth-google:hover{border-color:#4285F4}
+.acct-oauth-facebook:hover{border-color:#1877F2}
 .acct-error{background:rgba(192,112,112,0.15);color:#e07070;padding:0.6rem 0.85rem;border-radius:8px;font-size:0.78rem;margin-bottom:0.5rem;line-height:1.4;border:1px solid rgba(192,112,112,0.25)}
 .acct-success{text-align:center;padding:2rem 1rem}
 .acct-success-icon{width:48px;height:48px;stroke:var(--gold);fill:none;stroke-width:1.5;margin:0 auto 1rem}

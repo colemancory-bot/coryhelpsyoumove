@@ -98,6 +98,9 @@ function _unlockScroll(){
   requestAnimationFrame(function(){document.documentElement.style.scrollBehavior='';});
 }
 
+// ═══ REGISTRATION GATE ═══
+var _pendingProp = null; // {listing, townName} stored when unregistered user clicks a property
+
 // ═══ MOBILE MENU INLINE AUTH ═══
 function toggleMobileSignup(){
   var login=document.getElementById('mobileLoginFields');
@@ -152,7 +155,7 @@ async function mobileSignup(){
   if(!first){_showMobileError('mobileSignupError','First name is required');return}
   if(!last){_showMobileError('mobileSignupError','Last name is required');return}
   if(!email||email.indexOf('@')<1){_showMobileError('mobileSignupError','Valid email is required');return}
-  if(!phone){_showMobileError('mobileSignupError','Phone number is required');return}
+  // Phone is optional — skip validation
   if(!pass||pass.length<6){_showMobileError('mobileSignupError','Password must be at least 6 characters');return}
   var btn=document.querySelector('#mobileSignupFields .mobile-acct-submit');
   btn.textContent='Creating Account...';btn.disabled=true;
@@ -168,6 +171,8 @@ async function mobileSignup(){
     try{localStorage.setItem('cc_profile',JSON.stringify({firstName:first,lastName:last,email:email,phone:phone,password:true}))}catch(e){}
     updateAcctUI();checkAdminRole();
     btn.textContent='Create Free Account';btn.disabled=false;
+    // Close mobile menu and open pending property if gated
+    if(_pendingProp){closeMobile();setTimeout(function(){openProp(_pendingProp.listing,_pendingProp.townName);_pendingProp=null},600)}
   }catch(e){_showMobileError('mobileSignupError','Something went wrong');btn.textContent='Create Free Account';btn.disabled=false}
 }
 
@@ -255,8 +260,14 @@ if(_isTownPage){
   // --- Account Modal ---
   html += '<div class="acct-modal-bg" id="acctModal" onclick="if(event.target===this)closeAcctModal()"><div class="acct-modal" id="acctModalInner">' +
     '<button class="acct-modal-close" onclick="closeAcctModal()">&times;</button>' +
-    '<div id="acctLoginView"><div class="acct-modal-badge">Welcome Back</div><h3>Sign In</h3><div class="acct-modal-sub">Access your saved favorites, searches, and full property details.</div><div class="acct-error" id="acctLoginError" style="display:none"></div><div class="acct-field"><label>Email Address</label><input type="email" id="acctLoginEmail" placeholder="john@example.com" required></div><div class="acct-field"><label>Password</label><input type="password" id="acctLoginPass" placeholder="Your password" required></div><button class="acct-submit" onclick="loginAcct()">Sign In</button><div class="form-privacy"><svg viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Your information stays with me &mdash; I never sell or share it with third parties.</div><div class="acct-or">&mdash; or &mdash;</div><div class="acct-login-link" onclick="showAcctSignup()">Don\'t have an account? <strong>Create one free</strong></div></div>' +
-    '<div id="acctFormView" style="display:none"><div class="acct-modal-badge">Free Account</div><h3>Unlock <em>Full Details</em></h3><div class="acct-modal-sub">Create a free account to access mortgage calculators, restriction details, save your favorite properties, and more.</div><div class="acct-error" id="acctSignupError" style="display:none"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem"><div class="acct-field"><label>First Name</label><input type="text" id="acctFirst" placeholder="John" required></div><div class="acct-field"><label>Last Name</label><input type="text" id="acctLast" placeholder="Smith" required></div></div><div class="acct-field"><label>Email Address</label><input type="email" id="acctEmail" placeholder="john@example.com" required></div><div class="acct-field"><label>Phone</label><input type="tel" id="acctPhone" placeholder="(828) 555-1234" required></div><div class="acct-field"><label>Password</label><input type="password" id="acctPass" placeholder="Create a password" required minlength="6"><div class="acct-pass-note">Minimum 6 characters</div></div><button class="acct-submit" onclick="submitAcct()">Create Free Account</button><div class="acct-or">&mdash; or &mdash;</div><div class="acct-login-link" onclick="showAcctLogin()">Already have an account? <strong>Sign in</strong></div></div>' +
+    '<div id="acctLoginView"><div class="acct-modal-badge">Welcome Back</div><h3>Sign In</h3><div class="acct-modal-sub">Access your saved favorites, searches, and full property details.</div>' +
+    '<div class="acct-oauth-btns"><button class="acct-oauth-btn acct-oauth-google" onclick="signInWithGoogle()"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg> Continue with Google</button><button class="acct-oauth-btn acct-oauth-facebook" onclick="signInWithFacebook()"><svg viewBox="0 0 24 24" width="18" height="18" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg> Continue with Facebook</button></div>' +
+    '<div class="acct-or">&mdash; or sign in with email &mdash;</div>' +
+    '<div class="acct-error" id="acctLoginError" style="display:none"></div><div class="acct-field"><label>Email Address</label><input type="email" id="acctLoginEmail" placeholder="john@example.com" required></div><div class="acct-field"><label>Password</label><input type="password" id="acctLoginPass" placeholder="Your password" required></div><button class="acct-submit" onclick="loginAcct()">Sign In</button><div class="form-privacy"><svg viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Your information stays with me &mdash; I never sell or share it with third parties.</div><div class="acct-or">&mdash; or &mdash;</div><div class="acct-login-link" onclick="showAcctSignup()">Don\'t have an account? <strong>Create one free</strong></div></div>' +
+    '<div id="acctFormView" style="display:none"><div class="acct-modal-badge">Free Account</div><h3>Unlock <em>Full Details</em></h3><div class="acct-modal-sub">Create a free account to access mortgage calculators, restriction details, save your favorite properties, and more.</div>' +
+    '<div class="acct-oauth-btns"><button class="acct-oauth-btn acct-oauth-google" onclick="signInWithGoogle()"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg> Continue with Google</button><button class="acct-oauth-btn acct-oauth-facebook" onclick="signInWithFacebook()"><svg viewBox="0 0 24 24" width="18" height="18" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg> Continue with Facebook</button></div>' +
+    '<div class="acct-or">&mdash; or create account with email &mdash;</div>' +
+    '<div class="acct-error" id="acctSignupError" style="display:none"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem"><div class="acct-field"><label>First Name</label><input type="text" id="acctFirst" placeholder="John" required></div><div class="acct-field"><label>Last Name</label><input type="text" id="acctLast" placeholder="Smith" required></div></div><div class="acct-field"><label>Email Address</label><input type="email" id="acctEmail" placeholder="john@example.com" required></div><div class="acct-field"><label>Phone <span class="acct-optional">(optional)</span></label><input type="tel" id="acctPhone" placeholder="(828) 555-1234"></div><div class="acct-field"><label>Password</label><input type="password" id="acctPass" placeholder="Create a password" required minlength="6"><div class="acct-pass-note">Minimum 6 characters</div></div><button class="acct-submit" onclick="submitAcct()">Create Free Account</button><div class="acct-or">&mdash; or &mdash;</div><div class="acct-login-link" onclick="showAcctLogin()">Already have an account? <strong>Sign in</strong></div></div>' +
     '<div id="acctSuccessView" style="display:none"><div class="acct-success"><svg class="acct-success-icon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg><h3>Welcome!</h3><p>Your free account is ready. You now have full access to property details, mortgage estimates, and can save your favorites.</p></div></div>' +
     '<div id="acctDashView" style="display:none"><div style="text-align:center;margin-bottom:1rem"><svg viewBox="0 0 24 24" style="width:40px;height:40px;stroke:var(--gold);fill:none;stroke-width:1.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><h3 id="acctDashName" style="margin:0.5rem 0 0;color:var(--text)">My Account</h3><p id="acctDashEmail" style="margin:0;font-size:0.85rem;color:var(--text-muted)"></p></div>' +
       '<div class="acct-dash-tools"><button onclick="closeAcctModal();openAfford()" class="acct-tool-btn"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>Affordability</button><button onclick="closeAcctModal();openCol()" class="acct-tool-btn"><svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>Cost of Living</button><button onclick="closeAcctModal();openQA()" class="acct-tool-btn"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Local Q&A</button></div>' +
@@ -1923,7 +1934,7 @@ function submitSellForm(){
   if(!first){document.getElementById('hsfFirstErr').classList.add('show');document.getElementById('hsfFirst').classList.add('error');valid=false}
   if(!last){document.getElementById('hsfLastErr').classList.add('show');document.getElementById('hsfLast').classList.add('error');valid=false}
   if(!email||!email.includes('@')||!email.includes('.')){document.getElementById('hsfEmailErr').classList.add('show');document.getElementById('hsfEmail').classList.add('error');valid=false}
-  if(!phone||phone.replace(/\D/g,'').length<7){document.getElementById('hsfPhoneErr').classList.add('show');document.getElementById('hsfPhone').classList.add('error');valid=false}
+  // Phone is optional — skip validation
 
   if(!valid)return;
 
@@ -2445,6 +2456,12 @@ var PROP_DESCRIPTIONS = {
 var RESTRICT_LABELS = {'unrestricted':'Unrestricted — No HOA','restricted':'Has Restrictions','light':'Has Restrictions','hoa':'Has Restrictions'};
 
 function openProp(listing, townName) {
+  // Registration gate — require sign-in before viewing property details
+  if(!_acctLoggedIn){
+    _pendingProp = {listing:listing, townName:townName};
+    openAcctModal();
+    return;
+  }
   hideMobileCta();
   try{
   var o = document.getElementById('propOverlay');
@@ -4411,7 +4428,13 @@ async function initSupabaseAuth() {
       if(session && session.user) {
         _acctLoggedIn = true;
         _currentUser = session.user;
-        if(event === 'SIGNED_IN') { loadFavoritesFromCloud(); checkAdminRole(); checkReengagement(); }
+        if(event === 'SIGNED_IN') {
+          loadFavoritesFromCloud(); checkAdminRole(); checkReengagement();
+          // OAuth: create profile + lead for social login users
+          _handleOAuthProfile(session);
+          // Open pending property if user was gated
+          _openPendingProp();
+        }
       } else if(event === 'SIGNED_OUT') {
         _acctLoggedIn = false;
         _currentUser = null;
@@ -4653,7 +4676,7 @@ async function submitAcct() {
   if(!last){ document.getElementById('acctLast').focus(); document.getElementById('acctLast').style.borderColor='#c07070'; return; }
   if(!email || email.indexOf('@')<1){ document.getElementById('acctEmail').focus(); document.getElementById('acctEmail').style.borderColor='#c07070'; return; }
   if(!pass || pass.length < 6){ document.getElementById('acctPass').focus(); document.getElementById('acctPass').style.borderColor='#c07070'; return; }
-  if(!phone){ document.getElementById('acctPhone').focus(); document.getElementById('acctPhone').style.borderColor='#c07070'; return; }
+  // Phone is optional — skip validation
 
   // Disable button while working
   var btn = document.querySelector('#acctFormView .acct-submit');
@@ -4706,11 +4729,80 @@ async function submitAcct() {
     document.getElementById('acctFormView').style.display = 'none';
     document.getElementById('acctSuccessView').style.display = '';
     updateAcctUI();
-    setTimeout(function(){ closeAcctModal() }, 2000);
+    // Open pending property or just close modal
+    if(_pendingProp){
+      setTimeout(function(){ closeAcctModal(); openProp(_pendingProp.listing,_pendingProp.townName); _pendingProp=null; },1200);
+    } else {
+      setTimeout(function(){ closeAcctModal() }, 2000);
+    }
   } catch(e) {
     showAcctError('acctSignupError', 'Something went wrong. Please try again.');
     btn.textContent = 'Create Free Account';
     btn.disabled = false;
+  }
+}
+
+// --- OAuth: Google & Facebook Sign-In ---
+async function signInWithGoogle(){
+  if(!_sb) return;
+  // Persist pending property across redirect
+  if(_pendingProp) try{localStorage.setItem('cc_pending_prop',JSON.stringify(_pendingProp))}catch(e){}
+  try{
+    await _sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin+window.location.pathname}});
+  }catch(e){console.error('[OAuth] Google error:',e)}
+}
+async function signInWithFacebook(){
+  if(!_sb) return;
+  if(_pendingProp) try{localStorage.setItem('cc_pending_prop',JSON.stringify(_pendingProp))}catch(e){}
+  try{
+    await _sb.auth.signInWithOAuth({provider:'facebook',options:{redirectTo:window.location.origin+window.location.pathname}});
+  }catch(e){console.error('[OAuth] Facebook error:',e)}
+}
+
+// --- OAuth profile + lead creation for social logins ---
+async function _handleOAuthProfile(session){
+  if(!session||!session.user||!_sb) return;
+  var meta=session.user.user_metadata;
+  if(!meta) return;
+  // Only process if user has OAuth metadata (full_name from Google/Facebook)
+  var fullName=meta.full_name||meta.name||'';
+  if(!fullName) return;
+  try{
+    // Check if profile already exists — skip if so
+    var existing=await _sb.from('profiles').select('id').eq('id',session.user.id).single();
+    if(existing.data) return; // Already has a profile
+    var names=fullName.split(' ');
+    var first=names[0]||'';
+    var last=names.slice(1).join(' ')||'';
+    var email=session.user.email||'';
+    var avatar=meta.avatar_url||meta.picture||'';
+    var provider=meta.iss||session.user.app_metadata.provider||'oauth';
+    // Create profile
+    await _sb.from('profiles').insert({id:session.user.id,first_name:first,last_name:last,email:email,phone:''});
+    // Create lead + push to Follow-Up Boss
+    var leadData={first_name:first,last_name:last,email:email,phone:'',source:'oauth_'+provider,message:'Signed in via '+provider};
+    _sb.from('leads').insert(leadData).then(function(){_pushToFUB(leadData)}).catch(function(){});
+    // Cache profile locally
+    try{localStorage.setItem('cc_profile',JSON.stringify({firstName:first,lastName:last,email:email,phone:'',avatar:avatar}))}catch(e){}
+  }catch(e){console.warn('[OAuth] Profile creation:',e)}
+}
+
+// --- Open pending property after auth (registration gate) ---
+function _openPendingProp(){
+  // Check in-memory first
+  if(_pendingProp){
+    var p=_pendingProp;_pendingProp=null;
+    setTimeout(function(){closeAcctModal();openProp(p.listing,p.townName)},800);
+    return;
+  }
+  // Check localStorage (OAuth redirect)
+  var stored=localStorage.getItem('cc_pending_prop');
+  if(stored){
+    localStorage.removeItem('cc_pending_prop');
+    try{
+      var p=JSON.parse(stored);
+      if(p&&p.listing){setTimeout(function(){openProp(p.listing,p.townName)},800)}
+    }catch(e){}
   }
 }
 
@@ -4743,7 +4835,12 @@ async function loginAcct() {
     document.getElementById('acctLoginView').style.display = 'none';
     document.getElementById('acctSuccessView').style.display = '';
     updateAcctUI();
-    setTimeout(function(){ closeAcctModal() }, 2000);
+    // Open pending property or just close modal
+    if(_pendingProp){
+      setTimeout(function(){ closeAcctModal(); openProp(_pendingProp.listing,_pendingProp.townName); _pendingProp=null; },1200);
+    } else {
+      setTimeout(function(){ closeAcctModal() }, 2000);
+    }
   } catch(e) {
     showAcctError('acctLoginError', 'Something went wrong. Please try again.');
     btn.textContent = 'Sign In';
@@ -4766,7 +4863,7 @@ async function submitConsultation(btn) {
   if(!first){ document.getElementById('ctaFirst').focus(); document.getElementById('ctaFirst').style.borderColor='#c07070'; return; }
   if(!last){ document.getElementById('ctaLast').focus(); document.getElementById('ctaLast').style.borderColor='#c07070'; return; }
   if(!email || email.indexOf('@')<1){ document.getElementById('ctaEmail').focus(); document.getElementById('ctaEmail').style.borderColor='#c07070'; return; }
-  if(!phone){ document.getElementById('ctaPhone').focus(); document.getElementById('ctaPhone').style.borderColor='#c07070'; return; }
+  // Phone is optional — skip validation
 
   btn.textContent = 'Sending...';
   btn.disabled = true;
