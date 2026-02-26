@@ -1775,7 +1775,8 @@ function toggleHsLocDropdown(e) {
     dd.style.position = 'fixed';
     dd.style.top = (rect.bottom + 4) + 'px';
     dd.style.left = rect.left + 'px';
-    dd.style.minWidth = rect.width + 'px';
+    dd.style.minWidth = Math.max(rect.width, 220) + 'px';
+    dd.style.zIndex = '99999';
     document.body.appendChild(dd);
     dd.classList.add('open');
     setTimeout(function(){
@@ -1794,6 +1795,7 @@ function _closeHsLocDropdown(e) {
     dd.style.top = '';
     dd.style.left = '';
     dd.style.minWidth = '';
+    dd.style.zIndex = '';
     document.removeEventListener('click', _closeHsLocDropdown);
   }
 }
