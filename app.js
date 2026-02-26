@@ -228,8 +228,8 @@ if(_isTownPage){
   html += '<div class="search-overlay" id="searchOverlay">' +
     '<div class="sr-topbar"><div class="sr-topbar-left"><button class="sr-back" onclick="closeSearch()"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button><div><div class="sr-title">Properties in <em id="srRegion">Western NC</em></div><div class="sr-count" id="srCount">0 listings</div></div></div><div class="sr-topbar-right"><button class="theme-toggle" onclick="toggleTheme()" style="width:36px;height:36px;font-size:0.85rem" aria-label="Toggle theme"><span class="prop-toggle-sun" style="display:none">☀</span><span class="prop-toggle-moon">☽</span></button></div></div>' +
     '<div class="sr-filters" id="srFilters">' +
-      '<div class="sr-filter-chip" id="srfLocation"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><select id="srfLocSelect" onchange="srApplyFilters()"><option value="">All Areas</option><option value="Waynesville">Waynesville</option><option value="Sylva">Sylva</option><option value="Maggie Valley">Maggie Valley</option><option value="Bryson City">Bryson City</option><option value="Cashiers">Cashiers / Highlands</option><option value="Franklin">Franklin</option><option value="Dillsboro">Dillsboro</option><option value="Cullowhee">Cullowhee</option></select></div>' +
-      '<div class="sr-filter-chip" id="srfType"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg><select id="srfTypeSelect" onchange="srApplyFilters()"><option value="">All Types</option><option value="Single Family">Single Family</option><option value="Cabin">Cabin</option><option value="Land">Land</option></select></div>' +
+      '<div class="sr-filter-chip sr-multi-chip" id="srfLocation" onclick="toggleLocDropdown(event)"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span class="sr-multi-label" id="srfLocLabel">All Areas</span><svg class="sr-multi-arrow" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg><div class="sr-multi-dropdown" id="srfLocDropdown" onclick="event.stopPropagation()"><label class="sr-multi-option"><input type="checkbox" value="Waynesville" onchange="srLocChanged()"><span>Waynesville</span></label><label class="sr-multi-option"><input type="checkbox" value="Sylva" onchange="srLocChanged()"><span>Sylva</span></label><label class="sr-multi-option"><input type="checkbox" value="Maggie Valley" onchange="srLocChanged()"><span>Maggie Valley</span></label><label class="sr-multi-option"><input type="checkbox" value="Bryson City" onchange="srLocChanged()"><span>Bryson City</span></label><label class="sr-multi-option"><input type="checkbox" value="Cashiers" onchange="srLocChanged()"><span>Cashiers / Highlands</span></label><label class="sr-multi-option"><input type="checkbox" value="Franklin" onchange="srLocChanged()"><span>Franklin</span></label><label class="sr-multi-option"><input type="checkbox" value="Dillsboro" onchange="srLocChanged()"><span>Dillsboro</span></label><label class="sr-multi-option"><input type="checkbox" value="Cullowhee" onchange="srLocChanged()"><span>Cullowhee</span></label></div></div>' +
+      '<div class="sr-filter-chip" id="srfType"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg><select id="srfTypeSelect" onchange="srApplyFilters()"><option value="">All Types</option><option value="Single Family">Single Family</option><option value="Cabin">Cabin</option><option value="Multi-Family">Multi-Family</option><option value="Land">Land</option></select></div>' +
       '<div class="sr-filter-chip" id="srfPrice"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg><select id="srfPriceSelect" onchange="srApplyFilters()"><option value="">Any Price</option><option value="0-200000">Under $200K</option><option value="200000-400000">$200K – $400K</option><option value="400000-700000">$400K – $700K</option><option value="700000-1000000">$700K – $1M</option><option value="1000000-99999999">$1M+</option></select></div>' +
       '<div class="sr-filter-chip" id="srfBeds"><select id="srfBedsSelect" onchange="srApplyFilters()"><option value="">Any Beds</option><option value="2">2+ Beds</option><option value="3">3+ Beds</option><option value="4">4+ Beds</option><option value="5">5+ Beds</option></select></div>' +
       '<div class="sr-filter-chip" id="srfBaths"><select id="srfBathsSelect" onchange="srApplyFilters()"><option value="">Any Baths</option><option value="1">1+ Bath</option><option value="2">2+ Baths</option><option value="3">3+ Baths</option><option value="4">4+ Baths</option></select></div>' +
@@ -3291,19 +3291,125 @@ var _srFreedrawing = false;      // True while freehand drawing in progress
 var _srFreedrawPoints = [];      // LatLng array for freehand
 var _srFreedrawLine = null;      // Temporary polyline during freehand
 
+// ── Area → city mapping (includes rural variants) ──
+var AREA_CITIES = {
+  'Waynesville': ['Waynesville'],
+  'Sylva': ['Sylva'],
+  'Maggie Valley': ['Maggie Valley'],
+  'Bryson City': ['Bryson City'],
+  'Cashiers': ['Cashiers','Highlands','Sapphire','Glenville','Scaly Mountain'],
+  'Franklin': ['Franklin','Franklin City Limits','Otto'],
+  'Dillsboro': ['Dillsboro'],
+  'Cullowhee': ['Cullowhee','Webster','Tuckasegee']
+};
+// Display labels for area chip
+var AREA_LABELS = {
+  'Waynesville':'Waynesville','Sylva':'Sylva','Maggie Valley':'Maggie Valley',
+  'Bryson City':'Bryson City','Cashiers':'Cashiers / Highlands',
+  'Franklin':'Franklin','Dillsboro':'Dillsboro','Cullowhee':'Cullowhee'
+};
+
+// Check if a listing city matches a selected area (includes rural variants)
+function cityMatchesArea(city, area) {
+  if(!city || !area) return false;
+  var mapped = AREA_CITIES[area] || [area];
+  // Exact match against mapped cities
+  for(var i=0; i<mapped.length; i++){
+    if(city === mapped[i]) return true;
+  }
+  // Also match "[AreaName] Rural", "[AreaName] Township", etc.
+  if(city.indexOf(area) === 0) return true;
+  return false;
+}
+
+// Get selected areas from checkboxes
+function getSelectedAreas() {
+  var checks = document.querySelectorAll('#srfLocDropdown input[type="checkbox"]:checked');
+  var areas = [];
+  checks.forEach(function(cb){ areas.push(cb.value); });
+  return areas;
+}
+
+// Set selected areas (for programmatic use)
+function setSelectedAreas(areas) {
+  var allChecks = document.querySelectorAll('#srfLocDropdown input[type="checkbox"]');
+  allChecks.forEach(function(cb){
+    cb.checked = areas.indexOf(cb.value) !== -1;
+  });
+  updateLocLabel();
+}
+
+// Update the label text on the chip
+function updateLocLabel() {
+  var areas = getSelectedAreas();
+  var label = document.getElementById('srfLocLabel');
+  var chip = document.getElementById('srfLocation');
+  if(!label) return;
+  if(areas.length === 0) {
+    label.textContent = 'All Areas';
+    if(chip) chip.classList.remove('active');
+  } else if(areas.length === 1) {
+    label.textContent = AREA_LABELS[areas[0]] || areas[0];
+    if(chip) chip.classList.add('active');
+  } else {
+    label.textContent = areas.length + ' Areas';
+    if(chip) chip.classList.add('active');
+  }
+}
+
+// Toggle dropdown open/close
+function toggleLocDropdown(e) {
+  var dd = document.getElementById('srfLocDropdown');
+  var chip = document.getElementById('srfLocation');
+  if(!dd) return;
+  var isOpen = dd.classList.contains('open');
+  // Close any other open dropdowns first
+  document.querySelectorAll('.sr-multi-dropdown.open').forEach(function(d){ d.classList.remove('open'); });
+  document.querySelectorAll('.sr-multi-chip.open').forEach(function(c){ c.classList.remove('open'); });
+  if(!isOpen) {
+    dd.classList.add('open');
+    if(chip) chip.classList.add('open');
+    // Close on outside click
+    setTimeout(function(){
+      document.addEventListener('click', _closeLocDropdown);
+    }, 0);
+  }
+}
+function _closeLocDropdown(e) {
+  var dd = document.getElementById('srfLocDropdown');
+  var chip = document.getElementById('srfLocation');
+  if(dd && chip && !chip.contains(e.target)) {
+    dd.classList.remove('open');
+    chip.classList.remove('open');
+    document.removeEventListener('click', _closeLocDropdown);
+  }
+}
+
+// Called when any area checkbox changes
+function srLocChanged() {
+  updateLocLabel();
+  srApplyFilters();
+}
+
 function openSearchResults(filters){
   hideMobileCta();
   filters = filters || {};
 
   // Set filter values
-  var locSel = document.getElementById('srfLocSelect');
   var typeSel = document.getElementById('srfTypeSelect');
   var priceSel = document.getElementById('srfPriceSelect');
   var bedsSel = document.getElementById('srfBedsSelect');
   var bathsSel = document.getElementById('srfBathsSelect');
   var restrictSel = document.getElementById('srfRestrictSelect');
 
-  locSel.value = filters.location || '';
+  // Set location multi-select
+  if(filters.location) {
+    // Support comma-separated areas or single area
+    var locs = filters.location.split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+    setSelectedAreas(locs);
+  } else {
+    setSelectedAreas([]);
+  }
   typeSel.value = filters.type || '';
 
   // Price: if value doesn't match a dropdown option, add a custom one
@@ -3461,7 +3567,7 @@ function initSearchMap(){
 }
 
 function srApplyFilters(){
-  var loc = document.getElementById('srfLocSelect').value;
+  var selectedAreas = getSelectedAreas();
   var type = document.getElementById('srfTypeSelect').value;
   var price = document.getElementById('srfPriceSelect').value;
   var beds = document.getElementById('srfBedsSelect').value;
@@ -3476,19 +3582,24 @@ function srApplyFilters(){
   }
   var sort = sortEl.value;
 
-  // Highlight active filters
-  document.querySelectorAll('.sr-filter-chip').forEach(function(c){
+  // Highlight active filters (select-based chips)
+  document.querySelectorAll('.sr-filter-chip:not(.sr-multi-chip)').forEach(function(c){
     var sel = c.querySelector('select');
     if(sel) c.classList.toggle('active', sel.value !== '');
   });
+  // Location chip active state managed by updateLocLabel()
+  updateLocLabel();
   // Highlight text search chip if has content
   var textChip = document.getElementById('srfTextChip');
   if(textChip) textChip.classList.toggle('active', textQuery.length > 0);
 
   // Filter
   var results = ALL_LISTINGS.filter(function(l){
-    if(loc){
-      var locMatch = l.city === loc || (loc === 'Cashiers' && (l.city === 'Cashiers' || l.city === 'Cashiers / Highlands'));
+    if(selectedAreas.length > 0){
+      var locMatch = false;
+      for(var i=0; i<selectedAreas.length; i++){
+        if(cityMatchesArea(l.city, selectedAreas[i])){ locMatch = true; break; }
+      }
       if(!locMatch) return false;
     }
     if(type && l.type !== type) return false;
@@ -3564,12 +3675,14 @@ function srApplyFilters(){
   }
 
   // Update region title
-  var region = loc ? document.getElementById('srfLocSelect').options[document.getElementById('srfLocSelect').selectedIndex].text : 'Western NC';
+  var region = 'Western NC';
+  if(selectedAreas.length === 1) region = AREA_LABELS[selectedAreas[0]] || selectedAreas[0];
+  else if(selectedAreas.length > 1) region = selectedAreas.length + ' Areas';
   document.getElementById('srRegion').textContent = region;
 
   // Update URL
   var params = new URLSearchParams();
-  if(loc) params.set('location',loc);
+  if(selectedAreas.length > 0) params.set('location', selectedAreas.join(','));
   if(type) params.set('type',type);
   if(price) params.set('price',price);
   if(beds) params.set('beds',beds);
@@ -3935,7 +4048,7 @@ function srClearDrawing(){
 }
 
 function srClearFilters(){
-  document.getElementById('srfLocSelect').value = '';
+  setSelectedAreas([]);
   document.getElementById('srfTypeSelect').value = '';
   document.getElementById('srfPriceSelect').value = '';
   document.getElementById('srfBedsSelect').value = '';
