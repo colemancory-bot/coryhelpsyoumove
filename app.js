@@ -2554,7 +2554,7 @@ function openProp(listing, townName) {
   document.body.style.overflow = 'hidden';
   try{history.pushState({page:'property'},'','#property')}catch(he){}
 
-  // Fetch BBO data for admin
+  // Fetch full MLS data for admin — reads raw_data from Navica API
   if(_isAdmin && listing.listingKey && _sb) {
     _sb.from('mls_listings')
       .select('*')
@@ -2563,59 +2563,202 @@ function openProp(listing, townName) {
       .then(function(resp){
         if(!resp.data) return;
         var d = resp.data;
+        var r = d.raw_data || {};
         var notesEl = document.getElementById('propAdminNotes');
         if(!notesEl) return;
-        var html = '';
 
+        // Helper: format field value (handles arrays, booleans, nulls)
+        function fv(val) {
+          if(val === null || val === undefined || val === '') return '';
+          if(Array.isArray(val)) return val.filter(Boolean).join(', ');
+          if(typeof val === 'boolean') return val ? 'Yes' : 'No';
+          return String(val);
+        }
+        // Helper: build admin field row
         function bf(label, value) {
-          if(!value || (typeof value === 'string' && !value.trim())) return '';
-          var safe = String(value).replace(/</g,'&lt;').replace(/>/g,'&gt;');
+          var v = fv(value);
+          if(!v) return '';
+          var safe = v.replace(/</g,'&lt;').replace(/>/g,'&gt;');
           return '<div class="prop-admin-field"><div class="prop-admin-field-label">' + label + '</div><div class="prop-admin-field-value">' + safe + '</div></div>';
         }
+        // Helper: collapsible section wrapper
+        function section(title, content, startOpen) {
+          if(!content) return '';
+          return '<div class="admin-section' + (startOpen ? ' open' : '') + '">' +
+            '<div class="admin-section-header" onclick="this.parentElement.classList.toggle(\'open\')">' +
+            '<span>' + title + '</span><svg viewBox="0 0 24 24" width="14" height="14"><polyline points="6 9 12 15 18 9"/></svg></div>' +
+            '<div class="admin-section-body">' + content + '</div></div>';
+        }
 
-        html += bf('Private Remarks', d.private_remarks);
-        html += bf('Showing Instructions', d.showing_instructions);
-        html += bf('Directions', d.directions);
+        var html = '';
 
-        // Lock box
-        var lb = [d.lock_box_type, d.lock_box_serial_number ? '#' + d.lock_box_serial_number : '', d.lock_box_location].filter(Boolean).join(' \u2022 ');
-        html += bf('Lock Box', lb);
+        // ── 1. Agent Remarks & Showing (always open) ──
+        var s1 = '';
+        s1 += bf('Agent Remarks', r.PrivateRemarks);
+        s1 += bf('Showing Instructions', r.ShowingInstructions);
+        s1 += bf('Lockbox', r.LockBoxType);
+        s1 += bf('Lockbox Location', r.LockBoxLocation);
+        s1 += bf('Directions', r.Directions);
+        s1 += bf('Possession', r.Possession);
+        html += section('Agent Remarks & Showing', s1, true);
 
-        // Showing contact
-        var sc = [d.showing_contact_name, d.showing_contact_phone, d.showing_contact_type ? '(' + d.showing_contact_type + ')' : ''].filter(Boolean).join(' \u2022 ');
-        html += bf('Showing Contact', sc);
+        // ── 2. Owner & Listing Info ──
+        var s2 = '';
+        s2 += bf('Owner', r.OwnerName);
+        s2 += bf('Additional Owner', r.NAV27_AdditionalOwnrNm);
+        s2 += bf('Ownership', r.Ownership);
+        s2 += bf('Primary Residence', r.NAV27_Prim_Res);
+        s2 += bf('Allows Vacation Rental', r.NAV27_AllowsVacationRentalYN);
+        s2 += bf('Vacation Rental History', r.NAV27_VacationRentalHistoryYN);
+        s2 += bf('Home Warranty', r.HomeWarrantyYN);
+        s2 += bf('Furnished', r.Furnished);
+        s2 += bf('Senior Community', r.SeniorCommunityYN);
+        s2 += bf('Listing Agreement', r.ListingAgreement);
+        s2 += bf('Listing Terms', r.ListingTerms);
+        s2 += bf('Special Conditions', r.SpecialListingConditions);
+        s2 += bf('FSBO', r.NAV27_FSBOYN);
+        html += section('Owner & Listing Info', s2, true);
 
-        // Commission
-        var comp = [];
-        if(d.buyer_agency_compensation) comp.push('Buyer: ' + d.buyer_agency_compensation);
-        if(d.sub_agency_compensation) comp.push('Sub-Agency: ' + d.sub_agency_compensation);
-        if(d.transaction_broker_compensation) comp.push('Trans Broker: ' + d.transaction_broker_compensation);
-        html += bf('Compensation', comp.join(' \u2022 '));
+        // ── 3. Compensation ──
+        var s3 = '';
+        s3 += bf('Buyer Agency Compensation', r.BuyerAgencyCompensation);
+        s3 += bf('Sub-Agency Compensation', r.SubAgencyCompensation);
+        s3 += bf('Transaction Broker Comp', r.TransactionBrokerCompensation);
+        if(r.ConcessionsAmount) s3 += bf('Seller Concessions', '$' + parseFloat(r.ConcessionsAmount).toLocaleString());
+        s3 += bf('Concession Comments', r.ConcessionsComments);
+        html += section('Compensation', s3, true);
 
-        // Occupant
-        var occ = [d.occupant_name, d.occupant_phone, d.occupant_type ? '(' + d.occupant_type + ')' : ''].filter(Boolean).join(' \u2022 ');
-        html += bf('Occupant', occ);
+        // ── 4. Tax & Legal ──
+        var s4 = '';
+        s4 += bf('Parcel ID', r.ParcelNumber);
+        s4 += bf('Deed Book', r.TaxBookNumber);
+        s4 += bf('Deed Page', r.NAV27_Deed_Pg);
+        s4 += bf('County Tax', r.TaxAnnualAmount ? '$' + parseFloat(r.TaxAnnualAmount).toLocaleString() : '');
+        s4 += bf('Tax Year', r.TaxYear);
+        s4 += bf('Special Assessment', r.NAV27_Spcl_Asmnt);
+        s4 += bf('Restrictions', r.NAV27_Restrictions);
+        s4 += bf('Restriction Deed Book/Page', r.NAV27_Restriction_Desc);
+        s4 += bf('Zoning', r.Zoning);
+        html += section('Tax & Legal', s4, false);
 
-        // Buyer agent
-        var ba = [d.buyer_agent_full_name, d.buyer_office_name].filter(Boolean).join(' \u2022 ');
-        html += bf('Buyer Agent', ba);
+        // ── 5. HOA / Association ──
+        var s5 = '';
+        s5 += bf('HOA', r.AssociationYN);
+        s5 += bf('HOA Dues', r.AssociationFee ? '$' + parseFloat(r.AssociationFee).toLocaleString() : '');
+        s5 += bf('HOA Frequency', r.AssociationFeeFrequency);
+        s5 += bf('Association Name', r.AssociationName);
+        s5 += bf('Road Frontage', r.RoadFrontageType);
+        s5 += bf('Road Responsibility', r.RoadResponsibility);
+        html += section('HOA & Roads', s5, false);
 
-        // List agent contact
-        var lac = [d.list_agent_email, d.list_agent_phone].filter(Boolean).join(' \u2022 ');
-        html += bf('List Agent Contact', lac);
+        // ── 6. Lot & Land ──
+        var s6 = '';
+        s6 += bf('Lot Size (Acres)', r.LotSizeAcres);
+        s6 += bf('Lot Size (SqFt)', r.LotSizeSquareFeet ? parseFloat(r.LotSizeSquareFeet).toLocaleString() : '');
+        s6 += bf('Acreage Range', r.NAV27_Acrg_Rng);
+        s6 += bf('Lot Features', r.LotFeatures);
+        s6 += bf('Acreage/Waterfront Features', r.WaterfrontFeatures);
+        s6 += bf('View', r.View);
+        s6 += bf('Flood Hazard', r.NAV27_Fld_Haz);
+        s6 += bf('Elevation', r.Elevation || r.ElevationUnits ? (r.Elevation || '0') + ' ' + (r.ElevationUnits || 'ft') : '');
+        s6 += bf('Topography', r.Topography);
+        html += section('Lot & Land', s6, false);
 
-        // Listing terms
-        var terms = [d.listing_agreement, d.special_listing_conditions].filter(Boolean).join(' \u2022 ');
-        html += bf('Listing Terms', terms);
+        // ── 7. Construction & Exterior ──
+        var s7 = '';
+        s7 += bf('Style', r.ArchitecturalStyle);
+        s7 += bf('Year Built', r.YearBuilt);
+        s7 += bf('Age Range', r.NAV27_Age_Rng);
+        s7 += bf('Exterior Finish', r.ConstructionMaterials);
+        s7 += bf('Roofing', r.Roof);
+        s7 += bf('Foundation', r.FoundationDetails);
+        s7 += bf('Basement', r.Basement);
+        s7 += bf('Attic', r.NAV27_CF_H);
+        s7 += bf('Windows', r.WindowFeatures);
+        s7 += bf('Doors', r.DoorFeatures);
+        s7 += bf('Patio/Porch', r.PatioAndPorchFeatures);
+        s7 += bf('Other Structures', r.OtherStructures);
+        s7 += bf('Exterior Features', r.ExteriorFeatures);
+        html += section('Construction & Exterior', s7, false);
 
-        // Concessions
-        var conc = [];
-        if(d.concessions_amount) conc.push('$' + parseFloat(d.concessions_amount).toLocaleString());
-        if(d.concessions_comments) conc.push(d.concessions_comments);
-        html += bf('Seller Concessions', conc.join(' — '));
+        // ── 8. Interior & Rooms ──
+        var s8 = '';
+        s8 += bf('SqFt Range', r.NAV27_SqFt_Rng);
+        s8 += bf('Flooring', r.Flooring);
+        s8 += bf('Fireplace', r.FireplaceFeatures);
+        s8 += bf('Interior Features', r.InteriorFeatures);
+        s8 += bf('Appliances', r.Appliances);
+        // Room levels
+        var rooms = [];
+        if(r.RoomMasterBedroomLevel) rooms.push('Primary Bedroom: ' + r.RoomMasterBedroomLevel);
+        if(r.RoomBedroom2Level) rooms.push('Bedroom 2: ' + r.RoomBedroom2Level);
+        if(r.RoomBedroom3Level) rooms.push('Bedroom 3: ' + r.RoomBedroom3Level);
+        if(r.RoomBedroom4Level) rooms.push('Bedroom 4: ' + r.RoomBedroom4Level);
+        if(r.RoomKitchenLevel) rooms.push('Kitchen: ' + r.RoomKitchenLevel);
+        if(r.RoomLivingRoomLevel) rooms.push('Living Room: ' + r.RoomLivingRoomLevel);
+        if(r.RoomDiningRoomLevel) rooms.push('Dining Room: ' + r.RoomDiningRoomLevel);
+        if(r.RoomFamilyRoomLevel) rooms.push('Family Room: ' + r.RoomFamilyRoomLevel);
+        if(rooms.length) s8 += bf('Room Levels', rooms.join(', '));
+        html += section('Interior & Rooms', s8, false);
+
+        // ── 9. Utilities & Systems ──
+        var s9 = '';
+        s9 += bf('Heating', r.Heating);
+        s9 += bf('Cooling', r.Cooling);
+        s9 += bf('Water Source', r.WaterSource);
+        s9 += bf('Sewer', r.Sewer);
+        s9 += bf('Electric', r.Electric);
+        s9 += bf('Gas', r.Gas);
+        s9 += bf('Utilities', r.Utilities);
+        s9 += bf('Internet', r.InternetWholeListing);
+        html += section('Utilities & Systems', s9, false);
+
+        // ── 10. Parking ──
+        var s10 = '';
+        s10 += bf('Garage', r.GarageYN);
+        s10 += bf('Garage Spaces', r.GarageSpaces || '');
+        s10 += bf('Carport', r.CarportYN);
+        s10 += bf('Carport Spaces', r.CarportSpaces || '');
+        s10 += bf('Parking Features', r.ParkingFeatures);
+        s10 += bf('Covered Spaces', r.CoveredSpaces || '');
+        html += section('Parking', s10, false);
+
+        // ── 11. Listing Agent / Office ──
+        var s11 = '';
+        s11 += bf('List Agent', r.ListAgentFullName);
+        s11 += bf('Agent Email', r.ListAgentEmail);
+        s11 += bf('Agent Phone', r.ListAgentPreferredPhone || r.ListAgentDirectPhone);
+        s11 += bf('Agent MLS ID', r.ListAgentMlsId);
+        s11 += bf('List Office', r.ListOfficeName);
+        s11 += bf('Office Phone', r.ListOfficePhone);
+        s11 += bf('Office Email', r.ListOfficeEmail);
+        s11 += bf('Office Fax', r.ListOfficeFax);
+        s11 += bf('Office MLS ID', r.ListOfficeMlsId);
+        // Buyer side
+        s11 += bf('Buyer Agent', r.BuyerAgentFullName);
+        s11 += bf('Buyer Agent Email', r.BuyerAgentEmail);
+        s11 += bf('Buyer Office', r.BuyerOfficeName);
+        html += section('Listing Agent & Office', s11, false);
+
+        // ── 12. IDX / Display Flags ──
+        var s12 = '';
+        s12 += bf('Feed Types', r.FeedTypes);
+        s12 += bf('IDX Participation', r.IDXParticipationYN);
+        s12 += bf('Display Address', r.InternetAddressDisplayYN);
+        s12 += bf('Display Listing', r.InternetEntireListingDisplayYN);
+        s12 += bf('Allow AVM', r.InternetAutomatedValuationDisplayYN);
+        s12 += bf('Allow Comments', r.InternetConsumerCommentYN);
+        s12 += bf('Days on Market', r.DaysOnMarket);
+        s12 += bf('Cumulative DOM', r.CumulativeDaysOnMarket);
+        s12 += bf('List Date', r.ListingContractDate);
+        s12 += bf('Expiration Date', r.ExpirationDate);
+        s12 += bf('MLS #', r.ListingId);
+        s12 += bf('Listing Key', r.ListingKey);
+        s12 += bf('Original List Price', r.OriginalListPrice ? '$' + parseFloat(r.OriginalListPrice).toLocaleString() : '');
+        html += section('MLS Details', s12, false);
 
         if(html) {
-          // Clear individual field containers and inject all at once
+          // Clear legacy individual field containers
           ['propPrivateRemarks','propShowingInstructions','propDirections','propBuyerAgent','propListAgentContact'].forEach(function(id){
             var el = document.getElementById(id); if(el) el.innerHTML = '';
           });

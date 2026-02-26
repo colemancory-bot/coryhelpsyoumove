@@ -133,6 +133,13 @@ function getFeedType(record: any): string {
   return String(feedTypes || "IDX");
 }
 
+// Flatten a RESO field that may be string, array, or null → string for text columns
+function toText(val: any): string {
+  if (val === null || val === undefined) return "";
+  if (Array.isArray(val)) return val.filter(Boolean).join(", ");
+  return String(val);
+}
+
 // ── Property Sync ──────────────────────────────────────────────
 async function syncProperties(
   supabase: any,
@@ -240,7 +247,7 @@ async function syncProperties(
         // Remarks
         public_remarks: record.PublicRemarks || "",
         private_remarks: record.PrivateRemarks || "",
-        showing_instructions: record.ShowingInstructions || "",
+        showing_instructions: toText(record.ShowingInstructions),
         directions: record.Directions || "",
 
         // Listing agent
@@ -305,29 +312,29 @@ async function syncProperties(
         zoning: record.Zoning || "",
         restrictions: record.Restrictions || [],
 
-        // BBO: Lock box
-        lock_box_type: record.LockBoxType || "",
-        lock_box_serial_number: record.LockBoxSerialNumber || "",
-        lock_box_location: record.LockBoxLocation || "",
+        // BBO: Lock box (Navica sends arrays for some of these)
+        lock_box_type: toText(record.LockBoxType),
+        lock_box_serial_number: toText(record.LockBoxSerialNumber),
+        lock_box_location: toText(record.LockBoxLocation),
 
         // BBO: Showing contact
-        showing_contact_name: record.ShowingContactName || "",
-        showing_contact_phone: record.ShowingContactPhone || "",
-        showing_contact_type: record.ShowingContactType || "",
+        showing_contact_name: toText(record.ShowingContactName),
+        showing_contact_phone: toText(record.ShowingContactPhone),
+        showing_contact_type: toText(record.ShowingContactType),
 
         // BBO: Commission / compensation
-        buyer_agency_compensation: record.BuyerAgencyCompensation || "",
-        sub_agency_compensation: record.SubAgencyCompensation || "",
-        transaction_broker_compensation: record.TransactionBrokerCompensation || "",
+        buyer_agency_compensation: toText(record.BuyerAgencyCompensation),
+        sub_agency_compensation: toText(record.SubAgencyCompensation),
+        transaction_broker_compensation: toText(record.TransactionBrokerCompensation),
 
         // BBO: Occupant info
-        occupant_name: record.OccupantName || "",
-        occupant_phone: record.OccupantPhone || "",
-        occupant_type: record.OccupantType || "",
+        occupant_name: toText(record.OccupantName),
+        occupant_phone: toText(record.OccupantPhone),
+        occupant_type: toText(record.OccupantType),
 
         // BBO: Listing terms
-        listing_agreement: record.ListingAgreement || "",
-        special_listing_conditions: record.SpecialListingConditions || "",
+        listing_agreement: toText(record.ListingAgreement),
+        special_listing_conditions: toText(record.SpecialListingConditions),
 
         // Virtual tour / video
         virtual_tour_url: record.VirtualTourURLUnbranded || record.VirtualTourURLBranded || "",

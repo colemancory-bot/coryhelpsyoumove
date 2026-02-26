@@ -1045,10 +1045,19 @@ textarea.form-input{resize:vertical;min-height:100px}
 .prop-admin-notes{margin-top:2rem;padding:1.25rem 1.5rem;border-left:3px solid var(--gold);background:rgba(196,176,140,0.06);border-radius:0 4px 4px 0}
 .prop-admin-notes .prop-section-label{margin-top:0;display:flex;align-items:center;gap:0.6rem}
 .admin-badge{font-size:0.55rem;letter-spacing:0.1em;text-transform:uppercase;background:var(--gold);color:var(--bg);padding:0.15rem 0.5rem;border-radius:10px;font-weight:600;font-family:'Outfit',sans-serif}
-.prop-admin-field{margin-top:1rem}
+.prop-admin-field{margin-top:0.75rem}
 .prop-admin-field:empty{display:none}
-.prop-admin-field-label{font-size:0.68rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:0.3rem;font-family:'Outfit',sans-serif}
-.prop-admin-field-value{font-size:0.85rem;color:var(--text);line-height:1.6;white-space:pre-wrap}
+.prop-admin-field-label{font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:0.2rem;font-family:'Outfit',sans-serif}
+.prop-admin-field-value{font-size:0.82rem;color:var(--cream);line-height:1.55;white-space:pre-wrap}
+/* Collapsible admin sections */
+.admin-section{border-bottom:1px solid var(--border);margin-top:0}
+.admin-section:first-of-type{margin-top:0.75rem}
+.admin-section-header{display:flex;align-items:center;justify-content:space-between;padding:0.65rem 0;cursor:pointer;font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;font-weight:600;color:var(--cream);font-family:'Outfit',sans-serif;user-select:none;-webkit-user-select:none}
+.admin-section-header:hover{color:var(--gold)}
+.admin-section-header svg{stroke:var(--text-muted);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform 0.3s;flex-shrink:0}
+.admin-section.open .admin-section-header svg{transform:rotate(180deg)}
+.admin-section-body{max-height:0;overflow:hidden;transition:max-height 0.35s cubic-bezier(0.16,1,0.3,1)}
+.admin-section.open .admin-section-body{max-height:2000px}
 
 /* Right column — sidebar */
 .prop-sidebar{position:sticky;top:2rem;align-self:start}
