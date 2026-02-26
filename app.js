@@ -56,6 +56,14 @@ function closeMobile(fromPopstate){var mm=document.getElementById('mobileMenu');
 
 // ═══ SCROLL LOCK HELPERS ═══
 var _scrollLockY=0;
+function _scrollLockTouch(e){
+  // Allow scrolling inside chat panel and mobile menu
+  var t=e.target;
+  var cp=document.getElementById('chatPanel');
+  var mm=document.getElementById('mobileMenu');
+  if((cp&&cp.contains(t))||(mm&&mm.contains(t)))return;
+  e.preventDefault();
+}
 function _lockScroll(){
   if(document.body.style.position==='fixed')return;
   _scrollLockY=window.pageYOffset||document.documentElement.scrollTop;
@@ -66,6 +74,7 @@ function _lockScroll(){
   document.body.style.width='100%';
   document.body.style.overflow='hidden';
   document.documentElement.style.overflow='hidden';
+  document.addEventListener('touchmove',_scrollLockTouch,{passive:false});
 }
 function _unlockScroll(){
   if(document.body.style.position!=='fixed')return;
@@ -77,10 +86,9 @@ function _unlockScroll(){
   document.body.style.width='';
   document.body.style.overflow='';
   document.documentElement.style.overflow='';
-  // Disable smooth scroll so restore is instant
+  document.removeEventListener('touchmove',_scrollLockTouch,{passive:false});
   document.documentElement.style.scrollBehavior='auto';
   window.scrollTo(0,y);
-  // Re-enable smooth scroll after a tick
   requestAnimationFrame(function(){document.documentElement.style.scrollBehavior='';});
 }
 
@@ -1334,7 +1342,7 @@ function toggleChat(){
     _chatMinimized = false;
     chatOpen = false;
     cp.classList.remove('minimized','open');
-    cp.style.height='';cp.style.maxHeight='';
+    cp.style.height='';cp.style.maxHeight='';cp.style.top='';cp.style.bottom='';
     var ct=document.getElementById('chatTrigger');if(ct)ct.classList.remove('open');
     var nc=document.getElementById('navChat');if(nc)nc.classList.remove('open');
     _unlockScroll();
@@ -1362,14 +1370,15 @@ function toggleChat(){
   var ct=document.getElementById('chatTrigger');if(ct)ct.classList.add('open');
   var nc=document.getElementById('navChat');if(nc)nc.classList.add('open');
   var cm=document.getElementById('chatMessages');if(cm&&!cm.children.length){ if(!_restoreChatMessages()) addInitMsg(); }
-  // Only auto-focus input on desktop — on mobile it opens the keyboard and causes jank
-  if(window.innerWidth > 1024){var ci=document.getElementById('chatInput');if(ci)setTimeout(()=>ci.focus(),300);}
+  // Auto-focus input: desktop immediately, mobile after panel animation settles
+  var ci=document.getElementById('chatInput');
+  if(ci)setTimeout(()=>ci.focus(), window.innerWidth<=1024 ? 500 : 300);
   if(window.innerWidth <= 1024) history.pushState({page:'chat'},'','#chat');
 }
 function _closeChat(){
   chatOpen=false;_chatMinimized=false;
   var cp=document.getElementById('chatPanel');
-  if(cp){cp.classList.remove('minimized','open');cp.style.height='';cp.style.maxHeight='';}
+  if(cp){cp.classList.remove('minimized','open');cp.style.height='';cp.style.maxHeight='';cp.style.top='';cp.style.bottom='';}
   var ct=document.getElementById('chatTrigger');if(ct)ct.classList.remove('open');
   var nc=document.getElementById('navChat');if(nc)nc.classList.remove('open');
   _unlockScroll();
@@ -1396,18 +1405,28 @@ if(window.visualViewport){
   window.visualViewport.addEventListener('resize',function(){
     var cp=document.getElementById('chatPanel');
     if(!cp||!chatOpen||window.innerWidth>1024)return;
-    // Debounce to avoid jitter — apply once keyboard settles
     clearTimeout(_chatResizeTimer);
     _chatResizeTimer=setTimeout(function(){
-      var vh=window.visualViewport.height;
-      var h=vh-80;// 5rem = 80px
+      var vv=window.visualViewport;
+      var vh=vv.height;
+      var h=vh-16;// small margin
       cp.style.transition='height 0.2s ease-out, max-height 0.2s ease-out';
       cp.style.height=h+'px';
       cp.style.maxHeight=h+'px';
+      // Anchor chat panel to visual viewport top to stay visible above keyboard
+      cp.style.bottom='auto';
+      cp.style.top=vv.offsetTop+'px';
       // Scroll messages to bottom when keyboard opens
       var cm=document.getElementById('chatMessages');
       if(cm)setTimeout(function(){cm.scrollTop=cm.scrollHeight},80);
     },60);
+  });
+  // Also listen for scroll events on visualViewport (iOS shifts viewport origin)
+  window.visualViewport.addEventListener('scroll',function(){
+    var cp=document.getElementById('chatPanel');
+    if(!cp||!chatOpen||window.innerWidth>1024)return;
+    cp.style.bottom='auto';
+    cp.style.top=window.visualViewport.offsetTop+'px';
   });
 }
 
