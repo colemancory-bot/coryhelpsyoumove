@@ -1777,26 +1777,43 @@ function toggleHsLocDropdown(e) {
     dd.style.left = rect.left + 'px';
     dd.style.minWidth = Math.max(rect.width, 220) + 'px';
     dd.style.zIndex = '99999';
+    // Cap max-height so dropdown doesn't go off screen
+    var maxH = window.innerHeight - rect.bottom - 12;
+    if(maxH < 200) maxH = 200;
+    dd.style.maxHeight = maxH + 'px';
     document.body.appendChild(dd);
     dd.classList.add('open');
     setTimeout(function(){
       document.addEventListener('click', _closeHsLocDropdown);
+      window.addEventListener('scroll', _closeHsLocOnScroll, true);
     }, 0);
   }
 }
-function _closeHsLocDropdown(e) {
+function _closeHsLocOnScroll() {
+  // Close dropdown when page scrolls (not dropdown internal scroll)
+  _forceCloseHsLoc();
+}
+function _forceCloseHsLoc() {
   var dd = document.getElementById('hsLocDropdown');
   var field = document.getElementById('hsLocField');
-  if(dd && !dd.contains(e.target) && field && !field.contains(e.target)) {
+  if(dd && dd.classList.contains('open')) {
     dd.classList.remove('open');
-    // Move dropdown back into the field
-    field.appendChild(dd);
+    if(field) field.appendChild(dd);
     dd.style.position = '';
     dd.style.top = '';
     dd.style.left = '';
     dd.style.minWidth = '';
     dd.style.zIndex = '';
-    document.removeEventListener('click', _closeHsLocDropdown);
+    dd.style.maxHeight = '';
+  }
+  document.removeEventListener('click', _closeHsLocDropdown);
+  window.removeEventListener('scroll', _closeHsLocOnScroll, true);
+}
+function _closeHsLocDropdown(e) {
+  var dd = document.getElementById('hsLocDropdown');
+  var field = document.getElementById('hsLocField');
+  if(dd && !dd.contains(e.target) && field && !field.contains(e.target)) {
+    _forceCloseHsLoc();
   }
 }
 function hsLocChanged() {
