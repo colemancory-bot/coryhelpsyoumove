@@ -2581,6 +2581,19 @@ function openProp(listing, townName) {
           var safe = v.replace(/</g,'&lt;').replace(/>/g,'&gt;');
           return '<div class="prop-admin-field"><div class="prop-admin-field-label">' + label + '</div><div class="prop-admin-field-value">' + safe + '</div></div>';
         }
+        // Helper: build admin field with a link
+        function bfLink(label, text, url) {
+          if(!text) return '';
+          var safe = String(text).replace(/</g,'&lt;').replace(/>/g,'&gt;');
+          return '<div class="prop-admin-field"><div class="prop-admin-field-label">' + label + '</div><div class="prop-admin-field-value"><a href="' + url + '" target="_blank" rel="noopener" style="color:var(--gold);text-decoration:underline;text-underline-offset:3px">' + safe + ' ↗</a></div></div>';
+        }
+        // Helper: format parcel PIN with dashes (7622097767 → 7622-09-7767)
+        function fmtPin(pin) {
+          if(!pin) return '';
+          var s = String(pin).replace(/[^0-9]/g, '');
+          if(s.length === 10) return s.slice(0,4) + '-' + s.slice(4,6) + '-' + s.slice(6);
+          return String(pin);
+        }
         // Helper: collapsible section wrapper
         function section(title, content, startOpen) {
           if(!content) return '';
@@ -2630,7 +2643,15 @@ function openProp(listing, townName) {
 
         // ── 4. Tax & Legal ──
         var s4 = '';
-        s4 += bf('Parcel ID', r.ParcelNumber);
+        // Link Parcel ID to county GIS when available
+        var _pin = r.ParcelNumber || '';
+        var _county = (r.CountyOrParish || '').toLowerCase();
+        if(_pin && _county === 'jackson') {
+          var _fmtPin = fmtPin(_pin);
+          s4 += bfLink('Parcel ID', _fmtPin, 'https://gis.jacksonnc.org/rpv/?find=' + encodeURIComponent(_fmtPin));
+        } else {
+          s4 += bf('Parcel ID', _pin);
+        }
         s4 += bf('Deed Book', r.TaxBookNumber);
         s4 += bf('Deed Page', r.NAV27_Deed_Pg);
         s4 += bf('County Tax', r.TaxAnnualAmount ? '$' + parseFloat(r.TaxAnnualAmount).toLocaleString() : '');
