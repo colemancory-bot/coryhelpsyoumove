@@ -1770,9 +1770,6 @@ function toggleHsLocDropdown(e) {
   var isOpen = dd.classList.contains('open');
   document.querySelectorAll('.sr-multi-dropdown.open').forEach(function(d){ d.classList.remove('open'); });
   if(!isOpen) {
-    var rect = field.getBoundingClientRect();
-    dd.style.top = (rect.bottom + 4) + 'px';
-    dd.style.left = rect.left + 'px';
     dd.classList.add('open');
     setTimeout(function(){
       document.addEventListener('click', _closeHsLocDropdown);
