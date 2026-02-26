@@ -67,25 +67,31 @@ function _scrollLockTouch(e){
 function _lockScroll(){
   if(document.body.style.position==='fixed')return;
   _scrollLockY=window.pageYOffset||document.documentElement.scrollTop;
+  document.documentElement.style.overflow='hidden';
+  document.documentElement.style.height='100%';
+  document.documentElement.style.touchAction='none';
   document.body.style.position='fixed';
   document.body.style.top='-'+_scrollLockY+'px';
   document.body.style.left='0';
   document.body.style.right='0';
   document.body.style.width='100%';
   document.body.style.overflow='hidden';
-  document.documentElement.style.overflow='hidden';
+  document.body.style.touchAction='none';
   document.addEventListener('touchmove',_scrollLockTouch,{passive:false});
 }
 function _unlockScroll(){
   if(document.body.style.position!=='fixed')return;
   var y=_scrollLockY;
+  document.documentElement.style.overflow='';
+  document.documentElement.style.height='';
+  document.documentElement.style.touchAction='';
   document.body.style.position='';
   document.body.style.top='';
   document.body.style.left='';
   document.body.style.right='';
   document.body.style.width='';
   document.body.style.overflow='';
-  document.documentElement.style.overflow='';
+  document.body.style.touchAction='';
   document.removeEventListener('touchmove',_scrollLockTouch,{passive:false});
   document.documentElement.style.scrollBehavior='auto';
   window.scrollTo(0,y);
@@ -1370,9 +1376,9 @@ function toggleChat(){
   var ct=document.getElementById('chatTrigger');if(ct)ct.classList.add('open');
   var nc=document.getElementById('navChat');if(nc)nc.classList.add('open');
   var cm=document.getElementById('chatMessages');if(cm&&!cm.children.length){ if(!_restoreChatMessages()) addInitMsg(); }
-  // Auto-focus input: desktop immediately, mobile after panel animation settles
+  // Auto-focus input: preventScroll stops browser from shifting the background
   var ci=document.getElementById('chatInput');
-  if(ci)setTimeout(()=>ci.focus(), window.innerWidth<=1024 ? 500 : 300);
+  if(ci)setTimeout(()=>ci.focus({preventScroll:true}), window.innerWidth<=1024 ? 500 : 300);
   if(window.innerWidth <= 1024) history.pushState({page:'chat'},'','#chat');
 }
 function _closeChat(){
@@ -1391,7 +1397,7 @@ function minimizeChat(){
     // Restore from minimized
     _chatMinimized = false;
     cp.classList.remove('minimized');
-    var ci=document.getElementById('chatInput');if(ci)setTimeout(()=>ci.focus(),300);
+    var ci=document.getElementById('chatInput');if(ci)setTimeout(()=>ci.focus({preventScroll:true}),300);
   } else {
     // Minimize
     _chatMinimized = true;
