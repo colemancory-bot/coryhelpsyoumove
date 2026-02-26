@@ -236,7 +236,7 @@ if(_isTownPage){
       '<div class="sr-filter-chip sr-restrict-gated" id="srfRestrict" onclick="if(!_acctLoggedIn){event.preventDefault();event.stopPropagation();openAcctModal();}"><select id="srfRestrictSelect" onchange="srApplyFilters()" class="sr-restrict-select" disabled><option value="">Any Restrictions</option><option value="unrestricted">Unrestricted</option><option value="restricted">Restrictions</option></select><div class="restrict-lock-overlay" id="srRestrictOverlay"><span>Create account to filter</span></div></div>' +
       '<button class="sr-filter-clear" id="srfClear" onclick="srClearFilters()">Clear All</button>' +
     '</div>' +
-    '<div class="sr-body" id="srBody"><div class="sr-map-panel" id="srMapPanel"><div class="sr-map-loading" id="srMapLoading"><span>Loading Map...</span></div><div id="srMap" style="height:100%;width:100%"></div><div class="sr-map-vignette"></div><div class="sr-map-overlay"></div><div class="sr-map-brand"><div class="sr-map-brand-text">Western North Carolina</div><div class="sr-map-brand-sub">Cory Coleman Real Estate</div></div></div><div class="sr-list-panel" id="srListPanel"><div class="sr-sort"><span>Sort by</span><select id="srSort" onchange="srApplyFilters()"><option value="relevance">Best Match</option><option value="daysOnMarket-asc">Newest</option><option value="price-asc">Price: Low to High</option><option value="price-desc">Price: High to Low</option><option value="beds-desc">Most Bedrooms</option><option value="sqft-desc">Largest</option></select></div><div class="sr-cards" id="srCards"></div></div></div>' +
+    '<div class="sr-body" id="srBody"><div class="sr-map-panel" id="srMapPanel"><div class="sr-map-loading" id="srMapLoading"><span>Loading Map...</span></div><div id="srMap" style="height:100%;width:100%"></div><div class="sr-map-vignette"></div><div class="sr-map-overlay"></div><div class="sr-map-brand"><div class="sr-map-brand-text">Western North Carolina</div><div class="sr-map-brand-sub">Cory Coleman Real Estate</div></div></div><div class="sr-list-panel" id="srListPanel"><div class="sr-sort"><span>Sort by</span><select id="srSort" onchange="srApplyFilters()"><option value="relevance">Best Match</option><option value="daysOnMarket-asc">Newest</option><option value="price-asc">Price: Low to High</option><option value="price-desc">Price: High to Low</option><option value="priceSqft-asc">Price/SqFt</option><option value="priceAcre-asc">Price/Acre</option><option value="beds-desc">Most Bedrooms</option><option value="sqft-desc">Largest</option></select></div><div class="sr-cards" id="srCards"></div></div></div>' +
     '<button class="sr-view-toggle" id="srViewToggle" onclick="srToggleView()"><svg viewBox="0 0 24 24" id="srToggleIcon"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span id="srToggleLabel">Show Map</span></button>' +
   '</div>';
 
@@ -944,6 +944,13 @@ function _sqftLabel(l) {
   if(l.sqft && l.sqft > 0) return 'SF';
   if(l.sqftRange) return 'SF (range)';
   return 'SF';
+}
+
+// Helper: parse lot string like "0.82 ac" → numeric acres (0 if unparseable)
+function _parseLotAcres(lot) {
+  if(!lot) return 0;
+  var m = String(lot).match(/([\d.]+)\s*ac/i);
+  return m ? parseFloat(m[1]) : 0;
 }
 
 // Helper: build card feature chips for non-Land listings
@@ -3349,7 +3356,22 @@ function srApplyFilters(){
     var sortParts = sort.split('-');
     var sortKey = sortParts[0], sortDir = sortParts[1];
     results.sort(function(a,b){
-      var va = a[sortKey]||0, vb = b[sortKey]||0;
+      var va, vb;
+      if(sortKey === 'priceSqft') {
+        // Price per sqft — compute on the fly; listings without sqft go to end
+        var aSqft = a.sqft || 0;
+        var bSqft = b.sqft || 0;
+        va = (aSqft > 0 && a.price) ? a.price / aSqft : 999999;
+        vb = (bSqft > 0 && b.price) ? b.price / bSqft : 999999;
+      } else if(sortKey === 'priceAcre') {
+        // Price per acre — parse lot string; listings without lot go to end
+        var aAcre = _parseLotAcres(a.lot);
+        var bAcre = _parseLotAcres(b.lot);
+        va = (aAcre > 0 && a.price) ? a.price / aAcre : 999999999;
+        vb = (bAcre > 0 && b.price) ? b.price / bAcre : 999999999;
+      } else {
+        va = a[sortKey]||0; vb = b[sortKey]||0;
+      }
       return sortDir === 'asc' ? va - vb : vb - va;
     });
   }
@@ -3437,9 +3459,19 @@ function srRenderCards(results){
     var srBrokerParts=[];if(l.listAgent)srBrokerParts.push(l.listAgent);if(l.listOffice)srBrokerParts.push(l.listOffice);
     var srMlsNums = _formatMlsNums(l);
     var srBrokerHtml=srBrokerParts.length?'<div class="sr-card-office">Listed by '+srBrokerParts.join(' &bull; ')+(srMlsNums?' | '+srMlsNums:'')+'</div>':'';
+    // Value metric badge when sorting by price/sqft or price/acre
+    var _curSort = (document.getElementById('srSort')||{}).value || '';
+    var valueBadge = '';
+    if(_curSort === 'priceSqft-asc' && l.sqft && l.sqft > 0 && l.price) {
+      valueBadge = '<div class="sr-card-value">$' + Math.round(l.price / l.sqft).toLocaleString() + '/sqft</div>';
+    } else if(_curSort === 'priceAcre-asc') {
+      var _acres = _parseLotAcres(l.lot);
+      if(_acres > 0 && l.price) valueBadge = '<div class="sr-card-value">$' + Math.round(l.price / _acres).toLocaleString() + '/acre</div>';
+    }
+
     card.innerHTML = '<div class="sr-card-img">' + imgHtml + '<div class="' + badgeClass + '">' + l.type + '</div>' + statusTag + cardFavHtml(l.address, l.city) + '</div>' +
       '<div class="sr-card-body">' +
-        '<div class="sr-card-price">$' + l.price.toLocaleString() + '</div>' +
+        '<div class="sr-card-price">$' + l.price.toLocaleString() + valueBadge + '</div>' +
         '<div class="sr-card-addr">' + l.address + '</div>' +
         '<div class="sr-card-city">' + l.city + ', NC</div>' +
         '<div class="sr-card-feats">' + feats + '</div>' +
