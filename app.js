@@ -2605,6 +2605,16 @@ function openProp(listing, townName) {
 
         var html = '';
 
+        // ── Copy MLS # button at top of admin panel ──
+        var _mlsNum = r.ListingId || d.listing_id || '';
+        if(_mlsNum) {
+          var _mlsDisplay = 'R' + _mlsNum + 'A';
+          html += '<div class="admin-mls-copy">' +
+            '<button class="admin-mls-btn" onclick="navigator.clipboard.writeText(\'' + _mlsDisplay + '\').then(function(){var b=this;b.textContent=\'Copied!\';setTimeout(function(){b.innerHTML=\'<svg viewBox=&quot;0 0 24 24&quot; width=&quot;14&quot; height=&quot;14&quot;><rect x=&quot;9&quot; y=&quot;9&quot; width=&quot;13&quot; height=&quot;13&quot; rx=&quot;2&quot; ry=&quot;2&quot;/><path d=&quot;M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1&quot;/></svg> MLS# ' + _mlsDisplay + '\'},1200)}.bind(this))">' +
+            '<svg viewBox="0 0 24 24" width="14" height="14"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> MLS# ' + _mlsDisplay +
+            '</button></div>';
+        }
+
         // ── 1. Agent Remarks & Showing (always open) ──
         var s1 = '';
         s1 += bf('Agent Remarks', r.PrivateRemarks);
