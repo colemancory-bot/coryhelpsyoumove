@@ -3367,6 +3367,10 @@ function toggleLocDropdown(e) {
   document.querySelectorAll('.sr-multi-dropdown.open').forEach(function(d){ d.classList.remove('open'); });
   document.querySelectorAll('.sr-multi-chip.open').forEach(function(c){ c.classList.remove('open'); });
   if(!isOpen) {
+    // Position fixed dropdown below the chip
+    var rect = chip.getBoundingClientRect();
+    dd.style.top = (rect.bottom + 4) + 'px';
+    dd.style.left = rect.left + 'px';
     dd.classList.add('open');
     if(chip) chip.classList.add('open');
     // Close on outside click
