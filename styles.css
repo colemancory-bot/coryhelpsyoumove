@@ -128,7 +128,7 @@ ul{list-style:none}
 /* Mobile nav */
 .nav-toggle{display:none;flex-direction:column;gap:5px;padding:5px;z-index:1001}
 .nav-toggle span{width:22px;height:1.5px;background:var(--cream);transition:all 0.3s}
-.mobile-menu{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--overlay);z-index:999;flex-direction:column;align-items:center;justify-content:flex-start;gap:1.5rem;padding:5rem 2rem 3rem;overflow-y:auto;-webkit-overflow-scrolling:touch;opacity:0;pointer-events:none;transition:opacity 0.4s}
+.mobile-menu{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--overlay);z-index:999;flex-direction:column;align-items:center;justify-content:flex-start;gap:1.5rem;padding:5rem 2rem 3rem;overflow-y:auto;-webkit-overflow-scrolling:touch;opacity:0;pointer-events:none;transition:opacity 0.4s;overscroll-behavior:contain}
 .mobile-menu.open{opacity:1;pointer-events:all}
 .mobile-menu a{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.8rem;font-weight:300;color:var(--cream);letter-spacing:0.05em}
 
@@ -600,7 +600,7 @@ textarea.form-input{resize:vertical;min-height:100px}
 .chat-preview-input .chat-send{width:32px;height:32px}
 .chat-preview-input .chat-send svg{width:14px;height:14px}
 
-.chat-panel{position:fixed;bottom:2rem;right:2rem;z-index:10001;width:400px;height:650px;max-height:calc(100vh - 4rem);background:var(--bg-warm);border:1px solid var(--border);display:flex;flex-direction:column;opacity:0;transform:translateY(20px) scale(0.95);pointer-events:none;transition:all 0.4s;overflow:hidden;box-shadow:0 24px 80px var(--shadow)}
+.chat-panel{position:fixed;bottom:2rem;right:2rem;z-index:10001;width:400px;height:650px;max-height:calc(100vh - 4rem);background:var(--bg-warm);border:1px solid var(--border);display:flex;flex-direction:column;opacity:0;transform:translateY(20px) scale(0.95);pointer-events:none;transition:all 0.4s;overflow:hidden;box-shadow:0 24px 80px var(--shadow);overscroll-behavior:contain}
 .chat-panel.open{opacity:1;transform:translateY(0) scale(1);pointer-events:all}
 .chat-panel.minimized{height:auto;width:280px;transition:all 0.3s cubic-bezier(0.16,1,0.3,1)}
 .chat-panel.minimized .chat-messages,

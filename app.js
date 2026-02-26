@@ -51,8 +51,12 @@ document.addEventListener('DOMContentLoaded', function(){
 const nav=document.getElementById('nav');
 if(nav) window.addEventListener('scroll',()=>nav.classList.toggle('scrolled',window.scrollY>50));
 var _navToggle=document.getElementById('navToggle');
-if(_navToggle) _navToggle.addEventListener('click',function(){var mm=document.getElementById('mobileMenu');if(mm){var opening=!mm.classList.contains('open');mm.classList.toggle('open');document.body.style.overflow=mm.classList.contains('open')?'hidden':'';if(opening){history.pushState({page:'menu'},'','#menu')}else{if(history.state&&history.state.page==='menu')history.back()}}});
-function closeMobile(fromPopstate){var mm=document.getElementById('mobileMenu');if(mm&&mm.classList.contains('open')){mm.classList.remove('open');document.body.style.overflow='';if(!fromPopstate&&history.state&&history.state.page==='menu')history.back()}}
+if(_navToggle) _navToggle.addEventListener('click',function(){var mm=document.getElementById('mobileMenu');if(mm){var opening=!mm.classList.contains('open');mm.classList.toggle('open');if(mm.classList.contains('open')){_lockScroll()}else{_unlockScroll()}if(opening){history.pushState({page:'menu'},'','#menu')}else{if(history.state&&history.state.page==='menu')history.back()}}});
+function closeMobile(fromPopstate){var mm=document.getElementById('mobileMenu');if(mm&&mm.classList.contains('open')){mm.classList.remove('open');_unlockScroll();if(!fromPopstate&&history.state&&history.state.page==='menu')history.back()}}
+
+// ═══ SCROLL LOCK HELPERS ═══
+function _lockScroll(){document.documentElement.style.overflow='hidden';document.body.style.overflow='hidden'}
+function _unlockScroll(){document.documentElement.style.overflow='';document.body.style.overflow=''}
 
 // ═══ MOBILE MENU INLINE AUTH ═══
 function toggleMobileSignup(){
@@ -1307,6 +1311,7 @@ function toggleChat(){
     cp.style.height='';cp.style.maxHeight='';
     var ct=document.getElementById('chatTrigger');if(ct)ct.classList.remove('open');
     var nc=document.getElementById('navChat');if(nc)nc.classList.remove('open');
+    _unlockScroll();
     showMobileCta();
     return;
   }
@@ -1326,6 +1331,7 @@ function toggleChat(){
   // If closed → open
   chatOpen = true;
   hideMobileCta();
+  if(window.innerWidth <= 1024) _lockScroll();
   cp.classList.add('open');
   var ct=document.getElementById('chatTrigger');if(ct)ct.classList.add('open');
   var nc=document.getElementById('navChat');if(nc)nc.classList.add('open');
@@ -1339,6 +1345,7 @@ function _closeChat(){
   if(cp){cp.classList.remove('minimized','open');cp.style.height='';cp.style.maxHeight='';}
   var ct=document.getElementById('chatTrigger');if(ct)ct.classList.remove('open');
   var nc=document.getElementById('navChat');if(nc)nc.classList.remove('open');
+  _unlockScroll();
   showMobileCta();
 }
 
@@ -1357,17 +1364,23 @@ function minimizeChat(){
 }
 
 // --- Resize chat panel when mobile keyboard opens/closes ---
+var _chatResizeTimer=null;
 if(window.visualViewport){
   window.visualViewport.addEventListener('resize',function(){
     var cp=document.getElementById('chatPanel');
     if(!cp||!chatOpen||window.innerWidth>1024)return;
-    var vh=window.visualViewport.height;
-    var h=vh-80;// 5rem = 80px
-    cp.style.height=h+'px';
-    cp.style.maxHeight=h+'px';
-    // Scroll messages to bottom when keyboard opens
-    var cm=document.getElementById('chatMessages');
-    if(cm)setTimeout(function(){cm.scrollTop=cm.scrollHeight},50);
+    // Debounce to avoid jitter — apply once keyboard settles
+    clearTimeout(_chatResizeTimer);
+    _chatResizeTimer=setTimeout(function(){
+      var vh=window.visualViewport.height;
+      var h=vh-80;// 5rem = 80px
+      cp.style.transition='height 0.2s ease-out, max-height 0.2s ease-out';
+      cp.style.height=h+'px';
+      cp.style.maxHeight=h+'px';
+      // Scroll messages to bottom when keyboard opens
+      var cm=document.getElementById('chatMessages');
+      if(cm)setTimeout(function(){cm.scrollTop=cm.scrollHeight},80);
+    },60);
   });
 }
 
@@ -1940,7 +1953,7 @@ function openPage(id){
   var el=document.getElementById('page-'+id)||document.getElementById(id);
   if(!el)return;
   el.classList.add('active');
-  document.body.style.overflow='hidden';
+  _lockScroll();
   el.scrollTop=0;
   history.pushState({page:id},'','#'+id);
   var imgEl=document.getElementById('page-img-'+id);
@@ -1955,7 +1968,7 @@ function openPage(id){
 function closePage(id,fromPopstate){
   var el=document.getElementById('page-'+id)||document.getElementById(id);
   if(el)el.classList.remove('active');
-  document.body.style.overflow='';
+  _unlockScroll();
   if(!fromPopstate&&history.state&&history.state.page===id)history.back();
 }
 window.addEventListener('popstate',function(e){
@@ -1966,7 +1979,7 @@ window.addEventListener('popstate',function(e){
     var searchOv = document.getElementById('searchOverlay');
     var propOv = document.getElementById('propOverlay');
     if((!searchOv || !searchOv.classList.contains('active')) && (!propOv || !propOv.classList.contains('active'))){
-      document.body.style.overflow='';
+      _unlockScroll();
     }
   }
 });
@@ -2624,7 +2637,7 @@ function openProp(listing, townName) {
   // Show overlay
   o.classList.add('active');
   o.scrollTop = 0;
-  document.body.style.overflow = 'hidden';
+  _lockScroll();
   try{history.pushState({page:'property'},'','#property')}catch(he){}
 
   // Fetch full MLS data for admin — reads raw_data from Navica API
@@ -2891,7 +2904,7 @@ function closeProp(fromPopstate) {
   if(_isTownPage) {
     var searchOv = document.getElementById('searchOverlay');
     if(!searchOv || !searchOv.classList.contains('active')){
-      document.body.style.overflow = '';
+      _unlockScroll();
     }
     if (!fromPopstate && history.state && history.state.page === 'property') {
       window._propJustClosed = true;
@@ -2902,7 +2915,7 @@ function closeProp(fromPopstate) {
   // Only restore scroll if search overlay isn't also open
   var searchOv = document.getElementById('searchOverlay');
   if(!searchOv || !searchOv.classList.contains('active')){
-    document.body.style.overflow = '';
+    _unlockScroll();
   }
   // If user came from a town page deep link, go back there
   if(_propDeepLinkRef) {
@@ -3100,7 +3113,7 @@ window.addEventListener('popstate', function(e) {
   var compareOv = document.getElementById('compareOverlay');
   if(compareOv && compareOv.classList.contains('active')) {
     compareOv.classList.remove('active');
-    document.body.style.overflow = '';
+    _unlockScroll();
     return;
   }
   // Close lightbox first if open
@@ -3121,7 +3134,7 @@ window.addEventListener('popstate', function(e) {
     // Only restore scroll if search isn't also open
     var searchOv = document.getElementById('searchOverlay');
     if(!searchOv || !searchOv.classList.contains('active')){
-      document.body.style.overflow = '';
+      _unlockScroll();
     }
     return;
   }
@@ -3134,7 +3147,7 @@ window.addEventListener('popstate', function(e) {
   var searchOv = document.getElementById('searchOverlay');
   if (searchOv && searchOv.classList.contains('active')) {
     searchOv.classList.remove('active');
-    document.body.style.overflow = '';
+    _unlockScroll();
   }
 });
 
@@ -3525,7 +3538,7 @@ function openSearchResults(filters){
   // Show overlay
   var overlay = document.getElementById('searchOverlay');
   overlay.classList.add('active');
-  document.body.style.overflow = 'hidden';
+  _lockScroll();
   history.pushState({page:'search'},'','#search');
 
   // Update theme toggle
@@ -3550,7 +3563,7 @@ function closeSearch(){
   var overlay = document.getElementById('searchOverlay');
   if(!overlay || !overlay.classList.contains('active')) return;
   overlay.classList.remove('active');
-  document.body.style.overflow = '';
+  _unlockScroll();
   if(history.state && history.state.page === 'search') history.back();
 }
 
@@ -4420,7 +4433,7 @@ function updateAcctUI() {
 function openAcctModal() {
   var modal = document.getElementById('acctModal');
   if(!modal) return;
-  document.body.style.overflow = 'hidden'; // Lock background scroll
+  _lockScroll(); // Lock background scroll
   if(_acctLoggedIn) {
     // Show account dashboard
     document.getElementById('acctFormView').style.display = 'none';
@@ -4461,7 +4474,7 @@ function openAcctModal() {
 
 function closeAcctModal() {
   var m=document.getElementById('acctModal');if(m)m.classList.remove('open');
-  document.body.style.overflow = ''; // Restore background scroll
+  _unlockScroll(); // Restore background scroll
 }
 
 function signOutAcct() {
@@ -4582,7 +4595,7 @@ function showAcctError(id, msg) {
 
 function closeAcctModal() {
   var m=document.getElementById('acctModal');if(m)m.classList.remove('open');
-  document.body.style.overflow = ''; // Restore background scroll
+  _unlockScroll(); // Restore background scroll
 }
 
 // --- Create account (Supabase) ---
@@ -5202,7 +5215,7 @@ function openCompare() {
   _compareSelected = [];
   var overlay = document.getElementById('compareOverlay');
   overlay.classList.add('active');
-  document.body.style.overflow = 'hidden';
+  _lockScroll();
   showCompareSelect();
   try{history.pushState({page:'compare'},'','#compare')}catch(e){}
 }
@@ -5212,7 +5225,7 @@ function closeCompare() {
   var overlay = document.getElementById('compareOverlay');
   if(!overlay) return;
   overlay.classList.remove('active');
-  document.body.style.overflow = '';
+  _unlockScroll();
   if(history.state && history.state.page === 'compare') history.back();
 }
 
@@ -6317,12 +6330,12 @@ function openCol() {
   var overlay = document.getElementById('colOverlay');
   if(!overlay) return;
   overlay.style.display = 'flex';
-  document.body.style.overflow = 'hidden';
+  _lockScroll();
   renderColUI();
 }
 function closeCol() {
   var o = document.getElementById('colOverlay'); if(o) o.style.display = 'none';
-  document.body.style.overflow = '';
+  _unlockScroll();
 }
 function renderColUI() {
   var body = document.getElementById('colBody');
@@ -6370,10 +6383,10 @@ function openAfford() {
   var overlay = document.getElementById('affordOverlay');
   if(!overlay) return;
   overlay.style.display = 'flex';
-  document.body.style.overflow = 'hidden';
+  _lockScroll();
   renderAffordUI();
 }
-function closeAfford() { var o = document.getElementById('affordOverlay'); if(o) o.style.display = 'none'; document.body.style.overflow = ''; }
+function closeAfford() { var o = document.getElementById('affordOverlay'); if(o) o.style.display = 'none'; _unlockScroll(); }
 function renderAffordUI() {
   var inputs = document.getElementById('affordInputs');
   var results = document.getElementById('affordResults');
@@ -6437,10 +6450,10 @@ function openQA() {
   var overlay = document.getElementById('qaOverlay');
   if(!overlay) return;
   overlay.style.display = 'flex';
-  document.body.style.overflow = 'hidden';
+  _lockScroll();
   loadQALibrary();
 }
-function closeQA() { var o = document.getElementById('qaOverlay'); if(o) o.style.display = 'none'; document.body.style.overflow = ''; }
+function closeQA() { var o = document.getElementById('qaOverlay'); if(o) o.style.display = 'none'; _unlockScroll(); }
 async function loadQALibrary() {
   var body = document.getElementById('qaBody');
   if(!body) return;
