@@ -1035,11 +1035,30 @@
 
 
 <!-- ═══════════════ ACCOUNT CREATION MODAL ═══════════════ -->
-<div class="acct-modal-bg" id="acctModal">
+<div class="acct-modal-bg" id="acctModal" onclick="if(event.target===this)closeAcctModal()">
   <div class="acct-modal" id="acctModalInner">
     <button class="acct-modal-close" onclick="closeAcctModal()">&times;</button>
-    <!-- SIGNUP VIEW -->
-    <div id="acctFormView">
+    <!-- LOGIN VIEW (default — sign in first, like mobile) -->
+    <div id="acctLoginView">
+      <div class="acct-modal-badge">Welcome Back</div>
+      <h3>Sign In</h3>
+      <div class="acct-modal-sub">Access your saved favorites, searches, and full property details.</div>
+      <div class="acct-error" id="acctLoginError" style="display:none"></div>
+      <div class="acct-field">
+        <label>Email Address</label>
+        <input type="email" id="acctLoginEmail" placeholder="john@example.com" required>
+      </div>
+      <div class="acct-field">
+        <label>Password</label>
+        <input type="password" id="acctLoginPass" placeholder="Your password" required>
+      </div>
+      <button class="acct-submit" onclick="loginAcct()">Sign In</button>
+      <div class="form-privacy"><svg viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Your information stays with me — I never sell or share it with third parties.</div>
+      <div class="acct-or">— or —</div>
+      <div class="acct-login-link" onclick="showAcctSignup()">Don't have an account? <strong>Create one free</strong></div>
+    </div>
+    <!-- SIGNUP VIEW (hidden by default) -->
+    <div id="acctFormView" style="display:none">
       <div class="acct-modal-badge">Free Account</div>
       <h3>Unlock <em>Full Details</em></h3>
       <div class="acct-modal-sub">Create a free account to access mortgage calculators, restriction details, save your favorite properties, and more.</div>
@@ -1068,27 +1087,8 @@
         <div class="acct-pass-note">Minimum 6 characters</div>
       </div>
       <button class="acct-submit" onclick="submitAcct()">Create Free Account</button>
-      <div class="form-privacy"><svg viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Your information stays with me — I never sell or share it with third parties.</div>
       <div class="acct-or">— or —</div>
       <div class="acct-login-link" onclick="showAcctLogin()">Already have an account? <strong>Sign in</strong></div>
-    </div>
-    <!-- LOGIN VIEW -->
-    <div id="acctLoginView" style="display:none">
-      <div class="acct-modal-badge">Welcome Back</div>
-      <h3>Sign In</h3>
-      <div class="acct-modal-sub">Access your saved favorites, searches, and full property details.</div>
-      <div class="acct-error" id="acctLoginError" style="display:none"></div>
-      <div class="acct-field">
-        <label>Email Address</label>
-        <input type="email" id="acctLoginEmail" placeholder="john@example.com" required>
-      </div>
-      <div class="acct-field">
-        <label>Password</label>
-        <input type="password" id="acctLoginPass" placeholder="Your password" required>
-      </div>
-      <button class="acct-submit" onclick="loginAcct()">Sign In</button>
-      <div class="acct-or">— or —</div>
-      <div class="acct-login-link" onclick="showAcctSignup()">Don't have an account? <strong>Create one free</strong></div>
     </div>
     <!-- SUCCESS VIEW -->
     <div id="acctSuccessView" style="display:none">

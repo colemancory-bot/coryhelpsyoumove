@@ -1329,9 +1329,9 @@ textarea.form-input{resize:vertical;min-height:100px}
 /* ═══════════════════════════════════════════════════════
    ACCOUNT CREATION MODAL
    ═══════════════════════════════════════════════════════ */
-.acct-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:10000;display:none;align-items:center;justify-content:center;padding:1rem;opacity:0;transition:opacity 0.35s}
+.acct-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:10000;display:none;align-items:center;justify-content:center;padding:1rem;opacity:0;transition:opacity 0.35s;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .acct-modal-bg.open{display:flex;opacity:1}
-.acct-modal{background:var(--bg-card);border:1px solid var(--border);max-width:420px;width:100%;padding:2.5rem 2rem 2rem;position:relative;animation:acctSlide 0.4s cubic-bezier(0.16,1,0.3,1)}
+.acct-modal{background:var(--bg-card);border:1px solid var(--border);max-width:420px;width:100%;padding:2.5rem 2rem 2rem;position:relative;animation:acctSlide 0.4s cubic-bezier(0.16,1,0.3,1);max-height:90vh;overflow-y:auto;margin:auto}
 @keyframes acctSlide{from{opacity:0;transform:translateY(24px) scale(0.97)}to{opacity:1;transform:none}}
 .acct-modal-close{position:absolute;top:1rem;right:1rem;background:none;border:none;color:var(--text-muted);font-size:1.5rem;cursor:pointer;width:32px;height:32px;display:flex;align-items:center;justify-content:center;transition:color 0.3s}
 .acct-modal-close:hover{color:var(--cream)}

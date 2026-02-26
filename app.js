@@ -59,8 +59,19 @@ function toggleMobileSignup(){
   var login=document.getElementById('mobileLoginFields');
   var signup=document.getElementById('mobileSignupFields');
   if(!login||!signup)return;
-  if(signup.style.display==='none'){login.style.display='none';signup.style.display=''}
-  else{signup.style.display='none';login.style.display=''}
+  if(signup.style.display==='none'){
+    // Switching to signup — carry email from login
+    var loginEmail=document.getElementById('mobileLoginEmail');
+    var signupEmail=document.getElementById('mobileSignupEmail');
+    if(loginEmail&&signupEmail&&loginEmail.value.trim()) signupEmail.value=loginEmail.value.trim();
+    login.style.display='none';signup.style.display='';
+  } else {
+    // Switching to login — carry email from signup
+    var signupEmail2=document.getElementById('mobileSignupEmail');
+    var loginEmail2=document.getElementById('mobileLoginEmail');
+    if(signupEmail2&&loginEmail2&&signupEmail2.value.trim()) loginEmail2.value=signupEmail2.value.trim();
+    signup.style.display='none';login.style.display='';
+  }
 }
 
 function _showMobileError(id,msg){var el=document.getElementById(id);if(el){el.textContent=msg;el.style.display=''}}
@@ -198,10 +209,10 @@ if(_isTownPage){
   '</div>';
 
   // --- Account Modal ---
-  html += '<div class="acct-modal-bg" id="acctModal"><div class="acct-modal" id="acctModalInner">' +
+  html += '<div class="acct-modal-bg" id="acctModal" onclick="if(event.target===this)closeAcctModal()"><div class="acct-modal" id="acctModalInner">' +
     '<button class="acct-modal-close" onclick="closeAcctModal()">&times;</button>' +
-    '<div id="acctFormView"><div class="acct-modal-badge">Free Account</div><h3>Unlock <em>Full Details</em></h3><div class="acct-modal-sub">Create a free account to access mortgage calculators, restriction details, save your favorite properties, and more.</div><div class="acct-error" id="acctSignupError" style="display:none"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem"><div class="acct-field"><label>First Name</label><input type="text" id="acctFirst" placeholder="John" required></div><div class="acct-field"><label>Last Name</label><input type="text" id="acctLast" placeholder="Smith" required></div></div><div class="acct-field"><label>Email Address</label><input type="email" id="acctEmail" placeholder="john@example.com" required></div><div class="acct-field"><label>Phone</label><input type="tel" id="acctPhone" placeholder="(828) 555-1234" required></div><div class="acct-field"><label>Password</label><input type="password" id="acctPass" placeholder="Create a password" required minlength="6"><div class="acct-pass-note">Minimum 6 characters</div></div><button class="acct-submit" onclick="submitAcct()">Create Free Account</button><div class="form-privacy"><svg viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Your information stays with me &mdash; I never sell or share it with third parties.</div><div class="acct-or">&mdash; or &mdash;</div><div class="acct-login-link" onclick="showAcctLogin()">Already have an account? <strong>Sign in</strong></div></div>' +
-    '<div id="acctLoginView" style="display:none"><div class="acct-modal-badge">Welcome Back</div><h3>Sign In</h3><div class="acct-modal-sub">Access your saved favorites, searches, and full property details.</div><div class="acct-error" id="acctLoginError" style="display:none"></div><div class="acct-field"><label>Email Address</label><input type="email" id="acctLoginEmail" placeholder="john@example.com" required></div><div class="acct-field"><label>Password</label><input type="password" id="acctLoginPass" placeholder="Your password" required></div><button class="acct-submit" onclick="loginAcct()">Sign In</button><div class="acct-or">&mdash; or &mdash;</div><div class="acct-login-link" onclick="showAcctSignup()">Don\'t have an account? <strong>Create one free</strong></div></div>' +
+    '<div id="acctLoginView"><div class="acct-modal-badge">Welcome Back</div><h3>Sign In</h3><div class="acct-modal-sub">Access your saved favorites, searches, and full property details.</div><div class="acct-error" id="acctLoginError" style="display:none"></div><div class="acct-field"><label>Email Address</label><input type="email" id="acctLoginEmail" placeholder="john@example.com" required></div><div class="acct-field"><label>Password</label><input type="password" id="acctLoginPass" placeholder="Your password" required></div><button class="acct-submit" onclick="loginAcct()">Sign In</button><div class="form-privacy"><svg viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Your information stays with me &mdash; I never sell or share it with third parties.</div><div class="acct-or">&mdash; or &mdash;</div><div class="acct-login-link" onclick="showAcctSignup()">Don\'t have an account? <strong>Create one free</strong></div></div>' +
+    '<div id="acctFormView" style="display:none"><div class="acct-modal-badge">Free Account</div><h3>Unlock <em>Full Details</em></h3><div class="acct-modal-sub">Create a free account to access mortgage calculators, restriction details, save your favorite properties, and more.</div><div class="acct-error" id="acctSignupError" style="display:none"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem"><div class="acct-field"><label>First Name</label><input type="text" id="acctFirst" placeholder="John" required></div><div class="acct-field"><label>Last Name</label><input type="text" id="acctLast" placeholder="Smith" required></div></div><div class="acct-field"><label>Email Address</label><input type="email" id="acctEmail" placeholder="john@example.com" required></div><div class="acct-field"><label>Phone</label><input type="tel" id="acctPhone" placeholder="(828) 555-1234" required></div><div class="acct-field"><label>Password</label><input type="password" id="acctPass" placeholder="Create a password" required minlength="6"><div class="acct-pass-note">Minimum 6 characters</div></div><button class="acct-submit" onclick="submitAcct()">Create Free Account</button><div class="acct-or">&mdash; or &mdash;</div><div class="acct-login-link" onclick="showAcctLogin()">Already have an account? <strong>Sign in</strong></div></div>' +
     '<div id="acctSuccessView" style="display:none"><div class="acct-success"><svg class="acct-success-icon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg><h3>Welcome!</h3><p>Your free account is ready. You now have full access to property details, mortgage estimates, and can save your favorites.</p></div></div>' +
     '<div id="acctDashView" style="display:none"><div style="text-align:center;margin-bottom:1rem"><svg viewBox="0 0 24 24" style="width:40px;height:40px;stroke:var(--gold);fill:none;stroke-width:1.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><h3 id="acctDashName" style="margin:0.5rem 0 0;color:var(--text)">My Account</h3><p id="acctDashEmail" style="margin:0;font-size:0.85rem;color:var(--text-muted)"></p></div>' +
       '<div class="acct-dash-tools"><button onclick="closeAcctModal();openAfford()" class="acct-tool-btn"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>Affordability</button><button onclick="closeAcctModal();openCol()" class="acct-tool-btn"><svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>Cost of Living</button><button onclick="closeAcctModal();openQA()" class="acct-tool-btn"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Local Q&A</button></div>' +
@@ -4007,6 +4018,7 @@ function updateAcctUI() {
 function openAcctModal() {
   var modal = document.getElementById('acctModal');
   if(!modal) return;
+  document.body.style.overflow = 'hidden'; // Lock background scroll
   if(_acctLoggedIn) {
     // Show account dashboard
     document.getElementById('acctFormView').style.display = 'none';
@@ -4036,17 +4048,18 @@ function openAcctModal() {
     modal.classList.add('open');
     return;
   }
-  document.getElementById('acctFormView').style.display = '';
-  document.getElementById('acctLoginView').style.display = 'none';
+  document.getElementById('acctLoginView').style.display = '';
+  document.getElementById('acctFormView').style.display = 'none';
   document.getElementById('acctSuccessView').style.display = 'none';
   document.getElementById('acctDashView').style.display = 'none';
   clearAcctErrors();
   modal.classList.add('open');
-  setTimeout(function(){ document.getElementById('acctFirst').focus() }, 300);
+  setTimeout(function(){ document.getElementById('acctLoginEmail').focus() }, 300);
 }
 
 function closeAcctModal() {
   var m=document.getElementById('acctModal');if(m)m.classList.remove('open');
+  document.body.style.overflow = ''; // Restore background scroll
 }
 
 function signOutAcct() {
@@ -4123,20 +4136,35 @@ async function deleteSearchSaved(id, rowEl) {
 }
 
 function showAcctLogin() {
+  // Carry email from signup → login
+  var signupEmail = document.getElementById('acctEmail');
+  var loginEmail = document.getElementById('acctLoginEmail');
+  if(signupEmail && loginEmail && signupEmail.value.trim()) {
+    loginEmail.value = signupEmail.value.trim();
+  }
   document.getElementById('acctFormView').style.display = 'none';
   document.getElementById('acctLoginView').style.display = '';
   document.getElementById('acctSuccessView').style.display = 'none';
   document.getElementById('acctDashView').style.display = 'none';
   clearAcctErrors();
-  setTimeout(function(){ document.getElementById('acctLoginEmail').focus() }, 100);
+  // Focus password if email already filled, otherwise focus email
+  var focusId = (loginEmail && loginEmail.value) ? 'acctLoginPass' : 'acctLoginEmail';
+  setTimeout(function(){ document.getElementById(focusId).focus() }, 100);
 }
 
 function showAcctSignup() {
+  // Carry email from login → signup
+  var loginEmail = document.getElementById('acctLoginEmail');
+  var signupEmail = document.getElementById('acctEmail');
+  if(loginEmail && signupEmail && loginEmail.value.trim()) {
+    signupEmail.value = loginEmail.value.trim();
+  }
   document.getElementById('acctFormView').style.display = '';
   document.getElementById('acctLoginView').style.display = 'none';
   document.getElementById('acctSuccessView').style.display = 'none';
   document.getElementById('acctDashView').style.display = 'none';
   clearAcctErrors();
+  // Focus first name if email already filled, otherwise focus first name anyway
   setTimeout(function(){ document.getElementById('acctFirst').focus() }, 100);
 }
 
@@ -4152,6 +4180,7 @@ function showAcctError(id, msg) {
 
 function closeAcctModal() {
   var m=document.getElementById('acctModal');if(m)m.classList.remove('open');
+  document.body.style.overflow = ''; // Restore background scroll
 }
 
 // --- Create account (Supabase) ---
