@@ -1748,8 +1748,52 @@ function setSearchType(type,btn){
   }
 }
 
+// ── Hero location multi-select ──
+function getHsSelectedAreas() {
+  var checks = document.querySelectorAll('#hsLocDropdown input[type="checkbox"]:checked');
+  var areas = [];
+  checks.forEach(function(cb){ areas.push(cb.value); });
+  return areas;
+}
+function updateHsLocLabel() {
+  var areas = getHsSelectedAreas();
+  var label = document.getElementById('hsLocLabel');
+  if(!label) return;
+  if(areas.length === 0) label.textContent = 'All of Western NC';
+  else if(areas.length === 1) label.textContent = AREA_LABELS[areas[0]] || areas[0];
+  else label.textContent = areas.length + ' Areas';
+}
+function toggleHsLocDropdown(e) {
+  var dd = document.getElementById('hsLocDropdown');
+  var field = document.getElementById('hsLocField');
+  if(!dd) return;
+  var isOpen = dd.classList.contains('open');
+  document.querySelectorAll('.sr-multi-dropdown.open').forEach(function(d){ d.classList.remove('open'); });
+  if(!isOpen) {
+    var rect = field.getBoundingClientRect();
+    dd.style.top = (rect.bottom + 4) + 'px';
+    dd.style.left = rect.left + 'px';
+    dd.classList.add('open');
+    setTimeout(function(){
+      document.addEventListener('click', _closeHsLocDropdown);
+    }, 0);
+  }
+}
+function _closeHsLocDropdown(e) {
+  var dd = document.getElementById('hsLocDropdown');
+  var field = document.getElementById('hsLocField');
+  if(dd && field && !field.contains(e.target)) {
+    dd.classList.remove('open');
+    document.removeEventListener('click', _closeHsLocDropdown);
+  }
+}
+function hsLocChanged() {
+  updateHsLocLabel();
+}
+
 function heroSearch(){
-  var loc=document.getElementById('hsLocation').value;
+  var areas = getHsSelectedAreas();
+  var loc = areas.join(',');
   var type=document.getElementById('hsType').value;
   var price=document.getElementById('hsPrice').value;
   var beds=document.getElementById('hsBeds').value;
@@ -1758,7 +1802,7 @@ function heroSearch(){
   var query=(document.getElementById('hsTextQuery')||{}).value||'';
 
   // Map hero type values to search type values
-  var typeMap = {'home':'Single Family','cabin':'Cabin','land':'Land','townhome':'Townhome / Condo'};
+  var typeMap = {'home':'Single Family','cabin':'Cabin','land':'Land','townhome':'Townhome / Condo','multifamily':'Multi-Family'};
   var mappedType = typeMap[type] || '';
 
   openSearchResults({

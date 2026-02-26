@@ -148,7 +148,8 @@ ul{list-style:none}
 [data-theme="light"] .hero .hs-field{border-right:1px solid rgba(196,176,140,0.12)}
 [data-theme="light"] .hero .hs-label{color:var(--gold-light)}
 [data-theme="light"] .hero .hs-select,
-[data-theme="light"] .hero .hs-input{color:#F5F0E8}
+[data-theme="light"] .hero .hs-input,
+[data-theme="light"] .hero .hs-multi-label{color:#F5F0E8}
 [data-theme="light"] .hero .hs-input::placeholder{color:rgba(245,240,232,0.4)}
 [data-theme="light"] .hero .hs-tab{color:rgba(245,240,232,0.55)}
 [data-theme="light"] .hero .hs-tab.active{background:rgba(196,176,140,0.2);color:#F5F0E8}
@@ -222,6 +223,9 @@ ul{list-style:none}
   background-repeat:no-repeat;background-position:right 0 center;padding-right:14px;
 }
 .hs-select option{background:var(--bg-card);color:var(--cream)}
+.hs-multi-field{cursor:pointer}
+.hs-multi-label{background:transparent;border:none;color:#F5F0E8;font-family:'Outfit',sans-serif;font-size:0.82rem;font-weight:300;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23C4B08C' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 0 center;padding-right:14px}
+.hs-loc-dropdown{min-width:200px}
 .hs-input{background-image:none;padding-right:0}
 .hs-input::placeholder{color:rgba(245,240,232,0.35)}
 .hs-btn{

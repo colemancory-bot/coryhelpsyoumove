@@ -233,19 +233,19 @@
         <button class="hs-tab" onclick="setSearchType('land',this)">Land</button>
       </div>
       <div class="hero-search-bar" id="heroSearchBar">
-        <div class="hs-field">
+        <div class="hs-field hs-multi-field" id="hsLocField" onclick="toggleHsLocDropdown(event)">
           <span class="hs-label">Location</span>
-          <select class="hs-select" id="hsLocation">
-            <option value="">All of Western NC</option>
-            <option value="Waynesville">Waynesville</option>
-            <option value="Sylva">Sylva</option>
-            <option value="Maggie Valley">Maggie Valley</option>
-            <option value="Bryson City">Bryson City</option>
-            <option value="Cashiers">Cashiers / Highlands</option>
-            <option value="Franklin">Franklin</option>
-            <option value="Dillsboro">Dillsboro</option>
-            <option value="Cullowhee">Cullowhee</option>
-          </select>
+          <span class="hs-multi-label" id="hsLocLabel">All of Western NC</span>
+          <div class="sr-multi-dropdown hs-loc-dropdown" id="hsLocDropdown" onclick="event.stopPropagation()">
+            <label class="sr-multi-option"><input type="checkbox" value="Waynesville" onchange="hsLocChanged()"><span>Waynesville</span></label>
+            <label class="sr-multi-option"><input type="checkbox" value="Sylva" onchange="hsLocChanged()"><span>Sylva</span></label>
+            <label class="sr-multi-option"><input type="checkbox" value="Maggie Valley" onchange="hsLocChanged()"><span>Maggie Valley</span></label>
+            <label class="sr-multi-option"><input type="checkbox" value="Bryson City" onchange="hsLocChanged()"><span>Bryson City</span></label>
+            <label class="sr-multi-option"><input type="checkbox" value="Cashiers" onchange="hsLocChanged()"><span>Cashiers / Highlands</span></label>
+            <label class="sr-multi-option"><input type="checkbox" value="Franklin" onchange="hsLocChanged()"><span>Franklin</span></label>
+            <label class="sr-multi-option"><input type="checkbox" value="Dillsboro" onchange="hsLocChanged()"><span>Dillsboro</span></label>
+            <label class="sr-multi-option"><input type="checkbox" value="Cullowhee" onchange="hsLocChanged()"><span>Cullowhee</span></label>
+          </div>
         </div>
         <div class="hs-field">
           <span class="hs-label">Property Type</span>
@@ -253,6 +253,7 @@
             <option value="">All Types</option>
             <option value="home">Single Family</option>
             <option value="cabin">Cabin</option>
+            <option value="multifamily">Multi-Family</option>
             <option value="land">Land / Acreage</option>
             <option value="townhome">Townhome / Condo</option>
           </select>
