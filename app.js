@@ -4804,20 +4804,27 @@ async function _handleOAuthProfile(session){
 
 // --- Open pending property after auth (registration gate) ---
 function _openPendingProp(){
-  // Check in-memory first
+  // Check in-memory first (email auth — same page, no redirect)
   if(_pendingProp){
     var p=_pendingProp;_pendingProp=null;
     setTimeout(function(){closeAcctModal();openProp(p.listing,p.townName)},800);
     return;
   }
-  // Check localStorage (OAuth redirect)
+  // Check localStorage (OAuth redirect — page reloaded)
   var stored=localStorage.getItem('cc_pending_prop');
   if(stored){
     localStorage.removeItem('cc_pending_prop');
     try{
       var p=JSON.parse(stored);
-      if(p&&p.listing){setTimeout(function(){openProp(p.listing,p.townName)},800)}
-    }catch(e){}
+      if(p&&p.listing){
+        console.log('[Auth] Restoring pending property after OAuth redirect');
+        // Wait longer for page to fully load after OAuth redirect
+        setTimeout(function(){
+          closeAcctModal();
+          openProp(p.listing,p.townName);
+        },2000);
+      }
+    }catch(e){console.warn('[Auth] Failed to restore pending property:',e)}
   }
 }
 
