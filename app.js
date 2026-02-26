@@ -469,8 +469,12 @@ var SIMPLYRETS = {
       Object.keys(TOWN_LISTINGS).forEach(function(k){ delete TOWN_LISTINGS[k]; });
       Object.keys(newTowns).forEach(function(k){ TOWN_LISTINGS[k] = newTowns[k]; });
 
-      // Update LISTINGS (featured) — top 6 by price
-      var sorted = mapped.filter(function(l){return l.photo}).sort(function(a,b){return b.price-a.price});
+      // Update LISTINGS (featured) — 6 newest listings with photos
+      var sorted = mapped.filter(function(l){return l.photo}).sort(function(a,b){
+        var aDays = (typeof a.daysOnMarket === 'number') ? a.daysOnMarket : 9999;
+        var bDays = (typeof b.daysOnMarket === 'number') ? b.daysOnMarket : 9999;
+        return aDays - bDays;
+      });
       LISTINGS.length = 0;
       sorted.slice(0,6).forEach(function(l,i){
         LISTINGS.push({
@@ -806,8 +810,12 @@ var MLS_GRID = {
         Object.keys(TOWN_LISTINGS).forEach(function(k){ delete TOWN_LISTINGS[k]; });
         Object.keys(newTowns).forEach(function(k){ TOWN_LISTINGS[k] = newTowns[k]; });
 
-        // Populate LISTINGS (featured) — top 6 by price with photos
-        var sorted = mapped.filter(function(l){return l.photo}).sort(function(a,b){return b.price-a.price});
+        // Populate LISTINGS (featured) — 6 newest listings with photos (by days on market)
+        var sorted = mapped.filter(function(l){return l.photo}).sort(function(a,b){
+          var aDays = (typeof a.daysOnMarket === 'number') ? a.daysOnMarket : 9999;
+          var bDays = (typeof b.daysOnMarket === 'number') ? b.daysOnMarket : 9999;
+          return aDays - bDays; // lowest days on market = newest listing
+        });
         LISTINGS.length = 0;
         sorted.slice(0,6).forEach(function(l,i){
           LISTINGS.push({
@@ -5403,8 +5411,12 @@ if(MLS_GRID.enabled) {
       });
       Object.keys(TOWN_LISTINGS).forEach(function(k){ delete TOWN_LISTINGS[k]; });
       Object.keys(_cachedTowns).forEach(function(k){ TOWN_LISTINGS[k] = _cachedTowns[k]; });
-      // Rebuild LISTINGS (featured) from cache — top 6 by price with photos
-      var _cachedSorted = ALL_LISTINGS.filter(function(l){return l.photo}).sort(function(a,b){return b.price-a.price});
+      // Rebuild LISTINGS (featured) from cache — 6 newest listings with photos
+      var _cachedSorted = ALL_LISTINGS.filter(function(l){return l.photo}).sort(function(a,b){
+        var aDays = (typeof a.daysOnMarket === 'number') ? a.daysOnMarket : 9999;
+        var bDays = (typeof b.daysOnMarket === 'number') ? b.daysOnMarket : 9999;
+        return aDays - bDays;
+      });
       LISTINGS.length = 0;
       _cachedSorted.slice(0,6).forEach(function(l,i){
         LISTINGS.push({ id:i+1, price:l.price, address:l.address, city:l.city, type:l.type,
