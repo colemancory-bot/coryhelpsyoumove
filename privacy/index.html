@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy | Cory Coleman Real Estate</title>
+<meta name="description" content="Privacy policy for coryhelpsyoumove.com. Learn how we collect, use, and protect your personal information when using our real estate services.">
+<link rel="canonical" href="https://coryhelpsyoumove.com/privacy/">
+
+<!-- Open Graph -->
+<meta property="og:title" content="Privacy Policy | Cory Coleman Real Estate">
+<meta property="og:description" content="How we collect, use, and protect your personal information on coryhelpsyoumove.com.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://coryhelpsyoumove.com/privacy/">
+<meta property="og:image" content="https://coryhelpsyoumove.com/images/hero-bg.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Privacy Policy | Cory Coleman Real Estate">
+<meta name="twitter:description" content="How we collect, use, and protect your personal information on coryhelpsyoumove.com.">
+<meta name="twitter:image" content="https://coryhelpsyoumove.com/images/hero-bg.jpg">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://coryhelpsyoumove.com/"},
+    {"@type": "ListItem", "position": 2, "name": "Privacy Policy", "item": "https://coryhelpsyoumove.com/privacy/"}
+  ]
+}
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Outfit:wght@200;300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ── THEME ── */
+:root,[data-theme="dark"]{
+  --bg:#0C0B09;--bg-warm:#141210;--card-bg:#1A1815;--surface:#211F1B;
+  --border:rgba(196,176,140,0.12);--border-hover:rgba(196,176,140,0.3);
+  --gold:#C4B08C;--gold-light:#D4C4A0;--gold-dark:#A08A60;
+  --cream:#F5F0E8;--text-muted:rgba(245,240,232,0.55);--text-body:rgba(245,240,232,0.75);
+  --nav-bg:rgba(12,11,9,0.92);
+}
+[data-theme="light"]{
+  --bg:#F8F6F1;--bg-warm:#F0EDE6;--card-bg:#FFFFFF;--surface:#EBE7DF;
+  --border:rgba(120,100,70,0.12);--border-hover:rgba(120,100,70,0.25);
+  --gold:#8B7748;--gold-light:#A08A58;--gold-dark:#6B5A38;
+  --cream:#1A1815;--text-muted:rgba(26,24,21,0.5);--text-body:rgba(26,24,21,0.7);
+  --nav-bg:rgba(248,246,241,0.92);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Outfit','Helvetica Neue',sans-serif;background:var(--bg);color:var(--cream);line-height:1.7;overflow-x:hidden;transition:background 0.5s,color 0.5s}
+a{color:var(--gold);text-decoration:none}
+a:hover{color:var(--gold-light)}
+::selection{background:var(--gold);color:var(--bg)}
+
+/* ── NAV ── */
+.nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:1rem 3rem;display:flex;align-items:center;justify-content:space-between;background:var(--nav-bg);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
+.nav-logo{display:flex;align-items:center;gap:1.25rem;text-decoration:none;color:var(--cream)}
+.nav-logo-name{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.5rem;font-weight:300;letter-spacing:0.05em}
+.nav-logo-name span{color:var(--gold)}
+.nav-logo-sub{font-size:0.5rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--text-muted);font-family:'Outfit',sans-serif}
+.nav-links{display:flex;align-items:center;gap:2rem}
+.nav-links a{font-size:0.7rem;font-weight:400;letter-spacing:0.18em;text-transform:uppercase;color:var(--text-muted);transition:color 0.3s}
+.nav-links a:hover,.nav-links a.active{color:var(--gold)}
+.nav-right{display:flex;align-items:center;gap:1.5rem}
+.nav-phone{display:flex;align-items:center;gap:0.4rem;font-size:0.78rem;color:var(--text-body);letter-spacing:0.06em;text-decoration:none}
+.nav-phone svg{width:16px;height:16px;fill:none;stroke:var(--gold);stroke-width:2}
+.theme-toggle{cursor:pointer;font-size:1rem;padding:4px 8px;border-radius:20px;border:1px solid var(--border);transition:all 0.3s}
+.theme-toggle:hover{border-color:var(--gold)}
+[data-theme="dark"] .t-sun{display:none}
+[data-theme="light"] .t-moon{display:none}
+.nav-logo-text{display:flex;flex-direction:column;line-height:1.1;gap:0.15rem}
+.nav-divider{width:1px;height:36px;background:var(--border);flex-shrink:0}
+.nav-kw{height:44px;width:auto;opacity:0.85;transition:opacity 0.3s}
+.nav-kw:hover{opacity:1}
+[data-theme="light"] .nav-kw{filter:invert(1)}
+.nav-toggle{display:none;flex-direction:column;gap:5px;padding:5px;cursor:pointer;border:none;background:none}
+.nav-toggle span{width:22px;height:1.5px;background:var(--cream);transition:all 0.3s}
+.mobile-menu{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--nav-bg);backdrop-filter:blur(20px);z-index:999;flex-direction:column;align-items:center;justify-content:center;gap:2rem;opacity:0;pointer-events:none;transition:opacity 0.4s}
+.mobile-menu.open{opacity:1;pointer-events:all}
+.mobile-menu a{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.8rem;font-weight:300;color:var(--cream);text-decoration:none;letter-spacing:0.05em}
+.mobile-menu a:hover{color:var(--gold)}
+@media(max-width:900px){
+  .nav-links{display:none}
+  .nav-kw{display:none}
+  .nav-divider{display:none}
+  .nav-toggle{display:flex}
+  .mobile-menu{display:flex}
+}
+
+/* ── CONTENT ── */
+.policy-hero{padding:140px 20px 40px;text-align:center;max-width:800px;margin:0 auto}
+.policy-hero .section-label{font-size:0.65rem;letter-spacing:0.35em;text-transform:uppercase;color:var(--gold);margin-bottom:16px;font-weight:500}
+.policy-hero h1{font-family:'Cormorant Garamond',Georgia,serif;font-size:2.8rem;font-weight:300;line-height:1.15;margin-bottom:16px}
+.policy-hero p{color:var(--text-muted);font-size:0.9rem}
+.policy-content{max-width:740px;margin:0 auto;padding:0 20px 80px}
+.policy-content h2{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.5rem;font-weight:400;margin:2.5rem 0 0.75rem;color:var(--cream);border-bottom:1px solid var(--border);padding-bottom:0.5rem}
+.policy-content h3{font-size:0.95rem;font-weight:600;margin:1.5rem 0 0.5rem;color:var(--gold)}
+.policy-content p{color:var(--text-body);font-size:0.92rem;margin-bottom:1rem;line-height:1.8}
+.policy-content ul{color:var(--text-body);font-size:0.92rem;margin:0 0 1rem 1.5rem;line-height:1.8}
+.policy-content li{margin-bottom:0.35rem}
+.policy-content strong{color:var(--cream)}
+
+/* ── FOOTER ── */
+.policy-footer{border-top:1px solid var(--border);padding:40px 20px;text-align:center}
+.policy-footer p{color:var(--text-muted);font-size:0.85rem;margin-bottom:8px}
+.policy-footer a{color:var(--gold)}
+
+@media(max-width:600px){
+  .policy-hero h1{font-size:2rem}
+  .nav{padding:1rem 1.25rem}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ NAV ═══ -->
+<nav class="nav" id="nav">
+  <a href="index.html" class="nav-logo">
+    <div class="nav-logo-text">
+      <div class="nav-logo-name"><span>C</span>ory <span>C</span>oleman</div>
+      <div class="nav-logo-sub">Real Estate</div>
+    </div>
+    <div class="nav-divider"></div>
+    <img src="keller-williams-great-smokies-western-nc-real-estate.png" alt="Keller Williams Great Smokies" class="nav-kw">
+  </a>
+  <div class="nav-links">
+    <a href="index.html#about">About</a>
+    <a href="index.html#areas">Areas</a>
+    <a href="index.html#listings">Properties</a>
+    <a href="events.html">Events</a>
+    <a href="blog/">Blog</a>
+    <a href="index.html#contact">Contact</a>
+  </div>
+  <div class="nav-right">
+    <div class="theme-toggle" onclick="toggleTheme()"><span class="t-sun">&#9728;</span><span class="t-moon">&#9789;</span></div>
+    <a href="tel:8285066413" class="nav-phone"><svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>(828) 506-6413</a>
+    <button class="nav-toggle" id="navToggle" onclick="document.getElementById('mobileMenu').classList.toggle('open');this.classList.toggle('active')"><span></span><span></span><span></span></button>
+  </div>
+</nav>
+<div class="mobile-menu" id="mobileMenu">
+  <a href="index.html#about" onclick="closeMobileMenu()">About</a>
+  <a href="index.html#areas" onclick="closeMobileMenu()">Areas</a>
+  <a href="index.html#listings" onclick="closeMobileMenu()">Properties</a>
+  <a href="events.html" onclick="closeMobileMenu()">Events</a>
+  <a href="blog/" onclick="closeMobileMenu()">Blog</a>
+  <a href="index.html#contact" onclick="closeMobileMenu()">Contact</a>
+</div>
+
+<!-- ═══ HERO ═══ -->
+<div class="policy-hero">
+  <div class="section-label">Legal</div>
+  <h1>Privacy Policy</h1>
+  <p>Last updated: February 26, 2026</p>
+</div>
+
+<!-- ═══ CONTENT ═══ -->
+<div class="policy-content">
+
+  <h2>Introduction</h2>
+  <p>This privacy policy explains how Cory Coleman, licensed real estate agent with Keller Williams Great Smokies ("we," "us," or "our"), collects, uses, and protects your personal information when you visit <strong>coryhelpsyoumove.com</strong> (the "Site") or use our real estate services.</p>
+
+  <h2>Information We Collect</h2>
+  <h3>Information You Provide</h3>
+  <ul>
+    <li><strong>Account registration:</strong> First name, last name, email address, and phone number (optional) when you create an account via email, Google, or Facebook sign-in</li>
+    <li><strong>Consultation requests:</strong> Name, email, phone, interest type, and message when you submit the consultation form</li>
+    <li><strong>Chat conversations:</strong> Messages you send through the on-site chatbot assistant</li>
+  </ul>
+
+  <h3>Information Collected Automatically</h3>
+  <ul>
+    <li><strong>Property activity:</strong> Properties you view, save as favorites, or search for</li>
+    <li><strong>Preferences:</strong> Your theme preference (dark/light mode)</li>
+    <li><strong>Authentication session:</strong> Login state to keep you signed in between visits</li>
+  </ul>
+
+  <h2>How We Use Your Information</h2>
+  <ul>
+    <li>To provide real estate services and connect you with listing information</li>
+    <li>To respond to your inquiries and consultation requests</li>
+    <li>To save your property favorites and search preferences</li>
+    <li>To send property alerts and market updates you have opted into</li>
+    <li>To improve the Site and your browsing experience</li>
+  </ul>
+
+  <h2>Third-Party Services</h2>
+  <p>We use the following third-party services to operate the Site:</p>
+  <ul>
+    <li><strong>Supabase:</strong> Authentication and secure database storage (hosted in the United States)</li>
+    <li><strong>Google OAuth:</strong> Optional sign-in via your Google account. Google's privacy policy applies to data shared during sign-in.</li>
+    <li><strong>Facebook Login:</strong> Optional sign-in via your Facebook account. Meta's privacy policy applies to data shared during sign-in.</li>
+    <li><strong>Follow-Up Boss:</strong> Customer relationship management (CRM) to help us serve you better and follow up on your real estate inquiries</li>
+    <li><strong>GitHub Pages:</strong> Website hosting</li>
+  </ul>
+  <p>We do not sell, rent, or trade your personal information to any third party for marketing purposes.</p>
+
+  <h2>Cookies &amp; Local Storage</h2>
+  <p>This Site uses browser local storage (similar to cookies) to remember your preferences:</p>
+  <ul>
+    <li><strong>cc-theme:</strong> Your dark/light mode preference</li>
+    <li><strong>cc-supabase-auth:</strong> Authentication session to keep you signed in</li>
+    <li><strong>cc_profile:</strong> Cached profile information for faster page loads</li>
+  </ul>
+  <p>We do <strong>not</strong> use third-party tracking cookies, advertising cookies, or analytics tracking tools. We do not serve ads on this Site.</p>
+
+  <h2>Your Rights</h2>
+  <p>You have the right to:</p>
+  <ul>
+    <li><strong>Access</strong> the personal data we hold about you</li>
+    <li><strong>Correct</strong> any inaccurate information</li>
+    <li><strong>Delete</strong> your account and all associated data (see our <a href="/data-deletion/">Data Deletion</a> page)</li>
+    <li><strong>Opt out</strong> of marketing communications at any time</li>
+  </ul>
+
+  <h2>Data Retention</h2>
+  <p>We retain your personal information for as long as your account is active or as needed to provide you with our services. If you request deletion of your account, we will remove your data within 30 days. See our <a href="/data-deletion/">Data Deletion</a> page for instructions.</p>
+
+  <h2>Data Security</h2>
+  <p>We implement industry-standard security measures to protect your personal information, including encrypted data transmission (HTTPS), secure authentication, and access controls on our database. However, no method of transmission over the Internet is 100% secure.</p>
+
+  <h2>Children's Privacy</h2>
+  <p>This Site is not directed at individuals under the age of 18. We do not knowingly collect personal information from children.</p>
+
+  <h2>Changes to This Policy</h2>
+  <p>We may update this privacy policy from time to time. Changes will be posted on this page with an updated "Last updated" date. Your continued use of the Site after changes constitutes acceptance of the updated policy.</p>
+
+  <h2>Contact Us</h2>
+  <p>If you have questions about this privacy policy or your personal data, please contact us:</p>
+  <ul>
+    <li><strong>Email:</strong> <a href="mailto:coryhelpsyoumove@gmail.com">coryhelpsyoumove@gmail.com</a></li>
+    <li><strong>Phone:</strong> <a href="tel:8285066413">(828) 506-6413</a></li>
+    <li><strong>Office:</strong> 96 W Sylva Shopping Area, Sylva, NC 28779</li>
+  </ul>
+
+</div>
+
+<!-- ═══ FOOTER ═══ -->
+<div class="policy-footer">
+  <p>&copy; 2026 Cory Coleman &middot; Keller Williams Great Smokies &middot; <a href="index.html">Back to Home</a></p>
+</div>
+
+<script>
+function toggleTheme(){var t=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',t);try{localStorage.setItem('cc-theme',t)}catch(e){}}
+function closeMobileMenu(){var m=document.getElementById('mobileMenu');var t=document.getElementById('navToggle');if(m)m.classList.remove('open');if(t)t.classList.remove('active')}
+try{var saved=localStorage.getItem('cc-theme');if(saved)document.documentElement.setAttribute('data-theme',saved)}catch(e){}
+</script>
+</body>
+</html>
