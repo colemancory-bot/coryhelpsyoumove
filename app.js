@@ -58,23 +58,30 @@ function closeMobile(fromPopstate){var mm=document.getElementById('mobileMenu');
 var _scrollLockY=0;
 function _lockScroll(){
   if(document.body.style.position==='fixed')return;
-  _scrollLockY=window.scrollY;
+  _scrollLockY=window.pageYOffset||document.documentElement.scrollTop;
   document.body.style.position='fixed';
   document.body.style.top='-'+_scrollLockY+'px';
   document.body.style.left='0';
   document.body.style.right='0';
+  document.body.style.width='100%';
   document.body.style.overflow='hidden';
   document.documentElement.style.overflow='hidden';
 }
 function _unlockScroll(){
   if(document.body.style.position!=='fixed')return;
+  var y=_scrollLockY;
   document.body.style.position='';
   document.body.style.top='';
   document.body.style.left='';
   document.body.style.right='';
+  document.body.style.width='';
   document.body.style.overflow='';
   document.documentElement.style.overflow='';
-  window.scrollTo(0,_scrollLockY);
+  // Disable smooth scroll so restore is instant
+  document.documentElement.style.scrollBehavior='auto';
+  window.scrollTo(0,y);
+  // Re-enable smooth scroll after a tick
+  requestAnimationFrame(function(){document.documentElement.style.scrollBehavior='';});
 }
 
 // ═══ MOBILE MENU INLINE AUTH ═══
@@ -1355,7 +1362,8 @@ function toggleChat(){
   var ct=document.getElementById('chatTrigger');if(ct)ct.classList.add('open');
   var nc=document.getElementById('navChat');if(nc)nc.classList.add('open');
   var cm=document.getElementById('chatMessages');if(cm&&!cm.children.length){ if(!_restoreChatMessages()) addInitMsg(); }
-  var ci=document.getElementById('chatInput');if(ci)setTimeout(()=>ci.focus(),300);
+  // Only auto-focus input on desktop — on mobile it opens the keyboard and causes jank
+  if(window.innerWidth > 1024){var ci=document.getElementById('chatInput');if(ci)setTimeout(()=>ci.focus(),300);}
   if(window.innerWidth <= 1024) history.pushState({page:'chat'},'','#chat');
 }
 function _closeChat(){
