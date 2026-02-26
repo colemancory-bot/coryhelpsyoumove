@@ -1414,25 +1414,15 @@ if(window.visualViewport){
     clearTimeout(_chatResizeTimer);
     _chatResizeTimer=setTimeout(function(){
       var vv=window.visualViewport;
-      var vh=vv.height;
-      var h=vh-16;// small margin
+      // Shrink panel height to fit above keyboard, keep bottom anchored
+      var available=vv.height - 12;// 12px = bottom margin (0.75rem)
       cp.style.transition='height 0.2s ease-out, max-height 0.2s ease-out';
-      cp.style.height=h+'px';
-      cp.style.maxHeight=h+'px';
-      // Anchor chat panel to visual viewport top to stay visible above keyboard
-      cp.style.bottom='auto';
-      cp.style.top=vv.offsetTop+'px';
+      cp.style.height=available+'px';
+      cp.style.maxHeight=available+'px';
       // Scroll messages to bottom when keyboard opens
       var cm=document.getElementById('chatMessages');
       if(cm)setTimeout(function(){cm.scrollTop=cm.scrollHeight},80);
     },60);
-  });
-  // Also listen for scroll events on visualViewport (iOS shifts viewport origin)
-  window.visualViewport.addEventListener('scroll',function(){
-    var cp=document.getElementById('chatPanel');
-    if(!cp||!chatOpen||window.innerWidth>1024)return;
-    cp.style.bottom='auto';
-    cp.style.top=window.visualViewport.offsetTop+'px';
   });
 }
 
