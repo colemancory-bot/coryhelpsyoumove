@@ -55,8 +55,27 @@ if(_navToggle) _navToggle.addEventListener('click',function(){var mm=document.ge
 function closeMobile(fromPopstate){var mm=document.getElementById('mobileMenu');if(mm&&mm.classList.contains('open')){mm.classList.remove('open');_unlockScroll();if(!fromPopstate&&history.state&&history.state.page==='menu')history.back()}}
 
 // ═══ SCROLL LOCK HELPERS ═══
-function _lockScroll(){document.documentElement.style.overflow='hidden';document.body.style.overflow='hidden'}
-function _unlockScroll(){document.documentElement.style.overflow='';document.body.style.overflow=''}
+var _scrollLockY=0;
+function _lockScroll(){
+  if(document.body.style.position==='fixed')return;
+  _scrollLockY=window.scrollY;
+  document.body.style.position='fixed';
+  document.body.style.top='-'+_scrollLockY+'px';
+  document.body.style.left='0';
+  document.body.style.right='0';
+  document.body.style.overflow='hidden';
+  document.documentElement.style.overflow='hidden';
+}
+function _unlockScroll(){
+  if(document.body.style.position!=='fixed')return;
+  document.body.style.position='';
+  document.body.style.top='';
+  document.body.style.left='';
+  document.body.style.right='';
+  document.body.style.overflow='';
+  document.documentElement.style.overflow='';
+  window.scrollTo(0,_scrollLockY);
+}
 
 // ═══ MOBILE MENU INLINE AUTH ═══
 function toggleMobileSignup(){
