@@ -3712,38 +3712,8 @@ function closeSearch(){
 function initSearchMap(){
   try {
     var isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-    _srMap = L.map('srMap',{zoomControl:false,attributionControl:true,zoomSnap:0,scrollWheelZoom:false}).setView([35.38,-83.20],10);
+    _srMap = L.map('srMap',{zoomControl:false,attributionControl:true,zoomSnap:0,scrollWheelZoom:true,wheelDebounceTime:50,wheelPxPerZoomLevel:80}).setView([35.38,-83.20],10);
     L.control.zoom({position:'topright'}).addTo(_srMap);
-    // Smooth momentum-based wheel/trackpad zoom — eases toward target like Google Maps
-    (function(map){
-      var container=map.getContainer();
-      var targetZ=map.getZoom(),curZ=targetZ,zPt=null,raf=null;
-      var LERP=0.3;
-      // Sync internal state when Leaflet zoom changes (button clicks, double-click, etc.)
-      map.on('zoomend',function(){if(!raf){targetZ=curZ=map.getZoom();}});
-      function tick(){
-        var diff=targetZ-curZ;
-        if(Math.abs(diff)<0.005){
-          curZ=targetZ;
-          map.setZoomAround(map.containerPointToLatLng(zPt),curZ,{animate:false});
-          raf=null;return;
-        }
-        curZ+=diff*LERP;
-        map.setZoomAround(map.containerPointToLatLng(zPt),curZ,{animate:false});
-        raf=requestAnimationFrame(tick);
-      }
-      container.addEventListener('wheel',function(e){
-        e.preventDefault();
-        var dy=e.deltaY;
-        if(e.deltaMode===1)dy*=20;if(e.deltaMode===2)dy*=200;
-        // ctrlKey = trackpad pinch (fine, continuous); else = mouse wheel (discrete clicks)
-        var delta=-dy*(e.ctrlKey?0.008:0.003);
-        targetZ=Math.max(map.getMinZoom(),Math.min(map.getMaxZoom(),targetZ+delta));
-        var r=container.getBoundingClientRect();
-        zPt=L.point(e.clientX-r.left,e.clientY-r.top);
-        if(!raf){curZ=map.getZoom();raf=requestAnimationFrame(tick);}
-      },{passive:false});
-    })(_srMap);
 
     // Use dark or light tiles
     var darkTiles = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
