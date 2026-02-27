@@ -57,13 +57,12 @@ function closeMobile(fromPopstate){var mm=document.getElementById('mobileMenu');
 // ═══ SCROLL LOCK HELPERS ═══
 var _scrollLockY=0;
 function _scrollLockTouch(e){
-  // Allow scrolling inside chat panel, mobile menu, search list, and overlays with scrollable content
+  // Allow scrolling inside any active overlay or panel with scrollable content
   var t=e.target;
-  var cp=document.getElementById('chatPanel');
-  var mm=document.getElementById('mobileMenu');
-  var sl=document.getElementById('srListPanel');
-  var co=document.getElementById('compareOverlay');
-  if((cp&&cp.contains(t))||(mm&&mm.contains(t))||(sl&&sl.contains(t))||(co&&co.contains(t)))return;
+  var ids=['chatPanel','mobileMenu','srListPanel','compareOverlay','propOverlay','colOverlay','affordOverlay','qaOverlay','acctModalInner'];
+  for(var i=0;i<ids.length;i++){var el=document.getElementById(ids[i]);if(el&&el.contains(t))return;}
+  // Also allow scrolling inside page overlays (town/blog pages opened inline)
+  if(t.closest&&t.closest('.page-overlay'))return;
   e.preventDefault();
 }
 function _lockScroll(){
