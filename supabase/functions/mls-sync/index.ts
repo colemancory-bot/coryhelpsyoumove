@@ -32,13 +32,28 @@ const PAGE_SIZE = 200;
 // For initial import, run multiple invocations; each picks up where the last left off
 const DEFAULT_MAX_RECORDS = 500;
 
-// Geographic filter — only sync listings from these WNC counties
-// MLS Grid best practice: use 'in' instead of 'or' for multi-value filters
-const WNC_COUNTIES = "'Haywood','Jackson','Swain','Macon','Buncombe','Henderson','Transylvania','Graham'";
+// Geographic filter — only store listings from these WNC counties
+// Note: MLS Grid replication API only allows filtering on: MlgCanView, ModificationTimestamp,
+// OriginatingSystemName, StandardStatus, ListingId, PropertyType, ListOfficeMlsId
+// So we filter CountyOrParish SERVER-SIDE after receiving records (not in the OData $filter)
+const WNC_COUNTIES = new Set([
+  "Haywood", "Jackson", "Swain", "Macon", "Buncombe",
+  "Henderson", "Transylvania", "Graham"
+]);
 
 // ── Helpers ────────────────────────────────────────────────────
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+// Normalize timestamp for OData filter compatibility
+// PostgreSQL returns "2025-10-10 16:55:06.668+00" but OData needs "2025-10-10T16:55:06.668Z"
+function normalizeTimestamp(ts: string): string {
+  if (!ts) return ts;
+  return ts
+    .replace(" ", "T")              // space → T separator
+    .replace(/\+00:00$/, "Z")       // +00:00 → Z
+    .replace(/\+00$/, "Z");         // +00 → Z
 }
 
 // Strip MLS local field prefixes from key field values before storage/display
@@ -99,11 +114,18 @@ async function syncProperties(
   lastTimestamp: string | null,
   maxRecords: number = DEFAULT_MAX_RECORDS
 ) {
+  // MLS Grid replication only allows: OriginatingSystemName, MlgCanView, ModificationTimestamp,
+  // StandardStatus, ListingId, PropertyType (eq only, no 'ne'), ListOfficeMlsId
+  // PropertyType and CountyOrParish filtering done server-side after receiving records
   let url: string;
+  const baseFilter = `OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}'`;
+  const tsFilter = lastTimestamp ? ` and ModificationTimestamp gt ${normalizeTimestamp(lastTimestamp)}` : "";
   if (isInitial) {
-    url = `${MLS_GRID_API}/Property?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true and CountyOrParish in (${WNC_COUNTIES}) and PropertyType ne 'Residential Lease'&$expand=Media,Rooms,UnitTypes&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
+    // Initial import: only Active listings + resume from saved timestamp if any
+    url = `${MLS_GRID_API}/Property?$filter=${baseFilter} and MlgCanView eq true and StandardStatus eq 'Active'${tsFilter}&$expand=Media&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
   } else {
-    url = `${MLS_GRID_API}/Property?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and ModificationTimestamp gt ${lastTimestamp} and CountyOrParish in (${WNC_COUNTIES}) and PropertyType ne 'Residential Lease'&$expand=Media,Rooms,UnitTypes&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
+    // Incremental sync: get ALL changes (including status transitions) since last sync
+    url = `${MLS_GRID_API}/Property?$filter=${baseFilter}${tsFilter}&$expand=Media&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
   }
 
   let totalSynced = 0;
@@ -124,6 +146,17 @@ async function syncProperties(
       const canView = record.MlgCanView !== false;
 
       if (modTs > greatestTimestamp) greatestTimestamp = modTs;
+
+      // Server-side filters (MLS Grid replication API has limited $filter support)
+      // 1. Geographic — only store WNC county listings (skip if county is empty or not in our list)
+      const county = record.CountyOrParish || "";
+      if (!county || !WNC_COUNTIES.has(county)) {
+        continue; // Skip non-WNC listings (including those with no county set)
+      }
+      // 2. Exclude rentals
+      if ((record.PropertyType || "") === "Residential Lease") {
+        continue;
+      }
 
       if (!canView) {
         // MlgCanView false = marked for deletion
@@ -380,9 +413,8 @@ async function syncMembers(
   lastTimestamp: string | null,
   maxRecords: number = DEFAULT_MAX_RECORDS
 ) {
-  let url = isInitial
-    ? `${MLS_GRID_API}/Member?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`
-    : `${MLS_GRID_API}/Member?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and ModificationTimestamp gt ${lastTimestamp}&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
+  const mTsFilter = lastTimestamp ? ` and ModificationTimestamp gt ${normalizeTimestamp(lastTimestamp)}` : "";
+  let url = `${MLS_GRID_API}/Member?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true${mTsFilter}&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
 
   let totalSynced = 0;
   let greatestTimestamp = lastTimestamp || "";
@@ -439,9 +471,8 @@ async function syncOffices(
   lastTimestamp: string | null,
   maxRecords: number = DEFAULT_MAX_RECORDS
 ) {
-  let url = isInitial
-    ? `${MLS_GRID_API}/Office?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`
-    : `${MLS_GRID_API}/Office?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and ModificationTimestamp gt ${lastTimestamp}&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
+  const oTsFilter = lastTimestamp ? ` and ModificationTimestamp gt ${normalizeTimestamp(lastTimestamp)}` : "";
+  let url = `${MLS_GRID_API}/Office?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true${oTsFilter}&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
 
   let totalSynced = 0;
   let greatestTimestamp = lastTimestamp || "";
@@ -498,9 +529,8 @@ async function syncOpenHouses(
   lastTimestamp: string | null,
   maxRecords: number = DEFAULT_MAX_RECORDS
 ) {
-  let url = isInitial
-    ? `${MLS_GRID_API}/OpenHouse?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`
-    : `${MLS_GRID_API}/OpenHouse?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and ModificationTimestamp gt ${lastTimestamp}&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
+  const ohTsFilter = lastTimestamp ? ` and ModificationTimestamp gt ${normalizeTimestamp(lastTimestamp)}` : "";
+  let url = `${MLS_GRID_API}/OpenHouse?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true${ohTsFilter}&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
 
   let totalSynced = 0;
   let greatestTimestamp = lastTimestamp || "";
@@ -591,6 +621,29 @@ Deno.serve(async (req) => {
       `[MLS Grid] Starting ${action} for resource: ${resource} (limit: ${maxRecords})`
     );
 
+    // ── Cleanup action: remove non-WNC listings that slipped through ──
+    if (action === "cleanup") {
+      const wncList = Array.from(WNC_COUNTIES);
+      // Delete listings with empty county
+      const { count: emptyCount } = await supabase
+        .from("mls_listings")
+        .delete({ count: "exact" })
+        .eq("originating_system_name", ORIGINATING_SYSTEM_NAME)
+        .eq("county_or_parish", "");
+      // Delete listings with county NOT in WNC list
+      const { count: nonWncCount } = await supabase
+        .from("mls_listings")
+        .delete({ count: "exact" })
+        .eq("originating_system_name", ORIGINATING_SYSTEM_NAME)
+        .not("county_or_parish", "in", `(${wncList.join(",")})`);
+      return new Response(JSON.stringify({
+        ok: true, action: "cleanup",
+        deleted: { emptyCounty: emptyCount || 0, nonWnc: nonWncCount || 0 }
+      }), {
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      });
+    }
+
     const resources = resource === "all"
       ? ["Property", "Member", "Office", "OpenHouse"]
       : [resource];
@@ -605,7 +658,9 @@ Deno.serve(async (req) => {
       const { data: syncState } = await supabase
         .from("mls_sync_state").select("*").eq("resource_type", res).single();
 
-      const lastTs = isInitial ? null : syncState?.last_modification_timestamp || null;
+      // Use saved timestamp for resumption — even initial imports resume from where
+      // the last batch left off (the sync function handles URL building for initial vs incremental)
+      const lastTs = syncState?.last_modification_timestamp || null;
 
       await supabase.from("mls_sync_state")
         .update({ status: "running", error_message: "" }).eq("resource_type", res);
