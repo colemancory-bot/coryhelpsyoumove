@@ -57,11 +57,13 @@ function closeMobile(fromPopstate){var mm=document.getElementById('mobileMenu');
 // ═══ SCROLL LOCK HELPERS ═══
 var _scrollLockY=0;
 function _scrollLockTouch(e){
-  // Allow scrolling inside chat panel and mobile menu
+  // Allow scrolling inside chat panel, mobile menu, search list, and overlays with scrollable content
   var t=e.target;
   var cp=document.getElementById('chatPanel');
   var mm=document.getElementById('mobileMenu');
-  if((cp&&cp.contains(t))||(mm&&mm.contains(t)))return;
+  var sl=document.getElementById('srListPanel');
+  var co=document.getElementById('compareOverlay');
+  if((cp&&cp.contains(t))||(mm&&mm.contains(t))||(sl&&sl.contains(t))||(co&&co.contains(t)))return;
   e.preventDefault();
 }
 function _lockScroll(){
@@ -4015,6 +4017,7 @@ function srRenderCards(results){
       if(_acres > 0 && l.price) valueBadge = '<div class="sr-card-value">$' + Math.round(l.price / _acres).toLocaleString() + '/acre</div>';
     }
 
+    if(l.listingKey) card.setAttribute('data-lk', l.listingKey);
     card.innerHTML = '<div class="sr-card-img">' + imgHtml + '<div class="' + badgeClass + '">' + l.type + '</div>' + statusTag + cardFavHtml(l.address, l.city) + '</div>' +
       '<div class="sr-card-body">' +
         '<div class="sr-card-price">$' + l.price.toLocaleString() + valueBadge + '</div>' +
@@ -4026,6 +4029,7 @@ function srRenderCards(results){
 
     (function(listing, listingId){
       card.onclick = function(){
+        if(window._cardSwiped){window._cardSwiped=false;return;}
         try { openProp({price:listing.price,address:listing.address,type:listing.type,beds:listing.beds,baths:listing.baths,sqft:listing.sqft,sqftRange:listing.sqftRange||'',lot:listing.lot,restrictions:listing.restrictions||'unrestricted',status:listing.status||'Active',photo:listing.photo||null,photos:listing.photos||[],description:listing.description||'',listAgent:listing.listAgent||'',listOffice:listing.listOffice||'',listOfficePhone:listing.listOfficePhone||'',attributionContact:listing.attributionContact||'',mlsId:listing.mlsId||'',daysOnMarket:listing.daysOnMarket||0,listingKey:listing.listingKey||'',originatingSystem:listing.originatingSystem||'',mlsSources:listing.mlsSources||[]}, listing.city); } catch(err){console.error(err)}
       };
       card.onmouseenter = function(){ srHighlightMarkerById(listingId) };
@@ -4132,6 +4136,106 @@ function srOpenFromMapById(lid){
   if(!l) return;
   openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,lot:l.lot,restrictions:l.restrictions||'unrestricted',status:l.status||'Active',photo:l.photo||null,photos:l.photos||[],description:l.description||'',listAgent:l.listAgent||'',listOffice:l.listOffice||'',listOfficePhone:l.listOfficePhone||'',attributionContact:l.attributionContact||'',mlsId:l.mlsId||'',daysOnMarket:l.daysOnMarket||0,listingKey:l.listingKey||'',originatingSystem:l.originatingSystem||'',mlsSources:l.mlsSources||[]}, l.city);
 }
+
+// ═══ Card Image Swipe (touch to browse photos) ═══
+(function(){
+  var _photoCache = {};  // listingKey → [url, ...]
+  var _photoIdx = {};    // listingKey → current index
+  var _swipe = null;     // active touch state
+  window._cardSwiped = false;
+
+  function findImgAndKey(target){
+    var el = target;
+    while(el && !el.classList.contains('sr-card-img')){
+      if(el.classList.contains('sr-cards')||el.classList.contains('sr-card-body')) return null;
+      el = el.parentElement;
+    }
+    if(!el) return null;
+    var card = el.closest('.sr-card');
+    var key = card ? card.getAttribute('data-lk') : null;
+    return key ? {el:el, key:key} : null;
+  }
+
+  function getPhotos(key){
+    if(_photoCache[key]) return Promise.resolve(_photoCache[key]);
+    return MLS_GRID.loadPhotos(key).then(function(photos){
+      _photoCache[key] = photos && photos.length ? photos : [];
+      return _photoCache[key];
+    });
+  }
+
+  function showPhoto(imgEl, key, idx){
+    var photos = _photoCache[key];
+    if(!photos || !photos.length) return;
+    idx = Math.max(0, Math.min(photos.length - 1, idx));
+    _photoIdx[key] = idx;
+    var img = imgEl.querySelector('img');
+    if(img){
+      img.style.opacity = '0';
+      setTimeout(function(){
+        img.src = photos[idx];
+        img.style.opacity = '1';
+      }, 80);
+    }
+    renderDots(imgEl, key);
+  }
+
+  function renderDots(imgEl, key){
+    var photos = _photoCache[key];
+    if(!photos || photos.length <= 1) return;
+    var idx = _photoIdx[key] || 0;
+    var dots = imgEl.querySelector('.card-swipe-dots');
+    if(!dots){
+      dots = document.createElement('div');
+      dots.className = 'card-swipe-dots';
+      imgEl.appendChild(dots);
+    }
+    var n = Math.min(photos.length, 7);
+    var html = '';
+    for(var i=0; i<n; i++) html += '<span'+(i===idx?' class="active"':'')+'></span>';
+    if(photos.length > 7) html += '<span class="more">…</span>';
+    dots.innerHTML = html;
+  }
+
+  // Touch events — delegated from document
+  document.addEventListener('touchstart', function(e){
+    var ci = findImgAndKey(e.target);
+    if(!ci) return;
+    _swipe = {x:e.touches[0].clientX, y:e.touches[0].clientY, key:ci.key, el:ci.el, horizontal:false, decided:false};
+  }, {passive:true});
+
+  document.addEventListener('touchmove', function(e){
+    if(!_swipe) return;
+    var dx = e.touches[0].clientX - _swipe.x;
+    var dy = e.touches[0].clientY - _swipe.y;
+    if(!_swipe.decided && (Math.abs(dx) > 8 || Math.abs(dy) > 8)){
+      _swipe.decided = true;
+      _swipe.horizontal = Math.abs(dx) > Math.abs(dy);
+    }
+    if(_swipe.horizontal) e.preventDefault(); // lock to horizontal swipe
+  }, {passive:false});
+
+  document.addEventListener('touchend', function(e){
+    if(!_swipe){return;}
+    var dx = e.changedTouches[0].clientX - _swipe.x;
+    var key = _swipe.key;
+    var imgEl = _swipe.el;
+    var wasHorizontal = _swipe.horizontal;
+    _swipe = null;
+    if(!wasHorizontal || Math.abs(dx) < 25) return;
+
+    // Suppress the card click that follows this touchend
+    window._cardSwiped = true;
+    setTimeout(function(){window._cardSwiped=false;},300);
+
+    var dir = dx < 0 ? 1 : -1; // left swipe = next
+    getPhotos(key).then(function(photos){
+      if(!photos || photos.length <= 1) return;
+      var idx = (_photoIdx[key] || 0) + dir;
+      showPhoto(imgEl, key, idx);
+    });
+  });
+})();
 
 // ═══ ID-based marker/card highlight sync ═══
 function srHighlightMarkerById(lid){
