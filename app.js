@@ -3761,16 +3761,66 @@ function initSearchMap(){
     _srMap = L.map('srMap',{
       zoomControl:false,
       attributionControl:true,
-      scrollWheelZoom:false,       // disable default (jerky on trackpad)
-      smoothWheelZoom:true,        // enable SmoothWheelZoom plugin
-      smoothSensitivity:1.5,       // zoom sensitivity (1=default, higher=faster)
-      zoomSnap:0,
+      scrollWheelZoom:false,       // we handle wheel zoom ourselves below
+      zoomSnap:0,                  // allow fractional zoom for fluid animation
       touchZoom:true,
       bounceAtZoomLimits:false,
       zoomAnimation:true,
       zoomAnimationThreshold:4
     }).setView([35.38,-83.20],10);
     L.control.zoom({position:'topright'}).addTo(_srMap);
+
+    // ── Custom butter-smooth wheel/trackpad zoom ──────────────
+    // Replaces Leaflet's built-in scroll zoom which is jerky on trackpads.
+    // Uses requestAnimationFrame to ease toward a target zoom at 60fps.
+    (function(map){
+      var container = map.getContainer();
+      var targetZoom = map.getZoom();
+      var animating = false;
+      var mousePos = null;
+
+      container.addEventListener('mousemove', function(e){
+        var r = container.getBoundingClientRect();
+        mousePos = L.point(e.clientX - r.left, e.clientY - r.top);
+      });
+
+      container.addEventListener('wheel', function(e){
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Normalize delta: trackpads send small px deltas, mouse wheels send larger
+        var delta = -e.deltaY;
+        if(e.deltaMode === 1) delta *= 40;   // lines → px
+        if(e.deltaMode === 2) delta *= 800;  // pages → px
+
+        targetZoom += delta * 0.002;
+        targetZoom = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), targetZoom));
+
+        // Capture mouse position for zoom-around-cursor
+        if(!mousePos){
+          var r = container.getBoundingClientRect();
+          mousePos = L.point(e.clientX - r.left, e.clientY - r.top);
+        }
+
+        if(!animating){
+          animating = true;
+          (function tick(){
+            var cur = map.getZoom();
+            var diff = targetZoom - cur;
+            if(Math.abs(diff) < 0.005){
+              animating = false;
+              return;
+            }
+            // Ease 20% toward target each frame → smooth deceleration
+            map.setZoomAround(mousePos, cur + diff * 0.2, {animate:false});
+            requestAnimationFrame(tick);
+          })();
+        }
+      }, {passive:false});
+
+      // Keep targetZoom in sync when zoom changes via other means (buttons, pinch)
+      map.on('zoomend', function(){ targetZoom = map.getZoom(); });
+    })(_srMap);
 
     // Use dark or light tiles
     var darkTiles = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
