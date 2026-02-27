@@ -2741,26 +2741,29 @@ function openProp(listing, townName) {
   ];
   hlEl.innerHTML = hls.map(function(h){return '<div class="prop-highlight"><svg viewBox="0 0 24 24">'+h.icon+'</svg><div class="prop-highlight-title">'+h.title+'</div><div class="prop-highlight-desc">'+h.desc+'</div></div>'}).join('');
 
-  // Property map — real Leaflet map
+  // Property map — MapLibre GL
   var mapContainer = document.getElementById('propMapContainer');
-  if(mapContainer && typeof L !== 'undefined') {
+  if(mapContainer && typeof maplibregl !== 'undefined') {
     // Destroy previous map instance if any
     if(window._propMap) { try { window._propMap.remove(); } catch(e){} window._propMap = null; }
     mapContainer.innerHTML = '';
     var mapLat = listing.lat || (TOWN_COORDS[townName] ? TOWN_COORDS[townName].lat : 35.38);
     var mapLng = listing.lng || (TOWN_COORDS[townName] ? TOWN_COORDS[townName].lng : -83.18);
     var zoom = (listing.lat && listing.lng) ? 15 : 12;
-    window._propMap = L.map(mapContainer, {zoomControl:true, attributionControl:true, scrollWheelZoom:false, zoomSnap:0}).setView([mapLat, mapLng], zoom);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      attribution:'&copy; <a href="https://carto.com/">CARTO</a>',
-      maxZoom:18,
-      keepBuffer:5,
-      updateWhenZooming:false,
-      updateWhenIdle:true
-    }).addTo(window._propMap);
-    L.marker([mapLat, mapLng]).addTo(window._propMap).bindPopup('<strong>'+listing.address+'</strong><br>'+townName+', NC');
-    // Invalidate size after overlay animation completes
-    setTimeout(function(){ if(window._propMap) window._propMap.invalidateSize(); }, 400);
+    window._propMap = new maplibregl.Map({
+      container: mapContainer,
+      style: _srMapStyle(),
+      center: [mapLng, mapLat],
+      zoom: zoom,
+      interactive: true,
+      scrollZoom: false,
+      dragRotate: false,
+      pitchWithRotate: false,
+      attributionControl: true
+    });
+    new maplibregl.Marker({color:'#C4B08C'}).setLngLat([mapLng, mapLat]).addTo(window._propMap);
+    // Resize map after overlay animation completes
+    setTimeout(function(){ if(window._propMap) window._propMap.resize(); }, 400);
   }
 
   // Mortgage calc
@@ -3548,22 +3551,21 @@ var ALL_LISTINGS = [];
 })();
 
 var _srMap = null;
-var _srMarkers = [];
-var _srMarkerMap = {};       // listingKey → marker for ID-based lookup
-var _srClusterGroup = null;  // L.markerClusterGroup
+var _srMarkers = [];             // array of maplibregl.Marker instances
+var _srMarkerMap = {};           // listingKey → maplibregl.Marker for ID-based lookup
 var _srActiveCard = null;
-var _srMobileView = 'list';  // 'list' or 'map'
-var _srAllFilteredResults = []; // Full dropdown-filtered results (before viewport/spatial)
+var _srMobileView = 'list';      // 'list' or 'map'
+var _srAllFilteredResults = [];  // Full dropdown-filtered results (before viewport/spatial)
 var _srViewportDebounce = null;
+var _srPopup = null;             // Current open maplibregl.Popup
 
 // Drawing state
 var _srDrawMode = null;          // null | 'radius' | 'polygon' | 'freedraw'
-var _srDrawnLayer = null;        // The drawn L.Circle or L.Polygon on the map
-var _srDrawHandler = null;       // Active Leaflet.draw handler
+var _srDrawnSourceAdded = false; // Whether the drawing GeoJSON source exists
 var _srSpatialFilter = null;     // function(lat, lng) => boolean
 var _srFreedrawing = false;      // True while freehand drawing in progress
-var _srFreedrawPoints = [];      // LatLng array for freehand
-var _srFreedrawLine = null;      // Temporary polyline during freehand
+var _srFreedrawPoints = [];      // [lng, lat] array for freehand
+var _srFreedrawLine = null;      // GeoJSON for preview line during freehand
 
 // ── Area → city mapping (includes rural variants) ──
 var AREA_CITIES = {
@@ -3739,7 +3741,7 @@ function openSearchResults(filters){
     if(!_srMap){
       initSearchMap();
     } else {
-      _srMap.invalidateSize();
+      _srMap.resize();
     }
     srApplyFilters();
     document.getElementById('srMapLoading').style.display = 'none';
@@ -3755,177 +3757,189 @@ function closeSearch(){
   if(history.state && history.state.page === 'search') history.back();
 }
 
+function _srMapStyle(){
+  var isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+  return isDark
+    ? 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
+    : 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
+}
+
+function _srAddMapLayers(){
+  // Town labels
+  var townLabelCoords = {
+    'Waynesville':{lat:35.4887,lng:-83.0055},'Sylva':{lat:35.3736,lng:-83.2243},
+    'Maggie Valley':{lat:35.5182,lng:-83.0998},'Bryson City':{lat:35.4312,lng:-83.4493},
+    'Cashiers':{lat:35.1032,lng:-83.1160},'Highlands':{lat:35.0527,lng:-83.1968},
+    'Franklin':{lat:35.1824,lng:-83.3810},'Dillsboro':{lat:35.3697,lng:-83.2478},
+    'Cullowhee':{lat:35.3135,lng:-83.1774}
+  };
+  if(!_srMap.getSource('town-labels')){
+    _srMap.addSource('town-labels',{
+      type:'geojson',
+      data:{type:'FeatureCollection',features:Object.keys(townLabelCoords).map(function(n){
+        var c=townLabelCoords[n];
+        return {type:'Feature',geometry:{type:'Point',coordinates:[c.lng,c.lat]},properties:{name:n}};
+      })}
+    });
+  }
+  var isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+  if(!_srMap.getLayer('town-labels')){
+    _srMap.addLayer({
+      id:'town-labels', type:'symbol', source:'town-labels',
+      layout:{
+        'text-field':['get','name'], 'text-size':13, 'text-transform':'uppercase',
+        'text-letter-spacing':0.06, 'text-font':['Open Sans Bold','Arial Unicode MS Bold'],
+        'text-allow-overlap':true, 'text-ignore-placement':true
+      },
+      paint:{
+        'text-color': isDark ? '#F5F0E8' : '#2A2520',
+        'text-halo-color': isDark ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.8)',
+        'text-halo-width':2
+      }
+    });
+  }
+
+  // Listings source + cluster layers (empty initially, populated by srRenderMarkers)
+  if(!_srMap.getSource('listings')){
+    _srMap.addSource('listings',{
+      type:'geojson',
+      data:{type:'FeatureCollection',features:[]},
+      cluster:true, clusterMaxZoom:14, clusterRadius:50
+    });
+    // Cluster circles
+    _srMap.addLayer({
+      id:'clusters', type:'circle', source:'listings',
+      filter:['has','point_count'],
+      paint:{
+        'circle-color': isDark ? '#C4B08C' : '#8B7748',
+        'circle-radius':['step',['get','point_count'],18, 20,22, 50,28],
+        'circle-stroke-width':2,
+        'circle-stroke-color': isDark ? 'rgba(196,176,140,0.3)' : 'rgba(139,119,72,0.25)',
+        'circle-opacity':0.92
+      }
+    });
+    // Cluster count text
+    _srMap.addLayer({
+      id:'cluster-count', type:'symbol', source:'listings',
+      filter:['has','point_count'],
+      layout:{
+        'text-field':'{point_count_abbreviated}', 'text-size':12,
+        'text-font':['Open Sans Bold','Arial Unicode MS Bold']
+      },
+      paint:{'text-color': isDark ? '#0C0B09' : '#FFFFFF'}
+    });
+    // Unclustered point (invisible — we use DOM markers instead, but this layer enables click detection)
+    _srMap.addLayer({
+      id:'unclustered-point', type:'circle', source:'listings',
+      filter:['!',['has','point_count']],
+      paint:{'circle-radius':1,'circle-opacity':0}
+    });
+  }
+
+  // Drawing overlay source
+  if(!_srMap.getSource('drawing')){
+    _srMap.addSource('drawing',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
+    _srMap.addLayer({
+      id:'drawing-fill', type:'fill', source:'drawing',
+      paint:{'fill-color':'#C4B08C','fill-opacity':0.12}
+    });
+    _srMap.addLayer({
+      id:'drawing-line', type:'line', source:'drawing',
+      paint:{'line-color':'#C4B08C','line-width':2}
+    });
+    _srDrawnSourceAdded = true;
+  }
+
+  // Drawing preview line source (for freehand in-progress)
+  if(!_srMap.getSource('drawing-preview')){
+    _srMap.addSource('drawing-preview',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
+    _srMap.addLayer({
+      id:'drawing-preview-line', type:'line', source:'drawing-preview',
+      paint:{'line-color':'#C4B08C','line-width':2,'line-dasharray':[6,4]}
+    });
+  }
+}
+
 function initSearchMap(){
   try {
-    var isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-    _srMap = L.map('srMap',{
-      zoomControl:false,
+    _srMap = new maplibregl.Map({
+      container:'srMap',
+      style:_srMapStyle(),
+      center:[-83.20, 35.38],
+      zoom:9,
       attributionControl:true,
-      scrollWheelZoom:false,       // we handle wheel zoom ourselves below
-      zoomSnap:0,                  // allow fractional zoom for fluid animation
-      touchZoom:true,
-      bounceAtZoomLimits:false,
-      zoomAnimation:true,
-      zoomAnimationThreshold:4
-    }).setView([35.38,-83.20],10);
-    L.control.zoom({position:'topright'}).addTo(_srMap);
-
-    // ── Custom butter-smooth wheel/trackpad zoom ──────────────
-    // Replaces Leaflet's built-in scroll zoom which is jerky on trackpads.
-    // Uses requestAnimationFrame to ease toward a target zoom at 60fps.
-    (function(map){
-      var container = map.getContainer();
-      var targetZoom = map.getZoom();
-      var animating = false;
-      var mousePos = null;
-
-      container.addEventListener('mousemove', function(e){
-        var r = container.getBoundingClientRect();
-        mousePos = L.point(e.clientX - r.left, e.clientY - r.top);
-      });
-
-      container.addEventListener('wheel', function(e){
-        e.preventDefault();
-        e.stopPropagation();
-
-        // Normalize delta: trackpads send small px deltas, mouse wheels send larger
-        var delta = -e.deltaY;
-        if(e.deltaMode === 1) delta *= 40;   // lines → px
-        if(e.deltaMode === 2) delta *= 800;  // pages → px
-
-        targetZoom += delta * 0.01;
-        targetZoom = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), targetZoom));
-
-        // Capture mouse position for zoom-around-cursor
-        if(!mousePos){
-          var r = container.getBoundingClientRect();
-          mousePos = L.point(e.clientX - r.left, e.clientY - r.top);
-        }
-
-        if(!animating){
-          animating = true;
-          (function tick(){
-            var cur = map.getZoom();
-            var diff = targetZoom - cur;
-            if(Math.abs(diff) < 0.005){
-              animating = false;
-              return;
-            }
-            // Ease 35% toward target each frame → responsive but smooth
-            map.setZoomAround(mousePos, cur + diff * 0.35, {animate:false});
-            requestAnimationFrame(tick);
-          })();
-        }
-      }, {passive:false});
-
-      // Keep targetZoom in sync when zoom changes via other means (buttons, pinch)
-      map.on('zoomend', function(){ targetZoom = map.getZoom(); });
-    })(_srMap);
-
-    // Use dark or light tiles
-    var darkTiles = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-    var lightTiles = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-    window._srTileLayer = L.tileLayer(isDark ? darkTiles : lightTiles, {
-      attribution:'&copy; <a href="https://carto.com/">CARTO</a>',
+      dragRotate:false,
+      pitchWithRotate:false,
+      touchZoomRotate:true,
       maxZoom:18,
-      keepBuffer:6,
-      updateWhenZooming:true,
-      updateWhenIdle:false
-    }).addTo(_srMap);
-
-    // Store tile URLs for theme switching
-    window._srDarkTiles = darkTiles;
-    window._srLightTiles = lightTiles;
-
-    // Marker cluster group
-    if(typeof L.markerClusterGroup === 'function') {
-      _srClusterGroup = L.markerClusterGroup({
-        maxClusterRadius: 50,
-        disableClusteringAtZoom: 15,
-        spiderfyOnMaxZoom: true,
-        showCoverageOnHover: false,
-        zoomToBoundsOnClick: true,
-        chunkedLoading: true,
-        animate: true,
-        animateAddingMarkers: false,
-        iconCreateFunction: function(cluster) {
-          var count = cluster.getChildCount();
-          var size = count < 20 ? 'small' : count < 50 ? 'medium' : 'large';
-          var px = size === 'small' ? 36 : size === 'medium' ? 44 : 52;
-          return L.divIcon({
-            html: '<div class="sr-cluster sr-cluster-' + size + '">' + count + '</div>',
-            className: 'sr-cluster-wrap',
-            iconSize: L.point(px, px)
-          });
-        }
-      });
-      _srMap.addLayer(_srClusterGroup);
-    }
-
-    // Town name labels — float above markers/clusters
-    _srMap.createPane('townLabels');
-    _srMap.getPane('townLabels').style.zIndex = 650; // above markers (600) and clusters
-    _srMap.getPane('townLabels').style.pointerEvents = 'none';
-    var townLabelCoords = {
-      'Waynesville':{lat:35.4887,lng:-83.0055},
-      'Sylva':{lat:35.3736,lng:-83.2243},
-      'Maggie Valley':{lat:35.5182,lng:-83.0998},
-      'Bryson City':{lat:35.4312,lng:-83.4493},
-      'Cashiers':{lat:35.1032,lng:-83.1160},
-      'Highlands':{lat:35.0527,lng:-83.1968},
-      'Franklin':{lat:35.1824,lng:-83.3810},
-      'Dillsboro':{lat:35.3697,lng:-83.2478},
-      'Cullowhee':{lat:35.3135,lng:-83.1774}
-    };
-    Object.keys(townLabelCoords).forEach(function(name){
-      var c = townLabelCoords[name];
-      L.marker([c.lat, c.lng], {
-        pane:'townLabels',
-        interactive:false,
-        icon: L.divIcon({
-          className:'sr-town-label-wrap',
-          html:'<div class="sr-town-label">'+name+'</div>',
-          iconSize:[0,0],
-          iconAnchor:[0,18]
-        })
-      }).addTo(_srMap);
+      minZoom:7
     });
 
-    // Viewport-based card filtering: update cards on pan/zoom
-    _srMap.on('moveend', function(){
-      if(_srSpatialFilter) return; // Drawing active — skip viewport filter
+    _srMap.addControl(new maplibregl.NavigationControl({showCompass:false}), 'top-right');
+
+    // Once style loads, add all data layers
+    _srMap.on('load', function(){
+      _srAddMapLayers();
+      // If listings already loaded, render markers
+      if(_srAllFilteredResults && _srAllFilteredResults.length > 0){
+        srRenderMarkers(_srAllFilteredResults);
+      }
+    });
+
+    // Cluster click → expand
+    _srMap.on('click','clusters',function(e){
+      var features = _srMap.queryRenderedFeatures(e.point,{layers:['clusters']});
+      if(!features.length) return;
+      var clusterId = features[0].properties.cluster_id;
+      _srMap.getSource('listings').getClusterExpansionZoom(clusterId,function(err,zoom){
+        if(err) return;
+        _srMap.easeTo({center:features[0].geometry.coordinates, zoom:zoom});
+      });
+    });
+
+    // Cursor pointer on clusters
+    _srMap.on('mouseenter','clusters',function(){ _srMap.getCanvas().style.cursor='pointer'; });
+    _srMap.on('mouseleave','clusters',function(){ if(!_srFreedrawing) _srMap.getCanvas().style.cursor=''; });
+
+    // Viewport-based card filtering + marker refresh on pan/zoom
+    _srMap.on('moveend',function(){
+      _srScheduleMarkerRefresh();
+      if(_srSpatialFilter) return;
       clearTimeout(_srViewportDebounce);
       _srViewportDebounce = setTimeout(srFilterCardsByViewport, 150);
     });
-
-    // Leaflet.draw event: shape created
-    _srMap.on('draw:created', function(e) {
-      srHandleDrawCreated(e);
-    });
+    _srMap.on('zoomend',function(){ _srScheduleMarkerRefresh(); });
 
     // Freehand drawing events
-    _srMap.on('mousedown', function(e) {
+    _srMap.on('mousedown',function(e){
       if(!_srFreedrawing) return;
-      _srFreedrawPoints = [e.latlng];
-      _srFreedrawLine = L.polyline([e.latlng], {color:'#C4B08C', weight:2, dashArray:'6,4'}).addTo(_srMap);
+      _srFreedrawPoints = [[e.lngLat.lng, e.lngLat.lat]];
+      _srFreedrawLine = {type:'Feature',geometry:{type:'LineString',coordinates:_srFreedrawPoints}};
+      if(_srMap.getSource('drawing-preview')) _srMap.getSource('drawing-preview').setData({type:'FeatureCollection',features:[_srFreedrawLine]});
     });
-    _srMap.on('mousemove', function(e) {
+    _srMap.on('mousemove',function(e){
       if(!_srFreedrawing || !_srFreedrawLine) return;
-      _srFreedrawPoints.push(e.latlng);
-      _srFreedrawLine.addLatLng(e.latlng);
+      _srFreedrawPoints.push([e.lngLat.lng, e.lngLat.lat]);
+      _srFreedrawLine.geometry.coordinates = _srFreedrawPoints;
+      if(_srMap.getSource('drawing-preview')) _srMap.getSource('drawing-preview').setData({type:'FeatureCollection',features:[_srFreedrawLine]});
     });
-    _srMap.on('mouseup', function(e) {
+    _srMap.on('mouseup',function(e){
       if(!_srFreedrawing || !_srFreedrawLine) return;
       _srFreedrawing = false;
-      _srMap.dragging.enable();
-      _srMap.getContainer().style.cursor = '';
-      if(_srFreedrawLine) { _srMap.removeLayer(_srFreedrawLine); _srFreedrawLine = null; }
-      if(_srFreedrawPoints.length < 5) { _srFreedrawPoints = []; return; } // Too few points
-      // Close the polygon and apply filter
-      if(_srDrawnLayer) { _srMap.removeLayer(_srDrawnLayer); }
-      _srDrawnLayer = L.polygon(_srFreedrawPoints, {color:'#C4B08C', weight:2, fillColor:'#C4B08C', fillOpacity:0.12, dashArray:null}).addTo(_srMap);
-      var verts = _srFreedrawPoints.map(function(p){return [p.lat, p.lng]});
-      _srSpatialFilter = function(lat, lng) { return srPointInPolygon(lat, lng, verts); };
+      _srMap.dragPan.enable();
+      _srMap.getCanvas().style.cursor = '';
+      // Clear preview
+      if(_srMap.getSource('drawing-preview')) _srMap.getSource('drawing-preview').setData({type:'FeatureCollection',features:[]});
+      _srFreedrawLine = null;
+      if(_srFreedrawPoints.length < 5){ _srFreedrawPoints = []; return; }
+      // Close the polygon
+      var coords = _srFreedrawPoints.slice();
+      coords.push(coords[0]); // close ring
+      var poly = {type:'Feature',geometry:{type:'Polygon',coordinates:[coords]},properties:{}};
+      if(_srMap.getSource('drawing')) _srMap.getSource('drawing').setData({type:'FeatureCollection',features:[poly]});
+      // Build spatial filter using [lat,lng] for our existing srPointInPolygon
+      var verts = _srFreedrawPoints.map(function(p){return [p[1], p[0]]}); // [lat, lng]
+      _srSpatialFilter = function(lat, lng){ return srPointInPolygon(lat, lng, verts); };
       _srDrawMode = 'freedraw';
       srApplySpatialFilter();
       document.getElementById('srDrawClear').style.display = '';
@@ -4083,7 +4097,7 @@ function srApplyFilters(){
     // (don't rely solely on moveend, which may not fire if bounds don't change)
     var bounds = _srMap.getBounds();
     var inView = results.filter(function(l){
-      return l.lat && l.lng && bounds.contains(L.latLng(l.lat, l.lng));
+      return l.lat && l.lng && bounds.contains(new maplibregl.LngLat(l.lng, l.lat));
     });
     _srCurrentResults = inView;
     document.getElementById('srCount').textContent = inView.length + ' of ' + results.length + ' listing' + (results.length!==1?'s':'') + ' in view';
@@ -4160,88 +4174,125 @@ function srRenderCards(results){
   });
 }
 
+function _srListingsToGeoJSON(results){
+  return {
+    type:'FeatureCollection',
+    features: results.filter(function(l){return l.lat && l.lng}).map(function(l){
+      var lid = l.listingKey || l.mlsId || (l.address + '|' + l.city);
+      return {
+        type:'Feature',
+        geometry:{type:'Point',coordinates:[l.lng, l.lat]},
+        properties:{
+          id:lid, price:l.price, address:l.address, city:l.city, type:l.type,
+          beds:l.beds, baths:l.baths, sqft:l.sqft, lot:l.lot||'',
+          photo:l.photo||'', status:l.status||'Active', listOffice:l.listOffice||''
+        }
+      };
+    })
+  };
+}
+
 function srRenderMarkers(results){
   if(!_srMap) return;
 
-  // Clear existing markers
-  if(_srClusterGroup) {
-    _srClusterGroup.clearLayers();
-  } else {
-    _srMarkers.forEach(function(m){ _srMap.removeLayer(m) });
-  }
+  // Remove existing DOM price markers
+  _srMarkers.forEach(function(m){ m.remove(); });
   _srMarkers = [];
   _srMarkerMap = {};
+  if(_srPopup){ _srPopup.remove(); _srPopup = null; }
 
-  if(results.length === 0) return;
+  // Update GeoJSON source (drives clusters)
+  var geojson = _srListingsToGeoJSON(results);
+  var src = _srMap.getSource('listings');
+  if(src) src.setData(geojson);
 
-  var bounds = L.latLngBounds();
-  var markersToAdd = [];
+  // Create DOM price markers for unclustered points
+  _srUpdatePriceMarkers();
 
-  results.forEach(function(l, i){
-    if(!l.lat || !l.lng) return;
-
-    var lid = l.listingKey || l.mlsId || (l.address + '|' + l.city);
-    var priceLabel = l.price >= 1000000
-      ? '$' + (l.price/1000000).toFixed(1) + 'M'
-      : '$' + Math.round(l.price/1000) + 'K';
-
-    var icon = L.divIcon({
-      className: 'sr-price-marker-wrap',
-      html: '<div class="sr-price-marker" data-lid="' + lid + '">' + priceLabel + '</div>',
-      iconSize: null,
-      iconAnchor: [30, 36]
-    });
-
-    var marker = L.marker([l.lat, l.lng], {icon: icon});
-    marker._lid = lid; // Store listing ID on marker
-
-    // Popup
-    var feats = l.type === 'Land'
-      ? l.lot
-      : l.beds + ' Bed · ' + l.baths + ' Bath · ' + (_hasSqftData(l) ? _formatSqft(l) + ' ' + _sqftLabel(l) : (l.lot || ''));
-
-    var popupImg = l.photo
-      ? '<img class="sr-popup-img" src="' + l.photo + '" alt="' + l.address + '">'
-      : '<div style="width:100%;height:110px;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.6rem">Property Photo</div>';
-
-    var popBroker = l.listOffice ? '<div class="sr-popup-office">Listed by ' + l.listOffice + '</div>' : '';
-    var popupHtml = '<div class="sr-popup-inner">' +
-      popupImg +
-      '<div class="sr-popup-body">' +
-        '<div class="sr-popup-price">$' + l.price.toLocaleString() + '</div>' +
-        '<div class="sr-popup-addr">' + l.address + '</div>' +
-        '<div class="sr-popup-city">' + l.city + ', NC</div>' +
-        '<div class="sr-popup-feats">' + feats + '</div>' +
-        popBroker +
-        '<button class="sr-popup-btn" onclick="event.stopPropagation();srOpenFromMapById(\'' + lid.replace(/'/g,"\\'") + '\')">View Details</button>' +
-      '</div></div>';
-
-    marker.bindPopup(popupHtml, {className:'sr-popup', maxWidth:220, minWidth:220, closeButton:false});
-
-    // Hover: highlight corresponding card by ID
-    (function(listingId){
-      marker.on('mouseover', function(){ srHighlightCardById(listingId) });
-      marker.on('mouseout', function(){ srUnhighlightCardById(listingId) });
-    })(lid);
-
-    _srMarkers.push(marker);
-    _srMarkerMap[lid] = marker;
-    markersToAdd.push(marker);
-    bounds.extend([l.lat, l.lng]);
-  });
-
-  // Add all markers at once (clustering handles batching)
-  if(_srClusterGroup) {
-    _srClusterGroup.addLayers(markersToAdd);
-  } else {
-    markersToAdd.forEach(function(m){ m.addTo(_srMap); });
-  }
-
-  // Fit map to show all markers
-  if(markersToAdd.length > 0){
-    _srMap.fitBounds(bounds, {padding:[40,40], maxZoom:13});
+  // Fit bounds
+  var withCoords = results.filter(function(l){return l.lat && l.lng});
+  if(withCoords.length > 0){
+    var bounds = new maplibregl.LngLatBounds();
+    withCoords.forEach(function(l){ bounds.extend([l.lng, l.lat]); });
+    _srMap.fitBounds(bounds, {padding:40, maxZoom:13});
   }
 }
+
+// Create/update DOM price markers for unclustered individual listings
+function _srUpdatePriceMarkers(){
+  if(!_srMap || !_srMap.isStyleLoaded()) return;
+  // Query currently visible unclustered features from the source
+  var features;
+  try { features = _srMap.querySourceFeatures('listings',{sourceLayer:'',filter:['!',['has','point_count']]}); } catch(e){ return; }
+  // Deduplicate (querySourceFeatures can return tiles duplicates)
+  var seen = {};
+  var unique = [];
+  features.forEach(function(f){
+    var id = f.properties.id;
+    if(!seen[id]){ seen[id] = true; unique.push(f); }
+  });
+  // Track which markers exist
+  var activeIds = {};
+  unique.forEach(function(f){
+    var lid = f.properties.id;
+    activeIds[lid] = true;
+    if(_srMarkerMap[lid]) return; // Already exists
+    var price = f.properties.price;
+    var priceLabel = price >= 1000000 ? '$'+(price/1000000).toFixed(1)+'M' : '$'+Math.round(price/1000)+'K';
+    var el = document.createElement('div');
+    el.className = 'sr-price-marker-wrap';
+    el.innerHTML = '<div class="sr-price-marker" data-lid="'+lid+'">'+priceLabel+'</div>';
+    // Hover sync
+    el.addEventListener('mouseenter',function(){ srHighlightCardById(lid); el.querySelector('.sr-price-marker').classList.add('active'); });
+    el.addEventListener('mouseleave',function(){ srUnhighlightCardById(lid); el.querySelector('.sr-price-marker').classList.remove('active'); });
+    // Click → popup
+    el.addEventListener('click',function(e){
+      e.stopPropagation();
+      _srShowMarkerPopup(lid, f.geometry.coordinates);
+    });
+    var marker = new maplibregl.Marker({element:el, anchor:'bottom'})
+      .setLngLat(f.geometry.coordinates)
+      .addTo(_srMap);
+    marker._lid = lid;
+    _srMarkers.push(marker);
+    _srMarkerMap[lid] = marker;
+  });
+  // Remove markers no longer visible
+  _srMarkers = _srMarkers.filter(function(m){
+    if(!activeIds[m._lid]){ m.remove(); delete _srMarkerMap[m._lid]; return false; }
+    return true;
+  });
+}
+
+function _srShowMarkerPopup(lid, coords){
+  var l = _srAllFilteredResults.find(function(x){return (x.listingKey||x.mlsId||(x.address+'|'+x.city))===lid});
+  if(!l) return;
+  if(_srPopup){ _srPopup.remove(); _srPopup = null; }
+  var feats = l.type === 'Land' ? l.lot
+    : l.beds + ' Bed · ' + l.baths + ' Bath · ' + (_hasSqftData(l) ? _formatSqft(l) + ' ' + _sqftLabel(l) : (l.lot || ''));
+  var popupImg = l.photo
+    ? '<img class="sr-popup-img" src="' + l.photo + '" alt="' + l.address + '">'
+    : '<div style="width:100%;height:110px;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.6rem">Property Photo</div>';
+  var popBroker = l.listOffice ? '<div class="sr-popup-office">Listed by ' + l.listOffice + '</div>' : '';
+  var popupHtml = '<div class="sr-popup-inner">' + popupImg +
+    '<div class="sr-popup-body"><div class="sr-popup-price">$' + l.price.toLocaleString() + '</div>' +
+    '<div class="sr-popup-addr">' + l.address + '</div><div class="sr-popup-city">' + l.city + ', NC</div>' +
+    '<div class="sr-popup-feats">' + feats + '</div>' + popBroker +
+    '<button class="sr-popup-btn" onclick="event.stopPropagation();srOpenFromMapById(\'' + lid.replace(/'/g,"\\'") + '\')">View Details</button></div></div>';
+  _srPopup = new maplibregl.Popup({offset:25, closeButton:false, className:'sr-popup', maxWidth:'240px'})
+    .setLngLat(coords)
+    .setHTML(popupHtml)
+    .addTo(_srMap);
+}
+
+// Refresh DOM markers when map moves/zooms (clusters change)
+var _srMarkerRefreshTimer = null;
+function _srScheduleMarkerRefresh(){
+  clearTimeout(_srMarkerRefreshTimer);
+  _srMarkerRefreshTimer = setTimeout(_srUpdatePriceMarkers, 100);
+}
+// Hook into map events after init (called from initSearchMap's load handler)
+// We call this via moveend which is already bound
 
 // Store filtered results for popup access
 var _srCurrentResults = [];
@@ -4427,19 +4478,13 @@ function srHighlightMarkerById(lid){
   var marker = _srMarkerMap[lid];
   if(!marker) return;
   var el = marker.getElement();
-  if(el){
-    var pm = el.querySelector('.sr-price-marker');
-    if(pm) pm.classList.add('active');
-  }
+  if(el){ var pm = el.querySelector('.sr-price-marker'); if(pm) pm.classList.add('active'); }
 }
 function srUnhighlightMarkerById(lid){
   var marker = _srMarkerMap[lid];
   if(!marker) return;
   var el = marker.getElement();
-  if(el){
-    var pm = el.querySelector('.sr-price-marker');
-    if(pm) pm.classList.remove('active');
-  }
+  if(el){ var pm = el.querySelector('.sr-price-marker'); if(pm) pm.classList.remove('active'); }
 }
 function srHighlightCardById(lid){
   var card = document.querySelector('.sr-card[data-lid="' + lid + '"]');
@@ -4465,10 +4510,10 @@ function srUnhighlightCard(idx){
 function srFilterCardsByViewport(){
   if(!_srMap || !_srAllFilteredResults.length) return;
   if(_srSpatialFilter) return; // Drawing active — spatial filter controls cards
-  if(document.getElementById('srBody').classList.contains('map-hidden')) return; // Map hidden on mobile — skip viewport filter
+  if(document.getElementById('srBody').classList.contains('map-hidden')) return;
   var bounds = _srMap.getBounds();
   var inView = _srAllFilteredResults.filter(function(l){
-    return l.lat && l.lng && bounds.contains(L.latLng(l.lat, l.lng));
+    return l.lat && l.lng && bounds.contains(new maplibregl.LngLat(l.lng, l.lat));
   });
   _srCurrentResults = inView;
   document.getElementById('srCount').textContent = inView.length + ' of ' + _srAllFilteredResults.length + ' listing' + (_srAllFilteredResults.length!==1?'s':'') + ' in view';
@@ -4507,86 +4552,148 @@ function srApplySpatialFilter(){
 }
 
 function srCancelDrawing(){
-  if(_srDrawHandler) {
-    _srDrawHandler.disable();
-    _srDrawHandler = null;
-  }
   _srFreedrawing = false;
-  if(_srFreedrawLine) { _srMap.removeLayer(_srFreedrawLine); _srFreedrawLine = null; }
-  _srMap.dragging.enable();
-  _srMap.getContainer().style.cursor = '';
+  _srFreedrawLine = null;
+  if(_srMap){
+    _srMap.dragPan.enable();
+    _srMap.getCanvas().style.cursor = '';
+    if(_srMap.getSource('drawing-preview')) _srMap.getSource('drawing-preview').setData({type:'FeatureCollection',features:[]});
+  }
   document.querySelectorAll('.sr-draw-btn').forEach(function(b){b.classList.remove('active')});
 }
 
+// Polygon drawing state
+var _srPolyPoints = [];
+var _srPolyClickHandler = null;
+var _srPolyDblClickHandler = null;
+var _srPolyMoveHandler = null;
+
 function srStartRadius(){
-  if(!_srMap || typeof L.Draw === 'undefined') return;
+  if(!_srMap) return;
   srCancelDrawing();
-  if(_srDrawnLayer) { _srMap.removeLayer(_srDrawnLayer); _srDrawnLayer = null; _srSpatialFilter = null; }
+  srClearDrawingShape();
   _srDrawMode = 'radius';
   document.getElementById('srDrawRadius').classList.add('active');
-  _srDrawHandler = new L.Draw.Circle(_srMap, {
-    shapeOptions: { color: '#C4B08C', weight: 2, fillColor: '#C4B08C', fillOpacity: 0.12, dashArray: null }
-  });
-  _srDrawHandler.enable();
+  _srMap.getCanvas().style.cursor = 'crosshair';
+  // Radius: click for center, drag to set radius
+  var center = null;
+  function onMouseDown(e){
+    center = [e.lngLat.lng, e.lngLat.lat];
+    _srMap.dragPan.disable();
+  }
+  function onMouseMove(e){
+    if(!center) return;
+    var pt = [e.lngLat.lng, e.lngLat.lat];
+    var dist = turf.distance(turf.point(center), turf.point(pt), {units:'meters'});
+    var circle = turf.circle(turf.point(center), dist, {units:'meters', steps:64});
+    if(_srMap.getSource('drawing')) _srMap.getSource('drawing').setData({type:'FeatureCollection',features:[circle]});
+  }
+  function onMouseUp(e){
+    if(!center) return;
+    _srMap.dragPan.enable();
+    _srMap.getCanvas().style.cursor = '';
+    var pt = [e.lngLat.lng, e.lngLat.lat];
+    var radiusMeters = turf.distance(turf.point(center), turf.point(pt), {units:'meters'});
+    if(radiusMeters < 100){ center = null; return; } // Too small
+    var cLat = center[1], cLng = center[0];
+    _srSpatialFilter = function(lat, lng){ return srPointInCircle(lat, lng, cLat, cLng, radiusMeters); };
+    // Clean up listeners
+    _srMap.off('mousedown', onMouseDown);
+    _srMap.off('mousemove', onMouseMove);
+    _srMap.off('mouseup', onMouseUp);
+    srApplySpatialFilter();
+    document.getElementById('srDrawClear').style.display = '';
+    center = null;
+  }
+  _srMap.on('mousedown', onMouseDown);
+  _srMap.on('mousemove', onMouseMove);
+  _srMap.on('mouseup', onMouseUp);
+  // Store refs for cancel
+  _srPolyClickHandler = onMouseDown;
+  _srPolyMoveHandler = onMouseMove;
+  _srPolyDblClickHandler = onMouseUp;
 }
 
 function srStartPolygon(){
-  if(!_srMap || typeof L.Draw === 'undefined') return;
+  if(!_srMap) return;
   srCancelDrawing();
-  if(_srDrawnLayer) { _srMap.removeLayer(_srDrawnLayer); _srDrawnLayer = null; _srSpatialFilter = null; }
+  srClearDrawingShape();
   _srDrawMode = 'polygon';
+  _srPolyPoints = [];
   document.getElementById('srDrawPolygon').classList.add('active');
-  _srDrawHandler = new L.Draw.Polygon(_srMap, {
-    shapeOptions: { color: '#C4B08C', weight: 2, fillColor: '#C4B08C', fillOpacity: 0.12 },
-    showArea: false
-  });
-  _srDrawHandler.enable();
+  _srMap.getCanvas().style.cursor = 'crosshair';
+  _srMap.doubleClickZoom.disable();
+  function onClick(e){
+    _srPolyPoints.push([e.lngLat.lng, e.lngLat.lat]);
+    updatePolyPreview();
+  }
+  function onMove(e){
+    if(_srPolyPoints.length === 0) return;
+    var coords = _srPolyPoints.concat([[e.lngLat.lng, e.lngLat.lat]]);
+    if(_srMap.getSource('drawing-preview')) _srMap.getSource('drawing-preview').setData({type:'FeatureCollection',features:[{type:'Feature',geometry:{type:'LineString',coordinates:coords}}]});
+  }
+  function onDblClick(e){
+    e.preventDefault();
+    if(_srPolyPoints.length < 3) return;
+    // Clear preview
+    if(_srMap.getSource('drawing-preview')) _srMap.getSource('drawing-preview').setData({type:'FeatureCollection',features:[]});
+    _srMap.getCanvas().style.cursor = '';
+    _srMap.doubleClickZoom.enable();
+    // Close polygon
+    var coords = _srPolyPoints.slice();
+    coords.push(coords[0]);
+    var poly = {type:'Feature',geometry:{type:'Polygon',coordinates:[coords]}};
+    if(_srMap.getSource('drawing')) _srMap.getSource('drawing').setData({type:'FeatureCollection',features:[poly]});
+    var verts = _srPolyPoints.map(function(p){return [p[1],p[0]]}); // [lat, lng]
+    _srSpatialFilter = function(lat, lng){ return srPointInPolygon(lat, lng, verts); };
+    _srMap.off('click', onClick);
+    _srMap.off('mousemove', onMove);
+    _srMap.off('dblclick', onDblClick);
+    srApplySpatialFilter();
+    document.getElementById('srDrawClear').style.display = '';
+  }
+  _srMap.on('click', onClick);
+  _srMap.on('mousemove', onMove);
+  _srMap.on('dblclick', onDblClick);
+  _srPolyClickHandler = onClick;
+  _srPolyMoveHandler = onMove;
+  _srPolyDblClickHandler = onDblClick;
+}
+function updatePolyPreview(){
+  if(_srPolyPoints.length < 2) return;
+  if(_srMap.getSource('drawing-preview')) _srMap.getSource('drawing-preview').setData({type:'FeatureCollection',features:[{type:'Feature',geometry:{type:'LineString',coordinates:_srPolyPoints}}]});
 }
 
 function srStartFreedraw(){
   if(!_srMap) return;
   srCancelDrawing();
-  if(_srDrawnLayer) { _srMap.removeLayer(_srDrawnLayer); _srDrawnLayer = null; _srSpatialFilter = null; }
+  srClearDrawingShape();
   _srDrawMode = 'freedraw';
   _srFreedrawing = true;
   _srFreedrawPoints = [];
   document.getElementById('srDrawFree').classList.add('active');
-  _srMap.dragging.disable();
-  _srMap.getContainer().style.cursor = 'crosshair';
+  _srMap.dragPan.disable();
+  _srMap.getCanvas().style.cursor = 'crosshair';
 }
 
-function srHandleDrawCreated(e){
-  var layer = e.layer;
-  if(_srDrawnLayer) { _srMap.removeLayer(_srDrawnLayer); }
-  _srDrawnLayer = layer;
-  layer.setStyle({ color: '#C4B08C', weight: 2, fillColor: '#C4B08C', fillOpacity: 0.12 });
-  _srMap.addLayer(layer);
-  _srDrawHandler = null;
-
-  if(e.layerType === 'circle') {
-    var center = layer.getLatLng();
-    var radius = layer.getRadius();
-    _srSpatialFilter = function(lat, lng) { return srPointInCircle(lat, lng, center.lat, center.lng, radius); };
-  } else if(e.layerType === 'polygon') {
-    var latlngs = layer.getLatLngs()[0];
-    var verts = latlngs.map(function(p){return [p.lat, p.lng]});
-    _srSpatialFilter = function(lat, lng) { return srPointInPolygon(lat, lng, verts); };
-  }
-
-  srApplySpatialFilter();
-  document.getElementById('srDrawClear').style.display = '';
-  document.querySelectorAll('.sr-draw-btn').forEach(function(b){b.classList.remove('active')});
-  if(_srDrawMode === 'radius') document.getElementById('srDrawRadius').classList.add('active');
-  else if(_srDrawMode === 'polygon') document.getElementById('srDrawPolygon').classList.add('active');
+function srClearDrawingShape(){
+  if(_srMap && _srMap.getSource('drawing')) _srMap.getSource('drawing').setData({type:'FeatureCollection',features:[]});
+  if(_srMap && _srMap.getSource('drawing-preview')) _srMap.getSource('drawing-preview').setData({type:'FeatureCollection',features:[]});
+  // Remove any lingering event handlers
+  if(_srPolyClickHandler && _srMap){ _srMap.off('click',_srPolyClickHandler); _srMap.off('mousedown',_srPolyClickHandler); }
+  if(_srPolyMoveHandler && _srMap) _srMap.off('mousemove',_srPolyMoveHandler);
+  if(_srPolyDblClickHandler && _srMap){ _srMap.off('dblclick',_srPolyDblClickHandler); _srMap.off('mouseup',_srPolyDblClickHandler); }
+  _srPolyClickHandler = null; _srPolyMoveHandler = null; _srPolyDblClickHandler = null;
+  _srPolyPoints = [];
 }
 
 function srClearDrawing(){
   srCancelDrawing();
-  if(_srDrawnLayer) { _srMap.removeLayer(_srDrawnLayer); _srDrawnLayer = null; }
+  srClearDrawingShape();
   _srSpatialFilter = null;
   _srDrawMode = null;
   document.getElementById('srDrawClear').style.display = 'none';
-  srApplyFilters(); // Restore full dropdown-filtered results
+  srApplyFilters();
 }
 
 function srClearFilters(){
@@ -4658,7 +4765,7 @@ function srToggleView(){
     label.textContent = 'Show List';
     icon.innerHTML = '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>';
     _srMobileView = 'map';
-    if(_srMap) _srMap.invalidateSize();
+    if(_srMap) _srMap.resize();
   } else {
     body.classList.remove('list-hidden');
     body.classList.add('map-hidden');
@@ -4674,21 +4781,24 @@ function srToggleView(){
   }
 }
 
-// Update map tiles when theme changes
+// Update map style when theme changes
 var _origToggleTheme = toggleTheme;
 toggleTheme = function(){
   _origToggleTheme();
-  // Update map tiles if search is open
-  if(_srMap && window._srTileLayer){
-    var isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-    _srMap.removeLayer(window._srTileLayer);
-    window._srTileLayer = L.tileLayer(isDark ? window._srDarkTiles : window._srLightTiles, {
-      attribution:'&copy; <a href="https://carto.com/">CARTO</a>',
-      maxZoom:18,
-      keepBuffer:5,
-      updateWhenZooming:false,
-      updateWhenIdle:true
-    }).addTo(_srMap);
+  // Swap MapLibre style if search map is open
+  if(_srMap){
+    var newStyle = _srMapStyle();
+    _srMap.setStyle(newStyle);
+    _srMap.once('style.load', function(){
+      _srAddMapLayers();
+      if(_srAllFilteredResults && _srAllFilteredResults.length > 0){
+        srRenderMarkers(_srAllFilteredResults);
+      }
+    });
+  }
+  // Also update property detail map if open
+  if(window._propMap){
+    window._propMap.setStyle(_srMapStyle());
   }
   // Update search overlay theme toggle icons
   var searchOv = document.getElementById('searchOverlay');
