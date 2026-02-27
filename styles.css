@@ -602,7 +602,7 @@ textarea.form-input{resize:vertical;min-height:100px}
 
 .chat-panel{position:fixed;bottom:2rem;right:2rem;z-index:10001;width:400px;height:650px;max-height:calc(100vh - 4rem);background:var(--bg-warm);border:1px solid var(--border);display:flex;flex-direction:column;opacity:0;transform:translateY(20px) scale(0.95);pointer-events:none;transition:all 0.4s;overflow:hidden;box-shadow:0 24px 80px var(--shadow);overscroll-behavior:contain}
 .chat-panel.open{opacity:1;transform:translateY(0) scale(1);pointer-events:all}
-.chat-panel.minimized{height:auto;width:280px;transition:all 0.3s cubic-bezier(0.16,1,0.3,1)}
+.chat-panel.minimized{height:48px;width:280px;transition:all 0.3s cubic-bezier(0.16,1,0.3,1)}
 .chat-panel.minimized .chat-messages,
 .chat-panel.minimized .chat-input-area{display:none}
 .chat-panel.minimized .chat-header{cursor:pointer;border-bottom:none}
@@ -702,7 +702,7 @@ textarea.form-input{resize:vertical;min-height:100px}
   .about-kw{left:0.75rem}
   .chat-preview{width:calc(100vw - 4rem);right:2rem;bottom:5.5rem}
   .chat-panel{width:calc(100vw - 1.5rem);height:calc(100dvh - 5rem);max-height:calc(100dvh - 5rem);bottom:0.75rem;right:0.75rem;border:1px solid var(--border);border-radius:12px}
-  .chat-panel.minimized{width:280px;height:auto;max-height:none;bottom:2rem;right:2rem;border:1px solid var(--border)}
+  .chat-panel.minimized{width:280px;height:48px;max-height:none;bottom:2rem;right:2rem;border:1px solid var(--border)}
   .chat-trigger{padding:0.55rem 1rem 0.55rem 0.55rem}
   .chat-trigger-av{width:32px;height:32px;font-size:0.85rem}
   .chat-trigger-name{font-size:0.72rem}
@@ -1384,6 +1384,12 @@ textarea.form-input{resize:vertical;min-height:100px}
 .acct-or{text-align:center;font-size:0.65rem;color:var(--text-muted);margin:1rem 0 0.75rem}
 .acct-login-link{text-align:center;font-size:0.72rem;color:var(--gold);cursor:pointer;transition:color 0.3s}
 .acct-login-link:hover{color:var(--gold-light)}
+.acct-create-btn{width:100%;padding:0.75rem;background:transparent;border:1px solid var(--gold);color:var(--gold);font-family:'Outfit',sans-serif;font-size:0.78rem;font-weight:500;letter-spacing:0.08em;cursor:pointer;transition:all 0.3s;margin-top:0.25rem}
+.acct-create-btn:hover{background:rgba(196,176,140,0.1);color:var(--gold-light);border-color:var(--gold-light)}
+.acct-complete-email{text-align:center;padding:0.45rem 1rem;border:1px solid var(--border);border-radius:20px;font-size:0.8rem;color:var(--gold);margin:0.5rem auto 1rem;display:inline-block;letter-spacing:0.02em;background:rgba(196,176,140,0.06)}
+#acctCompleteView{text-align:left}
+#acctCompleteView .acct-complete-email{display:block;text-align:center}
+.mobile-acct-email-badge{text-align:center;padding:0.4rem 0.8rem;border:1px solid var(--border);border-radius:16px;font-size:0.78rem;color:var(--gold);margin:0.25rem 0 0.75rem;background:rgba(196,176,140,0.06)}
 .acct-optional{font-weight:300;font-size:0.7rem;color:var(--text-muted);letter-spacing:0}
 .acct-oauth-btns{display:flex;flex-direction:column;gap:0.5rem;margin-bottom:0.75rem}
 .acct-oauth-btn{display:flex;align-items:center;justify-content:center;gap:0.6rem;width:100%;padding:0.7rem 1rem;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--cream);font-family:'Outfit',sans-serif;font-size:0.82rem;font-weight:500;cursor:pointer;transition:all 0.2s;letter-spacing:0.01em}
@@ -1396,6 +1402,62 @@ textarea.form-input{resize:vertical;min-height:100px}
 .acct-success-icon{width:48px;height:48px;stroke:var(--gold);fill:none;stroke-width:1.5;margin:0 auto 1rem}
 .acct-success h3{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.4rem;color:var(--cream);margin-bottom:0.5rem}
 .acct-success p{font-size:0.75rem;color:var(--text-muted);line-height:1.6}
+
+/* ═══════════════════════════════════════════════════════
+   FIRST-VISIT AUTH POPUP
+   ═══════════════════════════════════════════════════════ */
+.auth-popup{position:fixed;bottom:24px;right:24px;z-index:9999;width:340px;background:var(--card-bg);border:1px solid var(--border);border-radius:16px;padding:1.5rem;box-shadow:0 20px 60px rgba(0,0,0,0.4);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);opacity:0;transform:translateY(20px);transition:opacity 0.4s ease,transform 0.4s ease}
+.auth-popup.visible{opacity:1;transform:translateY(0)}
+.auth-popup-close{position:absolute;top:10px;right:14px;background:none;border:none;color:var(--text-muted);font-size:1.3rem;cursor:pointer;padding:4px;line-height:1;transition:color 0.2s}
+.auth-popup-close:hover{color:var(--cream)}
+.auth-popup-badge{font-size:0.6rem;letter-spacing:0.3em;text-transform:uppercase;color:var(--gold);margin-bottom:0.5rem;font-weight:500}
+.auth-popup-title{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.35rem;font-weight:300;color:var(--cream);margin-bottom:0.4rem;line-height:1.2}
+.auth-popup-sub{font-size:0.78rem;color:var(--text-muted);line-height:1.5;margin-bottom:1rem}
+.auth-popup-btns{display:flex;flex-direction:column;gap:0.4rem}
+.auth-popup-btns .acct-oauth-btn{font-size:0.78rem;padding:0.6rem 0.8rem}
+.auth-popup-or{text-align:center;font-size:0.6rem;color:var(--text-muted);margin:0.6rem 0}
+.auth-popup-email{width:100%;padding:0.55rem;background:transparent;border:1px solid var(--border);color:var(--gold);font-family:'Outfit',sans-serif;font-size:0.75rem;font-weight:400;cursor:pointer;transition:all 0.2s;letter-spacing:0.04em}
+.auth-popup-email:hover{border-color:var(--gold);background:rgba(196,176,140,0.06)}
+.auth-popup-privacy{text-align:center;font-size:0.6rem;color:var(--text-muted);margin-top:0.5rem}
+@media(max-width:600px){
+  .auth-popup{bottom:0;right:0;left:0;width:100%;border-radius:16px 16px 0 0;padding:1.25rem 1.25rem 1.5rem}
+  .auth-popup-img{height:60px}
+}
+.auth-popup-img{width:calc(100% + 3rem);height:100px;object-fit:cover;border-radius:16px 16px 0 0;margin:-1.5rem -1.5rem 1rem;display:block}
+
+/* ═══════════════════════════════════════════════════════
+   SOCIAL PROOF
+   ═══════════════════════════════════════════════════════ */
+.social-proof{text-align:center;padding:0.6rem 0.5rem;margin:0.5rem 0;font-size:0.7rem;line-height:1.5;color:var(--text-muted)}
+.social-proof-stars{color:var(--gold);font-size:0.8rem;letter-spacing:0.1em;display:block;margin-bottom:0.2rem}
+.social-proof-quote{font-style:italic;display:block;margin-bottom:0.15rem}
+.social-proof-name{color:var(--gold);font-weight:500;font-style:normal}
+.social-proof-mini{font-size:0.65rem;color:var(--text-muted);margin-top:0.3rem}
+.social-proof-mini .social-proof-stars{font-size:0.7rem;display:inline;margin-right:0.3rem}
+
+/* ═══════════════════════════════════════════════════════
+   GUEST PREVIEW BANNER
+   ═══════════════════════════════════════════════════════ */
+.guest-preview-banner{display:flex;align-items:center;justify-content:space-between;padding:0.5rem 1.25rem;background:linear-gradient(135deg,rgba(196,176,140,0.12),rgba(196,176,140,0.06));border-bottom:1px solid rgba(196,176,140,0.2);font-size:0.75rem;color:var(--text-muted);gap:0.75rem;flex-wrap:wrap}
+.guest-preview-banner strong{color:var(--gold)}
+.guest-preview-banner button{padding:0.35rem 0.8rem;background:linear-gradient(135deg,var(--gold),var(--gold-dark));color:var(--bg);font-family:'Outfit',sans-serif;font-size:0.68rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;border:none;cursor:pointer;white-space:nowrap;transition:all 0.2s}
+.guest-preview-banner button:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(196,176,140,0.3)}
+.guest-preview-banner.last-preview{background:linear-gradient(135deg,rgba(196,176,140,0.2),rgba(196,176,140,0.1));border-bottom-color:var(--gold)}
+@media(max-width:600px){
+  .guest-preview-banner{flex-direction:column;text-align:center;gap:0.4rem;padding:0.5rem 0.75rem}
+  .guest-preview-banner button{width:100%}
+}
+
+/* ═══════════════════════════════════════════════════════
+   EXIT-INTENT POPUP (reuses .auth-popup base)
+   ═══════════════════════════════════════════════════════ */
+.exit-popup{z-index:10000}
+
+/* ═══════════════════════════════════════════════════════
+   MARKET URGENCY BANNER
+   ═══════════════════════════════════════════════════════ */
+.market-urgency-banner{text-align:center;padding:1rem 1.5rem;font-size:0.78rem;color:var(--text-muted);font-style:italic;display:flex;align-items:center;justify-content:center;gap:0.5rem}
+.market-urgency-banner svg{width:16px;height:16px;stroke:var(--gold);fill:none;stroke-width:1.5;flex-shrink:0}
 
 /* ═══════════════════════════════════════════════════════
    FAVORITE BUTTON (property detail)

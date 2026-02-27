@@ -100,12 +100,17 @@ function _unlockScroll(){
 
 // ═══ REGISTRATION GATE ═══
 var _pendingProp = null; // {listing, townName} stored when unregistered user clicks a property
+var _smartSignupInProgress = false; // true during smart login→signup probe to prevent onAuthStateChange race
+var _guestViewCount = 0; // Track property detail views for guest users
+try { _guestViewCount = parseInt(sessionStorage.getItem('cc_guest_views') || '0', 10); } catch(e) {}
 
 // ═══ MOBILE MENU INLINE AUTH ═══
 function toggleMobileSignup(){
   var login=document.getElementById('mobileLoginFields');
   var signup=document.getElementById('mobileSignupFields');
+  var complete=document.getElementById('mobileCompleteFields');
   if(!login||!signup)return;
+  if(complete) complete.style.display='none'; // Always hide completion form when toggling
   if(signup.style.display==='none'){
     // Switching to signup — carry email from login
     var loginEmail=document.getElementById('mobileLoginEmail');
@@ -122,20 +127,55 @@ function toggleMobileSignup(){
 }
 
 function _showMobileError(id,msg){var el=document.getElementById(id);if(el){el.textContent=msg;el.style.display=''}}
-function _clearMobileErrors(){['mobileLoginError','mobileSignupError'].forEach(function(id){var el=document.getElementById(id);if(el){el.style.display='none';el.textContent=''}})}
+function _clearMobileErrors(){['mobileLoginError','mobileSignupError','mobileCompleteError'].forEach(function(id){var el=document.getElementById(id);if(el){el.style.display='none';el.textContent=''}})}
 
 async function mobileLogin(){
   _clearMobileErrors();
   var email=document.getElementById('mobileLoginEmail').value.trim();
   var pass=document.getElementById('mobileLoginPass').value;
   if(!email||email.indexOf('@')<1){_showMobileError('mobileLoginError','Please enter a valid email');return}
-  if(!pass){_showMobileError('mobileLoginError','Please enter your password');return}
+  if(!pass||pass.length<6){_showMobileError('mobileLoginError','Password must be at least 6 characters');return}
   var btn=document.querySelector('#mobileLoginFields .mobile-acct-submit');
   btn.textContent='Signing In...';btn.disabled=true;
   if(!_sb){_showMobileError('mobileLoginError','Service unavailable');btn.textContent='Sign In';btn.disabled=false;return}
   try{
     var result=await _sb.auth.signInWithPassword({email:email,password:pass});
-    if(result.error){_showMobileError('mobileLoginError','Invalid email or password');btn.textContent='Sign In';btn.disabled=false;return}
+    if(result.error){
+      // Smart probe: try signUp to see if account exists
+      console.log('[Auth] Mobile login failed, probing with signUp...');
+      _smartSignupInProgress=true;
+      try{
+        var probe=await _sb.auth.signUp({email:email,password:pass});
+        if(probe.error){
+          _smartSignupInProgress=false;
+          var errMsg=probe.error.message||'';
+          if(errMsg.indexOf('already registered')>-1){
+            _showMobileError('mobileLoginError','Incorrect password. Please try again.');
+          } else {
+            _showMobileError('mobileLoginError',errMsg||'Something went wrong');
+          }
+          btn.textContent='Sign In';btn.disabled=false;
+          return;
+        }
+        // No account existed — user created. Show completion form.
+        if(probe.data&&probe.data.user){
+          _currentUser=probe.data.user;
+          console.log('[Auth] Mobile: No account found, showing completion form.');
+          btn.textContent='Sign In';btn.disabled=false;
+          showMobileComplete(email);
+          setTimeout(function(){_smartSignupInProgress=false},30000);
+          return;
+        }
+        _smartSignupInProgress=false;
+        _showMobileError('mobileLoginError','Something went wrong');
+        btn.textContent='Sign In';btn.disabled=false;
+      }catch(probeErr){
+        _smartSignupInProgress=false;
+        _showMobileError('mobileLoginError','Something went wrong');
+        btn.textContent='Sign In';btn.disabled=false;
+      }
+      return;
+    }
     _acctLoggedIn=true;_currentUser=result.data.user;
     await loadFavoritesFromCloud();
     updateAcctUI();checkAdminRole();
@@ -147,33 +187,27 @@ async function mobileLogin(){
 
 async function mobileSignup(){
   _clearMobileErrors();
-  var first=document.getElementById('mobileSignupFirst').value.trim();
-  var last=document.getElementById('mobileSignupLast').value.trim();
   var email=document.getElementById('mobileSignupEmail').value.trim();
-  var phone=document.getElementById('mobileSignupPhone').value.trim();
   var pass=document.getElementById('mobileSignupPass').value;
-  if(!first){_showMobileError('mobileSignupError','First name is required');return}
-  if(!last){_showMobileError('mobileSignupError','Last name is required');return}
   if(!email||email.indexOf('@')<1){_showMobileError('mobileSignupError','Valid email is required');return}
-  // Phone is optional — skip validation
   if(!pass||pass.length<6){_showMobileError('mobileSignupError','Password must be at least 6 characters');return}
   var btn=document.querySelector('#mobileSignupFields .mobile-acct-submit');
   btn.textContent='Creating Account...';btn.disabled=true;
-  if(!_sb){_showMobileError('mobileSignupError','Service unavailable');btn.textContent='Create Free Account';btn.disabled=false;return}
+  if(!_sb){_showMobileError('mobileSignupError','Service unavailable');btn.textContent='Continue';btn.disabled=false;return}
   try{
+    _smartSignupInProgress=true;
     var result=await _sb.auth.signUp({email:email,password:pass});
-    if(result.error){_showMobileError('mobileSignupError',result.error.message||'Sign up failed');btn.textContent='Create Free Account';btn.disabled=false;return}
+    if(result.error){
+      _smartSignupInProgress=false;
+      var errMsg=result.error.message||'Sign up failed';
+      if(errMsg.indexOf('already registered')>-1) errMsg='This email already has an account. Try signing in instead.';
+      _showMobileError('mobileSignupError',errMsg);btn.textContent='Continue';btn.disabled=false;return;
+    }
     _currentUser=result.data.user;
-    await _sb.from('profiles').insert({id:result.data.user.id,first_name:first,last_name:last,email:email,phone:phone});
-    var leadData={first_name:first,last_name:last,email:email,phone:phone,message:'New account signup (mobile)',source:'web_form'};
-    if(_sb&&!_chatLeadPushed){_sb.from('leads').insert(leadData).then(function(){_chatLeadPushed=true;_pushToFUB(leadData)}).catch(function(){})}
-    _acctLoggedIn=true;
-    try{localStorage.setItem('cc_profile',JSON.stringify({firstName:first,lastName:last,email:email,phone:phone,password:true}))}catch(e){}
-    updateAcctUI();checkAdminRole();
-    btn.textContent='Create Free Account';btn.disabled=false;
-    // Close mobile menu and open pending property if gated
-    if(_pendingProp){closeMobile();setTimeout(function(){openProp(_pendingProp.listing,_pendingProp.townName);_pendingProp=null},600)}
-  }catch(e){_showMobileError('mobileSignupError','Something went wrong');btn.textContent='Create Free Account';btn.disabled=false}
+    btn.textContent='Continue';btn.disabled=false;
+    showMobileComplete(email);
+    setTimeout(function(){_smartSignupInProgress=false},30000);
+  }catch(e){_smartSignupInProgress=false;_showMobileError('mobileSignupError','Something went wrong');btn.textContent='Continue';btn.disabled=false}
 }
 
 // ═══ MOBILE CTA BAR ═══
@@ -218,13 +252,13 @@ if(_isTownPage){
         '<div class="prop-section-label" style="margin-top:2.5rem">Property Details</div>' +
         '<div class="prop-features" id="propFeatures"></div>' +
         '<div class="corys-take-gated gated-wrap locked" id="gatedCorysTake" onclick="onGatedClick()">' +
-          '<div class="gated-prompt"><svg class="gated-prompt-icon" viewBox="0 0 24 24"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg><div class="gated-prompt-text"><strong>Create a free account</strong> to see Cory\'s market insights on this property</div><div class="gated-prompt-sub">Click anywhere to sign up</div></div>' +
+          '<div class="gated-prompt"><svg class="gated-prompt-icon" viewBox="0 0 24 24"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg><div class="gated-prompt-text"><strong>Unlock Cory\'s Market Insights</strong> &mdash; Free</div><div class="gated-prompt-sub">Click anywhere to unlock</div></div>' +
           '<div class="gated-content"><div class="corys-take" id="corysTake" style="display:none"><div class="corys-take-pin"><svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="6" r="4" fill="#C4B08C" stroke="none"/><path d="M12 10v10" stroke="#C4B08C" stroke-width="2" fill="none"/></svg></div><div class="corys-take-header"><div class="corys-take-label">From the Broker</div><div class="corys-take-title">Cory\'s Take</div></div><div class="corys-take-insights" id="corysTakeInsights"></div><div class="corys-take-sig">&mdash; Cory Coleman, Keller Williams Great Smokies</div></div></div>' +
         '</div>' +
         '<div class="prop-section-label" style="margin-top:2.5rem">Property Highlights</div>' +
         '<div class="prop-highlights" id="propHighlights"></div>' +
-        '<div class="gated-wrap locked" id="gatedNeighborhood" onclick="onGatedClick()"><div class="gated-prompt"><svg class="gated-prompt-icon" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg><div class="gated-prompt-text"><strong>Create a free account</strong> to see neighborhood details</div><div class="gated-prompt-sub">Click anywhere to sign up</div></div><div class="gated-content"><div class="prop-section-label" style="margin-top:2.5rem">Neighborhood Details</div><div class="neighborhood-dive" id="neighborhoodDive"></div></div></div>' +
-        '<div class="gated-wrap locked" id="gatedDistances" onclick="onGatedClick()"><div class="gated-prompt"><svg class="gated-prompt-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><div class="gated-prompt-text"><strong>Create a free account</strong> to see drive times</div><div class="gated-prompt-sub">Click anywhere to sign up</div></div><div class="gated-content"><div class="prop-section-label" style="margin-top:2.5rem">Distances & Drive Times</div><div class="prop-distances" id="propDistances"></div></div></div>' +
+        '<div class="gated-wrap locked" id="gatedNeighborhood" onclick="onGatedClick()"><div class="gated-prompt"><svg class="gated-prompt-icon" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg><div class="gated-prompt-text"><strong>Unlock Neighborhood Details</strong> &mdash; Free</div><div class="gated-prompt-sub">Click anywhere to unlock</div></div><div class="gated-content"><div class="prop-section-label" style="margin-top:2.5rem">Neighborhood Details</div><div class="neighborhood-dive" id="neighborhoodDive"></div></div></div>' +
+        '<div class="gated-wrap locked" id="gatedDistances" onclick="onGatedClick()"><div class="gated-prompt"><svg class="gated-prompt-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><div class="gated-prompt-text"><strong>Unlock Drive Times</strong> &mdash; Free</div><div class="gated-prompt-sub">Click anywhere to unlock</div></div><div class="gated-content"><div class="prop-section-label" style="margin-top:2.5rem">Distances & Drive Times</div><div class="prop-distances" id="propDistances"></div></div></div>' +
         '<div class="prop-section-label" style="margin-top:2.5rem">Location</div>' +
         '<div class="prop-map" id="propMapContainer"></div>' +
         '<div class="prop-listing-broker" id="propListingBroker"></div>' +
@@ -240,7 +274,7 @@ if(_isTownPage){
         '</div>' +
         '<div class="prop-notes-wrap" id="propNotesWrap" style="display:none"><div class="prop-notes-header"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg><div class="prop-notes-title">Your Notes</div></div><textarea class="prop-notes-ta" id="propNotesTA" placeholder="Jot down thoughts, questions, or things to look for at the showing..."></textarea><div class="prop-notes-hint"><svg viewBox="0 0 24 24" width="12" height="12"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Notes appear on your printed property sheet</div></div>' +
         '<div class="prop-ask-cory" id="propAskCory" style="display:none"><div class="prop-notes-header"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><div class="prop-notes-title">Ask Cory</div></div><div id="propQuestionsList"></div><textarea class="prop-notes-ta" id="propQuestionTA" placeholder="Have a question about this property? Ask Cory directly..."></textarea><button class="prop-ask-send" onclick="submitPropertyQuestion()">Send Question</button></div>' +
-        '<div class="gated-wrap locked" id="gatedCalc" onclick="onGatedClick()"><div class="gated-prompt"><svg class="gated-prompt-icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><div class="gated-prompt-text"><strong>Create a free account</strong> to view mortgage estimates and payment details</div><div class="gated-prompt-sub">Click anywhere to sign up</div></div><div class="gated-content"><div class="prop-calc"><div class="prop-calc-title">Estimated Payment</div><div class="prop-calc-row"><span class="prop-calc-label">Purchase Price</span><span class="prop-calc-val" id="calcPrice"></span></div><div class="prop-calc-row"><span class="prop-calc-label">Down Payment (20%)</span><span class="prop-calc-val" id="calcDown"></span></div><div class="prop-calc-row"><span class="prop-calc-label">Loan Amount</span><span class="prop-calc-val" id="calcLoan"></span></div><div class="prop-calc-row"><span class="prop-calc-label">Interest Rate</span><span class="prop-calc-val">6.75%</span></div><div class="prop-calc-row"><span class="prop-calc-label">Loan Term</span><span class="prop-calc-val">30 years</span></div><div class="prop-calc-total"><span class="prop-calc-label">Est. Monthly</span><span class="prop-calc-val" id="calcMonthly"></span></div><div class="prop-calc-note">Estimate only. Does not include taxes, insurance, or HOA. Contact a lender for an accurate pre-approval.</div></div></div></div>' +
+        '<div class="gated-wrap locked" id="gatedCalc" onclick="onGatedClick()"><div class="gated-prompt"><svg class="gated-prompt-icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><div class="gated-prompt-text"><strong>Unlock Mortgage Estimates</strong> &mdash; Free</div><div class="gated-prompt-sub">Click anywhere to unlock</div></div><div class="gated-content"><div class="prop-calc"><div class="prop-calc-title">Estimated Payment</div><div class="prop-calc-row"><span class="prop-calc-label">Purchase Price</span><span class="prop-calc-val" id="calcPrice"></span></div><div class="prop-calc-row"><span class="prop-calc-label">Down Payment (20%)</span><span class="prop-calc-val" id="calcDown"></span></div><div class="prop-calc-row"><span class="prop-calc-label">Loan Amount</span><span class="prop-calc-val" id="calcLoan"></span></div><div class="prop-calc-row"><span class="prop-calc-label">Interest Rate</span><span class="prop-calc-val">6.75%</span></div><div class="prop-calc-row"><span class="prop-calc-label">Loan Term</span><span class="prop-calc-val">30 years</span></div><div class="prop-calc-total"><span class="prop-calc-label">Est. Monthly</span><span class="prop-calc-val" id="calcMonthly"></span></div><div class="prop-calc-note">Estimate only. Does not include taxes, insurance, or HOA. Contact a lender for an accurate pre-approval.</div></div></div></div>' +
         '<div class="prop-share"><button class="prop-share-btn" onclick="propShare(\'copy\')"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy Link</button><button class="prop-share-btn" onclick="propShare(\'email\')"><svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M22 6l-10 7L2 6"/></svg> Email</button><button class="prop-share-btn gated-print-btn" id="propPrintBtn" onclick="propShare(\'print\')"><svg viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print</button></div>' +
       '</div>' +
     '</div></div>' +
@@ -263,11 +297,14 @@ if(_isTownPage){
     '<div id="acctLoginView"><div class="acct-modal-badge">Welcome Back</div><h3>Sign In</h3><div class="acct-modal-sub">Access your saved favorites, searches, and full property details.</div>' +
     '<div class="acct-oauth-btns"><button class="acct-oauth-btn acct-oauth-google" onclick="signInWithGoogle()"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg> Continue with Google</button><button class="acct-oauth-btn acct-oauth-facebook" onclick="signInWithFacebook()"><svg viewBox="0 0 24 24" width="18" height="18" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg> Continue with Facebook</button></div>' +
     '<div class="acct-or">&mdash; or sign in with email &mdash;</div>' +
-    '<div class="acct-error" id="acctLoginError" style="display:none"></div><div class="acct-field"><label>Email Address</label><input type="email" id="acctLoginEmail" placeholder="john@example.com" required></div><div class="acct-field"><label>Password</label><input type="password" id="acctLoginPass" placeholder="Your password" required></div><button class="acct-submit" onclick="loginAcct()">Sign In</button><div class="form-privacy"><svg viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Your information stays with me &mdash; I never sell or share it with third parties.</div><div class="acct-or">&mdash; or &mdash;</div><div class="acct-login-link" onclick="showAcctSignup()">Don\'t have an account? <strong>Create one free</strong></div></div>' +
-    '<div id="acctFormView" style="display:none"><div class="acct-modal-badge">Free Account</div><h3>Unlock <em>Full Details</em></h3><div class="acct-modal-sub">Create a free account to access mortgage calculators, restriction details, save your favorite properties, and more.</div>' +
+    '<div class="acct-error" id="acctLoginError" style="display:none"></div><div class="acct-field"><label>Email Address</label><input type="email" id="acctLoginEmail" placeholder="john@example.com" required></div><div class="acct-field"><label>Password</label><input type="password" id="acctLoginPass" placeholder="Your password" required></div><button class="acct-submit" onclick="loginAcct()">Sign In</button><div class="form-privacy"><svg viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Your information stays with me &mdash; I never sell or share it with third parties.</div><div class="acct-or">&mdash; or &mdash;</div><button class="acct-create-btn" onclick="showAcctSignup()">Create a Free Account</button></div>' +
+    '<div id="acctFormView" style="display:none"><div class="acct-modal-badge">Free Account</div><h3>Unlock <em>Full Details</em></h3><div class="acct-modal-sub">Unlock mortgage calculators, restriction details, saved favorites, and more &mdash; completely free.</div>' +
     '<div class="acct-oauth-btns"><button class="acct-oauth-btn acct-oauth-google" onclick="signInWithGoogle()"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg> Continue with Google</button><button class="acct-oauth-btn acct-oauth-facebook" onclick="signInWithFacebook()"><svg viewBox="0 0 24 24" width="18" height="18" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg> Continue with Facebook</button></div>' +
-    '<div class="acct-or">&mdash; or create account with email &mdash;</div>' +
-    '<div class="acct-error" id="acctSignupError" style="display:none"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem"><div class="acct-field"><label>First Name</label><input type="text" id="acctFirst" placeholder="John" required></div><div class="acct-field"><label>Last Name</label><input type="text" id="acctLast" placeholder="Smith" required></div></div><div class="acct-field"><label>Email Address</label><input type="email" id="acctEmail" placeholder="john@example.com" required></div><div class="acct-field"><label>Phone <span class="acct-optional">(optional)</span></label><input type="tel" id="acctPhone" placeholder="(828) 555-1234"></div><div class="acct-field"><label>Password</label><input type="password" id="acctPass" placeholder="Create a password" required minlength="6"><div class="acct-pass-note">Minimum 6 characters</div></div><button class="acct-submit" onclick="submitAcct()">Create Free Account</button><div class="acct-or">&mdash; or &mdash;</div><div class="acct-login-link" onclick="showAcctLogin()">Already have an account? <strong>Sign in</strong></div></div>' +
+    '<div class="acct-or">&mdash; or sign up with email &mdash;</div>' +
+    '<div class="acct-error" id="acctSignupError" style="display:none"></div><div class="acct-field"><label>Email Address</label><input type="email" id="acctEmail" placeholder="john@example.com" required></div><div class="acct-field"><label>Password</label><input type="password" id="acctPass" placeholder="Create a password" required minlength="6"><div class="acct-pass-note">Minimum 6 characters</div></div><button class="acct-submit" onclick="submitAcct()">Continue</button><div class="acct-or">&mdash; or &mdash;</div><div class="acct-login-link" onclick="showAcctLogin()">Already have an account? <strong>Sign in</strong></div></div>' +
+    '<div id="acctCompleteView" style="display:none"><div class="acct-modal-badge">Almost There</div><h3>Complete Your <em>Account</em></h3><div class="acct-modal-sub">Just one more detail to unlock full property access.</div>' +
+    '<div class="acct-complete-email" id="acctCompleteEmail"></div>' +
+    '<div class="acct-error" id="acctCompleteError" style="display:none"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem"><div class="acct-field"><label>First Name</label><input type="text" id="acctCompleteFirst" placeholder="John" required></div><div class="acct-field"><label>Last Name <span class="acct-optional">(optional)</span></label><input type="text" id="acctCompleteLast" placeholder="Smith"></div></div><button class="acct-submit" onclick="completeAcctSetup()">Get Free Access</button><div class="form-privacy"><svg viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Your information stays with me &mdash; I never sell or share it with third parties.</div></div>' +
     '<div id="acctSuccessView" style="display:none"><div class="acct-success"><svg class="acct-success-icon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg><h3>Welcome!</h3><p>Your free account is ready. You now have full access to property details, mortgage estimates, and can save your favorites.</p></div></div>' +
     '<div id="acctDashView" style="display:none"><div style="text-align:center;margin-bottom:1rem"><svg viewBox="0 0 24 24" style="width:40px;height:40px;stroke:var(--gold);fill:none;stroke-width:1.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><h3 id="acctDashName" style="margin:0.5rem 0 0;color:var(--text)">My Account</h3><p id="acctDashEmail" style="margin:0;font-size:0.85rem;color:var(--text-muted)"></p></div>' +
       '<div class="acct-dash-tools"><button onclick="closeAcctModal();openAfford()" class="acct-tool-btn"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>Affordability</button><button onclick="closeAcctModal();openCol()" class="acct-tool-btn"><svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>Cost of Living</button><button onclick="closeAcctModal();openQA()" class="acct-tool-btn"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Local Q&A</button></div>' +
@@ -1417,24 +1454,42 @@ function minimizeChat(){
 }
 
 // --- Resize chat panel when mobile keyboard opens/closes ---
+// On mobile, position:fixed uses the layout viewport, but the keyboard only shrinks
+// the visual viewport. We use visualViewport API to pin the panel to the TOP of the
+// visible area so the conversation stays visible and the input rises above the keyboard.
 var _chatResizeTimer=null;
 if(window.visualViewport){
-  window.visualViewport.addEventListener('resize',function(){
+  var _handleChatResize = function(){
     var cp=document.getElementById('chatPanel');
-    if(!cp||!chatOpen||window.innerWidth>1024)return;
+    if(!cp||!chatOpen||_chatMinimized||window.innerWidth>1024)return;
     clearTimeout(_chatResizeTimer);
     _chatResizeTimer=setTimeout(function(){
       var vv=window.visualViewport;
-      // Shrink panel height to fit above keyboard, keep bottom anchored
-      var available=vv.height - 12;// 12px = bottom margin (0.75rem)
-      cp.style.transition='height 0.2s ease-out, max-height 0.2s ease-out';
-      cp.style.height=available+'px';
-      cp.style.maxHeight=available+'px';
-      // Scroll messages to bottom when keyboard opens
+      var keyboardOpen = vv.height < window.innerHeight * 0.85;
+      if(keyboardOpen){
+        // Keyboard is open — pin panel to top of visual viewport
+        var topPos = vv.offsetTop + 12; // 12px top margin
+        var panelH = vv.height - 24;    // 12px top + 12px bottom
+        cp.style.transition = 'none';
+        cp.style.top = topPos + 'px';
+        cp.style.bottom = 'auto';
+        cp.style.height = panelH + 'px';
+        cp.style.maxHeight = panelH + 'px';
+      } else {
+        // Keyboard closed — reset to CSS defaults
+        cp.style.top = '';
+        cp.style.bottom = '';
+        cp.style.height = '';
+        cp.style.maxHeight = '';
+        cp.style.transition = '';
+      }
+      // Scroll messages to bottom
       var cm=document.getElementById('chatMessages');
       if(cm)setTimeout(function(){cm.scrollTop=cm.scrollHeight},80);
     },60);
-  });
+  };
+  window.visualViewport.addEventListener('resize', _handleChatResize);
+  window.visualViewport.addEventListener('scroll', _handleChatResize);
 }
 
 // --- Chat Preview → Full Chat transition ---
@@ -2456,11 +2511,17 @@ var PROP_DESCRIPTIONS = {
 var RESTRICT_LABELS = {'unrestricted':'Unrestricted — No HOA','restricted':'Has Restrictions','light':'Has Restrictions','hoa':'Has Restrictions'};
 
 function openProp(listing, townName) {
-  // Registration gate — require sign-in before viewing property details
+  // Registration gate — allow 3 free previews, gate on 4th view
   if(!_acctLoggedIn){
-    _pendingProp = {listing:listing, townName:townName};
-    openAcctModal();
-    return;
+    _guestViewCount++;
+    try { sessionStorage.setItem('cc_guest_views', _guestViewCount.toString()); } catch(e) {}
+    if(_guestViewCount >= 4){
+      // Gate: require registration
+      _pendingProp = {listing:listing, townName:townName};
+      openAcctModal();
+      return;
+    }
+    // Allow preview but will show soft banner (rendered below)
   }
   hideMobileCta();
   try{
@@ -2691,6 +2752,22 @@ function openProp(listing, townName) {
     document.getElementById('propDirections').innerHTML = '';
     document.getElementById('propBuyerAgent').innerHTML = '';
     document.getElementById('propListAgentContact').innerHTML = '';
+  }
+
+  // Guest preview banner — show for views 1-3 when not logged in
+  var existingBanner = document.getElementById('guestPreviewBanner');
+  if(existingBanner) existingBanner.remove();
+  if(!_acctLoggedIn && _guestViewCount <= 3){
+    var remaining = 3 - _guestViewCount;
+    var bannerHTML = '<div class="guest-preview-banner' + (remaining === 0 ? ' last-preview' : '') + '" id="guestPreviewBanner">';
+    if(remaining > 0){
+      bannerHTML += '<span>Free preview <strong>' + _guestViewCount + ' of 3</strong></span>';
+    } else {
+      bannerHTML += '<span><strong>Last free preview</strong></span>';
+    }
+    bannerHTML += '<button onclick="openAcctModal()">Unlock Unlimited Access &mdash; Free</button></div>';
+    var contentArea = document.getElementById('propContentArea');
+    if(contentArea) contentArea.insertAdjacentHTML('beforebegin', bannerHTML);
   }
 
   // Show overlay
@@ -4430,10 +4507,16 @@ async function initSupabaseAuth() {
         _currentUser = session.user;
         if(event === 'SIGNED_IN') {
           loadFavoritesFromCloud(); checkAdminRole(); checkReengagement();
+          // Reset guest view counter on login
+          _guestViewCount = 0;
+          try { sessionStorage.removeItem('cc_guest_views'); } catch(e) {}
+          // Remove guest preview banner if visible
+          var gpb = document.getElementById('guestPreviewBanner');
+          if(gpb) gpb.remove();
           // OAuth: create profile + lead for social login users
           _handleOAuthProfile(session);
-          // Open pending property if user was gated
-          _openPendingProp();
+          // Open pending property if user was gated (skip during smart signup flow)
+          if(!_smartSignupInProgress) _openPendingProp();
         }
       } else if(event === 'SIGNED_OUT') {
         _acctLoggedIn = false;
@@ -4449,6 +4532,102 @@ async function initSupabaseAuth() {
 }
 // Run auth check
 initSupabaseAuth();
+
+// --- First-visit auth popup (scroll-triggered at 40% depth) ---
+function maybeShowAuthPopup(){
+  if(_acctLoggedIn) return;
+  // Only show on homepage, not town pages
+  if(_isTownPage) return;
+  var dismissed=localStorage.getItem('cc_auth_popup_dismissed');
+  if(dismissed){
+    var ts=parseInt(dismissed,10);
+    if(Date.now()-ts < 7*24*60*60*1000) return; // 7-day cooldown
+  }
+  var shown=false;
+  window.addEventListener('scroll', function(){
+    if(shown || _acctLoggedIn) return;
+    var scrollPct = window.scrollY / (document.documentElement.scrollHeight - window.innerHeight);
+    if(scrollPct >= 0.4){
+      shown=true;
+      showAuthPopup();
+    }
+  });
+}
+function showAuthPopup(){
+  if(_acctLoggedIn) return;
+  var el=document.getElementById('authPopup');
+  if(el){ el.style.display=''; requestAnimationFrame(function(){ el.classList.add('visible'); }); }
+}
+function dismissAuthPopup(){
+  var el=document.getElementById('authPopup');
+  if(el){ el.classList.remove('visible'); setTimeout(function(){ el.style.display='none'; },400); }
+  try{localStorage.setItem('cc_auth_popup_dismissed',Date.now().toString())}catch(e){}
+  // After dismissing, try Google One Tap as a second chance
+  setTimeout(initGoogleOneTap, 1000);
+}
+// Trigger popup after a brief delay for auth to initialize
+setTimeout(maybeShowAuthPopup, 1500);
+
+// --- Exit-Intent Popup (desktop only) ---
+function showExitPopup(){
+  if(_acctLoggedIn) return;
+  if(sessionStorage.getItem('cc_exit_shown')) return;
+  // Dismiss auth popup if visible (don't stack popups)
+  var authEl = document.getElementById('authPopup');
+  if(authEl && authEl.classList.contains('visible')) dismissAuthPopup();
+  var el=document.getElementById('exitPopup');
+  if(el){ el.style.display=''; requestAnimationFrame(function(){ el.classList.add('visible'); }); }
+  try{sessionStorage.setItem('cc_exit_shown','1')}catch(e){}
+}
+function dismissExitPopup(){
+  var el=document.getElementById('exitPopup');
+  if(el){ el.classList.remove('visible'); setTimeout(function(){ el.style.display='none'; },400); }
+}
+// Exit-intent detection: mouseleave toward top of viewport
+document.documentElement.addEventListener('mouseleave', function(e){
+  if(e.clientY > 0) return; // Only trigger on top-exit (toward browser tabs/address bar)
+  if(_acctLoggedIn) return;
+  if(_guestViewCount < 1) return; // Only for users who have engaged
+  if(sessionStorage.getItem('cc_exit_shown')) return; // 1-session cooldown
+  showExitPopup();
+});
+
+// --- Google One Tap ---
+function initGoogleOneTap(){
+  if(_acctLoggedIn || typeof google === 'undefined' || !google.accounts) return;
+  // Don't show if auth popup was recently dismissed (avoid double prompts)
+  var dismissed = localStorage.getItem('cc_auth_popup_dismissed');
+  if(dismissed && Date.now() - parseInt(dismissed,10) < 3600000) return; // 1hr cooldown after popup dismiss
+  try {
+    google.accounts.id.initialize({
+      client_id: '878118307539-5vujunbk1fgoh7ctijfdjhdui8sf33fk.apps.googleusercontent.com',
+      callback: handleGoogleOneTap,
+      use_fedcm_for_prompt: true,
+      auto_select: false,
+      cancel_on_tap_outside: true
+    });
+    google.accounts.id.prompt();
+  } catch(e) { console.warn('[OneTap] Init error:', e); }
+}
+async function handleGoogleOneTap(response){
+  if(!_sb || !response.credential) return;
+  try {
+    var result = await _sb.auth.signInWithIdToken({
+      provider: 'google',
+      token: response.credential
+    });
+    if(result.error){
+      console.error('[OneTap] Error:', result.error);
+      return;
+    }
+    // onAuthStateChange will fire SIGNED_IN → _handleOAuthProfile creates profile + lead
+    console.log('[OneTap] Success');
+  } catch(e) { console.error('[OneTap] Error:', e); }
+}
+// Initialize Google One Tap after a delay (let auth state settle first)
+setTimeout(function(){
+  if(!_acctLoggedIn) initGoogleOneTap();
+}, 3500);
 
 // --- Account UI update ---
 function updateAcctUI() {
@@ -4503,6 +4682,7 @@ function openAcctModal() {
     // Show account dashboard
     document.getElementById('acctFormView').style.display = 'none';
     document.getElementById('acctLoginView').style.display = 'none';
+    document.getElementById('acctCompleteView').style.display = 'none';
     document.getElementById('acctSuccessView').style.display = 'none';
     document.getElementById('acctDashView').style.display = '';
     // Populate dashboard
@@ -4530,6 +4710,7 @@ function openAcctModal() {
   }
   document.getElementById('acctLoginView').style.display = '';
   document.getElementById('acctFormView').style.display = 'none';
+  document.getElementById('acctCompleteView').style.display = 'none';
   document.getElementById('acctSuccessView').style.display = 'none';
   document.getElementById('acctDashView').style.display = 'none';
   clearAcctErrors();
@@ -4624,6 +4805,7 @@ function showAcctLogin() {
   }
   document.getElementById('acctFormView').style.display = 'none';
   document.getElementById('acctLoginView').style.display = '';
+  document.getElementById('acctCompleteView').style.display = 'none';
   document.getElementById('acctSuccessView').style.display = 'none';
   document.getElementById('acctDashView').style.display = 'none';
   clearAcctErrors();
@@ -4641,6 +4823,7 @@ function showAcctSignup() {
   }
   document.getElementById('acctFormView').style.display = '';
   document.getElementById('acctLoginView').style.display = 'none';
+  document.getElementById('acctCompleteView').style.display = 'none';
   document.getElementById('acctSuccessView').style.display = 'none';
   document.getElementById('acctDashView').style.display = 'none';
   clearAcctErrors();
@@ -4655,12 +4838,116 @@ function showAcctSignup() {
         '<button class="acct-oauth-btn acct-oauth-facebook" onclick="signInWithFacebook()"><svg viewBox="0 0 24 24" width="18" height="18" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"></path></svg> Continue with Facebook</button>';
       var orDiv = document.createElement('div');
       orDiv.className = 'acct-or';
-      orDiv.innerHTML = '&mdash; or create account with email &mdash;';
+      orDiv.innerHTML = '&mdash; or sign up with email &mdash;';
       sub.after(oauthDiv, orDiv);
     }
   }
-  // Focus first name if email already filled, otherwise focus first name anyway
-  setTimeout(function(){ document.getElementById('acctFirst').focus() }, 100);
+  // Focus email field (first field in 2-step signup)
+  var focusEl = document.getElementById('acctEmail');
+  if(focusEl && !focusEl.value) setTimeout(function(){ focusEl.focus() }, 100);
+}
+
+// --- Smart signup completion (desktop) ---
+function showAcctComplete(email) {
+  document.getElementById('acctLoginView').style.display = 'none';
+  document.getElementById('acctFormView').style.display = 'none';
+  document.getElementById('acctCompleteView').style.display = '';
+  document.getElementById('acctSuccessView').style.display = 'none';
+  document.getElementById('acctDashView').style.display = 'none';
+  clearAcctErrors();
+  var emailEl = document.getElementById('acctCompleteEmail');
+  if(emailEl) emailEl.textContent = email;
+  setTimeout(function(){ document.getElementById('acctCompleteFirst').focus() }, 100);
+}
+
+async function completeAcctSetup() {
+  var first = document.getElementById('acctCompleteFirst').value.trim();
+  var last = document.getElementById('acctCompleteLast').value.trim();
+  clearAcctErrors();
+  if(!first){ document.getElementById('acctCompleteFirst').focus(); document.getElementById('acctCompleteFirst').style.borderColor='#c07070'; return; }
+  // Last name is optional
+  var btn = document.querySelector('#acctCompleteView .acct-submit');
+  btn.textContent = 'Finishing...'; btn.disabled = true;
+  var email = (document.getElementById('acctCompleteEmail').textContent || '').trim();
+  try {
+    if(_sb && _currentUser) {
+      await _sb.from('profiles').insert({ id: _currentUser.id, first_name: first, last_name: last, email: email });
+      var leadData = { first_name: first, last_name: last, email: email, source: 'smart_signup', message: 'Account created via smart login flow' };
+      if(!_chatLeadPushed && typeof convHistory !== 'undefined' && convHistory && convHistory.length > 0){
+        var transcript = buildChatTranscript();
+        if(transcript){ leadData.message += '\n\n' + transcript; leadData.source = 'chatbot_smart_signup'; }
+      }
+      _sb.from('leads').insert(leadData)
+        .then(function(){ _chatLeadPushed = true; console.log('[SmartSignup] Lead saved'); _pushToFUB(leadData); })
+        .catch(function(e){ console.warn('[SmartSignup] Lead push failed:', e); });
+    }
+    _acctLoggedIn = true;
+    _smartSignupInProgress = false;
+    try{ localStorage.setItem('cc_profile', JSON.stringify({firstName:first, lastName:last, email:email, password:true})) }catch(e){}
+    document.getElementById('acctCompleteView').style.display = 'none';
+    document.getElementById('acctSuccessView').style.display = '';
+    updateAcctUI();
+    if(_pendingProp){
+      setTimeout(function(){ closeAcctModal(); openProp(_pendingProp.listing, _pendingProp.townName); _pendingProp = null; }, 1200);
+    } else {
+      setTimeout(function(){ closeAcctModal() }, 2000);
+    }
+  } catch(e) {
+    showAcctError('acctCompleteError', 'Something went wrong. Please try again.');
+    btn.textContent = 'Get Free Access'; btn.disabled = false;
+    _smartSignupInProgress = false;
+  }
+}
+
+// --- Smart signup completion (mobile) ---
+function showMobileComplete(email) {
+  document.getElementById('mobileLoginFields').style.display = 'none';
+  document.getElementById('mobileSignupFields').style.display = 'none';
+  document.getElementById('mobileCompleteFields').style.display = '';
+  _clearMobileErrors();
+  var emailEl = document.getElementById('mobileCompleteEmail');
+  if(emailEl) emailEl.textContent = email;
+  setTimeout(function(){ document.getElementById('mobileCompleteFirst').focus() }, 100);
+}
+
+async function mobileCompleteSignup() {
+  _clearMobileErrors();
+  var first = document.getElementById('mobileCompleteFirst').value.trim();
+  var last = document.getElementById('mobileCompleteLast').value.trim();
+  if(!first){ _showMobileError('mobileCompleteError', 'First name is required'); return; }
+  // Last name is optional
+  var btn = document.querySelector('#mobileCompleteFields .mobile-acct-submit');
+  btn.textContent = 'Finishing...'; btn.disabled = true;
+  var email = (document.getElementById('mobileCompleteEmail').textContent || '').trim();
+  try {
+    if(_sb && _currentUser) {
+      await _sb.from('profiles').insert({ id: _currentUser.id, first_name: first, last_name: last, email: email });
+      var leadData = { first_name: first, last_name: last, email: email, source: 'smart_signup_mobile', message: 'Account created via smart login flow (mobile)' };
+      if(!_chatLeadPushed && typeof convHistory !== 'undefined' && convHistory && convHistory.length > 0){
+        var transcript = buildChatTranscript();
+        if(transcript){ leadData.message += '\n\n' + transcript; leadData.source = 'chatbot_smart_signup_mobile'; }
+      }
+      _sb.from('leads').insert(leadData)
+        .then(function(){ _chatLeadPushed = true; _pushToFUB(leadData); })
+        .catch(function(){});
+    }
+    _acctLoggedIn = true;
+    _smartSignupInProgress = false;
+    try{ localStorage.setItem('cc_profile', JSON.stringify({firstName:first, lastName:last, email:email, password:true})) }catch(e){}
+    updateAcctUI(); checkAdminRole();
+    btn.textContent = 'Get Free Access'; btn.disabled = false;
+    // Reset form
+    document.getElementById('mobileCompleteFields').style.display = 'none';
+    document.getElementById('mobileLoginFields').style.display = '';
+    document.getElementById('mobileLoginEmail').value = '';
+    document.getElementById('mobileLoginPass').value = '';
+    // Open pending property if gated
+    if(_pendingProp){ closeMobile(); setTimeout(function(){ openProp(_pendingProp.listing, _pendingProp.townName); _pendingProp = null; }, 600); }
+  } catch(e) {
+    _showMobileError('mobileCompleteError', 'Something went wrong. Please try again.');
+    btn.textContent = 'Get Free Access'; btn.disabled = false;
+    _smartSignupInProgress = false;
+  }
 }
 
 function clearAcctErrors() {
@@ -4678,81 +4965,46 @@ function closeAcctModal() {
   _unlockScroll(); // Restore background scroll
 }
 
-// --- Create account (Supabase) ---
+// --- Create account Step 1: Email + Password (Supabase) ---
 async function submitAcct() {
-  var first = document.getElementById('acctFirst').value.trim();
-  var last = document.getElementById('acctLast').value.trim();
   var email = document.getElementById('acctEmail').value.trim();
   var pass = document.getElementById('acctPass').value;
-  var phone = document.getElementById('acctPhone').value.trim();
   clearAcctErrors();
   // Validate required fields
-  if(!first){ document.getElementById('acctFirst').focus(); document.getElementById('acctFirst').style.borderColor='#c07070'; return; }
-  if(!last){ document.getElementById('acctLast').focus(); document.getElementById('acctLast').style.borderColor='#c07070'; return; }
   if(!email || email.indexOf('@')<1){ document.getElementById('acctEmail').focus(); document.getElementById('acctEmail').style.borderColor='#c07070'; return; }
   if(!pass || pass.length < 6){ document.getElementById('acctPass').focus(); document.getElementById('acctPass').style.borderColor='#c07070'; return; }
-  // Phone is optional — skip validation
 
   // Disable button while working
   var btn = document.querySelector('#acctFormView .acct-submit');
   btn.textContent = 'Creating Account...';
   btn.disabled = true;
 
-  if(!_sb) { showAcctError('acctSignupError', 'Service unavailable. Please try again later.'); btn.textContent='Create Free Account'; btn.disabled=false; return; }
+  if(!_sb) { showAcctError('acctSignupError', 'Service unavailable. Please try again later.'); btn.textContent='Continue'; btn.disabled=false; return; }
 
   try {
+    _smartSignupInProgress = true;
     var result = await _sb.auth.signUp({ email: email, password: pass });
     if(result.error) {
+      _smartSignupInProgress = false;
       var errMsg = result.error.message;
       if(errMsg.indexOf('already registered') > -1) errMsg = 'This email already has an account. Try signing in instead.';
       showAcctError('acctSignupError', errMsg);
-      btn.textContent = 'Create Free Account';
+      btn.textContent = 'Continue';
       btn.disabled = false;
       return;
     }
-    // Create profile (triggers FUB push)
+    // Signup succeeded — save user, show Step 2 (name collection)
     if(result.data && result.data.user) {
       _currentUser = result.data.user;
-      await _sb.from('profiles').insert({
-        id: result.data.user.id,
-        first_name: first,
-        last_name: last,
-        email: email,
-        phone: phone
-      });
-      // Always push to FUB on signup — append chat transcript if they chatted first
-      var signupLeadData = {
-        first_name: first,
-        last_name: last,
-        email: email,
-        phone: phone,
-        source: 'account_signup',
-        message: 'New account signup'
-      };
-      if(!_chatLeadPushed && convHistory && convHistory.length > 0){
-        var transcript = buildChatTranscript();
-        if(transcript){ signupLeadData.message += '\n\n' + transcript; signupLeadData.source = 'chatbot_signup'; }
-      }
-      _sb.from('leads').insert(signupLeadData)
-        .then(function(){ _chatLeadPushed = true; console.log('[Signup] Lead saved'); _pushToFUB(signupLeadData); })
-        .catch(function(e){ console.warn('[Signup] Lead push failed:', e); });
     }
-    _acctLoggedIn = true;
-    // Save profile to localStorage (used by chatbot)
-    try{localStorage.setItem('cc_profile',JSON.stringify({firstName:first,lastName:last,email:email,phone:phone,password:true}))}catch(e){}
-    // Show success
-    document.getElementById('acctFormView').style.display = 'none';
-    document.getElementById('acctSuccessView').style.display = '';
-    updateAcctUI();
-    // Open pending property or just close modal
-    if(_pendingProp){
-      setTimeout(function(){ closeAcctModal(); openProp(_pendingProp.listing,_pendingProp.townName); _pendingProp=null; },1200);
-    } else {
-      setTimeout(function(){ closeAcctModal() }, 2000);
-    }
+    btn.textContent = 'Continue';
+    btn.disabled = false;
+    showAcctComplete(email);
+    setTimeout(function(){ _smartSignupInProgress = false; }, 30000);
   } catch(e) {
+    _smartSignupInProgress = false;
     showAcctError('acctSignupError', 'Something went wrong. Please try again.');
-    btn.textContent = 'Create Free Account';
+    btn.textContent = 'Continue';
     btn.disabled = false;
   }
 }
@@ -4828,13 +5080,13 @@ function _openPendingProp(){
   }
 }
 
-// --- Sign in (Supabase) ---
+// --- Sign in (Supabase) — with smart signup probe ---
 async function loginAcct() {
   var email = document.getElementById('acctLoginEmail').value.trim();
   var pass = document.getElementById('acctLoginPass').value;
   clearAcctErrors();
   if(!email || email.indexOf('@')<1){ document.getElementById('acctLoginEmail').focus(); document.getElementById('acctLoginEmail').style.borderColor='#c07070'; return; }
-  if(!pass){ document.getElementById('acctLoginPass').focus(); document.getElementById('acctLoginPass').style.borderColor='#c07070'; return; }
+  if(!pass || pass.length < 6){ document.getElementById('acctLoginPass').focus(); document.getElementById('acctLoginPass').style.borderColor='#c07070'; return; }
 
   var btn = document.querySelector('#acctLoginView .acct-submit');
   btn.textContent = 'Signing In...';
@@ -4845,11 +5097,45 @@ async function loginAcct() {
   try {
     var result = await _sb.auth.signInWithPassword({ email: email, password: pass });
     if(result.error) {
-      showAcctError('acctLoginError', 'Invalid email or password. Please try again.');
-      btn.textContent = 'Sign In';
-      btn.disabled = false;
+      // Smart probe: try signUp to see if account exists
+      console.log('[Auth] Login failed, probing with signUp...');
+      _smartSignupInProgress = true;
+      try {
+        var probe = await _sb.auth.signUp({ email: email, password: pass });
+        if(probe.error) {
+          // Account exists but password was wrong
+          _smartSignupInProgress = false;
+          var errMsg = probe.error.message || '';
+          if(errMsg.indexOf('already registered') > -1) {
+            showAcctError('acctLoginError', 'Incorrect password. Please try again.');
+          } else {
+            showAcctError('acctLoginError', errMsg || 'Something went wrong. Please try again.');
+          }
+          btn.textContent = 'Sign In'; btn.disabled = false;
+          return;
+        }
+        // No account existed — user just got created. Show completion form.
+        if(probe.data && probe.data.user) {
+          _currentUser = probe.data.user;
+          console.log('[Auth] No account found, created via smart probe. Showing completion form.');
+          btn.textContent = 'Sign In'; btn.disabled = false;
+          showAcctComplete(email);
+          // Safety timeout to clear flag
+          setTimeout(function(){ _smartSignupInProgress = false; }, 30000);
+          return;
+        }
+        // Unexpected: no error but no user
+        _smartSignupInProgress = false;
+        showAcctError('acctLoginError', 'Something went wrong. Please try again.');
+        btn.textContent = 'Sign In'; btn.disabled = false;
+      } catch(probeErr) {
+        _smartSignupInProgress = false;
+        showAcctError('acctLoginError', 'Something went wrong. Please try again.');
+        btn.textContent = 'Sign In'; btn.disabled = false;
+      }
       return;
     }
+    // Login succeeded
     _acctLoggedIn = true;
     _currentUser = result.data.user;
     await loadFavoritesFromCloud();
@@ -4989,14 +5275,14 @@ function applyGateToElement(valEl) {
       valEl.style.userSelect = 'none';
       // Make entire parent box clickable
       parentBox.style.cursor = 'pointer';
-      parentBox.title = 'Create a free account to view';
+      parentBox.title = 'Unlock this detail \u2014 Free';
       parentBox.setAttribute('data-gated-parent','1');
       parentBox.onclick = function(e){ e.stopPropagation(); openAcctModal(); };
       // Add "Create Account" hint below the blurred text
       if(!parentBox.querySelector('.gated-hint')){
         var hint = document.createElement('div');
         hint.className = 'gated-hint';
-        hint.textContent = 'Create account to view';
+        hint.textContent = 'Unlock \u2014 Free';
         hint.style.cssText = 'font-size:0.5rem;color:var(--gold);letter-spacing:0.1em;text-transform:uppercase;margin-top:0.25rem;opacity:0.7;pointer-events:none';
         parentBox.appendChild(hint);
       }
