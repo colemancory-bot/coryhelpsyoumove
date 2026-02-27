@@ -2634,9 +2634,10 @@ function openProp(listing, townName) {
   document.getElementById('propAddr').textContent = listing.address;
   document.getElementById('propCity').textContent = townName + ', North Carolina';
 
-  // Listing broker attribution (IDX compliance — show ONLY the primary data source)
-  // MLS Grid best practice: display the specific source whose data is shown, not all sources.
-  // This makes it clear which MLS to review if there's a data discrepancy.
+  // Listing broker attribution (IDX compliance)
+  // IDX disclaimer attributes the single data source (per MLS Grid advice),
+  // but the broker line shows ALL MLS numbers so Cory can reference either
+  // system for docs, scheduling, etc.
   var brokerEl = document.getElementById('propListingBroker');
   if(brokerEl) {
     var parts = [];
@@ -2644,9 +2645,9 @@ function openProp(listing, townName) {
     if(listing.listOffice) parts.push(listing.listOffice);
     if(listing.attributionContact) parts.push(listing.attributionContact);
     var brokerText = parts.join(' \u2022 ');
-    // Show only the primary MLS number (the source whose data is being displayed)
-    var primaryMlsId = listing.mlsId || '';
-    if(primaryMlsId) brokerText += ' | MLS# ' + primaryMlsId;
+    // Show all MLS numbers (dual-source listings get both)
+    var mlsNums = _formatMlsNums(listing);
+    if(mlsNums) brokerText += ' | ' + mlsNums;
     brokerEl.textContent = brokerText || '';
     brokerEl.style.display = brokerText ? '' : 'none';
   }
