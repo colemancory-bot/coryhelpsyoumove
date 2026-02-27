@@ -3735,50 +3735,17 @@ function initSearchMap(){
     _srMap = L.map('srMap',{
       zoomControl:false,
       attributionControl:true,
-      zoomSnap:0.25,
-      zoomDelta:0.25,
+      zoomSnap:0,
+      zoomDelta:1,
       scrollWheelZoom:true,
-      wheelDebounceTime:80,
-      wheelPxPerZoomLevel:120,
+      wheelDebounceTime:40,
+      wheelPxPerZoomLevel:60,
       touchZoom:true,
+      bounceAtZoomLimits:false,
       zoomAnimation:true,
-      zoomAnimationThreshold:4,
-      markerZoomAnimation:false
+      zoomAnimationThreshold:4
     }).setView([35.38,-83.20],10);
     L.control.zoom({position:'topright'}).addTo(_srMap);
-
-    // Freeze clusters during rapid zoom — prevents expensive recalculation per frame
-    (function(map){
-      var clusterFrozen=false,unfreezeTimer=null;
-      function freezeClusters(){
-        if(!clusterFrozen&&_srClusterGroup){
-          clusterFrozen=true;
-          // Hide cluster layer during zoom to prevent per-frame recalc
-          _srClusterGroup._featureGroup.eachLayer(function(l){
-            if(l._icon)l._icon.style.transition='none';
-          });
-        }
-        clearTimeout(unfreezeTimer);
-        unfreezeTimer=setTimeout(function(){
-          clusterFrozen=false;
-        },300);
-      }
-      map.on('zoomanim',freezeClusters);
-      map.on('zoomstart',freezeClusters);
-      // Strip heavy CSS filter during zoom for GPU performance
-      var panel=document.getElementById('srMapPanel');
-      var filterTimer=null;
-      map.on('zoomstart',function(){
-        if(panel)panel.classList.add('map-zooming');
-        clearTimeout(filterTimer);
-      });
-      map.on('zoomend',function(){
-        clearTimeout(filterTimer);
-        filterTimer=setTimeout(function(){
-          if(panel)panel.classList.remove('map-zooming');
-        },200);
-      });
-    })(_srMap);
 
     // Use dark or light tiles
     var darkTiles = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
@@ -3786,9 +3753,9 @@ function initSearchMap(){
     window._srTileLayer = L.tileLayer(isDark ? darkTiles : lightTiles, {
       attribution:'&copy; <a href="https://carto.com/">CARTO</a>',
       maxZoom:18,
-      keepBuffer:5,
-      updateWhenZooming:false,
-      updateWhenIdle:true
+      keepBuffer:6,
+      updateWhenZooming:true,
+      updateWhenIdle:false
     }).addTo(_srMap);
 
     // Store tile URLs for theme switching
@@ -3804,6 +3771,8 @@ function initSearchMap(){
         showCoverageOnHover: false,
         zoomToBoundsOnClick: true,
         chunkedLoading: true,
+        animate: true,
+        animateAddingMarkers: false,
         iconCreateFunction: function(cluster) {
           var count = cluster.getChildCount();
           var size = count < 20 ? 'small' : count < 50 ? 'medium' : 'large';
