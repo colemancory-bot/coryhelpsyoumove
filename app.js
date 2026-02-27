@@ -3712,8 +3712,36 @@ function closeSearch(){
 function initSearchMap(){
   try {
     var isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-    _srMap = L.map('srMap',{zoomControl:false,attributionControl:true,zoomSnap:0,scrollWheelZoom:true,wheelDebounceTime:50,wheelPxPerZoomLevel:80}).setView([35.38,-83.20],10);
+    _srMap = L.map('srMap',{zoomControl:false,attributionControl:true,zoomSnap:0,scrollWheelZoom:false}).setView([35.38,-83.20],10);
     L.control.zoom({position:'topright'}).addTo(_srMap);
+    // Trackpad/wheel zoom — CSS scale during gesture (zero Leaflet calls), single commit when done
+    // Mirrors how Leaflet's touch zoom works: visual transform first, data update once at end
+    (function(map){
+      var ct=map.getContainer(),acc=0,bz=null,cpt=null,cll=null,timer=null;
+      map.on('zoomend',function(){if(bz===null){acc=0;}}); // sync after button/dblclick zoom
+      ct.addEventListener('wheel',function(e){
+        e.preventDefault();
+        var dy=e.deltaY;
+        if(e.deltaMode===1)dy*=20;if(e.deltaMode===2)dy*=200;
+        acc+=-dy*(e.ctrlKey?0.01:0.004);
+        if(bz===null){
+          bz=map.getZoom();
+          var r=ct.getBoundingClientRect();
+          cpt=L.point(e.clientX-r.left,e.clientY-r.top);
+          cll=map.containerPointToLatLng(cpt);
+        }
+        var tz=Math.max(map.getMinZoom(),Math.min(map.getMaxZoom(),bz+acc));
+        acc=tz-bz;
+        ct.style.transformOrigin=cpt.x+'px '+cpt.y+'px';
+        ct.style.transform='scale('+Math.pow(2,acc)+')';
+        clearTimeout(timer);
+        timer=setTimeout(function(){
+          ct.style.transform='';ct.style.transformOrigin='';
+          map.setZoomAround(cll,bz+acc,{animate:false});
+          acc=0;bz=null;cpt=null;cll=null;
+        },150);
+      },{passive:false});
+    })(_srMap);
 
     // Use dark or light tiles
     var darkTiles = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
