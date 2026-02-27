@@ -783,7 +783,9 @@ var MLS_GRID = {
     var groups = {};
     listings.forEach(function(l) {
       // Normalize: lowercase, strip punctuation/whitespace, combine address+city
-      var key = (l.address + '|' + l.city).toLowerCase().replace(/[^a-z0-9|]/g, '');
+      // If address is empty/missing, use mlsId as key so it never groups with others
+      var addr = (l.address || '').trim();
+      var key = addr ? (addr + '|' + l.city).toLowerCase().replace(/[^a-z0-9|]/g, '') : ('_mls_' + l.mlsId);
       if(!groups[key]) groups[key] = [];
       groups[key].push(l);
     });
