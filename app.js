@@ -973,12 +973,23 @@ var MLS_GRID = {
         });
 
         // Cache listings for instant load on next visit
+        // Store only essential fields to stay within ~5MB localStorage limit
         try {
+          var _slimListings = ALL_LISTINGS.map(function(l){
+            return {
+              price:l.price, address:l.address, city:l.city, type:l.type,
+              beds:l.beds, baths:l.baths, sqft:l.sqft, sqftRange:l.sqftRange||'', lot:l.lot,
+              photo:l.photo, status:l.status, restrictions:l.restrictions,
+              lat:l.lat, lng:l.lng, mlsId:l.mlsId, daysOnMarket:l.daysOnMarket,
+              listingKey:l.listingKey, listAgent:l.listAgent, listOffice:l.listOffice,
+              originatingSystem:l.originatingSystem, _src:'mlsgrid'
+            };
+          });
           localStorage.setItem('cc_listings_cache', JSON.stringify({
             ts: Date.now(),
-            listings: ALL_LISTINGS
+            listings: _slimListings
           }));
-          console.log('[MLS Grid] Cached ' + ALL_LISTINGS.length + ' listings to localStorage');
+          console.log('[MLS Grid] Cached ' + _slimListings.length + ' listings to localStorage');
         } catch(e) { console.warn('[MLS Grid] Cache write failed:', e.message); }
 
         // Update timestamps
@@ -2664,7 +2675,7 @@ function openProp(listing, townName) {
     statsEl.innerHTML =
       '<div class="prop-stat"><div class="prop-stat-val">' + listing.lot + '</div><div class="prop-stat-label">Total Acreage</div></div>' +
       '<div class="prop-stat"><div class="prop-stat-val">' + (RESTRICT_LABELS[listing.restrictions]||'—').split('—')[0].trim() + '</div><div class="prop-stat-label">Restrictions</div></div>' +
-      '<div class="prop-stat"><div class="prop-stat-val">$' + Math.round(listing.price/parseFloat(listing.lot)).toLocaleString() + '</div><div class="prop-stat-label">Price Per Acre</div></div>' +
+      '<div class="prop-stat"><div class="prop-stat-val">' + (parseFloat(listing.lot) > 0 ? '$' + Math.round(listing.price/parseFloat(listing.lot)).toLocaleString() : '—') + '</div><div class="prop-stat-label">Price Per Acre</div></div>' +
       '<div class="prop-stat"><div class="prop-stat-val">' + (listing.days||Math.floor(Math.random()*40+5)) + '</div><div class="prop-stat-label">Days on Market</div></div>';
   } else {
     var _hasSqft = (listing.sqft && listing.sqft > 0) || listing.sqftRange;
@@ -2724,7 +2735,7 @@ function openProp(listing, townName) {
     feats.push({icon:'<path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/>',val:townName+', NC',label:'Location'});
     feats.push({icon:'<path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>',val:'Available at Road',label:'Power'});
     feats.push({icon:'<path d="M12 2v20M2 12h20"/>',val:'Approved',label:'Septic / Perc Test'});
-    feats.push({icon:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',val:'$'+Math.round(listing.price/parseFloat(listing.lot)).toLocaleString()+'/ac',label:'Price Per Acre'});
+    feats.push({icon:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',val:(parseFloat(listing.lot) > 0 ? '$'+Math.round(listing.price/parseFloat(listing.lot)).toLocaleString()+'/ac' : '—'),label:'Price Per Acre'});
   }
   featEl.innerHTML = feats.map(function(f){return '<div class="prop-feat"><svg viewBox="0 0 24 24">'+f.icon+'</svg><div class="prop-feat-info"><div class="prop-feat-val">'+f.val+'</div><div class="prop-feat-label">'+f.label+'</div></div></div>'}).join('');
 
