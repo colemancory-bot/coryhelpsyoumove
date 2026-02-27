@@ -71,14 +71,12 @@ function _lockScroll(){
   _scrollLockY=window.pageYOffset||document.documentElement.scrollTop;
   document.documentElement.style.overflow='hidden';
   document.documentElement.style.height='100%';
-  document.documentElement.style.touchAction='none';
   document.body.style.position='fixed';
   document.body.style.top='-'+_scrollLockY+'px';
   document.body.style.left='0';
   document.body.style.right='0';
   document.body.style.width='100%';
   document.body.style.overflow='hidden';
-  document.body.style.touchAction='none';
   document.addEventListener('touchmove',_scrollLockTouch,{passive:false});
 }
 function _unlockScroll(){
@@ -86,14 +84,12 @@ function _unlockScroll(){
   var y=_scrollLockY;
   document.documentElement.style.overflow='';
   document.documentElement.style.height='';
-  document.documentElement.style.touchAction='';
   document.body.style.position='';
   document.body.style.top='';
   document.body.style.left='';
   document.body.style.right='';
   document.body.style.width='';
   document.body.style.overflow='';
-  document.body.style.touchAction='';
   document.removeEventListener('touchmove',_scrollLockTouch,{passive:false});
   document.documentElement.style.scrollBehavior='auto';
   window.scrollTo(0,y);
