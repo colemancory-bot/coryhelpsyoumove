@@ -1396,7 +1396,8 @@ function toggleChat(){
     _chatMinimized = false;
     chatOpen = false;
     cp.classList.remove('minimized','open');
-    cp.style.height='';cp.style.maxHeight='';cp.style.top='';cp.style.bottom='';
+    cp.style.height='';cp.style.maxHeight='';cp.style.top='';cp.style.bottom='';cp.style.transform='';cp.style.transition='';
+    _kbOpen=false;
     var ct=document.getElementById('chatTrigger');if(ct)ct.classList.remove('open');
     var nc=document.getElementById('navChat');if(nc)nc.classList.remove('open');
     _unlockScroll();
@@ -1432,7 +1433,7 @@ function toggleChat(){
 function _closeChat(){
   chatOpen=false;_chatMinimized=false;
   var cp=document.getElementById('chatPanel');
-  if(cp){cp.classList.remove('minimized','open');cp.style.height='';cp.style.maxHeight='';cp.style.top='';cp.style.bottom='';}
+  if(cp){cp.classList.remove('minimized','open');cp.style.height='';cp.style.maxHeight='';cp.style.top='';cp.style.bottom='';cp.style.transform='';cp.style.transition='';_kbOpen=false;}
   var ct=document.getElementById('chatTrigger');if(ct)ct.classList.remove('open');
   var nc=document.getElementById('navChat');if(nc)nc.classList.remove('open');
   _unlockScroll();
@@ -1454,10 +1455,10 @@ function minimizeChat(){
 }
 
 // --- Resize chat panel when mobile keyboard opens/closes ---
-// On mobile, position:fixed uses the layout viewport, but the keyboard only shrinks
-// the visual viewport. We use visualViewport API to pin the panel to the TOP of the
-// visible area so the conversation stays visible and the input rises above the keyboard.
+// Uses transform instead of top/bottom to avoid layout reflow (which steals input
+// focus and dismisses the keyboard). Transform is GPU-composited and animates smoothly.
 var _chatResizeTimer=null;
+var _kbOpen=false;
 if(window.visualViewport){
   var _handleChatResize = function(){
     var cp=document.getElementById('chatPanel');
@@ -1467,21 +1468,26 @@ if(window.visualViewport){
       var vv=window.visualViewport;
       var keyboardOpen = vv.height < window.innerHeight * 0.85;
       if(keyboardOpen){
-        // Keyboard is open — pin panel to top of visual viewport
-        var topPos = vv.offsetTop + 12; // 12px top margin
-        var panelH = vv.height - 24;    // 12px top + 12px bottom
-        cp.style.transition = 'none';
-        cp.style.top = topPos + 'px';
-        cp.style.bottom = 'auto';
+        // Keyboard open — shift panel up with transform (no reflow)
+        var kbHeight = window.innerHeight - vv.height - vv.offsetTop;
+        var panelH = vv.height - 24;
+        if(!_kbOpen){
+          // First frame: enable smooth transition
+          cp.style.transition = 'transform 0.25s ease-out, height 0.25s ease-out, max-height 0.25s ease-out';
+          _kbOpen = true;
+        }
+        cp.style.transform = 'translateY(-' + kbHeight + 'px) scale(1)';
         cp.style.height = panelH + 'px';
         cp.style.maxHeight = panelH + 'px';
-      } else {
-        // Keyboard closed — reset to CSS defaults
-        cp.style.top = '';
-        cp.style.bottom = '';
+      } else if(_kbOpen) {
+        // Keyboard closed — animate back
+        _kbOpen = false;
+        cp.style.transition = 'transform 0.25s ease-out, height 0.25s ease-out, max-height 0.25s ease-out';
+        cp.style.transform = '';
         cp.style.height = '';
         cp.style.maxHeight = '';
-        cp.style.transition = '';
+        // Reset transition after animation completes
+        setTimeout(function(){ if(cp && !_kbOpen) cp.style.transition = ''; }, 300);
       }
       // Scroll messages to bottom
       var cm=document.getElementById('chatMessages');
