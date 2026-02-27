@@ -777,6 +777,8 @@ var MLS_GRID = {
   // Match by normalized address+city. The merged listing keeps the data from
   // the version with the most complete info (photo, description, etc.) and
   // stores an mlsSources array crediting each MLS feed.
+  // Same-system duplicates (e.g. 3 CSAR listings for one property) are
+  // collapsed to the newest MLS# only — the older ones are stale relists.
   _deduplicateListings: function(listings) {
     var groups = {};
     listings.forEach(function(l) {
@@ -794,22 +796,44 @@ var MLS_GRID = {
         single.mlsSources = [{ system: MLS_GRID._mlsLabel(single.originatingSystem), mlsId: single.mlsId, attributionContact: single.attributionContact }];
         merged.push(single);
       } else {
-        // Multiple sources — pick the one with best data as primary
-        group.sort(function(a, b) {
-          // Prefer: has photo > has description > lower days on market
+        // Multiple listings for same address — deduplicate by MLS system.
+        // Within each system, keep only the newest listing (highest MLS#).
+        var bySystem = {};
+        group.forEach(function(l) {
+          var sys = MLS_GRID._mlsLabel(l.originatingSystem);
+          if(!bySystem[sys]) bySystem[sys] = [];
+          bySystem[sys].push(l);
+        });
+        // For each system, sort by MLS ID descending and keep only the newest
+        var bestPerSystem = [];
+        Object.keys(bySystem).forEach(function(sys) {
+          var sysGroup = bySystem[sys];
+          sysGroup.sort(function(a, b) {
+            // Higher MLS ID = newer listing
+            var aId = parseInt(a.mlsId) || 0;
+            var bId = parseInt(b.mlsId) || 0;
+            if(bId !== aId) return bId - aId;
+            // Tiebreak: prefer one with photo/description
+            var aScore = (a.photo ? 100 : 0) + (a.description ? 10 : 0) + (a.sqft ? 1 : 0);
+            var bScore = (b.photo ? 100 : 0) + (b.description ? 10 : 0) + (b.sqft ? 1 : 0);
+            return bScore - aScore;
+          });
+          bestPerSystem.push(sysGroup[0]); // newest from this system
+        });
+        // Now pick the best across systems as primary
+        bestPerSystem.sort(function(a, b) {
           var aScore = (a.photo ? 100 : 0) + (a.description ? 10 : 0) + (a.sqft ? 1 : 0);
           var bScore = (b.photo ? 100 : 0) + (b.description ? 10 : 0) + (b.sqft ? 1 : 0);
           return bScore - aScore;
         });
-        var primary = group[0];
-        // Build mlsSources from all versions
-        primary.mlsSources = group.map(function(l) {
+        var primary = bestPerSystem[0];
+        primary.mlsSources = bestPerSystem.map(function(l) {
           return { system: MLS_GRID._mlsLabel(l.originatingSystem), mlsId: l.mlsId, attributionContact: l.attributionContact };
         });
         // If primary lacks a photo but another has one, take it
         if(!primary.photo) {
-          for(var i = 1; i < group.length; i++) {
-            if(group[i].photo) { primary.photo = group[i].photo; primary.photos = group[i].photos; break; }
+          for(var i = 1; i < bestPerSystem.length; i++) {
+            if(bestPerSystem[i].photo) { primary.photo = bestPerSystem[i].photo; primary.photos = bestPerSystem[i].photos; break; }
           }
         }
         merged.push(primary);
