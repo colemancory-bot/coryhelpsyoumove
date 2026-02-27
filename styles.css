@@ -1046,7 +1046,7 @@ textarea.form-input{resize:vertical;min-height:100px}
 /* Property detail map */
 .prop-map{position:relative;height:300px;background:var(--surface);border:1px solid var(--border);margin:2rem 0;overflow:hidden;border-radius:4px;z-index:1}
 .prop-map .maplibregl-map{height:100%;width:100%}
-.prop-map canvas{filter:sepia(0.08) brightness(0.97)}
+/* Property detail map uses brand colors via _srApplyBrandColors on load */
 
 /* BBO Admin Notes (property overlay) */
 .prop-admin-notes{margin-top:2rem;padding:1.25rem 1.5rem;border-left:3px solid var(--gold);background:rgba(196,176,140,0.06);border-radius:0 4px 4px 0}
@@ -1237,11 +1237,9 @@ textarea.form-input{resize:vertical;min-height:100px}
 
 /* MapLibre map overrides for luxury feel */
 /* Map container background prevents flash while vector tiles load */
-.sr-map-panel .maplibregl-map{height:100%;width:100%;background:#58513f}
-[data-theme="light"] .sr-map-panel .maplibregl-map{background:#e8e4db}
-/* Warm golden tone via single canvas filter (cheap — one element) */
-.sr-map-panel canvas{filter:sepia(0.12) brightness(0.95)}
-[data-theme="light"] .sr-map-panel canvas{filter:sepia(0.06)}
+.sr-map-panel .maplibregl-map{height:100%;width:100%;background:#0C0B09}
+[data-theme="light"] .sr-map-panel .maplibregl-map{background:#F5F0E8}
+/* Brand colors baked into vector tiles via _srApplyBrandColors() — no canvas filter needed */
 /* Zoom controls */
 .sr-map-panel .maplibregl-ctrl-group{border:none!important;border-radius:4px!important;overflow:hidden;box-shadow:none!important}
 .sr-map-panel .maplibregl-ctrl-group button{background:rgba(12,11,9,0.75)!important;color:var(--gold)!important;border:1px solid rgba(196,176,140,0.25)!important;width:38px!important;height:38px!important;backdrop-filter:blur(12px)!important;transition:all 0.3s!important}

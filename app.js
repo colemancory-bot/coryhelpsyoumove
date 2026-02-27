@@ -2762,6 +2762,10 @@ function openProp(listing, townName) {
       attributionControl: true
     });
     new maplibregl.Marker({color:'#C4B08C'}).setLngLat([mapLng, mapLat]).addTo(window._propMap);
+    // Apply brand colors once style loads
+    window._propMap.on('load', function(){
+      _srApplyBrandColors(window._propMap);
+    });
     // Resize map after overlay animation completes
     setTimeout(function(){ if(window._propMap) window._propMap.resize(); }, 400);
   }
@@ -3764,6 +3768,147 @@ function _srMapStyle(){
     : 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
 }
 
+// Remap CARTO base colors to match site brand palette — runs on GPU, zero cost
+function _srApplyBrandColors(targetMap){
+  var map = targetMap || _srMap;
+  if(!map || !map.isStyleLoaded()) return;
+  var isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+  var layers = map.getStyle().layers;
+  if(!layers) return;
+
+  if(isDark){
+    // ── Dark theme: warm up the cool blue-grays to gold/earth tones ──
+    layers.forEach(function(layer){
+      var id = layer.id;
+      try {
+        // Background → site --bg
+        if(layer.type === 'background'){
+          map.setPaintProperty(id, 'background-color', '#0C0B09');
+        }
+        // Water → deep warm brown
+        if(id === 'water'){
+          map.setPaintProperty(id, 'fill-color', '#17140F');
+        }
+        // Waterways → subtle gold tint
+        if(id.indexOf('waterway') !== -1 && layer.type === 'line'){
+          map.setPaintProperty(id, 'line-color', 'rgba(140,120,80,0.25)');
+        }
+        // Landcover / landuse → match bg
+        if((id.indexOf('landcover') !== -1 || id.indexOf('landuse') !== -1) && layer.type === 'fill'){
+          map.setPaintProperty(id, 'fill-color', '#0C0B09');
+        }
+        // Buildings → warm surface
+        if(id.indexOf('building') !== -1 && layer.type === 'fill'){
+          if(id.indexOf('outline') !== -1){
+            map.setPaintProperty(id, 'fill-color', '#0C0B09');
+          } else {
+            map.setPaintProperty(id, 'fill-color', '#1A1815');
+          }
+        }
+        // Roads — shift blue-gray to warm brown-gold
+        if(layer.type === 'line' && (id.indexOf('road') !== -1 || id.indexOf('tunnel') !== -1 || id.indexOf('bridge') !== -1)){
+          if(id.indexOf('_case') !== -1 || id.indexOf('-case') !== -1){
+            // Road casings
+            map.setPaintProperty(id, 'line-color', '#141210');
+          } else if(id.indexOf('motorway') !== -1 || id.indexOf('trunk') !== -1){
+            map.setPaintProperty(id, 'line-color', '#3D3628');
+          } else if(id.indexOf('primary') !== -1 || id.indexOf('pri') !== -1){
+            map.setPaintProperty(id, 'line-color', '#352F24');
+          } else if(id.indexOf('secondary') !== -1 || id.indexOf('sec') !== -1 || id.indexOf('tertiary') !== -1 || id.indexOf('ter') !== -1){
+            map.setPaintProperty(id, 'line-color', '#2A2620');
+          } else if(id.indexOf('minor') !== -1 || id.indexOf('service') !== -1 || id.indexOf('path') !== -1){
+            map.setPaintProperty(id, 'line-color', '#221F1A');
+          }
+        }
+        // Rail → warm
+        if(id.indexOf('rail') !== -1 && layer.type === 'line'){
+          map.setPaintProperty(id, 'line-color', '#1A1815');
+        }
+        // Boundaries → warm
+        if(id.indexOf('boundary') !== -1 || id.indexOf('admin') !== -1){
+          if(layer.type === 'line') map.setPaintProperty(id, 'line-color', '#2A2620');
+        }
+        // Labels — make warm/gold toned
+        if(layer.type === 'symbol'){
+          if(id.indexOf('place') !== -1){
+            // City/town/village labels → cream
+            map.setPaintProperty(id, 'text-color', '#F5F0E8');
+            map.setPaintProperty(id, 'text-halo-color', '#0C0B09');
+          } else if(id.indexOf('road') !== -1){
+            // Road name labels → muted gold
+            map.setPaintProperty(id, 'text-color', '#8B7D65');
+            map.setPaintProperty(id, 'text-halo-color', '#0C0B09');
+          } else if(id.indexOf('poi') !== -1 || id.indexOf('park') !== -1){
+            map.setPaintProperty(id, 'text-color', '#5A5040');
+            map.setPaintProperty(id, 'text-halo-color', '#0C0B09');
+          } else if(id.indexOf('state') !== -1 || id.indexOf('country') !== -1){
+            map.setPaintProperty(id, 'text-color', '#A09880');
+            map.setPaintProperty(id, 'text-halo-color', '#0C0B09');
+          } else if(id.indexOf('water') !== -1){
+            map.setPaintProperty(id, 'text-color', '#5A5040');
+          }
+        }
+      } catch(e){ /* Layer may not support this property */ }
+    });
+  } else {
+    // ── Light theme: warm up Voyager's cool whites ──
+    layers.forEach(function(layer){
+      var id = layer.id;
+      try {
+        if(layer.type === 'background'){
+          map.setPaintProperty(id, 'background-color', '#F5F0E8');
+        }
+        // Water → warm blue-gray
+        if(id === 'water'){
+          map.setPaintProperty(id, 'fill-color', '#D8D2C6');
+        }
+        if(id.indexOf('waterway') !== -1 && layer.type === 'line'){
+          map.setPaintProperty(id, 'line-color', 'rgba(180,170,150,0.6)');
+        }
+        // Land → warm cream
+        if((id.indexOf('landcover') !== -1 || id.indexOf('landuse') !== -1) && layer.type === 'fill'){
+          map.setPaintProperty(id, 'fill-color', '#EDE8DE');
+        }
+        // Buildings
+        if(id.indexOf('building') !== -1 && layer.type === 'fill'){
+          map.setPaintProperty(id, 'fill-color', '#E5E0D6');
+        }
+        // Roads → warm tone
+        if(layer.type === 'line' && (id.indexOf('road') !== -1 || id.indexOf('tunnel') !== -1 || id.indexOf('bridge') !== -1)){
+          if(id.indexOf('_case') !== -1 || id.indexOf('-case') !== -1){
+            map.setPaintProperty(id, 'line-color', '#D8D2C6');
+          } else if(id.indexOf('motorway') !== -1 || id.indexOf('trunk') !== -1){
+            map.setPaintProperty(id, 'line-color', '#C4B899');
+          } else if(id.indexOf('primary') !== -1 || id.indexOf('pri') !== -1){
+            map.setPaintProperty(id, 'line-color', '#D4CCBA');
+          } else {
+            map.setPaintProperty(id, 'line-color', '#FFFFFF');
+          }
+        }
+        // Labels — warm gold/brown
+        if(layer.type === 'symbol'){
+          if(id.indexOf('place') !== -1){
+            map.setPaintProperty(id, 'text-color', '#2A2520');
+            map.setPaintProperty(id, 'text-halo-color', '#F5F0E8');
+          } else if(id.indexOf('road') !== -1){
+            map.setPaintProperty(id, 'text-color', '#6B5A38');
+            map.setPaintProperty(id, 'text-halo-color', '#F5F0E8');
+          } else if(id.indexOf('poi') !== -1 || id.indexOf('park') !== -1){
+            map.setPaintProperty(id, 'text-color', '#8B7748');
+            map.setPaintProperty(id, 'text-halo-color', '#F5F0E8');
+          } else if(id.indexOf('water') !== -1){
+            map.setPaintProperty(id, 'text-color', '#8B7D65');
+          }
+        }
+        // Boundaries
+        if((id.indexOf('boundary') !== -1 || id.indexOf('admin') !== -1) && layer.type === 'line'){
+          map.setPaintProperty(id, 'line-color', '#C4B899');
+        }
+      } catch(e){ /* Layer may not support this property */ }
+    });
+  }
+}
+
 function _srAddMapLayers(){
   // Town labels
   var townLabelCoords = {
@@ -3877,8 +4022,9 @@ function initSearchMap(){
 
     _srMap.addControl(new maplibregl.NavigationControl({showCompass:false}), 'top-right');
 
-    // Once style loads, add all data layers
+    // Once style loads, apply brand colors and add data layers
     _srMap.on('load', function(){
+      _srApplyBrandColors();
       _srAddMapLayers();
       // If listings already loaded, render markers
       if(_srAllFilteredResults && _srAllFilteredResults.length > 0){
@@ -4790,6 +4936,7 @@ toggleTheme = function(){
     var newStyle = _srMapStyle();
     _srMap.setStyle(newStyle);
     _srMap.once('style.load', function(){
+      _srApplyBrandColors();
       _srAddMapLayers();
       if(_srAllFilteredResults && _srAllFilteredResults.length > 0){
         srRenderMarkers(_srAllFilteredResults);
