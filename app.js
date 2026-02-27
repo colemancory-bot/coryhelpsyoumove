@@ -3793,7 +3793,7 @@ function initSearchMap(){
         if(e.deltaMode === 1) delta *= 40;   // lines → px
         if(e.deltaMode === 2) delta *= 800;  // pages → px
 
-        targetZoom += delta * 0.002;
+        targetZoom += delta * 0.01;
         targetZoom = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), targetZoom));
 
         // Capture mouse position for zoom-around-cursor
@@ -3811,8 +3811,8 @@ function initSearchMap(){
               animating = false;
               return;
             }
-            // Ease 20% toward target each frame → smooth deceleration
-            map.setZoomAround(mousePos, cur + diff * 0.2, {animate:false});
+            // Ease 35% toward target each frame → responsive but smooth
+            map.setZoomAround(mousePos, cur + diff * 0.35, {animate:false});
             requestAnimationFrame(tick);
           })();
         }
