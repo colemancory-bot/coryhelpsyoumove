@@ -841,3 +841,138 @@ CREATE POLICY "Anyone can read published reviews" ON reviews FOR SELECT USING (i
 CREATE POLICY "Admin full access to reviews" ON reviews FOR ALL USING (
   EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
 );
+
+-- ═══════════════════════════════════════════════════════════════
+-- SEARCH PARTY — Collaborative Home Search
+-- ═══════════════════════════════════════════════════════════════
+
+-- ═══ 33. Search Parties ═══
+CREATE TABLE IF NOT EXISTS search_parties (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL DEFAULT 'Our Home Search',
+  created_by UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+ALTER TABLE search_parties ENABLE ROW LEVEL SECURITY;
+-- Members can read their own parties
+CREATE POLICY "Party members can read party" ON search_parties FOR SELECT USING (
+  EXISTS (SELECT 1 FROM search_party_members WHERE party_id = id AND user_id = auth.uid() AND status = 'active')
+);
+-- Creator can insert
+CREATE POLICY "Users can create parties" ON search_parties FOR INSERT WITH CHECK (auth.uid() = created_by);
+-- Owner can update party name
+CREATE POLICY "Owner can update party" ON search_parties FOR UPDATE USING (auth.uid() = created_by);
+-- Admin can read all
+CREATE POLICY "Admin can read all parties" ON search_parties FOR SELECT USING (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
+
+-- ═══ 34. Search Party Members ═══
+CREATE TABLE IF NOT EXISTS search_party_members (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  party_id UUID REFERENCES search_parties(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  role TEXT DEFAULT 'member' CHECK (role IN ('owner','member')),
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending','active','declined')),
+  invite_token TEXT UNIQUE,
+  display_name TEXT DEFAULT '',
+  invited_at TIMESTAMPTZ DEFAULT now(),
+  joined_at TIMESTAMPTZ,
+  notify_email BOOLEAN DEFAULT true,
+  UNIQUE(party_id, email)
+);
+CREATE INDEX IF NOT EXISTS idx_party_members_user ON search_party_members(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_party_members_token ON search_party_members(invite_token) WHERE invite_token IS NOT NULL;
+ALTER TABLE search_party_members ENABLE ROW LEVEL SECURITY;
+-- Active members can read their party's member list
+CREATE POLICY "Party members can read members" ON search_party_members FOR SELECT USING (
+  EXISTS (SELECT 1 FROM search_party_members spm WHERE spm.party_id = party_id AND spm.user_id = auth.uid() AND spm.status = 'active')
+);
+-- Users can insert (invite) if they are an active member of the party
+CREATE POLICY "Party members can invite" ON search_party_members FOR INSERT WITH CHECK (
+  EXISTS (SELECT 1 FROM search_party_members spm WHERE spm.party_id = party_id AND spm.user_id = auth.uid() AND spm.status = 'active')
+);
+-- Users can update their own membership (accept invite, toggle notifications)
+CREATE POLICY "Users can update own membership" ON search_party_members FOR UPDATE USING (
+  (user_id = auth.uid()) OR
+  (invite_token IS NOT NULL AND status = 'pending')
+);
+-- Admin can read all
+CREATE POLICY "Admin can read all members" ON search_party_members FOR SELECT USING (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
+
+-- ═══ 35. Search Party Notes (transcript) ═══
+CREATE TABLE IF NOT EXISTS search_party_notes (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  party_id UUID REFERENCES search_parties(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL NOT NULL,
+  property_key TEXT NOT NULL,
+  note_text TEXT NOT NULL,
+  user_display_name TEXT DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_party_notes_property ON search_party_notes(party_id, property_key, created_at ASC);
+ALTER TABLE search_party_notes ENABLE ROW LEVEL SECURITY;
+-- Active party members can read notes for their party
+CREATE POLICY "Party members can read notes" ON search_party_notes FOR SELECT USING (
+  EXISTS (SELECT 1 FROM search_party_members spm WHERE spm.party_id = party_id AND spm.user_id = auth.uid() AND spm.status = 'active')
+);
+-- Active party members can insert notes
+CREATE POLICY "Party members can add notes" ON search_party_notes FOR INSERT WITH CHECK (
+  auth.uid() = user_id AND
+  EXISTS (SELECT 1 FROM search_party_members spm WHERE spm.party_id = party_id AND spm.user_id = auth.uid() AND spm.status = 'active')
+);
+-- Admin can read all
+CREATE POLICY "Admin can read all party notes" ON search_party_notes FOR SELECT USING (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
+
+-- ═══ 36. Search Party Favorites ═══
+CREATE TABLE IF NOT EXISTS search_party_favorites (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  party_id UUID REFERENCES search_parties(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  property_key TEXT NOT NULL,
+  property_data JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(party_id, user_id, property_key)
+);
+CREATE INDEX IF NOT EXISTS idx_party_favs_property ON search_party_favorites(party_id, property_key);
+ALTER TABLE search_party_favorites ENABLE ROW LEVEL SECURITY;
+-- Active party members can read favorites for their party
+CREATE POLICY "Party members can read favorites" ON search_party_favorites FOR SELECT USING (
+  EXISTS (SELECT 1 FROM search_party_members spm WHERE spm.party_id = party_id AND spm.user_id = auth.uid() AND spm.status = 'active')
+);
+-- Active party members can insert/delete their own favorites
+CREATE POLICY "Party members can add favorites" ON search_party_favorites FOR INSERT WITH CHECK (
+  auth.uid() = user_id AND
+  EXISTS (SELECT 1 FROM search_party_members spm WHERE spm.party_id = party_id AND spm.user_id = auth.uid() AND spm.status = 'active')
+);
+CREATE POLICY "Users can delete own party favorites" ON search_party_favorites FOR DELETE USING (auth.uid() = user_id);
+-- Admin can read all
+CREATE POLICY "Admin can read all party favorites" ON search_party_favorites FOR SELECT USING (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
+
+-- ═══ 37. Price Drop Subscriptions ═══
+CREATE TABLE IF NOT EXISTS price_drop_subscriptions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  property_key TEXT NOT NULL,
+  listing_key TEXT DEFAULT '',
+  current_price INT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(user_id, property_key)
+);
+CREATE INDEX IF NOT EXISTS idx_price_drop_user ON price_drop_subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_price_drop_listing ON price_drop_subscriptions(listing_key);
+ALTER TABLE price_drop_subscriptions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can CRUD own price drop subs" ON price_drop_subscriptions FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Admin can read all price drop subs" ON price_drop_subscriptions FOR SELECT USING (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
+
+-- ═══ 38. Add last_notified_at to saved_searches ═══
+ALTER TABLE saved_searches ADD COLUMN IF NOT EXISTS last_notified_at TIMESTAMPTZ;

@@ -3082,6 +3082,8 @@ function propShare(type) {
     });
   } else if (type === 'email') {
     window.location.href = 'mailto:?subject=Check out this property in Western NC&body=' + encodeURIComponent(addr + ' — ' + price + '\n\nView at coryhelpsyoumove.com');
+  } else if (type === 'sms') {
+    window.location.href = 'sms:?body=' + encodeURIComponent('Check out this property: ' + addr + ' — ' + price + ' | coryhelpsyoumove.com');
   } else if (type === 'print') {
     if(!_acctLoggedIn) { openAcctModal(); return; }
     // Hide compare print page if present
@@ -3226,17 +3228,35 @@ function propShare(type) {
       }
     }
 
-    // Your Notes — show section only if user has notes
-    var notesTA = document.getElementById('propNotesTA');
+    // Notes — party transcript or personal notes
     var printNotes = document.getElementById('printYourNotes');
     var printNotesSection = printNotes ? printNotes.closest('.print-notes-section') : null;
-    if(notesTA && printNotes && printNotesSection) {
-      var noteText = notesTA.value.trim();
-      if(noteText) {
-        printNotes.textContent = noteText;
+    var printNotesTitle = printNotesSection ? printNotesSection.querySelector('.print-notes-title') : null;
+    if(printNotes && printNotesSection) {
+      if(_activeParty && _partyNotes[_currentPropKey] && _partyNotes[_currentPropKey].length > 0) {
+        // Party mode — render transcript
+        if(printNotesTitle) printNotesTitle.textContent = 'Search Party Notes';
+        var pnHtml = '';
+        _partyNotes[_currentPropKey].forEach(function(n) {
+          pnHtml += '<div style="margin-bottom:6px"><strong>' + (n.user_display_name || 'Party member') + ':</strong> ' + n.note_text.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
+        });
+        printNotes.innerHTML = pnHtml;
         printNotesSection.style.display = '';
       } else {
-        printNotesSection.style.display = 'none';
+        // Solo mode — personal textarea
+        if(printNotesTitle) printNotesTitle.textContent = 'Your Notes';
+        var notesTA = document.getElementById('propNotesTA');
+        if(notesTA) {
+          var noteText = notesTA.value.trim();
+          if(noteText) {
+            printNotes.textContent = noteText;
+            printNotesSection.style.display = '';
+          } else {
+            printNotesSection.style.display = 'none';
+          }
+        } else {
+          printNotesSection.style.display = 'none';
+        }
       }
     }
     window.print();
@@ -3712,35 +3732,52 @@ function closeSearch(){
 function initSearchMap(){
   try {
     var isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-    _srMap = L.map('srMap',{zoomControl:false,attributionControl:true,zoomSnap:0,scrollWheelZoom:false}).setView([35.38,-83.20],10);
+    _srMap = L.map('srMap',{
+      zoomControl:false,
+      attributionControl:true,
+      zoomSnap:0.25,
+      zoomDelta:0.25,
+      scrollWheelZoom:true,
+      wheelDebounceTime:80,
+      wheelPxPerZoomLevel:120,
+      touchZoom:true,
+      zoomAnimation:true,
+      zoomAnimationThreshold:4,
+      markerZoomAnimation:false
+    }).setView([35.38,-83.20],10);
     L.control.zoom({position:'topright'}).addTo(_srMap);
-    // Trackpad/wheel zoom — CSS scale during gesture (zero Leaflet calls), single commit when done
-    // Mirrors how Leaflet's touch zoom works: visual transform first, data update once at end
+
+    // Freeze clusters during rapid zoom — prevents expensive recalculation per frame
     (function(map){
-      var ct=map.getContainer(),acc=0,bz=null,cpt=null,cll=null,timer=null;
-      map.on('zoomend',function(){if(bz===null){acc=0;}}); // sync after button/dblclick zoom
-      ct.addEventListener('wheel',function(e){
-        e.preventDefault();
-        var dy=e.deltaY;
-        if(e.deltaMode===1)dy*=20;if(e.deltaMode===2)dy*=200;
-        acc+=-dy*(e.ctrlKey?0.01:0.004);
-        if(bz===null){
-          bz=map.getZoom();
-          var r=ct.getBoundingClientRect();
-          cpt=L.point(e.clientX-r.left,e.clientY-r.top);
-          cll=map.containerPointToLatLng(cpt);
+      var clusterFrozen=false,unfreezeTimer=null;
+      function freezeClusters(){
+        if(!clusterFrozen&&_srClusterGroup){
+          clusterFrozen=true;
+          // Hide cluster layer during zoom to prevent per-frame recalc
+          _srClusterGroup._featureGroup.eachLayer(function(l){
+            if(l._icon)l._icon.style.transition='none';
+          });
         }
-        var tz=Math.max(map.getMinZoom(),Math.min(map.getMaxZoom(),bz+acc));
-        acc=tz-bz;
-        ct.style.transformOrigin=cpt.x+'px '+cpt.y+'px';
-        ct.style.transform='scale('+Math.pow(2,acc)+')';
-        clearTimeout(timer);
-        timer=setTimeout(function(){
-          ct.style.transform='';ct.style.transformOrigin='';
-          map.setZoomAround(cll,bz+acc,{animate:false});
-          acc=0;bz=null;cpt=null;cll=null;
-        },150);
-      },{passive:false});
+        clearTimeout(unfreezeTimer);
+        unfreezeTimer=setTimeout(function(){
+          clusterFrozen=false;
+        },300);
+      }
+      map.on('zoomanim',freezeClusters);
+      map.on('zoomstart',freezeClusters);
+      // Strip heavy CSS filter during zoom for GPU performance
+      var panel=document.getElementById('srMapPanel');
+      var filterTimer=null;
+      map.on('zoomstart',function(){
+        if(panel)panel.classList.add('map-zooming');
+        clearTimeout(filterTimer);
+      });
+      map.on('zoomend',function(){
+        clearTimeout(filterTimer);
+        filterTimer=setTimeout(function(){
+          if(panel)panel.classList.remove('map-zooming');
+        },200);
+      });
     })(_srMap);
 
     // Use dark or light tiles
@@ -3780,6 +3817,35 @@ function initSearchMap(){
       });
       _srMap.addLayer(_srClusterGroup);
     }
+
+    // Town name labels — float above markers/clusters
+    _srMap.createPane('townLabels');
+    _srMap.getPane('townLabels').style.zIndex = 650; // above markers (600) and clusters
+    _srMap.getPane('townLabels').style.pointerEvents = 'none';
+    var townLabelCoords = {
+      'Waynesville':{lat:35.4887,lng:-83.0055},
+      'Sylva':{lat:35.3736,lng:-83.2243},
+      'Maggie Valley':{lat:35.5182,lng:-83.0998},
+      'Bryson City':{lat:35.4312,lng:-83.4493},
+      'Cashiers':{lat:35.1032,lng:-83.1160},
+      'Highlands':{lat:35.0527,lng:-83.1968},
+      'Franklin':{lat:35.1824,lng:-83.3810},
+      'Dillsboro':{lat:35.3697,lng:-83.2478},
+      'Cullowhee':{lat:35.3135,lng:-83.1774}
+    };
+    Object.keys(townLabelCoords).forEach(function(name){
+      var c = townLabelCoords[name];
+      L.marker([c.lat, c.lng], {
+        pane:'townLabels',
+        interactive:false,
+        icon: L.divIcon({
+          className:'sr-town-label-wrap',
+          html:'<div class="sr-town-label">'+name+'</div>',
+          iconSize:[0,0],
+          iconAnchor:[0,18]
+        })
+      }).addTo(_srMap);
+    });
 
     // Viewport-based card filtering: update cards on pan/zoom
     _srMap.on('moveend', function(){
@@ -4493,6 +4559,50 @@ function srClearFilters(){
   srClearDrawing(); // Also clear any drawn shapes
 }
 
+// Save current search filters from search results topbar
+async function saveCurrentSearch() {
+  if(!_acctLoggedIn) { openAcctModal(); return; }
+  if(!_sb || !_currentUser) return;
+  // Read current filter state from DOM
+  var locations = [];
+  var locCheckboxes = document.querySelectorAll('#srfLocDropdown input[type="checkbox"]:checked');
+  locCheckboxes.forEach(function(cb){ locations.push(cb.value); });
+  var type = document.getElementById('srfTypeSelect') ? document.getElementById('srfTypeSelect').value : '';
+  var price = document.getElementById('srfPriceSelect') ? document.getElementById('srfPriceSelect').value : '';
+  var beds = document.getElementById('srfBedsSelect') ? document.getElementById('srfBedsSelect').value : '';
+  var baths = document.getElementById('srfBathsSelect') ? document.getElementById('srfBathsSelect').value : '';
+  var restrict = document.getElementById('srfRestrictSelect') ? document.getElementById('srfRestrictSelect').value : '';
+  var textQuery = document.getElementById('srfTextQuery') ? document.getElementById('srfTextQuery').value : '';
+  var filters = {locations: locations, type: type, price: price, beds: beds, baths: baths, restrictions: restrict, textQuery: textQuery};
+  // Build name
+  var parts = [];
+  if(locations.length && locations.length <= 3) parts.push(locations.join(', '));
+  else if(locations.length > 3) parts.push(locations.length + ' areas');
+  if(type) parts.push(type);
+  if(price) {
+    var pp = price.split('-');
+    if(pp[0]==='0'&&pp[1]) parts.push('Under $' + (parseInt(pp[1])/1000) + 'K');
+    else if(pp[1]&&parseInt(pp[1])>9999999) parts.push('$' + (parseInt(pp[0])/1000000) + 'M+');
+    else if(pp[0]&&pp[1]) parts.push('$' + (parseInt(pp[0])/1000) + 'K-$' + (parseInt(pp[1])/1000) + 'K');
+  }
+  if(beds) parts.push(beds + '+ beds');
+  if(baths) parts.push(baths + '+ baths');
+  if(textQuery) parts.push('"' + textQuery + '"');
+  var searchName = parts.join(', ') || 'Custom Search';
+  var btn = document.getElementById('srSaveSearchBtn');
+  try {
+    if(btn) { btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg> Saving...'; btn.disabled = true; }
+    await _sb.from('saved_searches').insert({user_id: _currentUser.id, search_name: searchName, filters: filters, notify_email: true});
+    showToast('Search saved! You\'ll get alerts for new matches.', 'success');
+    if(btn) { btn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg> Saved!'; }
+    setTimeout(function(){ if(btn) { btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg> Save Search'; btn.disabled = false; } }, 3000);
+  } catch(e) {
+    console.warn('[Search] Save error:', e);
+    showToast('Failed to save search', 'error');
+    if(btn) { btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg> Save Search'; btn.disabled = false; }
+  }
+}
+
 // Mobile view toggle
 function srToggleView(){
   var body = document.getElementById('srBody');
@@ -4695,6 +4805,8 @@ async function initSupabaseAuth() {
       _acctLoggedIn = true;
       _currentUser = sess.data.session.user;
       await loadFavoritesFromCloud();
+      await loadActiveParty();
+      if(_activeParty) await loadPartyFavorites();
       updateAcctUI();
       checkAdminRole();
     } else {
@@ -4704,6 +4816,8 @@ async function initSupabaseAuth() {
         _acctLoggedIn = true;
         _currentUser = refresh.data.session.user;
         await loadFavoritesFromCloud();
+        await loadActiveParty();
+        if(_activeParty) await loadPartyFavorites();
         updateAcctUI();
         checkAdminRole();
         console.log('[Auth] Session refreshed successfully');
@@ -4715,7 +4829,7 @@ async function initSupabaseAuth() {
         _acctLoggedIn = true;
         _currentUser = session.user;
         if(event === 'SIGNED_IN') {
-          loadFavoritesFromCloud(); checkAdminRole(); checkReengagement();
+          loadFavoritesFromCloud(); loadActiveParty().then(function(){ if(_activeParty) loadPartyFavorites(); }); checkAdminRole(); checkReengagement(); checkPartyInvite();
           // Reset guest view counter on login
           _guestViewCount = 0;
           try { sessionStorage.removeItem('cc_guest_views'); } catch(e) {}
@@ -4732,6 +4846,9 @@ async function initSupabaseAuth() {
         _currentUser = null;
         _isAdmin = false;
         _favProps = {};
+        _activeParty = null;
+        _partyNotes = {};
+        _partyFavs = {};
         saveFavs();
       }
       // Don't log out on TOKEN_REFRESHED failures — keep cached state
@@ -4741,6 +4858,321 @@ async function initSupabaseAuth() {
 }
 // Run auth check
 initSupabaseAuth();
+
+// ═══ SEARCH PARTY — Collaborative Home Search ═══
+var _activeParty = null;   // {id, name, members: [{id, user_id, display_name, role, email}]}
+var _partyNotes = {};      // {property_key: [{user_display_name, note_text, created_at, user_id}]}
+var _partyFavs = {};       // {property_key: [{user_id, user_display_name}]}
+var PARTY_COLORS = ['#C4B08C','#7B9E89','#A67C7C','#8B7BB8','#C49058'];
+
+function getPartyColor(memberId) {
+  if(!_activeParty || !_activeParty.members) return PARTY_COLORS[0];
+  var idx = _activeParty.members.findIndex(function(m){ return m.user_id === memberId || m.id === memberId; });
+  return PARTY_COLORS[(idx >= 0 ? idx : 0) % PARTY_COLORS.length];
+}
+
+function getInitials(name) {
+  if(!name) return '?';
+  var parts = name.trim().split(/\s+/);
+  if(parts.length >= 2) return (parts[0][0] + parts[parts.length-1][0]).toUpperCase();
+  return parts[0].substring(0,2).toUpperCase();
+}
+
+function timeAgo(dateStr) {
+  var d = new Date(dateStr);
+  var now = new Date();
+  var diff = Math.floor((now - d) / 1000);
+  if(diff < 60) return 'just now';
+  if(diff < 3600) return Math.floor(diff/60) + 'm ago';
+  if(diff < 86400) return Math.floor(diff/3600) + 'h ago';
+  if(diff < 604800) return Math.floor(diff/86400) + 'd ago';
+  return d.toLocaleDateString('en-US', {month:'short', day:'numeric'});
+}
+
+async function loadActiveParty() {
+  if(!_sb || !_currentUser) { _activeParty = null; return; }
+  try {
+    // Find user's active party membership
+    var {data: memberships} = await _sb.from('search_party_members')
+      .select('party_id, role, display_name')
+      .eq('user_id', _currentUser.id)
+      .eq('status', 'active');
+    if(!memberships || !memberships.length) { _activeParty = null; return; }
+    var partyId = memberships[0].party_id;
+    // Load party info
+    var {data: party} = await _sb.from('search_parties').select('id, name').eq('id', partyId).single();
+    if(!party) { _activeParty = null; return; }
+    // Load all active members
+    var {data: members} = await _sb.from('search_party_members')
+      .select('id, user_id, display_name, role, email, status')
+      .eq('party_id', partyId)
+      .eq('status', 'active');
+    _activeParty = {id: party.id, name: party.name, members: members || []};
+    console.log('[Party] Active party loaded:', _activeParty.name, 'with', _activeParty.members.length, 'members');
+  } catch(e) { console.warn('[Party] Load error:', e); _activeParty = null; }
+}
+
+async function loadPartyFavorites() {
+  if(!_sb || !_activeParty) { _partyFavs = {}; return; }
+  try {
+    var {data} = await _sb.from('search_party_favorites')
+      .select('property_key, user_id, property_data')
+      .eq('party_id', _activeParty.id);
+    _partyFavs = {};
+    if(data) {
+      data.forEach(function(f) {
+        if(!_partyFavs[f.property_key]) _partyFavs[f.property_key] = [];
+        var member = _activeParty.members.find(function(m){ return m.user_id === f.user_id; });
+        _partyFavs[f.property_key].push({
+          user_id: f.user_id,
+          user_display_name: member ? member.display_name : 'Party member'
+        });
+      });
+    }
+  } catch(e) { console.warn('[Party] Load favs error:', e); }
+}
+
+async function loadPartyNotes(propertyKey) {
+  if(!_sb || !_activeParty) return [];
+  try {
+    var {data} = await _sb.from('search_party_notes')
+      .select('id, user_id, note_text, user_display_name, created_at')
+      .eq('party_id', _activeParty.id)
+      .eq('property_key', propertyKey)
+      .order('created_at', {ascending: true});
+    var notes = data || [];
+    _partyNotes[propertyKey] = notes;
+    return notes;
+  } catch(e) { console.warn('[Party] Load notes error:', e); return []; }
+}
+
+async function sendPartyNote(propertyKey) {
+  if(!_sb || !_activeParty || !_currentUser) return;
+  var ta = document.getElementById('partyNoteInput');
+  if(!ta) return;
+  var text = ta.value.trim();
+  if(!text) return;
+  // Get display name
+  var me = _activeParty.members.find(function(m){ return m.user_id === _currentUser.id; });
+  var displayName = me ? me.display_name : 'You';
+  // Optimistic UI — append immediately
+  var note = {
+    id: 'temp-' + Date.now(),
+    user_id: _currentUser.id,
+    note_text: text,
+    user_display_name: displayName,
+    created_at: new Date().toISOString()
+  };
+  if(!_partyNotes[propertyKey]) _partyNotes[propertyKey] = [];
+  _partyNotes[propertyKey].push(note);
+  renderPartyTranscript(propertyKey);
+  ta.value = '';
+  // Insert to database
+  try {
+    await _sb.from('search_party_notes').insert({
+      party_id: _activeParty.id,
+      user_id: _currentUser.id,
+      property_key: propertyKey,
+      note_text: text,
+      user_display_name: displayName
+    });
+    logActivity('party_note', propertyKey, {});
+    // Notify other party members (fire-and-forget)
+    var listing = window._currentListing;
+    var addr = listing ? listing.address : propertyKey.split('|')[0];
+    notifyPartyMembers('note', addr, text, propertyKey);
+  } catch(e) { console.warn('[Party] Send note error:', e); }
+}
+
+function renderPartyTranscript(propertyKey) {
+  var container = document.getElementById('partyTranscript');
+  if(!container) return;
+  var notes = _partyNotes[propertyKey] || [];
+  if(!notes.length) {
+    container.innerHTML = '<div class="party-empty-notes">No notes yet. Be the first to share your thoughts!</div>';
+    return;
+  }
+  var html = '';
+  notes.forEach(function(n) {
+    var isMe = _currentUser && n.user_id === _currentUser.id;
+    var color = getPartyColor(n.user_id);
+    var initials = getInitials(n.user_display_name);
+    html += '<div class="party-note' + (isMe ? ' mine' : '') + '">' +
+      '<div class="party-note-avatar" style="background:' + color + '">' + initials + '</div>' +
+      '<div class="party-note-body">' +
+        '<div class="party-note-meta">' +
+          '<span class="party-note-name">' + (n.user_display_name || 'Party member') + '</span>' +
+          '<span class="party-note-time">' + timeAgo(n.created_at) + '</span>' +
+        '</div>' +
+        '<div class="party-note-text">' + n.note_text.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>' +
+      '</div>' +
+    '</div>';
+  });
+  container.innerHTML = html;
+  container.scrollTop = container.scrollHeight;
+}
+
+function notifyPartyMembers(actionType, propertyAddress, notePreview, propertyKey) {
+  if(!_sb || !_activeParty || !_currentUser) return;
+  var me = _activeParty.members.find(function(m){ return m.user_id === _currentUser.id; });
+  var actorName = me ? me.display_name : 'A party member';
+  try {
+    var token = _sb.auth.session ? _sb.auth.session().access_token : '';
+    if(!token) {
+      _sb.auth.getSession().then(function(s) {
+        if(s.data && s.data.session) {
+          _doPartyNotify(s.data.session.access_token, actionType, actorName, propertyAddress, notePreview, propertyKey);
+        }
+      });
+    } else {
+      _doPartyNotify(token, actionType, actorName, propertyAddress, notePreview, propertyKey);
+    }
+  } catch(e) { console.warn('[Party] Notify error:', e); }
+}
+
+function _doPartyNotify(token, actionType, actorName, propertyAddress, notePreview, propertyKey) {
+  fetch(SUPABASE_URL + '/functions/v1/party-notify', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + token,
+      'apikey': SUPABASE_KEY
+    },
+    body: JSON.stringify({
+      party_id: _activeParty.id,
+      action_type: actionType,
+      actor_name: actorName,
+      property_address: propertyAddress,
+      note_preview: notePreview || '',
+      property_key: propertyKey || ''
+    })
+  }).catch(function(e){ console.warn('[Party] Notify fetch error:', e); });
+}
+
+async function createSearchParty(name) {
+  if(!_sb || !_currentUser) return null;
+  try {
+    var prof = null;
+    try { prof = JSON.parse(localStorage.getItem('cc_profile')); } catch(e){}
+    var displayName = prof ? ((prof.firstName || '') + ' ' + (prof.lastName || '')).trim() : (_currentUser.email || '');
+    var {data: party, error: pErr} = await _sb.from('search_parties').insert({
+      name: name || 'Our Home Search',
+      created_by: _currentUser.id
+    }).select().single();
+    if(pErr || !party) { console.error('[Party] Create error:', pErr); return null; }
+    // Insert self as owner
+    await _sb.from('search_party_members').insert({
+      party_id: party.id,
+      user_id: _currentUser.id,
+      email: _currentUser.email,
+      role: 'owner',
+      status: 'active',
+      display_name: displayName,
+      joined_at: new Date().toISOString()
+    });
+    await loadActiveParty();
+    return party;
+  } catch(e) { console.error('[Party] Create error:', e); return null; }
+}
+
+async function inviteToParty(email) {
+  if(!_sb || !_activeParty || !_currentUser) return {error: 'Not in a party'};
+  try {
+    var me = _activeParty.members.find(function(m){ return m.user_id === _currentUser.id; });
+    var inviterName = me ? me.display_name : 'Someone';
+    var sess = await _sb.auth.getSession();
+    var token = sess.data && sess.data.session ? sess.data.session.access_token : SUPABASE_KEY;
+    var res = await fetch(SUPABASE_URL + '/functions/v1/party-invite', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token,
+        'apikey': SUPABASE_KEY
+      },
+      body: JSON.stringify({
+        party_id: _activeParty.id,
+        invitee_email: email,
+        inviter_name: inviterName
+      })
+    });
+    var data = await res.json();
+    return data;
+  } catch(e) { return {error: String(e)}; }
+}
+
+async function acceptPartyInvite(token) {
+  if(!_sb || !_currentUser) return false;
+  try {
+    // Find pending member by invite token
+    var {data: member} = await _sb.from('search_party_members')
+      .select('id, party_id')
+      .eq('invite_token', token)
+      .eq('status', 'pending')
+      .single();
+    if(!member) { console.warn('[Party] Invalid or expired invite token'); return false; }
+    var prof = null;
+    try { prof = JSON.parse(localStorage.getItem('cc_profile')); } catch(e){}
+    var displayName = prof ? ((prof.firstName || '') + ' ' + (prof.lastName || '')).trim() : (_currentUser.email || '');
+    // Update membership
+    await _sb.from('search_party_members')
+      .update({
+        user_id: _currentUser.id,
+        status: 'active',
+        display_name: displayName,
+        joined_at: new Date().toISOString()
+      })
+      .eq('id', member.id);
+    // Load the party
+    await loadActiveParty();
+    await loadPartyFavorites();
+    // Get party name for toast
+    var partyName = _activeParty ? _activeParty.name : 'the Search Party';
+    showToast('You\'ve joined ' + partyName + '!', 'success');
+    return true;
+  } catch(e) { console.error('[Party] Accept invite error:', e); return false; }
+}
+
+// Check for invite token on page load
+function checkPartyInvite() {
+  var params = new URLSearchParams(window.location.search);
+  var inviteToken = params.get('invite');
+  if(!inviteToken) {
+    // Check sessionStorage for pending invite (stored before login)
+    try { inviteToken = sessionStorage.getItem('cc_pending_invite'); } catch(e){}
+  }
+  if(!inviteToken) return;
+  if(_acctLoggedIn && _currentUser) {
+    // Accept invite immediately
+    try { sessionStorage.removeItem('cc_pending_invite'); } catch(e){}
+    acceptPartyInvite(inviteToken);
+    // Clean up URL
+    var url = new URL(window.location);
+    url.searchParams.delete('invite');
+    window.history.replaceState({}, '', url.toString());
+  } else {
+    // Store token and prompt login
+    try { sessionStorage.setItem('cc_pending_invite', inviteToken); } catch(e){}
+    // Show invite banner on account modal
+    setTimeout(function() {
+      window._partyInvitePending = true;
+      openAcctModal();
+    }, 500);
+  }
+}
+// Run on page load
+setTimeout(checkPartyInvite, 1000);
+
+function showToast(msg, type) {
+  var existing = document.getElementById('ccToast');
+  if(existing) existing.remove();
+  var t = document.createElement('div');
+  t.id = 'ccToast';
+  t.className = 'cc-toast' + (type === 'success' ? ' success' : type === 'error' ? ' error' : '');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  requestAnimationFrame(function(){ t.classList.add('show'); });
+  setTimeout(function(){ t.classList.remove('show'); setTimeout(function(){ t.remove(); }, 400); }, 3500);
+}
 
 // --- First-visit auth popup (scroll-triggered at 40% depth) ---
 function maybeShowAuthPopup(){
@@ -4907,6 +5339,7 @@ function openAcctModal() {
     var favCount = Object.keys(_favProps).filter(function(k){return _favProps[k]}).length;
     document.getElementById('acctFavCount').textContent = favCount ? favCount + ' saved propert' + (favCount===1?'y':'ies') : 'No favorites yet';
     // Load saved searches
+    renderPartyDashboard();
     loadSavedSearchesUI();
     buildDashboardSuggestions();
     loadViewingHistoryUI();
@@ -4941,6 +5374,102 @@ function signOutAcct() {
   saveFavs();
   updateAcctUI();
   closeAcctModal();
+}
+
+function renderPartyDashboard() {
+  var section = document.getElementById('partyDashSection');
+  var container = document.getElementById('partyDashContent');
+  if(!section || !container) return;
+
+  if(!_activeParty) {
+    // No party — show create button
+    container.innerHTML =
+      '<p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.75rem">Invite family or friends to search together. Share favorites, notes, and collaborate on finding the perfect home.</p>' +
+      '<div id="partyCreateRow" style="display:flex;gap:0.5rem;align-items:center">' +
+        '<input type="text" id="partyNameInput" placeholder="Party name (e.g. Our Home Search)" style="flex:1;padding:0.55rem 0.75rem;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:0.82rem;font-family:Outfit,sans-serif">' +
+        '<button onclick="handleCreateParty()" style="padding:0.55rem 1rem;border-radius:6px;border:none;background:var(--gold);color:var(--bg);cursor:pointer;font-size:0.75rem;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;white-space:nowrap">Create Party</button>' +
+      '</div>';
+    return;
+  }
+
+  // Has party — show management UI
+  var membersHtml = '';
+  var activeCount = 0;
+  var pendingCount = 0;
+  _activeParty.members.forEach(function(m) {
+    if(m.status === 'active') activeCount++;
+  });
+
+  _activeParty.members.forEach(function(m, i) {
+    var color = PARTY_COLORS[i % PARTY_COLORS.length];
+    var initials = getInitials(m.display_name || m.email);
+    var roleTag = m.role === 'owner' ? ' <span style="font-size:0.65rem;color:var(--gold)">(Owner)</span>' : '';
+    var isMe = _currentUser && m.user_id === _currentUser.id;
+    membersHtml +=
+      '<div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0">' +
+        '<div style="width:28px;height:28px;border-radius:50%;background:' + color + ';display:flex;align-items:center;justify-content:center;font-size:0.6rem;font-weight:700;color:#fff;flex-shrink:0">' + initials + '</div>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-size:0.82rem;color:var(--text)">' + (m.display_name || m.email) + roleTag + (isMe ? ' <span style="font-size:0.65rem;color:var(--text-muted)">(you)</span>' : '') + '</div>' +
+        '</div>' +
+      '</div>';
+  });
+
+  // Count party favorites and notes
+  var favCount = Object.keys(_partyFavs).length;
+  var noteCount = 0;
+  Object.keys(_partyNotes).forEach(function(k){ noteCount += _partyNotes[k].length; });
+
+  container.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">' +
+      '<div style="font-size:0.92rem;font-weight:600;color:var(--text)">' + _activeParty.name + '</div>' +
+      '<div style="font-size:0.7rem;color:var(--text-muted)">' + activeCount + ' member' + (activeCount !== 1 ? 's' : '') + '</div>' +
+    '</div>' +
+    '<div style="margin-bottom:0.75rem">' + membersHtml + '</div>' +
+    '<div style="display:flex;gap:0.75rem;margin-bottom:0.75rem;font-size:0.75rem;color:var(--text-muted)">' +
+      '<span>' + favCount + ' shared favorite' + (favCount !== 1 ? 's' : '') + '</span>' +
+      '<span>' + noteCount + ' note' + (noteCount !== 1 ? 's' : '') + '</span>' +
+    '</div>' +
+    '<div style="margin-bottom:0.5rem">' +
+      '<div style="font-size:0.78rem;color:var(--text);margin-bottom:0.35rem;font-weight:500">Invite Someone</div>' +
+      '<div style="display:flex;gap:0.4rem">' +
+        '<input type="email" id="partyInviteEmail" placeholder="Email address" style="flex:1;padding:0.5rem 0.65rem;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:0.8rem;font-family:Outfit,sans-serif">' +
+        '<button id="partyInviteBtn" onclick="handlePartyInvite()" style="padding:0.5rem 0.85rem;border-radius:6px;border:none;background:var(--gold);color:var(--bg);cursor:pointer;font-size:0.72rem;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;white-space:nowrap">Send</button>' +
+      '</div>' +
+      '<div id="partyInviteMsg" style="font-size:0.72rem;margin-top:0.25rem;display:none"></div>' +
+    '</div>';
+}
+
+async function handleCreateParty() {
+  var input = document.getElementById('partyNameInput');
+  var name = input ? input.value.trim() : '';
+  var party = await createSearchParty(name || 'Our Home Search');
+  if(party) {
+    showToast('Search Party created!', 'success');
+    renderPartyDashboard();
+  } else {
+    showToast('Failed to create party', 'error');
+  }
+}
+
+async function handlePartyInvite() {
+  var input = document.getElementById('partyInviteEmail');
+  var msg = document.getElementById('partyInviteMsg');
+  var btn = document.getElementById('partyInviteBtn');
+  if(!input || !input.value.trim()) return;
+  var email = input.value.trim();
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if(msg) { msg.textContent = 'Please enter a valid email'; msg.style.color = '#c0392b'; msg.style.display = ''; }
+    return;
+  }
+  if(btn) { btn.textContent = 'Sending...'; btn.disabled = true; }
+  var result = await inviteToParty(email);
+  if(result.success) {
+    if(msg) { msg.textContent = 'Invite sent to ' + email + '!'; msg.style.color = 'var(--green,#27ae60)'; msg.style.display = ''; }
+    input.value = '';
+  } else {
+    if(msg) { msg.textContent = result.error || 'Failed to send invite'; msg.style.color = '#c0392b'; msg.style.display = ''; }
+  }
+  if(btn) { btn.textContent = 'Send'; btn.disabled = false; }
 }
 
 async function loadSavedSearchesUI() {
@@ -5547,16 +6076,40 @@ function toggleFavProp() {
     return;
   }
   if(!_currentPropKey) return;
-  if(_favProps[_currentPropKey]) {
+  var isFav = !!_favProps[_currentPropKey];
+  if(isFav) {
     delete _favProps[_currentPropKey];
     saveFavs();
     saveFavToCloud(_currentPropKey, false);
     logActivity('unfavorite', _currentPropKey, {});
+    // Remove from party favorites
+    if(_activeParty && _sb && _currentUser) {
+      _sb.from('search_party_favorites').delete()
+        .eq('party_id', _activeParty.id)
+        .eq('user_id', _currentUser.id)
+        .eq('property_key', _currentPropKey)
+        .then(function(){ loadPartyFavorites(); });
+    }
   } else {
     _favProps[_currentPropKey] = true;
     saveFavs();
     saveFavToCloud(_currentPropKey, true);
     logActivity('favorite', _currentPropKey, {});
+    // Add to party favorites
+    if(_activeParty && _sb && _currentUser) {
+      var listing = window._currentListing || {};
+      _sb.from('search_party_favorites').upsert({
+        party_id: _activeParty.id,
+        user_id: _currentUser.id,
+        property_key: _currentPropKey,
+        property_data: {address: listing.address, city: listing.city, price: listing.price, type: listing.type, photo: listing.photo}
+      }).then(function(){
+        loadPartyFavorites();
+        // Notify party members
+        var addr = listing.address || _currentPropKey.split('|')[0];
+        notifyPartyMembers('favorite', addr, '', _currentPropKey);
+      });
+    }
   }
   updateFavBtn();
   // Update search results if open
@@ -5572,6 +6125,23 @@ function updateFavBtn() {
   } else {
     btn.classList.remove('favorited');
     label.textContent = 'Save';
+  }
+  // Show party member avatars who also favorited this property
+  var dotsEl = document.getElementById('propFavPartyDots');
+  if(dotsEl) dotsEl.remove();
+  if(_activeParty && _partyFavs[_currentPropKey]) {
+    var others = _partyFavs[_currentPropKey].filter(function(f){ return f.user_id !== (_currentUser ? _currentUser.id : ''); });
+    if(others.length > 0) {
+      var dots = document.createElement('div');
+      dots.id = 'propFavPartyDots';
+      dots.className = 'prop-fav-party-dots';
+      others.forEach(function(f) {
+        var color = getPartyColor(f.user_id);
+        dots.innerHTML += '<span class="party-fav-dot" style="background:' + color + '" title="' + (f.user_display_name||'Party member') + '">' + getInitials(f.user_display_name) + '</span>';
+      });
+      var favWrap = btn.closest('.prop-action') || btn.parentElement;
+      if(favWrap) favWrap.appendChild(dots);
+    }
   }
 }
 
@@ -5754,35 +6324,57 @@ function analyzeFavoritePatterns() {
 function findSuggestionsFromPatterns(patterns, excludeAddress) {
   if(!patterns) return [];
   var scored = [];
+  var now = Date.now();
   ALL_LISTINGS.forEach(function(l){
     var key = propKey(l, l.city);
     if(_favProps[key]) return;
     if(excludeAddress && l.address === excludeAddress) return;
     var score = 0;
     if(l.type === patterns.topType) score += 3;
-    if(l.city === patterns.topTown) score += 2;
-    if(l.price >= patterns.priceMin && l.price <= patterns.priceMax) score += 2;
+    if(l.city === patterns.topTown) score += 3;
+    // County proximity: same county gets a boost
+    if(l.county && patterns.topCounty && l.county === patterns.topCounty) score += 2;
+    // Tighter price range matching
+    if(l.price >= patterns.priceMin && l.price <= patterns.priceMax) score += 3;
+    else if(l.price >= patterns.priceMin * 0.8 && l.price <= patterns.priceMax * 1.2) score += 1;
     if(l.restrictions === patterns.topRestriction) score += 1;
+    // Recency weighting — newer listings score higher
+    if(l.listDate) {
+      var age = (now - new Date(l.listDate).getTime()) / (1000*60*60*24);
+      if(age < 7) score += 2;
+      else if(age < 30) score += 1;
+    }
     if(score >= 3) scored.push({listing:l, score:score});
   });
   scored.sort(function(a,b){return b.score-a.score});
-  return scored.slice(0,3).map(function(s){return s.listing});
+  return scored.slice(0,6).map(function(s){return s.listing});
 }
 
 // Fallback: find suggestions based on current property (for non-logged-in users)
 function findSuggestionsFromCurrent(currentListing) {
   if(!currentListing) return [];
   var scored = [];
+  var now = Date.now();
   ALL_LISTINGS.forEach(function(l){
     if(l.address === currentListing.address && l.price === currentListing.price) return;
     var score = 0;
     if(l.type === currentListing.type) score += 3;
-    if(l.city === (currentListing.city || window._currentTownName)) score += 2;
-    if(currentListing.price > 0 && l.price >= currentListing.price*0.5 && l.price <= currentListing.price*1.8) score += 2;
+    if(l.city === (currentListing.city || window._currentTownName)) score += 3;
+    // County proximity
+    if(l.county && currentListing.county && l.county === currentListing.county) score += 2;
+    // Tighter price range
+    if(currentListing.price > 0 && l.price >= currentListing.price*0.7 && l.price <= currentListing.price*1.5) score += 3;
+    else if(currentListing.price > 0 && l.price >= currentListing.price*0.5 && l.price <= currentListing.price*1.8) score += 1;
+    // Recency
+    if(l.listDate) {
+      var age = (now - new Date(l.listDate).getTime()) / (1000*60*60*24);
+      if(age < 7) score += 2;
+      else if(age < 30) score += 1;
+    }
     if(score >= 4) scored.push({listing:l, score:score});
   });
   scored.sort(function(a,b){return b.score-a.score});
-  return scored.slice(0,3).map(function(s){return s.listing});
+  return scored.slice(0,6).map(function(s){return s.listing});
 }
 
 function buildCorysSuggestions(currentListing, townName) {
@@ -5829,6 +6421,23 @@ function buildCorysSuggestions(currentListing, townName) {
     c.onclick = function(){ openProp(l, l.city||townName); };
     grid.appendChild(c);
   });
+  // "View More Like This" button
+  var moreBtn = document.getElementById('suggestViewMore');
+  if(!moreBtn) {
+    moreBtn = document.createElement('button');
+    moreBtn.id = 'suggestViewMore';
+    moreBtn.className = 'suggest-view-more';
+    moreBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg> View More Like This';
+    grid.parentElement.appendChild(moreBtn);
+  }
+  moreBtn.onclick = function() {
+    // Pre-fill search with similar filters
+    var l0 = suggestions[0];
+    if(l0) {
+      closeProp();
+      openSearchResults({locations: [l0.city || townName], type: l0.type || '', price: '', beds: '', baths: ''});
+    }
+  };
   container.style.display = '';
 }
 
@@ -6311,26 +6920,78 @@ openProp = function(listing, townName) {
   setTimeout(updateGatedFeatures, 50);
   // Update print gate
   setTimeout(updatePrintGate, 60);
-  // Show notes textarea for logged-in users & load saved notes (cloud sync)
+  // Show/hide party share button
+  var partyShareBtn = document.getElementById('propPartyShareBtn');
+  if(partyShareBtn) partyShareBtn.style.display = _activeParty ? '' : 'none';
+  // Reset price drop button state
+  var pdBtn = document.getElementById('propPriceDropBtn');
+  if(pdBtn) { pdBtn.classList.remove('subscribed'); pdBtn.disabled = false; pdBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 17H2"/><path d="M6 17V4"/><path d="M12 17V10"/><path d="M18 17V7"/><path d="M3 7l3-3 3 3"/></svg> Get Price Drop Alerts'; }
+  // Check if already subscribed to price drops
+  if(_acctLoggedIn && _sb && _currentUser && pdBtn) {
+    _sb.from('price_drop_subscriptions').select('id').eq('user_id', _currentUser.id).eq('property_key', key).single().then(function(r) {
+      if(r.data) { pdBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg> Subscribed'; pdBtn.classList.add('subscribed'); }
+    });
+  }
+  // Show notes for logged-in users — party transcript or personal textarea
   var notesWrap = document.getElementById('propNotesWrap');
-  var notesTA = document.getElementById('propNotesTA');
-  if(notesWrap) notesWrap.style.display = _acctLoggedIn ? '' : 'none';
-  if(notesTA) {
-    // Load from cloud first, fallback to localStorage
-    var localNote = ''; try { localNote = localStorage.getItem('cc-note-'+key) || ''; } catch(e){}
-    notesTA.value = localNote;
-    if(_acctLoggedIn && _currentUser) {
-      loadPropertyNote(key).then(function(cloudNote) {
-        if(cloudNote !== null) notesTA.value = cloudNote;
-        else if(localNote) savePropertyNote(key, localNote); // migrate to cloud
-      });
+  if(notesWrap) {
+    notesWrap.style.display = _acctLoggedIn ? '' : 'none';
+    if(_acctLoggedIn && _activeParty) {
+      // === Search Party Notes (transcript mode) ===
+      var memberCount = _activeParty.members ? _activeParty.members.length : 0;
+      notesWrap.innerHTML =
+        '<div class="prop-notes-header">' +
+          '<svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:var(--gold);fill:none;stroke-width:2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>' +
+          '<div class="prop-notes-title">Search Party Notes</div>' +
+          '<span class="party-member-badge">' + memberCount + ' member' + (memberCount !== 1 ? 's' : '') + '</span>' +
+        '</div>' +
+        '<div class="party-transcript" id="partyTranscript"><div class="party-empty-notes">Loading notes...</div></div>' +
+        '<div class="party-note-input-row">' +
+          '<textarea class="party-note-ta" id="partyNoteInput" placeholder="Share your thoughts with the party..." rows="2"></textarea>' +
+          '<button class="party-note-send" onclick="sendPartyNote(\'' + key.replace(/'/g, "\\'") + '\')">Send</button>' +
+        '</div>' +
+        '<div class="prop-notes-hint"><svg viewBox="0 0 24 24" width="12" height="12" style="stroke:var(--text-muted);fill:none;stroke-width:2"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Shared with your Search Party. All notes appear on printed property sheets.</div>';
+      // Enter key sends note
+      setTimeout(function() {
+        var inp = document.getElementById('partyNoteInput');
+        if(inp) {
+          inp.addEventListener('keydown', function(e) {
+            if(e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              sendPartyNote(key);
+            }
+          });
+        }
+      }, 50);
+      // Load party notes
+      loadPartyNotes(key).then(function(){ renderPartyTranscript(key); });
+    } else if(_acctLoggedIn) {
+      // === Solo mode (personal textarea — original behavior) ===
+      notesWrap.innerHTML =
+        '<div class="prop-notes-header">' +
+          '<svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:var(--gold);fill:none;stroke-width:2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>' +
+          '<div class="prop-notes-title">Your Notes</div>' +
+        '</div>' +
+        '<textarea class="prop-notes-ta" id="propNotesTA" placeholder="Jot down thoughts, questions, or things to look for at the showing..."></textarea>' +
+        '<div class="prop-notes-hint"><svg viewBox="0 0 24 24" width="12" height="12" style="stroke:var(--text-muted);fill:none;stroke-width:2"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Notes appear on your printed property sheet</div>';
+      var notesTA = document.getElementById('propNotesTA');
+      if(notesTA) {
+        var localNote = ''; try { localNote = localStorage.getItem('cc-note-'+key) || ''; } catch(e){}
+        notesTA.value = localNote;
+        if(_currentUser) {
+          loadPropertyNote(key).then(function(cloudNote) {
+            if(cloudNote !== null) notesTA.value = cloudNote;
+            else if(localNote) savePropertyNote(key, localNote);
+          });
+        }
+        var _noteTimer = null;
+        notesTA.oninput = function(){
+          try{ if(notesTA.value) localStorage.setItem('cc-note-'+key, notesTA.value); else localStorage.removeItem('cc-note-'+key); }catch(e){}
+          clearTimeout(_noteTimer);
+          _noteTimer = setTimeout(function(){ if(_acctLoggedIn) { savePropertyNote(key, notesTA.value); logActivity('note', key, {}); } }, 1500);
+        };
+      }
     }
-    var _noteTimer = null;
-    notesTA.oninput = function(){
-      try{ if(notesTA.value) localStorage.setItem('cc-note-'+key, notesTA.value); else localStorage.removeItem('cc-note-'+key); }catch(e){}
-      clearTimeout(_noteTimer);
-      _noteTimer = setTimeout(function(){ if(_acctLoggedIn) { savePropertyNote(key, notesTA.value); logActivity('note', key, {}); } }, 1500);
-    };
   }
   // Log viewing history to cloud
   if(_acctLoggedIn && _currentUser) {
@@ -6813,6 +7474,48 @@ function timeAgo(dateStr) {
   return new Date(dateStr).toLocaleDateString();
 }
 
+// ═══ PRICE DROP SUBSCRIPTION ═══
+async function subscribePriceDrop() {
+  if(!_acctLoggedIn) { openAcctModal(); return; }
+  if(!_sb || !_currentUser || !_currentPropKey) return;
+  var btn = document.getElementById('propPriceDropBtn');
+  var listing = window._currentListing || {};
+  var price = listing.price || parseInt((document.getElementById('propPrice').textContent||'0').replace(/[^0-9]/g,''));
+  if(!price) { showToast('No price available for this listing', 'error'); return; }
+  try {
+    if(btn) { btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M22 17H2"/><path d="M6 17V4"/><path d="M12 17V10"/><path d="M18 17V7"/><path d="M3 7l3-3 3 3"/></svg> Subscribing...'; btn.disabled = true; }
+    await _sb.from('price_drop_subscriptions').upsert({
+      user_id: _currentUser.id,
+      property_key: _currentPropKey,
+      listing_key: listing.listingKey || '',
+      current_price: price
+    });
+    showToast('You\'ll be notified if the price drops!', 'success');
+    if(btn) { btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg> Subscribed'; btn.classList.add('subscribed'); }
+    logActivity('price_drop_sub', _currentPropKey, {price: price});
+  } catch(e) {
+    console.warn('[PriceDrop] Subscribe error:', e);
+    showToast('Failed to subscribe', 'error');
+    if(btn) { btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M22 17H2"/><path d="M6 17V4"/><path d="M12 17V10"/><path d="M18 17V7"/><path d="M3 7l3-3 3 3"/></svg> Get Price Drop Alerts'; btn.disabled = false; }
+  }
+}
+
+// ═══ SHARE WITH SEARCH PARTY ═══
+function quickPartyShare() {
+  if(!_activeParty) return;
+  // Scroll to party notes and focus input
+  var transcript = document.getElementById('partyTranscript');
+  if(transcript) transcript.scrollIntoView({behavior:'smooth',block:'center'});
+  setTimeout(function(){
+    var input = document.getElementById('partyNoteInput');
+    if(input) input.focus();
+  }, 400);
+  // Auto-favorite if not already
+  if(!_favProps[_currentPropKey]) {
+    toggleFavProp();
+  }
+}
+
 // ═══ SHOWING REQUEST ═══
 function todayStr() { var d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function openShowingRequest() {
@@ -6927,6 +7630,10 @@ function renderNeighborhoodDive(townSlug) {
       '<div class="nd-card"><div class="nd-card-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div><div class="nd-card-label">Commute</div><div class="nd-card-value">' + data.commute.avg + ' min</div><div class="nd-card-detail">To ' + data.commute.to + '</div></div>' +
     '</div>' +
     '<div class="nd-amenities"><span class="nd-am-tag">' + data.amenities.restaurants + ' Restaurants</span><span class="nd-am-tag">' + data.amenities.breweries + ' Breweries</span><span class="nd-am-tag">' + data.amenities.parks + ' Parks</span><span class="nd-am-tag">' + data.amenities.trailheads + ' Trailheads</span></div>' +
+    '<div class="nd-links">' +
+      '<a href="https://www.walkscore.com/score/' + encodeURIComponent((window._currentListing ? (window._currentListing.address + ' ' + (window._currentListing.city||'') + ' NC') : townSlug.replace(/-/g,' ') + ' NC').replace(/\s+/g,'-').toLowerCase()) + '" target="_blank" rel="noopener" class="nd-link-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> Walk Score Details</a>' +
+      '<a href="https://www.greatschools.org/search/search.page?q=' + encodeURIComponent(townSlug.replace(/-/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase()}) + ', NC') + '" target="_blank" rel="noopener" class="nd-link-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg> School Ratings</a>' +
+    '</div>' +
     '<div class="nd-source" style="margin-top:0.75rem;font-size:0.7rem;opacity:0.45;text-align:center">School ratings provided by <a href="https://www.greatschools.org" target="_blank" rel="noopener" style="color:inherit">GreatSchools.org</a>. Walkability estimates via <a href="https://www.walkscore.com" target="_blank" rel="noopener" style="color:inherit">Walk Score</a>. Amenity counts are approximate.</div>';
 }
 
