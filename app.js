@@ -2728,7 +2728,10 @@ function openProp(listing, townName) {
     window._propMap = L.map(mapContainer, {zoomControl:true, attributionControl:true, scrollWheelZoom:false, zoomSnap:0}).setView([mapLat, mapLng], zoom);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
       attribution:'&copy; <a href="https://carto.com/">CARTO</a>',
-      maxZoom:18
+      maxZoom:18,
+      keepBuffer:5,
+      updateWhenZooming:false,
+      updateWhenIdle:true
     }).addTo(window._propMap);
     L.marker([mapLat, mapLng]).addTo(window._propMap).bindPopup('<strong>'+listing.address+'</strong><br>'+townName+', NC');
     // Invalidate size after overlay animation completes
@@ -3712,23 +3715,34 @@ function initSearchMap(){
     var isDark = document.documentElement.getAttribute('data-theme') !== 'light';
     _srMap = L.map('srMap',{zoomControl:false,attributionControl:true,zoomSnap:0,scrollWheelZoom:false}).setView([35.38,-83.20],10);
     L.control.zoom({position:'topright'}).addTo(_srMap);
-    // Smooth wheel/trackpad zoom — bypasses Leaflet's debounced handler for buttery pinch-to-zoom
+    // Smooth momentum-based wheel/trackpad zoom — eases toward target like Google Maps
     (function(map){
-      var container=map.getContainer(),pendingDz=0,pendingPt=null,raf=null;
+      var container=map.getContainer();
+      var targetZ=map.getZoom(),curZ=targetZ,zPt=null,raf=null;
+      var LERP=0.3;
+      // Sync internal state when Leaflet zoom changes (button clicks, double-click, etc.)
+      map.on('zoomend',function(){if(!raf){targetZ=curZ=map.getZoom();}});
+      function tick(){
+        var diff=targetZ-curZ;
+        if(Math.abs(diff)<0.005){
+          curZ=targetZ;
+          map.setZoomAround(map.containerPointToLatLng(zPt),curZ,{animate:false});
+          raf=null;return;
+        }
+        curZ+=diff*LERP;
+        map.setZoomAround(map.containerPointToLatLng(zPt),curZ,{animate:false});
+        raf=requestAnimationFrame(tick);
+      }
       container.addEventListener('wheel',function(e){
         e.preventDefault();
         var dy=e.deltaY;
         if(e.deltaMode===1)dy*=20;if(e.deltaMode===2)dy*=200;
         // ctrlKey = trackpad pinch (fine, continuous); else = mouse wheel (discrete clicks)
-        pendingDz += -dy * (e.ctrlKey ? 0.01 : 0.002);
+        var delta=-dy*(e.ctrlKey?0.008:0.003);
+        targetZ=Math.max(map.getMinZoom(),Math.min(map.getMaxZoom(),targetZ+delta));
         var r=container.getBoundingClientRect();
-        pendingPt=L.point(e.clientX-r.left,e.clientY-r.top);
-        if(!raf) raf=requestAnimationFrame(function(){
-          var ll=map.containerPointToLatLng(pendingPt);
-          var z=Math.max(map.getMinZoom(),Math.min(map.getMaxZoom(),map.getZoom()+pendingDz));
-          map.setZoomAround(ll,z,{animate:false});
-          pendingDz=0;raf=null;
-        });
+        zPt=L.point(e.clientX-r.left,e.clientY-r.top);
+        if(!raf){curZ=map.getZoom();raf=requestAnimationFrame(tick);}
       },{passive:false});
     })(_srMap);
 
@@ -3737,7 +3751,10 @@ function initSearchMap(){
     var lightTiles = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
     window._srTileLayer = L.tileLayer(isDark ? darkTiles : lightTiles, {
       attribution:'&copy; <a href="https://carto.com/">CARTO</a>',
-      maxZoom:18
+      maxZoom:18,
+      keepBuffer:5,
+      updateWhenZooming:false,
+      updateWhenIdle:true
     }).addTo(_srMap);
 
     // Store tile URLs for theme switching
@@ -4451,7 +4468,10 @@ toggleTheme = function(){
     _srMap.removeLayer(window._srTileLayer);
     window._srTileLayer = L.tileLayer(isDark ? window._srDarkTiles : window._srLightTiles, {
       attribution:'&copy; <a href="https://carto.com/">CARTO</a>',
-      maxZoom:18
+      maxZoom:18,
+      keepBuffer:5,
+      updateWhenZooming:false,
+      updateWhenIdle:true
     }).addTo(_srMap);
   }
   // Update search overlay theme toggle icons
