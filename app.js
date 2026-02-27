@@ -3761,11 +3761,10 @@ function initSearchMap(){
     _srMap = L.map('srMap',{
       zoomControl:false,
       attributionControl:true,
+      scrollWheelZoom:false,       // disable default (jerky on trackpad)
+      smoothWheelZoom:true,        // enable SmoothWheelZoom plugin
+      smoothSensitivity:1.5,       // zoom sensitivity (1=default, higher=faster)
       zoomSnap:0,
-      zoomDelta:1,
-      scrollWheelZoom:true,
-      wheelDebounceTime:30,
-      wheelPxPerZoomLevel:20,
       touchZoom:true,
       bounceAtZoomLimits:false,
       zoomAnimation:true,
