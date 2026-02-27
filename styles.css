@@ -1444,11 +1444,11 @@ textarea.form-input{resize:vertical;min-height:100px}
 /* ═══════════════════════════════════════════════════════
    GUEST PREVIEW BANNER
    ═══════════════════════════════════════════════════════ */
-.guest-preview-banner{display:flex;align-items:center;justify-content:space-between;padding:0.5rem 1.25rem;background:linear-gradient(135deg,rgba(196,176,140,0.12),rgba(196,176,140,0.06));border-bottom:1px solid rgba(196,176,140,0.2);font-size:0.75rem;color:var(--text-muted);gap:0.75rem;flex-wrap:wrap}
+.guest-preview-banner{display:flex;align-items:center;justify-content:space-between;padding:0.5rem 1.25rem;background:var(--bg-card);border-bottom:1px solid rgba(196,176,140,0.2);font-size:0.75rem;color:var(--text-muted);gap:0.75rem;flex-wrap:wrap;position:sticky;top:0;z-index:10}
 .guest-preview-banner strong{color:var(--gold)}
 .guest-preview-banner button{padding:0.35rem 0.8rem;background:linear-gradient(135deg,var(--gold),var(--gold-dark));color:var(--bg);font-family:'Outfit',sans-serif;font-size:0.68rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;border:none;cursor:pointer;white-space:nowrap;transition:all 0.2s}
 .guest-preview-banner button:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(196,176,140,0.3)}
-.guest-preview-banner.last-preview{background:linear-gradient(135deg,rgba(196,176,140,0.2),rgba(196,176,140,0.1));border-bottom-color:var(--gold)}
+.guest-preview-banner.last-preview{background:var(--surface);border-bottom-color:var(--gold)}
 @media(max-width:600px){
   .guest-preview-banner{flex-direction:column;text-align:center;gap:0.4rem;padding:0.5rem 0.75rem}
   .guest-preview-banner button{width:100%}
