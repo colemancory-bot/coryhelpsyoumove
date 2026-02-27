@@ -3912,10 +3912,10 @@ function _srApplyBrandColors(targetMap){
 function _srAddMapLayers(){
   // Town labels
   var townLabelCoords = {
-    'Waynesville':{lat:35.4887,lng:-83.0055},'Sylva':{lat:35.3736,lng:-83.2243},
+    'Waynesville':{lat:35.4887,lng:-83.0055},'Sylva':{lat:35.3836,lng:-83.2100},
     'Maggie Valley':{lat:35.5182,lng:-83.0998},'Bryson City':{lat:35.4312,lng:-83.4493},
     'Cashiers':{lat:35.1032,lng:-83.1160},'Highlands':{lat:35.0527,lng:-83.1968},
-    'Franklin':{lat:35.1824,lng:-83.3810},'Dillsboro':{lat:35.3697,lng:-83.2478},
+    'Franklin':{lat:35.1824,lng:-83.3810},'Dillsboro':{lat:35.3570,lng:-83.2650},
     'Cullowhee':{lat:35.3135,lng:-83.1774}
   };
   if(!_srMap.getSource('town-labels')){
