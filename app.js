@@ -2727,7 +2727,7 @@ function openProp(listing, townName) {
     var mapLat = listing.lat || (TOWN_COORDS[townName] ? TOWN_COORDS[townName].lat : 35.38);
     var mapLng = listing.lng || (TOWN_COORDS[townName] ? TOWN_COORDS[townName].lng : -83.18);
     var zoom = (listing.lat && listing.lng) ? 15 : 12;
-    window._propMap = L.map(mapContainer, {zoomControl:true, attributionControl:true, scrollWheelZoom:false}).setView([mapLat, mapLng], zoom);
+    window._propMap = L.map(mapContainer, {zoomControl:true, attributionControl:true, scrollWheelZoom:false, zoomSnap:0.25, zoomDelta:0.5}).setView([mapLat, mapLng], zoom);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
       attribution:'&copy; <a href="https://carto.com/">CARTO</a>',
       maxZoom:18
@@ -3712,7 +3712,7 @@ function closeSearch(){
 function initSearchMap(){
   try {
     var isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-    _srMap = L.map('srMap',{zoomControl:false,attributionControl:true}).setView([35.38,-83.20],10);
+    _srMap = L.map('srMap',{zoomControl:false,attributionControl:true,zoomSnap:0.25,zoomDelta:0.5,wheelPxPerZoomLevel:120}).setView([35.38,-83.20],10);
     L.control.zoom({position:'topright'}).addTo(_srMap);
 
     // Use dark or light tiles
