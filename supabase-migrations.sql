@@ -718,13 +718,19 @@ CREATE TABLE IF NOT EXISTS mls_sync_state (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Seed sync state for all 4 resource types
+-- Seed sync state for all 4 MLS Grid resource types (Canopy MLS via MLS Grid)
 INSERT INTO mls_sync_state (resource_type, originating_system_name) VALUES
-  ('Property', ''),
-  ('Member', ''),
-  ('Office', ''),
-  ('OpenHouse', '')
+  ('Property', 'carolina'),
+  ('Member', 'carolina'),
+  ('Office', 'carolina'),
+  ('OpenHouse', 'carolina')
 ON CONFLICT (resource_type) DO NOTHING;
+
+-- Update any existing rows that had empty originating_system_name
+UPDATE mls_sync_state
+SET originating_system_name = 'carolina'
+WHERE resource_type IN ('Property', 'Member', 'Office', 'OpenHouse')
+  AND originating_system_name = '';
 
 ALTER TABLE mls_sync_state ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Admin can manage sync state" ON mls_sync_state FOR ALL USING (

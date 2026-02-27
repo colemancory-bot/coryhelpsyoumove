@@ -3,7 +3,7 @@
 // Property, Member, Office, OpenHouse
 //
 // Deploy: supabase functions deploy mls-sync
-// Invoke: POST /functions/v1/mls-sync { "action": "sync" | "initial-import", "resource": "Property" }
+// Invoke: POST /functions/v1/mls-sync { "action": "sync" | "initial-import", "resource": "Property", "limit": 500 }
 // Schedule: Set up a cron via pg_cron or external scheduler every 15 minutes
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -24,6 +24,17 @@ const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
 // Rate limiting: max 2 req/s — we stay safely under
 const REQUEST_DELAY_MS = 600;
+
+// Max records per OData page
+const PAGE_SIZE = 200;
+
+// Default max records per invocation (Supabase Edge Functions have time limits)
+// For initial import, run multiple invocations; each picks up where the last left off
+const DEFAULT_MAX_RECORDS = 500;
+
+// Geographic filter — only sync listings from these WNC counties
+// MLS Grid best practice: use 'in' instead of 'or' for multi-value filters
+const WNC_COUNTIES = "'Haywood','Jackson','Swain','Macon','Buncombe','Henderson','Transylvania','Graham'";
 
 // ── Helpers ────────────────────────────────────────────────────
 function sleep(ms: number) {
@@ -85,23 +96,28 @@ async function uploadMediaToR2(
 async function syncProperties(
   supabase: any,
   isInitial: boolean,
-  lastTimestamp: string | null
+  lastTimestamp: string | null,
+  maxRecords: number = DEFAULT_MAX_RECORDS
 ) {
   let url: string;
   if (isInitial) {
-    url = `${MLS_GRID_API}/Property?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true and PropertyType ne 'Residential Lease'&$expand=Media,Rooms,UnitTypes`;
+    url = `${MLS_GRID_API}/Property?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true and CountyOrParish in (${WNC_COUNTIES}) and PropertyType ne 'Residential Lease'&$expand=Media,Rooms,UnitTypes&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
   } else {
-    url = `${MLS_GRID_API}/Property?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and ModificationTimestamp gt ${lastTimestamp} and PropertyType ne 'Residential Lease'&$expand=Media,Rooms,UnitTypes`;
+    url = `${MLS_GRID_API}/Property?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and ModificationTimestamp gt ${lastTimestamp} and CountyOrParish in (${WNC_COUNTIES}) and PropertyType ne 'Residential Lease'&$expand=Media,Rooms,UnitTypes&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
   }
 
   let totalSynced = 0;
   let greatestTimestamp = lastTimestamp || "";
 
-  while (url) {
+  while (url && totalSynced < maxRecords) {
     const data = await mlsGridFetch(url);
     const records = data.value || [];
 
+    console.log(`[MLS Grid] Property page: ${records.length} records`);
+
     for (const record of records) {
+      if (totalSynced >= maxRecords) break;
+
       const listingKey = record.ListingKey || "";
       const listingId = stripPrefix(record.ListingId || "");
       const modTs = record.ModificationTimestamp || "";
@@ -277,10 +293,10 @@ async function syncProperties(
                     }),
                   }).catch((err: unknown) => console.warn("[Price Drop FUB] Push failed:", err));
                 }
-                console.log(`[MLS Sync] Price drop alerts sent for ${address} to ${(profiles || []).length} users`);
+                console.log(`[MLS Grid] Price drop alerts sent for ${address} to ${(profiles || []).length} users`);
               }
             } catch (err) {
-              console.warn("[MLS Sync] Price drop notification error:", err);
+              console.warn("[MLS Grid] Price drop notification error:", err);
             }
           }
         }
@@ -350,28 +366,36 @@ async function syncProperties(
 
     // Follow @odata.nextLink for pagination
     url = data["@odata.nextLink"] || "";
-    if (url) await sleep(REQUEST_DELAY_MS);
+    if (url && totalSynced < maxRecords) await sleep(REQUEST_DELAY_MS);
   }
 
-  return { totalSynced, greatestTimestamp };
+  const hasMore = !!url && totalSynced >= maxRecords;
+  return { totalSynced, greatestTimestamp, hasMore };
 }
 
 // ── Member Sync ────────────────────────────────────────────────
 async function syncMembers(
   supabase: any,
   isInitial: boolean,
-  lastTimestamp: string | null
+  lastTimestamp: string | null,
+  maxRecords: number = DEFAULT_MAX_RECORDS
 ) {
   let url = isInitial
-    ? `${MLS_GRID_API}/Member?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true`
-    : `${MLS_GRID_API}/Member?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and ModificationTimestamp gt ${lastTimestamp}`;
+    ? `${MLS_GRID_API}/Member?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`
+    : `${MLS_GRID_API}/Member?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and ModificationTimestamp gt ${lastTimestamp}&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
 
   let totalSynced = 0;
   let greatestTimestamp = lastTimestamp || "";
 
-  while (url) {
+  while (url && totalSynced < maxRecords) {
     const data = await mlsGridFetch(url);
-    for (const r of data.value || []) {
+    const records = data.value || [];
+
+    console.log(`[MLS Grid] Member page: ${records.length} records`);
+
+    for (const r of records) {
+      if (totalSynced >= maxRecords) break;
+
       const modTs = r.ModificationTimestamp || "";
       if (modTs > greatestTimestamp) greatestTimestamp = modTs;
       const canView = r.MlgCanView !== false;
@@ -401,27 +425,36 @@ async function syncMembers(
       totalSynced++;
     }
     url = data["@odata.nextLink"] || "";
-    if (url) await sleep(REQUEST_DELAY_MS);
+    if (url && totalSynced < maxRecords) await sleep(REQUEST_DELAY_MS);
   }
-  return { totalSynced, greatestTimestamp };
+
+  const hasMore = !!url && totalSynced >= maxRecords;
+  return { totalSynced, greatestTimestamp, hasMore };
 }
 
 // ── Office Sync ────────────────────────────────────────────────
 async function syncOffices(
   supabase: any,
   isInitial: boolean,
-  lastTimestamp: string | null
+  lastTimestamp: string | null,
+  maxRecords: number = DEFAULT_MAX_RECORDS
 ) {
   let url = isInitial
-    ? `${MLS_GRID_API}/Office?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true`
-    : `${MLS_GRID_API}/Office?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and ModificationTimestamp gt ${lastTimestamp}`;
+    ? `${MLS_GRID_API}/Office?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`
+    : `${MLS_GRID_API}/Office?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and ModificationTimestamp gt ${lastTimestamp}&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
 
   let totalSynced = 0;
   let greatestTimestamp = lastTimestamp || "";
 
-  while (url) {
+  while (url && totalSynced < maxRecords) {
     const data = await mlsGridFetch(url);
-    for (const r of data.value || []) {
+    const records = data.value || [];
+
+    console.log(`[MLS Grid] Office page: ${records.length} records`);
+
+    for (const r of records) {
+      if (totalSynced >= maxRecords) break;
+
       const modTs = r.ModificationTimestamp || "";
       if (modTs > greatestTimestamp) greatestTimestamp = modTs;
       const canView = r.MlgCanView !== false;
@@ -451,27 +484,36 @@ async function syncOffices(
       totalSynced++;
     }
     url = data["@odata.nextLink"] || "";
-    if (url) await sleep(REQUEST_DELAY_MS);
+    if (url && totalSynced < maxRecords) await sleep(REQUEST_DELAY_MS);
   }
-  return { totalSynced, greatestTimestamp };
+
+  const hasMore = !!url && totalSynced >= maxRecords;
+  return { totalSynced, greatestTimestamp, hasMore };
 }
 
 // ── OpenHouse Sync ─────────────────────────────────────────────
 async function syncOpenHouses(
   supabase: any,
   isInitial: boolean,
-  lastTimestamp: string | null
+  lastTimestamp: string | null,
+  maxRecords: number = DEFAULT_MAX_RECORDS
 ) {
   let url = isInitial
-    ? `${MLS_GRID_API}/OpenHouse?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true`
-    : `${MLS_GRID_API}/OpenHouse?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and ModificationTimestamp gt ${lastTimestamp}`;
+    ? `${MLS_GRID_API}/OpenHouse?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`
+    : `${MLS_GRID_API}/OpenHouse?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and ModificationTimestamp gt ${lastTimestamp}&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
 
   let totalSynced = 0;
   let greatestTimestamp = lastTimestamp || "";
 
-  while (url) {
+  while (url && totalSynced < maxRecords) {
     const data = await mlsGridFetch(url);
-    for (const r of data.value || []) {
+    const records = data.value || [];
+
+    console.log(`[MLS Grid] OpenHouse page: ${records.length} records`);
+
+    for (const r of records) {
+      if (totalSynced >= maxRecords) break;
+
       const modTs = r.ModificationTimestamp || "";
       if (modTs > greatestTimestamp) greatestTimestamp = modTs;
       const canView = r.MlgCanView !== false;
@@ -499,9 +541,11 @@ async function syncOpenHouses(
       totalSynced++;
     }
     url = data["@odata.nextLink"] || "";
-    if (url) await sleep(REQUEST_DELAY_MS);
+    if (url && totalSynced < maxRecords) await sleep(REQUEST_DELAY_MS);
   }
-  return { totalSynced, greatestTimestamp };
+
+  const hasMore = !!url && totalSynced >= maxRecords;
+  return { totalSynced, greatestTimestamp, hasMore };
 }
 
 // ── Main Handler ───────────────────────────────────────────────
@@ -540,7 +584,12 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const action = body.action || "sync";
     const resource = body.resource || "all";
+    const maxRecords = body.limit || DEFAULT_MAX_RECORDS;
     const isInitial = action === "initial-import";
+
+    console.log(
+      `[MLS Grid] Starting ${action} for resource: ${resource} (limit: ${maxRecords})`
+    );
 
     const resources = resource === "all"
       ? ["Property", "Member", "Office", "OpenHouse"]
@@ -562,31 +611,47 @@ Deno.serve(async (req) => {
         .update({ status: "running", error_message: "" }).eq("resource_type", res);
 
       try {
-        const result = await syncFn(supabase, isInitial, lastTs);
-        await supabase.from("mls_sync_state").update({
+        const result = await syncFn(supabase, isInitial, lastTs, maxRecords);
+
+        const updatePayload = {
           last_modification_timestamp: result.greatestTimestamp || lastTs,
           last_sync_at: new Date().toISOString(),
           records_synced: result.totalSynced,
           status: "idle",
-          error_message: "",
+          error_message: result.hasMore
+            ? `Partial: ${result.totalSynced} records synced, more available. Invoke again to continue.`
+            : "",
           originating_system_name: ORIGINATING_SYSTEM_NAME,
-        }).eq("resource_type", res);
+        };
+        console.log(`[MLS Grid] Updating sync state for ${res}:`, JSON.stringify(updatePayload));
+        await supabase.from("mls_sync_state").update(updatePayload).eq("resource_type", res);
 
-        results[res] = { synced: result.totalSynced, lastTimestamp: result.greatestTimestamp };
+        results[res] = {
+          synced: result.totalSynced,
+          lastTimestamp: result.greatestTimestamp,
+          hasMore: result.hasMore,
+        };
+
+        console.log(
+          `[MLS Grid] ${res}: synced ${result.totalSynced} records${result.hasMore ? " (more available)" : ""}`
+        );
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         await supabase.from("mls_sync_state")
           .update({ status: "error", error_message: msg }).eq("resource_type", res);
         results[res] = { error: msg };
+        console.error(`[MLS Grid] ${res} error: ${msg}`);
       }
     }
 
-    return new Response(JSON.stringify({ ok: true, action, results }), {
+    return new Response(JSON.stringify({ ok: true, action, source: "Canopy MLS", results }), {
       headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
     });
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[MLS Grid] Fatal error: ${msg}`);
     return new Response(
-      JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) }),
+      JSON.stringify({ ok: false, error: msg }),
       { status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }
     );
   }

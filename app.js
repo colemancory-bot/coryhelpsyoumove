@@ -770,8 +770,8 @@ var MLS_GRID = {
     if(!sys) return 'MLS';
     var s = sys.toLowerCase();
     if(s === 'csar' || s.indexOf('carolina smokies') > -1) return 'CSAR';
-    // Canopy MLS / MLS Grid — the originating system name from MLS Grid
-    return 'Canopy MLS';
+    if(s === 'carolina' || s.indexOf('canopy') > -1) return 'Canopy MLS';
+    return sys;
   },
   // Merge duplicate listings that appear in both CSAR and Canopy MLS.
   // Match by normalized address+city. The merged listing keeps the data from
