@@ -1235,8 +1235,8 @@ textarea.form-input{resize:vertical;min-height:100px}
 .sr-sort select option{background:var(--bg)}
 
 /* Leaflet map overrides for luxury feel */
-/* Map container — background matches dark_all tile color after sepia filter */
-.sr-map-panel .leaflet-container{height:100%;width:100%;background:#2a2520}
+/* Map container — background approximates filtered Voyager tile color to prevent flash */
+.sr-map-panel .leaflet-container{height:100%;width:100%;background:#58513f}
 .sr-map-panel .leaflet-control-zoom{border:none!important;margin:1.25rem!important}
 .sr-map-panel .leaflet-control-zoom a{background:rgba(12,11,9,0.75)!important;color:var(--gold)!important;border:1px solid rgba(196,176,140,0.25)!important;width:38px!important;height:38px!important;line-height:38px!important;font-size:17px!important;backdrop-filter:blur(12px)!important;transition:all 0.3s!important}
 .sr-map-panel .leaflet-control-zoom a:hover{background:var(--gold)!important;color:var(--bg)!important;border-color:var(--gold)!important}
@@ -1248,8 +1248,8 @@ textarea.form-input{resize:vertical;min-height:100px}
 [data-theme="light"] .sr-map-panel .leaflet-control-zoom a{background:rgba(255,255,255,0.85)!important;color:var(--gold-dark)!important;border:1px solid rgba(139,119,72,0.25)!important}
 [data-theme="light"] .sr-map-panel .leaflet-control-attribution{background:rgba(248,246,241,0.7)!important;color:rgba(139,119,72,0.4)!important}
 
-/* Warm map tile filters — dark_all tiles just need subtle warmth, light Voyager gets sepia tint */
-.sr-map-panel .leaflet-tile-pane{filter:sepia(0.35) hue-rotate(-5deg);will-change:transform;backface-visibility:hidden}
+/* Warm map tile filters — golden cartography feel */
+.sr-map-panel .leaflet-tile-pane{filter:brightness(0.62) contrast(1.1) sepia(0.35) hue-rotate(-5deg) saturate(0.9);will-change:transform;backface-visibility:hidden}
 [data-theme="light"] .sr-map-panel .leaflet-tile-pane{filter:brightness(0.92) contrast(0.95) sepia(0.2) saturate(0.85) hue-rotate(-8deg)}
 
 /* Map edge vignette overlay for depth */
