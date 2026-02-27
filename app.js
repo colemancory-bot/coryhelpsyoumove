@@ -2727,7 +2727,7 @@ function openProp(listing, townName) {
     var mapLat = listing.lat || (TOWN_COORDS[townName] ? TOWN_COORDS[townName].lat : 35.38);
     var mapLng = listing.lng || (TOWN_COORDS[townName] ? TOWN_COORDS[townName].lng : -83.18);
     var zoom = (listing.lat && listing.lng) ? 15 : 12;
-    window._propMap = L.map(mapContainer, {zoomControl:true, attributionControl:true, scrollWheelZoom:false, zoomSnap:0.25, zoomDelta:0.5}).setView([mapLat, mapLng], zoom);
+    window._propMap = L.map(mapContainer, {zoomControl:true, attributionControl:true, scrollWheelZoom:false, zoomSnap:0}).setView([mapLat, mapLng], zoom);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
       attribution:'&copy; <a href="https://carto.com/">CARTO</a>',
       maxZoom:18
@@ -3712,8 +3712,27 @@ function closeSearch(){
 function initSearchMap(){
   try {
     var isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-    _srMap = L.map('srMap',{zoomControl:false,attributionControl:true,zoomSnap:0.25,zoomDelta:0.5,wheelPxPerZoomLevel:120}).setView([35.38,-83.20],10);
+    _srMap = L.map('srMap',{zoomControl:false,attributionControl:true,zoomSnap:0,scrollWheelZoom:false}).setView([35.38,-83.20],10);
     L.control.zoom({position:'topright'}).addTo(_srMap);
+    // Smooth wheel/trackpad zoom — bypasses Leaflet's debounced handler for buttery pinch-to-zoom
+    (function(map){
+      var container=map.getContainer(),pendingDz=0,pendingPt=null,raf=null;
+      container.addEventListener('wheel',function(e){
+        e.preventDefault();
+        var dy=e.deltaY;
+        if(e.deltaMode===1)dy*=20;if(e.deltaMode===2)dy*=200;
+        // ctrlKey = trackpad pinch (fine, continuous); else = mouse wheel (discrete clicks)
+        pendingDz += -dy * (e.ctrlKey ? 0.01 : 0.002);
+        var r=container.getBoundingClientRect();
+        pendingPt=L.point(e.clientX-r.left,e.clientY-r.top);
+        if(!raf) raf=requestAnimationFrame(function(){
+          var ll=map.containerPointToLatLng(pendingPt);
+          var z=Math.max(map.getMinZoom(),Math.min(map.getMaxZoom(),map.getZoom()+pendingDz));
+          map.setZoomAround(ll,z,{animate:false});
+          pendingDz=0;raf=null;
+        });
+      },{passive:false});
+    })(_srMap);
 
     // Use dark or light tiles
     var darkTiles = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
