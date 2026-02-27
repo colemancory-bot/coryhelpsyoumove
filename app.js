@@ -3825,9 +3825,11 @@ function srApplyFilters(){
   var textChip = document.getElementById('srfTextChip');
   if(textChip) textChip.classList.toggle('active', textQuery.length > 0);
 
-  // Filter
+  // Filter — when a text query is present, skip area filter so address/MLS searches
+  // always find the property regardless of which location checkboxes are active
+  var skipAreaFilter = textQuery.length > 0;
   var results = ALL_LISTINGS.filter(function(l){
-    if(selectedAreas.length > 0){
+    if(!skipAreaFilter && selectedAreas.length > 0){
       var locMatch = false;
       for(var i=0; i<selectedAreas.length; i++){
         if(cityMatchesArea(l.city, selectedAreas[i])){ locMatch = true; break; }
