@@ -4150,11 +4150,12 @@ function srOpenFromMapById(lid){
   openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,lot:l.lot,restrictions:l.restrictions||'unrestricted',status:l.status||'Active',photo:l.photo||null,photos:l.photos||[],description:l.description||'',listAgent:l.listAgent||'',listOffice:l.listOffice||'',listOfficePhone:l.listOfficePhone||'',attributionContact:l.attributionContact||'',mlsId:l.mlsId||'',daysOnMarket:l.daysOnMarket||0,listingKey:l.listingKey||'',originatingSystem:l.originatingSystem||'',mlsSources:l.mlsSources||[]}, l.city);
 }
 
-// ═══ Card Image Swipe (touch to browse photos) ═══
+// ═══ Card Image Swipe — carousel slide with peek (touch to browse photos) ═══
 (function(){
   var _photoCache = {};  // listingKey → [url, ...]
   var _photoIdx = {};    // listingKey → current index
   var _swipe = null;     // active touch state
+  var EASE = 'cubic-bezier(0.16, 1, 0.3, 1)';
   window._cardSwiped = false;
 
   function findImgAndKey(target){
@@ -4177,22 +4178,6 @@ function srOpenFromMapById(lid){
     });
   }
 
-  function showPhoto(imgEl, key, idx){
-    var photos = _photoCache[key];
-    if(!photos || !photos.length) return;
-    idx = Math.max(0, Math.min(photos.length - 1, idx));
-    _photoIdx[key] = idx;
-    var img = imgEl.querySelector('img');
-    if(img){
-      img.style.opacity = '0';
-      setTimeout(function(){
-        img.src = photos[idx];
-        img.style.opacity = '1';
-      }, 80);
-    }
-    renderDots(imgEl, key);
-  }
-
   function renderDots(imgEl, key){
     var photos = _photoCache[key];
     if(!photos || photos.length <= 1) return;
@@ -4210,11 +4195,34 @@ function srOpenFromMapById(lid){
     dots.innerHTML = html;
   }
 
-  // Touch events — delegated from document
+  function cleanupPeek(imgEl){
+    var p = imgEl.querySelector('.card-swipe-peek');
+    if(p && p.parentNode) p.parentNode.removeChild(p);
+  }
+
+  // Create / reuse the peek image for the adjacent photo
+  function ensurePeek(imgEl, key, dx){
+    var photos = _photoCache[key];
+    if(!photos || photos.length <= 1) return null;
+    var cur = _photoIdx[key] || 0;
+    var peekIdx = dx < 0 ? cur + 1 : cur - 1; // left drag → next; right → prev
+    if(peekIdx < 0 || peekIdx >= photos.length) return null;
+    var peek = imgEl.querySelector('.card-swipe-peek');
+    if(!peek){
+      peek = new Image();
+      peek.className = 'card-swipe-peek';
+      imgEl.appendChild(peek);
+    }
+    if(peek.src !== photos[peekIdx]) peek.src = photos[peekIdx];
+    return peek;
+  }
+
+  // ─── Touch delegation ───
   document.addEventListener('touchstart', function(e){
     var ci = findImgAndKey(e.target);
     if(!ci) return;
-    _swipe = {x:e.touches[0].clientX, y:e.touches[0].clientY, key:ci.key, el:ci.el, horizontal:false, decided:false};
+    _swipe = {x:e.touches[0].clientX, y:e.touches[0].clientY, key:ci.key, el:ci.el, horizontal:false, decided:false, dx:0, peekSign:0};
+    getPhotos(ci.key); // preload photo URLs
   }, {passive:true});
 
   document.addEventListener('touchmove', function(e){
@@ -4225,28 +4233,85 @@ function srOpenFromMapById(lid){
       _swipe.decided = true;
       _swipe.horizontal = Math.abs(dx) > Math.abs(dy);
     }
-    if(_swipe.horizontal) e.preventDefault(); // lock to horizontal swipe
+    if(!_swipe.horizontal) return;
+    e.preventDefault();
+    _swipe.dx = dx;
+
+    var imgEl = _swipe.el;
+    var img = imgEl.querySelector('img:not(.card-swipe-peek)');
+    if(!img) return;
+    var w = imgEl.offsetWidth;
+
+    // Current image follows finger
+    img.style.transition = 'none';
+    img.style.transform = 'translateX(' + dx + 'px)';
+
+    // Rebuild peek if drag direction flipped
+    var sign = dx < 0 ? -1 : 1;
+    if(sign !== _swipe.peekSign){ cleanupPeek(imgEl); _swipe.peekSign = sign; }
+
+    // Adjacent photo slides in from the edge
+    var peek = ensurePeek(imgEl, _swipe.key, dx);
+    if(peek){
+      var offset = dx < 0 ? w : -w;
+      peek.style.transition = 'none';
+      peek.style.transform = 'translateX(' + (dx + offset) + 'px)';
+    }
   }, {passive:false});
 
   document.addEventListener('touchend', function(e){
-    if(!_swipe){return;}
+    if(!_swipe) return;
     var dx = e.changedTouches[0].clientX - _swipe.x;
     var key = _swipe.key;
     var imgEl = _swipe.el;
     var wasHorizontal = _swipe.horizontal;
     _swipe = null;
-    if(!wasHorizontal || Math.abs(dx) < 25) return;
 
-    // Suppress the card click that follows this touchend
-    window._cardSwiped = true;
-    setTimeout(function(){window._cardSwiped=false;},300);
+    var img = imgEl.querySelector('img:not(.card-swipe-peek)');
+    if(!img || !wasHorizontal){ cleanupPeek(imgEl); return; }
 
-    var dir = dx < 0 ? 1 : -1; // left swipe = next
-    getPhotos(key).then(function(photos){
-      if(!photos || photos.length <= 1) return;
-      var idx = (_photoIdx[key] || 0) + dir;
-      showPhoto(imgEl, key, idx);
-    });
+    var w = imgEl.offsetWidth;
+    var photos = _photoCache[key];
+    var cur = _photoIdx[key] || 0;
+    var advance = dx < 0 ? 1 : -1;
+    var newIdx = cur + advance;
+    var canComplete = photos && photos.length > 1 && newIdx >= 0 && newIdx < photos.length && Math.abs(dx) >= 40;
+
+    if(canComplete){
+      // ── Slide to completion ──
+      window._cardSwiped = true;
+      setTimeout(function(){window._cardSwiped=false;},350);
+      _photoIdx[key] = newIdx;
+
+      var peek = imgEl.querySelector('.card-swipe-peek');
+      img.style.transition = 'transform 0.32s ' + EASE;
+      img.style.transform = 'translateX(' + (advance > 0 ? -w : w) + 'px)';
+      if(peek){
+        peek.style.transition = 'transform 0.32s ' + EASE;
+        peek.style.transform = 'translateX(0)';
+      }
+      setTimeout(function(){
+        img.src = photos[newIdx];
+        img.style.transform = '';
+        img.style.transition = '';
+        cleanupPeek(imgEl);
+      }, 340);
+      renderDots(imgEl, key);
+
+    } else {
+      // ── Elastic snap-back ──
+      img.style.transition = 'transform 0.28s ' + EASE;
+      img.style.transform = '';
+      var peek = imgEl.querySelector('.card-swipe-peek');
+      if(peek){
+        peek.style.transition = 'transform 0.28s ' + EASE;
+        peek.style.transform = 'translateX(' + (dx < 0 ? w : -w) + 'px)';
+      }
+      setTimeout(function(){
+        img.style.transition = '';
+        cleanupPeek(imgEl);
+      }, 300);
+    }
   });
 })();
 

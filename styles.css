@@ -1200,10 +1200,11 @@ textarea.form-input{resize:vertical;min-height:100px}
 .sr-card:hover{background:var(--surface)}
 .sr-card.highlighted{border-color:var(--gold);background:rgba(196,176,140,0.06);box-shadow:0 4px 16px rgba(196,176,140,0.15)}
 .sr-card-img{width:100%;height:120px;flex-shrink:0;overflow:hidden;position:relative}
-.sr-card-img img{width:100%;height:100%;object-fit:cover;transition:opacity 0.15s ease}
-/* Card photo swipe dots */
+.sr-card-img img{width:100%;height:100%;object-fit:cover}
+/* Card photo swipe */
+.card-swipe-peek{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:2;will-change:transform;pointer-events:none}
 .card-swipe-dots{position:absolute;bottom:0.3rem;left:50%;transform:translateX(-50%);display:flex;gap:3px;z-index:5;pointer-events:none}
-.card-swipe-dots span{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,0.4);transition:all 0.2s}
+.card-swipe-dots span{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,0.4);transition:background 0.2s,transform 0.2s}
 .card-swipe-dots span.active{background:#fff;transform:scale(1.2)}
 .card-swipe-dots span.more{background:none;color:rgba(255,255,255,0.5);font-size:8px;line-height:5px;width:auto}
 .sr-card-img .sr-card-badge{position:absolute;top:0.35rem;left:0.35rem;font-size:0.45rem;letter-spacing:0.1em;text-transform:uppercase;padding:0.15rem 0.45rem;background:var(--gold);color:var(--bg);font-weight:600}
