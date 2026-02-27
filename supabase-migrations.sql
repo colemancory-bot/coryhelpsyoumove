@@ -591,6 +591,10 @@ CREATE INDEX IF NOT EXISTS idx_mls_listings_price ON mls_listings(list_price) WH
 CREATE INDEX IF NOT EXISTS idx_mls_listings_type ON mls_listings(property_type, standard_status);
 CREATE INDEX IF NOT EXISTS idx_mls_listings_geo ON mls_listings(latitude, longitude) WHERE latitude IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_mls_listings_listing_id ON mls_listings(listing_id);
+-- Composite index matching the main frontend query: mlg_can_view + status IN (...) + not lease
+CREATE INDEX IF NOT EXISTS idx_mls_listings_frontend_query ON mls_listings(standard_status, city, list_price) WHERE mlg_can_view = true AND property_type != 'Residential Lease';
+-- County filter for MLS Grid geographic filtering
+CREATE INDEX IF NOT EXISTS idx_mls_listings_county ON mls_listings(county_or_parish, standard_status) WHERE mlg_can_view = true;
 
 ALTER TABLE mls_listings ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Anyone can read active listings" ON mls_listings FOR SELECT USING (mlg_can_view = true);
@@ -616,6 +620,8 @@ CREATE TABLE IF NOT EXISTS mls_media (
 );
 
 CREATE INDEX IF NOT EXISTS idx_mls_media_listing ON mls_media(listing_key, "order");
+-- Primary photo lookup — frontend fetches order=1 for all listings
+CREATE INDEX IF NOT EXISTS idx_mls_media_primary_photo ON mls_media(listing_key) WHERE "order" = 1;
 ALTER TABLE mls_media ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Anyone can read media" ON mls_media FOR SELECT USING (true);
 CREATE POLICY "Admin can manage media" ON mls_media FOR ALL USING (
