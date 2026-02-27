@@ -2634,7 +2634,9 @@ function openProp(listing, townName) {
   document.getElementById('propAddr').textContent = listing.address;
   document.getElementById('propCity').textContent = townName + ', North Carolina';
 
-  // Listing broker attribution (IDX compliance — multi-MLS aware)
+  // Listing broker attribution (IDX compliance — show ONLY the primary data source)
+  // MLS Grid best practice: display the specific source whose data is shown, not all sources.
+  // This makes it clear which MLS to review if there's a data discrepancy.
   var brokerEl = document.getElementById('propListingBroker');
   if(brokerEl) {
     var parts = [];
@@ -2642,31 +2644,30 @@ function openProp(listing, townName) {
     if(listing.listOffice) parts.push(listing.listOffice);
     if(listing.attributionContact) parts.push(listing.attributionContact);
     var brokerText = parts.join(' \u2022 ');
-    // Show MLS numbers — dual-source listings get both credited
-    var mlsNums = _formatMlsNums(listing);
-    if(mlsNums) brokerText += ' | ' + mlsNums;
+    // Show only the primary MLS number (the source whose data is being displayed)
+    var primaryMlsId = listing.mlsId || '';
+    if(primaryMlsId) brokerText += ' | MLS# ' + primaryMlsId;
     brokerEl.textContent = brokerText || '';
     brokerEl.style.display = brokerText ? '' : 'none';
   }
 
-  // IDX source attribution — dynamic per listing source(s) + Rule 24 required verbiage
+  // IDX source attribution — show ONLY the primary data source + Rule 24 required verbiage
+  // MLS Grid best practice: attribute the specific source whose data is displayed,
+  // so data discrepancies (e.g. agent forgot to update status in one MLS) are traceable.
   var idxSrcEl = document.getElementById('propIdxSource');
   if(idxSrcEl) {
-    var sources = listing.mlsSources || [];
-    var srcParts = [];
-    var hasCsar = false, hasCanopy = false;
-    sources.forEach(function(s) {
-      if(s.system === 'CSAR') hasCsar = true;
-      else hasCanopy = true;
-    });
-    if(hasCsar) srcParts.push('Carolina Smokies Association of Realtors');
-    if(hasCanopy) srcParts.push('Canopy MLS as distributed by MLS GRID');
-    // Fallback if no mlsSources (demo data or cache without sources)
-    if(!srcParts.length) srcParts.push('Canopy MLS as distributed by MLS GRID');
+    var primarySys = listing.originatingSystem || '';
+    var primaryLabel = MLS_GRID._mlsLabel(primarySys);
+    var srcName;
+    if(primaryLabel === 'CSAR') {
+      srcName = 'Carolina Smokies Association of Realtors';
+    } else {
+      srcName = 'Canopy MLS as distributed by MLS GRID';
+    }
     // Rule 24 compliant disclaimer with MLS GRID timestamp
     var _gridTs = document.getElementById('idxGridTimestamp');
     var _gridTsText = (_gridTs && _gridTs.textContent !== 'the last data refresh') ? _gridTs.textContent : new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) + ' at ' + new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
-    idxSrcEl.textContent = 'Listing courtesy of ' + srcParts.join(' and ') + '. Based on information submitted to the MLS GRID as of ' + _gridTsText + '. All data is obtained from various sources and may not have been verified by broker or MLS GRID. Supplied Open House Information is subject to change without notice. All information should be independently reviewed and verified for accuracy. Properties may or may not be listed by the office/agent presenting the information.';
+    idxSrcEl.textContent = 'Listing courtesy of ' + srcName + '. Based on information submitted to the MLS GRID as of ' + _gridTsText + '. All data is obtained from various sources and may not have been verified by broker or MLS GRID. Supplied Open House Information is subject to change without notice. All information should be independently reviewed and verified for accuracy. Properties may or may not be listed by the office/agent presenting the information.';
   }
 
   // Stats ribbon
