@@ -1237,11 +1237,11 @@ textarea.form-input{resize:vertical;min-height:100px}
 
 /* MapLibre map overrides for luxury feel */
 /* Map container background prevents flash while vector tiles load */
-.sr-map-panel .maplibregl-map{height:100%;width:100%;background:#1a1816}
+.sr-map-panel .maplibregl-map{height:100%;width:100%;background:#58513f}
 [data-theme="light"] .sr-map-panel .maplibregl-map{background:#e8e4db}
-/* Light warm filter on the canvas — one element, minimal cost */
-.sr-map-panel canvas{filter:sepia(0.12) brightness(0.95)}
-[data-theme="light"] .sr-map-panel canvas{filter:sepia(0.06)}
+/* Warm filter matching old Voyager raster tile look — one canvas element, minimal cost */
+.sr-map-panel canvas{filter:brightness(0.82) sepia(0.18)}
+[data-theme="light"] .sr-map-panel canvas{filter:brightness(0.97) sepia(0.08)}
 /* Zoom controls */
 .sr-map-panel .maplibregl-ctrl-group{border:none!important;border-radius:4px!important;overflow:hidden;box-shadow:none!important}
 .sr-map-panel .maplibregl-ctrl-group button{background:rgba(12,11,9,0.75)!important;color:var(--gold)!important;border:1px solid rgba(196,176,140,0.25)!important;width:38px!important;height:38px!important;backdrop-filter:blur(12px)!important;transition:all 0.3s!important}

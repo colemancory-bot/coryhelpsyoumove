@@ -3758,10 +3758,8 @@ function closeSearch(){
 }
 
 function _srMapStyle(){
-  var isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-  return isDark
-    ? 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
-    : 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
+  // Always use Voyager — CSS filter handles dark mode warmth/darkness
+  return 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
 }
 
 function _srAddMapLayers(){
@@ -3783,6 +3781,15 @@ function _srAddMapLayers(){
     });
   }
   var isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+
+  // Hide CARTO native place labels — we use our own town-labels layer
+  var styleLayers = _srMap.getStyle().layers || [];
+  styleLayers.forEach(function(layer){
+    if(layer.type === 'symbol' && (layer.id.indexOf('place') !== -1)){
+      _srMap.setLayoutProperty(layer.id, 'visibility', 'none');
+    }
+  });
+
   if(!_srMap.getLayer('town-labels')){
     _srMap.addLayer({
       id:'town-labels', type:'symbol', source:'town-labels',
@@ -4785,24 +4792,26 @@ function srToggleView(){
   }
 }
 
-// Update map style when theme changes
+// Update map layer colors when theme changes (CSS filter handles base tile look)
 var _origToggleTheme = toggleTheme;
 toggleTheme = function(){
   _origToggleTheme();
-  // Swap MapLibre style if search map is open
-  if(_srMap){
-    var newStyle = _srMapStyle();
-    _srMap.setStyle(newStyle);
-    _srMap.once('style.load', function(){
-      _srAddMapLayers();
-      if(_srAllFilteredResults && _srAllFilteredResults.length > 0){
-        srRenderMarkers(_srAllFilteredResults);
-      }
-    });
-  }
-  // Also update property detail map if open
-  if(window._propMap){
-    window._propMap.setStyle(_srMapStyle());
+  // Update our custom layer colors (CSS filter on canvas handles the base tiles)
+  if(_srMap && _srMap.isStyleLoaded()){
+    var isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+    // Town label colors
+    if(_srMap.getLayer('town-labels')){
+      _srMap.setPaintProperty('town-labels', 'text-color', isDark ? '#F5F0E8' : '#2A2520');
+      _srMap.setPaintProperty('town-labels', 'text-halo-color', isDark ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.8)');
+    }
+    // Cluster colors
+    if(_srMap.getLayer('clusters')){
+      _srMap.setPaintProperty('clusters', 'circle-color', isDark ? '#C4B08C' : '#8B7748');
+      _srMap.setPaintProperty('clusters', 'circle-stroke-color', isDark ? 'rgba(196,176,140,0.3)' : 'rgba(139,119,72,0.25)');
+    }
+    if(_srMap.getLayer('cluster-count')){
+      _srMap.setPaintProperty('cluster-count', 'text-color', isDark ? '#0C0B09' : '#FFFFFF');
+    }
   }
   // Update search overlay theme toggle icons
   var searchOv = document.getElementById('searchOverlay');
