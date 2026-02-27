@@ -755,8 +755,8 @@ var MLS_GRID = {
       restrictions: restrict,
       photo: null, // Set from media query
       photos: [],
-      lat: row.latitude ? parseFloat(row.latitude) : null,
-      lng: row.longitude ? parseFloat(row.longitude) : null,
+      lat: row.latitude && parseFloat(row.latitude) > 34.8 && parseFloat(row.latitude) < 36.0 ? parseFloat(row.latitude) : null,
+      lng: row.longitude && parseFloat(row.longitude) > -84.5 && parseFloat(row.longitude) < -82.5 ? parseFloat(row.longitude) : null,
       yearBuilt: row.year_built,
       daysOnMarket: row.days_on_market || 0,
       description: row.public_remarks || '',
