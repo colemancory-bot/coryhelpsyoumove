@@ -1257,10 +1257,9 @@ textarea.form-input{resize:vertical;min-height:100px}
 .sr-map-panel .maplibregl-ctrl-attrib a{color:rgba(196,176,140,0.5)!important}
 [data-theme="light"] .sr-map-panel .maplibregl-ctrl-attrib{background:rgba(248,246,241,0.7)!important;color:rgba(139,119,72,0.4)!important}
 
-/* Single tint+vignette overlay — static radial gradient, no blend mode, no box-shadow.
-   Replaces old per-frame CSS filter + mix-blend-mode + inset box-shadow for smooth zoom. */
-.sr-map-overlay{position:absolute;inset:0;z-index:400;pointer-events:none;background:radial-gradient(ellipse at 50% 50%,rgba(12,11,9,0.12) 0%,rgba(12,11,9,0.38) 100%);will-change:transform}
-[data-theme="light"] .sr-map-overlay{background:radial-gradient(ellipse at 50% 50%,rgba(248,246,241,0.06) 0%,rgba(248,246,241,0.3) 100%)}
+/* Subtle edge vignette — lighter opacity + removed will-change to reduce compositing cost */
+.sr-map-overlay{position:absolute;inset:0;z-index:400;pointer-events:none;background:radial-gradient(ellipse at 50% 50%,transparent 60%,rgba(12,11,9,0.22) 100%)}
+[data-theme="light"] .sr-map-overlay{background:radial-gradient(ellipse at 50% 50%,transparent 60%,rgba(248,246,241,0.18) 100%)}
 
 /* Map compass/branding */
 .sr-map-brand{position:absolute;top:1.25rem;left:1.25rem;z-index:402;pointer-events:none}

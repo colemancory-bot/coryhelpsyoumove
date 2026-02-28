@@ -3624,6 +3624,26 @@ var _srMobileView = 'list';      // 'list' or 'map'
 var _srAllFilteredResults = [];  // Full dropdown-filtered results (before viewport/spatial)
 var _srViewportDebounce = null;
 var _srProgrammaticMove = false;  // true during flyTo/fitBounds — suppresses "Search this area" button
+var _srSkipMapFit = false;        // true when refreshing data silently — skips fitBounds/flyTo
+
+// Generate price label background image (dark box for dark theme, light box for light)
+function _srCreatePriceBg(dark){
+  var s = 20, r = 3, c = document.createElement('canvas');
+  c.width = s; c.height = s;
+  var ctx = c.getContext('2d');
+  ctx.beginPath();
+  ctx.moveTo(r, 0); ctx.lineTo(s-r, 0); ctx.quadraticCurveTo(s, 0, s, r);
+  ctx.lineTo(s, s-r); ctx.quadraticCurveTo(s, s, s-r, s);
+  ctx.lineTo(r, s); ctx.quadraticCurveTo(0, s, 0, s-r);
+  ctx.lineTo(0, r); ctx.quadraticCurveTo(0, 0, r, 0);
+  ctx.closePath();
+  ctx.fillStyle = dark ? 'rgba(12,11,9,0.88)' : 'rgba(255,255,255,0.92)';
+  ctx.fill();
+  ctx.strokeStyle = dark ? 'rgba(196,176,140,0.3)' : 'rgba(139,119,72,0.25)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  return ctx.getImageData(0, 0, s, s);
+}
 var _srPopup = null;             // Current open maplibregl.Popup
 
 // Drawing state
@@ -3904,30 +3924,32 @@ function _srAddMapLayers(){
       },
       paint:{'text-color': isDark ? '#0C0B09' : '#FFFFFF'}
     });
-    // Unclustered price labels — GPU-rendered symbol layer (replaces DOM markers)
+    // Create + add background image for price label boxes
+    _srMap.addImage('price-bg', _srCreatePriceBg(isDark), {width:20, height:20, pixelRatio:1});
+
+    // Unclustered price labels — GPU-rendered symbol layer with background box
     _srMap.addLayer({
       id:'unclustered-point', type:'symbol', source:'listings',
       filter:['!',['has','point_count']],
       layout:{
+        'icon-image':'price-bg',
+        'icon-text-fit':'both',
+        'icon-text-fit-padding':[2, 5, 2, 5],
+        'icon-allow-overlap':true,
         'text-field':['get','priceLabel'],
         'text-font':['Open Sans Semibold','Arial Unicode MS Bold'],
         'text-size':11,
         'text-allow-overlap':true,
         'text-ignore-placement':true,
-        'text-anchor':'bottom',
-        'text-offset':[0,-0.3],
+        'text-anchor':'center',
         'text-padding':0
       },
       paint:{
         'text-color':['case',
           ['boolean',['feature-state','hover'],false], '#FFFFFF',
-          ['boolean',['feature-state','viewed'],false], '#7a7a7a',
-          isDark ? '#C4B08C' : '#8B7748'],
-        'text-halo-color':['case',
-          ['boolean',['feature-state','hover'],false], isDark ? '#C4B08C' : '#5a4830',
-          isDark ? 'rgba(12,11,9,0.9)' : 'rgba(255,255,255,0.9)'],
-        'text-halo-width':2,
-        'text-halo-blur':0
+          ['boolean',['feature-state','viewed'],false], '#999999',
+          isDark ? '#C4B08C' : '#5a4830'],
+        'text-halo-width':0
       }
     });
   }
@@ -4271,35 +4293,38 @@ function srApplyFilters(){
   srRenderMarkers(results);
 
   // Fit map to results — context-aware zoom based on selected areas
-  // Flag suppresses "Search this area" button from the resulting moveend
-  _srProgrammaticMove = true;
-  if(_srMap && _srMapLayersReady){
-    var withCoords = results.filter(function(l){return l.lat && l.lng});
-    if(withCoords.length > 0){
-      if(selectedAreas.length === 1 && TOWN_COORDS[selectedAreas[0]]){
-        // Single town: flyTo town center for a guaranteed visible pan/zoom
-        var tc = TOWN_COORDS[selectedAreas[0]];
-        _srMap.flyTo({center:[tc.lng, tc.lat], zoom:12});
-      } else if(selectedAreas.length > 1){
-        // Multiple towns: fit bounds including town centers for tight framing
-        var bounds = new maplibregl.LngLatBounds();
-        withCoords.forEach(function(l){ bounds.extend([l.lng, l.lat]); });
-        selectedAreas.forEach(function(a){
-          var tc = TOWN_COORDS[a];
-          if(tc) bounds.extend([tc.lng, tc.lat]);
-        });
-        _srMap.fitBounds(bounds, {padding:60, maxZoom:13});
+  // Skip when silently refreshing data (e.g., MLS init callback) to preserve user's zoom
+  if(!_srSkipMapFit){
+    // Flag suppresses "Search this area" button from the resulting moveend
+    _srProgrammaticMove = true;
+    if(_srMap && _srMapLayersReady){
+      var withCoords = results.filter(function(l){return l.lat && l.lng});
+      if(withCoords.length > 0){
+        if(selectedAreas.length === 1 && TOWN_COORDS[selectedAreas[0]]){
+          // Single town: flyTo town center for a guaranteed visible pan/zoom
+          var tc = TOWN_COORDS[selectedAreas[0]];
+          _srMap.flyTo({center:[tc.lng, tc.lat], zoom:12});
+        } else if(selectedAreas.length > 1){
+          // Multiple towns: fit bounds including town centers for tight framing
+          var bounds = new maplibregl.LngLatBounds();
+          withCoords.forEach(function(l){ bounds.extend([l.lng, l.lat]); });
+          selectedAreas.forEach(function(a){
+            var tc = TOWN_COORDS[a];
+            if(tc) bounds.extend([tc.lng, tc.lat]);
+          });
+          _srMap.fitBounds(bounds, {padding:60, maxZoom:13});
+        } else {
+          // No town filter: fit to all results
+          var bounds = new maplibregl.LngLatBounds();
+          withCoords.forEach(function(l){ bounds.extend([l.lng, l.lat]); });
+          _srMap.fitBounds(bounds, {padding:40, maxZoom:13});
+        }
       } else {
-        // No town filter: fit to all results
-        var bounds = new maplibregl.LngLatBounds();
-        withCoords.forEach(function(l){ bounds.extend([l.lng, l.lat]); });
-        _srMap.fitBounds(bounds, {padding:40, maxZoom:13});
+        _srProgrammaticMove = false; // Nothing to animate to
       }
     } else {
-      _srProgrammaticMove = false; // Nothing to animate to
+      _srProgrammaticMove = false; // Map not ready
     }
-  } else {
-    _srProgrammaticMove = false; // Map not ready
   }
 
   // Render cards — always render immediately, then viewport filter can refine
@@ -5001,15 +5026,15 @@ toggleTheme = function(){
     if(_srMap.getLayer('cluster-count')){
       _srMap.setPaintProperty('cluster-count', 'text-color', isDark ? '#0C0B09' : '#FFFFFF');
     }
-    // Price label colors
+    // Price label colors + background image swap
     if(_srMap.getLayer('unclustered-point')){
       _srMap.setPaintProperty('unclustered-point', 'text-color', ['case',
         ['boolean',['feature-state','hover'],false], '#FFFFFF',
-        ['boolean',['feature-state','viewed'],false], '#7a7a7a',
-        isDark ? '#C4B08C' : '#8B7748']);
-      _srMap.setPaintProperty('unclustered-point', 'text-halo-color', ['case',
-        ['boolean',['feature-state','hover'],false], isDark ? '#C4B08C' : '#5a4830',
-        isDark ? 'rgba(12,11,9,0.9)' : 'rgba(255,255,255,0.9)']);
+        ['boolean',['feature-state','viewed'],false], '#999999',
+        isDark ? '#C4B08C' : '#5a4830']);
+      // Swap background image for theme
+      if(_srMap.hasImage('price-bg')) _srMap.removeImage('price-bg');
+      _srMap.addImage('price-bg', _srCreatePriceBg(isDark), {width:20, height:20, pixelRatio:1});
     }
     // Town boundary line color
     if(_srMap.getLayer('town-boundary-line')){
@@ -7609,9 +7634,12 @@ if(MLS_GRID.enabled) {
       }
     }
     // If search overlay is already open, refresh results with live data
+    // Skip map fit to preserve user's current zoom/pan position
     var srOverlay = document.getElementById('searchOverlay');
     if(srOverlay && srOverlay.classList.contains('active') && typeof srApplyFilters === 'function') {
+      _srSkipMapFit = true;
       srApplyFilters();
+      _srSkipMapFit = false;
       _log('[MLS Grid] Search results refreshed with live data');
     }
   });
