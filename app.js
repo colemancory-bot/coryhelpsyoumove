@@ -3597,6 +3597,7 @@ var ALL_LISTINGS = [];
 
 var _srMap = null;
 var _srLidToNumId = {};          // listing ID → numeric _numId for feature-state hover sync
+var _srMapLayersReady = false;   // true once _srAddMapLayers() has run (source + layers exist)
 var _srActiveCard = null;
 var _srMobileView = 'list';      // 'list' or 'map'
 var _srAllFilteredResults = [];  // Full dropdown-filtered results (before viewport/spatial)
@@ -3930,6 +3931,8 @@ function _srAddMapLayers(){
       paint:{'line-color':'#C4B08C','line-width':2,'line-dasharray':[6,4]}
     });
   }
+
+  _srMapLayersReady = true;
 }
 
 function initSearchMap(){
@@ -3956,9 +3959,10 @@ function initSearchMap(){
     // Once style loads, add data layers
     _srMap.on('load', function(){
       _srAddMapLayers();
-      // If listings already loaded, render markers
+      // If listings already loaded, render markers + apply viewed/fav states
       if(_srAllFilteredResults && _srAllFilteredResults.length > 0){
         srRenderMarkers(_srAllFilteredResults);
+        srApplyViewedFavStates();
       }
     });
 
@@ -4552,12 +4556,12 @@ function srOpenFromMapById(lid){
 
 // ═══ ID-based marker/card highlight sync (GPU feature-state) ═══
 function srHighlightMarkerById(lid){
-  if(!_srMap) return;
+  if(!_srMap || !_srMapLayersReady) return;
   var n = _srLidToNumId[lid]; if(n === undefined) return;
   _srMap.setFeatureState({source:'listings',id:n},{hover:true});
 }
 function srUnhighlightMarkerById(lid){
-  if(!_srMap) return;
+  if(!_srMap || !_srMapLayersReady) return;
   var n = _srLidToNumId[lid]; if(n === undefined) return;
   _srMap.setFeatureState({source:'listings',id:n},{hover:false});
 }
@@ -7309,13 +7313,15 @@ function srApplyViewedFavStates() {
       }
     }
 
-    // Marker states via GPU feature-state
-    var lid = l.listingKey || l.mlsId || (l.address + '|' + l.city);
-    var numId = _srLidToNumId[lid];
-    if(numId !== undefined && _srMap) {
-      _srMap.setFeatureState({source:'listings',id:numId},{
-        viewed: !!_viewedProps[key] && !_favProps[key]
-      });
+    // Marker states via GPU feature-state (only after map layers are ready)
+    if(_srMapLayersReady) {
+      var lid = l.listingKey || l.mlsId || (l.address + '|' + l.city);
+      var numId = _srLidToNumId[lid];
+      if(numId !== undefined && _srMap) {
+        _srMap.setFeatureState({source:'listings',id:numId},{
+          viewed: !!_viewedProps[key] && !_favProps[key]
+        });
+      }
     }
   });
 }
