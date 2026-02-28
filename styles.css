@@ -83,6 +83,7 @@ ul{list-style:none}
   width:40px;height:40px;border-radius:50%;
   background:rgba(12,11,9,0.5);backdrop-filter:blur(10px);
   border:1px solid rgba(196,176,140,0.2);
+  color:var(--cream);
   cursor:pointer;transition:all 0.3s;
   display:flex;align-items:center;justify-content:center;
   position:relative;
@@ -213,7 +214,7 @@ ul{list-style:none}
   border:1px solid rgba(196,176,140,0.2);
   position:relative;z-index:10;
 }
-.hs-field{flex:1;display:flex;flex-direction:column;padding:0.85rem 1.15rem;border-right:1px solid rgba(196,176,140,0.1);position:relative;min-width:0}
+.hs-field{flex:1;display:flex;flex-direction:column;padding:0.55rem 1.15rem;border-right:1px solid rgba(196,176,140,0.1);position:relative;min-width:0}
 .hs-field:last-of-type{border-right:none}
 .hs-label{font-size:0.5rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold);margin-bottom:0.2rem;white-space:nowrap}
 .hs-select,.hs-input{
@@ -251,7 +252,7 @@ ul{list-style:none}
 .hero-search-note svg{width:10px;height:10px;stroke:var(--green);fill:none;stroke-width:2;flex-shrink:0}
 
 /* Hero Text Search */
-.hero-search-text{display:flex;align-items:center;gap:0.75rem;background:rgba(12,11,9,0.55);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(196,176,140,0.2);border-top:none;padding:0.7rem 1.15rem}
+.hero-search-text{display:flex;align-items:center;gap:0.75rem;background:rgba(12,11,9,0.55);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(196,176,140,0.2);border-top:none;padding:1.05rem 1.15rem}
 .hero-search-text svg{width:16px;height:16px;stroke:var(--gold);fill:none;stroke-width:2;flex-shrink:0;opacity:0.5}
 .hs-text-input{background:transparent;border:none;outline:none;color:#F5F0E8;font-family:'Outfit',sans-serif;font-size:0.82rem;font-weight:300;width:100%}
 .hs-text-input::placeholder{color:rgba(245,240,232,0.3)}
@@ -914,7 +915,7 @@ textarea.form-input{resize:vertical;min-height:100px}
   position:fixed;top:1.5rem;right:5.5rem;z-index:5002;width:48px;height:48px;
   display:flex;align-items:center;justify-content:center;
   background:rgba(12,11,9,0.7);backdrop-filter:blur(10px);
-  border:1px solid rgba(196,176,140,0.2);cursor:pointer;border-radius:50%;
+  border:1px solid rgba(196,176,140,0.2);color:var(--cream);cursor:pointer;border-radius:50%;
   transition:all 0.3s;font-size:1rem;
 }
 .prop-theme-toggle:hover{background:var(--gold);border-color:var(--gold)}
