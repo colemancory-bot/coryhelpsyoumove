@@ -22,8 +22,13 @@ const R2_PUBLIC_URL = Deno.env.get("R2_PUBLIC_URL") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
-// Rate limiting: max 2 req/s — we stay safely under
-const REQUEST_DELAY_MS = 600;
+// MLS Grid rate limits (warning at 2 RPS, suspension at 6 RPS):
+//   - Max 4 requests/second at all times
+//   - Max 7,200 requests/hour (warning), 18,000/hour (suspension)
+//   - Max 40,000 requests/24h (warning), 60,000/24h (suspension)
+// 1200ms delay = ~0.83 RPS, well under the 2 RPS warning threshold.
+// NEVER fire multiple invocations in parallel — always sequential via cron.
+const REQUEST_DELAY_MS = 1200;
 
 // Max records per OData page
 const PAGE_SIZE = 200;
