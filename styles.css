@@ -83,12 +83,12 @@ ul{list-style:none}
   width:40px;height:40px;border-radius:50%;
   background:rgba(12,11,9,0.5);backdrop-filter:blur(10px);
   border:1px solid rgba(196,176,140,0.2);
-  color:var(--cream);
+  color:var(--gold);
   cursor:pointer;transition:all 0.3s;
   display:flex;align-items:center;justify-content:center;
   position:relative;
 }
-.theme-toggle:hover{background:var(--gold);border-color:var(--gold)}
+.theme-toggle:hover{background:var(--gold);border-color:var(--gold);color:var(--bg)}
 [data-theme="light"] .theme-toggle{background:rgba(255,255,255,0.7)}
 .theme-toggle .t-sun{display:none;font-size:0.9rem;line-height:1}
 .theme-toggle .t-moon{display:inline;font-size:0.9rem;line-height:1}
@@ -915,10 +915,10 @@ textarea.form-input{resize:vertical;min-height:100px}
   position:fixed;top:1.5rem;right:5.5rem;z-index:5002;width:48px;height:48px;
   display:flex;align-items:center;justify-content:center;
   background:rgba(12,11,9,0.7);backdrop-filter:blur(10px);
-  border:1px solid rgba(196,176,140,0.2);color:var(--cream);cursor:pointer;border-radius:50%;
+  border:1px solid rgba(196,176,140,0.2);color:var(--gold);cursor:pointer;border-radius:50%;
   transition:all 0.3s;font-size:1rem;
 }
-.prop-theme-toggle:hover{background:var(--gold);border-color:var(--gold)}
+.prop-theme-toggle:hover{background:var(--gold);border-color:var(--gold);color:var(--bg)}
 [data-theme="light"] .prop-theme-toggle{background:rgba(255,255,255,0.8)}
 .prop-toggle-sun{display:none;font-size:1rem}
 .prop-toggle-moon{display:inline;font-size:1rem}
