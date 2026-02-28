@@ -3596,8 +3596,7 @@ var ALL_LISTINGS = [];
 })();
 
 var _srMap = null;
-var _srMarkers = [];             // array of maplibregl.Marker instances
-var _srMarkerMap = {};           // listingKey → maplibregl.Marker for ID-based lookup
+var _srLidToNumId = {};          // listing ID → numeric _numId for feature-state hover sync
 var _srActiveCard = null;
 var _srMobileView = 'list';      // 'list' or 'map'
 var _srAllFilteredResults = [];  // Full dropdown-filtered results (before viewport/spatial)
@@ -3856,7 +3855,8 @@ function _srAddMapLayers(){
     _srMap.addSource('listings',{
       type:'geojson',
       data:{type:'FeatureCollection',features:[]},
-      cluster:true, clusterMaxZoom:14, clusterRadius:50
+      cluster:true, clusterMaxZoom:14, clusterRadius:50,
+      promoteId:'_numId'
     });
     // Cluster circles
     _srMap.addLayer({
@@ -3880,11 +3880,31 @@ function _srAddMapLayers(){
       },
       paint:{'text-color': isDark ? '#0C0B09' : '#FFFFFF'}
     });
-    // Unclustered point (invisible — we use DOM markers instead, but this layer enables click detection)
+    // Unclustered price labels — GPU-rendered symbol layer (replaces DOM markers)
     _srMap.addLayer({
-      id:'unclustered-point', type:'circle', source:'listings',
+      id:'unclustered-point', type:'symbol', source:'listings',
       filter:['!',['has','point_count']],
-      paint:{'circle-radius':1,'circle-opacity':0}
+      layout:{
+        'text-field':['get','priceLabel'],
+        'text-font':['Open Sans Semibold','Arial Unicode MS Bold'],
+        'text-size':11,
+        'text-allow-overlap':true,
+        'text-ignore-placement':true,
+        'text-anchor':'bottom',
+        'text-offset':[0,-0.3],
+        'text-padding':0
+      },
+      paint:{
+        'text-color':['case',
+          ['boolean',['feature-state','hover'],false], '#FFFFFF',
+          ['boolean',['feature-state','viewed'],false], '#7a7a7a',
+          isDark ? '#C4B08C' : '#8B7748'],
+        'text-halo-color':['case',
+          ['boolean',['feature-state','hover'],false], isDark ? '#C4B08C' : '#5a4830',
+          isDark ? 'rgba(12,11,9,0.9)' : 'rgba(255,255,255,0.9)'],
+        'text-halo-width':2,
+        'text-halo-blur':0
+      }
     });
   }
 
@@ -3957,14 +3977,42 @@ function initSearchMap(){
     _srMap.on('mouseenter','clusters',function(){ _srMap.getCanvas().style.cursor='pointer'; });
     _srMap.on('mouseleave','clusters',function(){ if(!_srFreedrawing) _srMap.getCanvas().style.cursor=''; });
 
-    // Viewport-based card filtering + marker refresh on pan/zoom
+    // ── Price label hover (GPU symbol layer) ──
+    var _srHoveredFeatureId = null;
+
+    _srMap.on('mouseenter','unclustered-point',function(e){
+      _srMap.getCanvas().style.cursor = 'pointer';
+      if(!e.features || !e.features.length) return;
+      var f = e.features[0];
+      var numId = f.properties._numId;
+      if(_srHoveredFeatureId !== null)
+        _srMap.setFeatureState({source:'listings',id:_srHoveredFeatureId},{hover:false});
+      _srHoveredFeatureId = numId;
+      _srMap.setFeatureState({source:'listings',id:numId},{hover:true});
+      srHighlightCardById(f.properties.id);
+    });
+
+    _srMap.on('mouseleave','unclustered-point',function(){
+      if(!_srFreedrawing) _srMap.getCanvas().style.cursor = '';
+      if(_srHoveredFeatureId !== null){
+        _srMap.setFeatureState({source:'listings',id:_srHoveredFeatureId},{hover:false});
+        _srHoveredFeatureId = null;
+      }
+      var h = document.querySelector('.sr-card.highlighted');
+      if(h) h.classList.remove('highlighted');
+    });
+
+    _srMap.on('click','unclustered-point',function(e){
+      if(e.features && e.features.length)
+        _srShowMarkerPopup(e.features[0].properties.id, e.features[0].geometry.coordinates);
+    });
+
+    // Viewport-based card filtering on pan/zoom
     _srMap.on('moveend',function(){
-      _srScheduleMarkerRefresh();
       if(_srSpatialFilter) return;
       clearTimeout(_srViewportDebounce);
       _srViewportDebounce = setTimeout(srFilterCardsByViewport, 350);
     });
-    _srMap.on('zoomend',function(){ _srScheduleMarkerRefresh(); });
 
     // Freehand drawing events
     _srMap.on('mousedown',function(e){
@@ -4261,13 +4309,17 @@ function _srBindCardDelegation(){
 function _srListingsToGeoJSON(results){
   return {
     type:'FeatureCollection',
-    features: results.filter(function(l){return l.lat && l.lng}).map(function(l){
+    features: results.filter(function(l){return l.lat && l.lng}).map(function(l, idx){
       var lid = l.listingKey || l.mlsId || (l.address + '|' + l.city);
       return {
         type:'Feature',
         geometry:{type:'Point',coordinates:[l.lng, l.lat]},
         properties:{
-          id:lid, price:l.price, address:l.address, city:l.city, type:l.type,
+          id:lid, _numId:idx, price:l.price,
+          priceLabel: l.price >= 1000000
+            ? '$' + (l.price/1000000).toFixed(1).replace(/\.0$/,'') + 'M'
+            : '$' + Math.round(l.price/1000) + 'K',
+          address:l.address, city:l.city, type:l.type,
           beds:l.beds, baths:l.baths, sqft:l.sqft, lot:l.lot||'',
           photo:l.photo||'', status:l.status||'Active', listOffice:l.listOffice||''
         }
@@ -4278,20 +4330,16 @@ function _srListingsToGeoJSON(results){
 
 function srRenderMarkers(results){
   if(!_srMap) return;
-
-  // Remove existing DOM price markers
-  _srMarkers.forEach(function(m){ m.remove(); });
-  _srMarkers = [];
-  _srMarkerMap = {};
   if(_srPopup){ _srPopup.remove(); _srPopup = null; }
 
-  // Update GeoJSON source (drives clusters)
+  // Build lid→numId lookup for card↔marker hover sync via feature-state
+  _srLidToNumId = {};
   var geojson = _srListingsToGeoJSON(results);
+  geojson.features.forEach(function(f){ _srLidToNumId[f.properties.id] = f.properties._numId; });
+
+  // Update GeoJSON source (drives clusters + GPU symbol layer)
   var src = _srMap.getSource('listings');
   if(src) src.setData(geojson);
-
-  // Create DOM price markers for unclustered points
-  _srUpdatePriceMarkers();
 
   // Fit bounds
   var withCoords = results.filter(function(l){return l.lat && l.lng});
@@ -4300,60 +4348,6 @@ function srRenderMarkers(results){
     withCoords.forEach(function(l){ bounds.extend([l.lng, l.lat]); });
     _srMap.fitBounds(bounds, {padding:40, maxZoom:13});
   }
-}
-
-// Create/update DOM price markers for unclustered individual listings
-var _SR_MAX_MARKERS = 150; // Cap DOM markers to prevent browser lag at wide zoom levels
-function _srUpdatePriceMarkers(){
-  if(!_srMap || !_srMap.isStyleLoaded()) return;
-  // Query currently visible unclustered features from the source
-  var features;
-  try { features = _srMap.querySourceFeatures('listings',{sourceLayer:'',filter:['!',['has','point_count']]}); } catch(e){ return; }
-  // Deduplicate (querySourceFeatures can return tiles duplicates)
-  var seen = {};
-  var unique = [];
-  features.forEach(function(f){
-    var id = f.properties.id;
-    if(!seen[id]){ seen[id] = true; unique.push(f); }
-  });
-  // If too many unclustered points, skip DOM markers entirely (clusters should handle it)
-  if(unique.length > _SR_MAX_MARKERS){
-    _srMarkers.forEach(function(m){ m.remove(); });
-    _srMarkers = [];
-    _srMarkerMap = {};
-    return;
-  }
-  // Track which markers should be active
-  var activeIds = {};
-  unique.forEach(function(f){
-    var lid = f.properties.id;
-    activeIds[lid] = true;
-    if(_srMarkerMap[lid]) return; // Already exists
-    var price = f.properties.price;
-    var priceLabel = price >= 1000000 ? '$'+(price/1000000).toFixed(1)+'M' : '$'+Math.round(price/1000)+'K';
-    var el = document.createElement('div');
-    el.className = 'sr-price-marker-wrap';
-    el.innerHTML = '<div class="sr-price-marker" data-lid="'+lid+'">'+priceLabel+'</div>';
-    // Hover sync
-    el.addEventListener('mouseenter',function(){ srHighlightCardById(lid); el.querySelector('.sr-price-marker').classList.add('active'); });
-    el.addEventListener('mouseleave',function(){ srUnhighlightCardById(lid); el.querySelector('.sr-price-marker').classList.remove('active'); });
-    // Click → popup
-    el.addEventListener('click',function(e){
-      e.stopPropagation();
-      _srShowMarkerPopup(lid, f.geometry.coordinates);
-    });
-    var marker = new maplibregl.Marker({element:el, anchor:'bottom'})
-      .setLngLat(f.geometry.coordinates)
-      .addTo(_srMap);
-    marker._lid = lid;
-    _srMarkers.push(marker);
-    _srMarkerMap[lid] = marker;
-  });
-  // Remove markers no longer visible
-  _srMarkers = _srMarkers.filter(function(m){
-    if(!activeIds[m._lid]){ m.remove(); delete _srMarkerMap[m._lid]; return false; }
-    return true;
-  });
 }
 
 function _srShowMarkerPopup(lid, coords){
@@ -4376,15 +4370,6 @@ function _srShowMarkerPopup(lid, coords){
     .setHTML(popupHtml)
     .addTo(_srMap);
 }
-
-// Refresh DOM markers when map moves/zooms (clusters change)
-var _srMarkerRefreshTimer = null;
-function _srScheduleMarkerRefresh(){
-  clearTimeout(_srMarkerRefreshTimer);
-  _srMarkerRefreshTimer = setTimeout(_srUpdatePriceMarkers, 300);
-}
-// Hook into map events after init (called from initSearchMap's load handler)
-// We call this via moveend which is already bound
 
 // Store filtered results for popup access
 var _srCurrentResults = [];
@@ -4565,18 +4550,16 @@ function srOpenFromMapById(lid){
   });
 })();
 
-// ═══ ID-based marker/card highlight sync ═══
+// ═══ ID-based marker/card highlight sync (GPU feature-state) ═══
 function srHighlightMarkerById(lid){
-  var marker = _srMarkerMap[lid];
-  if(!marker) return;
-  var el = marker.getElement();
-  if(el){ var pm = el.querySelector('.sr-price-marker'); if(pm) pm.classList.add('active'); }
+  if(!_srMap) return;
+  var n = _srLidToNumId[lid]; if(n === undefined) return;
+  _srMap.setFeatureState({source:'listings',id:n},{hover:true});
 }
 function srUnhighlightMarkerById(lid){
-  var marker = _srMarkerMap[lid];
-  if(!marker) return;
-  var el = marker.getElement();
-  if(el){ var pm = el.querySelector('.sr-price-marker'); if(pm) pm.classList.remove('active'); }
+  if(!_srMap) return;
+  var n = _srLidToNumId[lid]; if(n === undefined) return;
+  _srMap.setFeatureState({source:'listings',id:n},{hover:false});
 }
 function srHighlightCardById(lid){
   var card = document.querySelector('.sr-card[data-lid="' + lid + '"]');
@@ -4881,6 +4864,16 @@ toggleTheme = function(){
     }
     if(_srMap.getLayer('cluster-count')){
       _srMap.setPaintProperty('cluster-count', 'text-color', isDark ? '#0C0B09' : '#FFFFFF');
+    }
+    // Price label colors
+    if(_srMap.getLayer('unclustered-point')){
+      _srMap.setPaintProperty('unclustered-point', 'text-color', ['case',
+        ['boolean',['feature-state','hover'],false], '#FFFFFF',
+        ['boolean',['feature-state','viewed'],false], '#7a7a7a',
+        isDark ? '#C4B08C' : '#8B7748']);
+      _srMap.setPaintProperty('unclustered-point', 'text-halo-color', ['case',
+        ['boolean',['feature-state','hover'],false], isDark ? '#C4B08C' : '#5a4830',
+        isDark ? 'rgba(12,11,9,0.9)' : 'rgba(255,255,255,0.9)']);
     }
   }
   // Update search overlay theme toggle icons
@@ -7305,7 +7298,6 @@ function srApplyViewedFavStates() {
   _srCurrentResults.forEach(function(l, i){
     var key = propKey(l, l.city);
     var card = cards[i];
-    var marker = _srMarkers[i];
 
     // Card states
     if(card) {
@@ -7317,20 +7309,13 @@ function srApplyViewedFavStates() {
       }
     }
 
-    // Marker states
-    if(marker) {
-      var el = marker.getElement();
-      if(el) {
-        var pm = el.querySelector('.sr-price-marker');
-        if(pm) {
-          pm.classList.remove('viewed-marker','fav-marker');
-          if(_favProps[key]) {
-            pm.classList.add('fav-marker');
-          } else if(_viewedProps[key]) {
-            pm.classList.add('viewed-marker');
-          }
-        }
-      }
+    // Marker states via GPU feature-state
+    var lid = l.listingKey || l.mlsId || (l.address + '|' + l.city);
+    var numId = _srLidToNumId[lid];
+    if(numId !== undefined && _srMap) {
+      _srMap.setFeatureState({source:'listings',id:numId},{
+        viewed: !!_viewedProps[key] && !_favProps[key]
+      });
     }
   });
 }

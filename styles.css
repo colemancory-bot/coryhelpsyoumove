@@ -1269,16 +1269,6 @@ textarea.form-input{resize:vertical;min-height:100px}
 [data-theme="light"] .sr-map-brand-text{color:rgba(139,119,72,0.35)}
 [data-theme="light"] .sr-map-brand-sub{color:rgba(139,119,72,0.25)}
 
-/* Custom price markers */
-.sr-price-marker{background:linear-gradient(135deg,var(--gold),var(--gold-dark));color:var(--bg);padding:0.25rem 0.6rem;font-size:0.58rem;font-weight:600;font-family:'Outfit',sans-serif;letter-spacing:0.05em;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.45),0 0 0 1px rgba(196,176,140,0.3);border:none;cursor:pointer;transition:all 0.3s cubic-bezier(0.16,1,0.3,1);position:relative;border-radius:2px}
-.sr-price-marker::after{content:'';position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid var(--gold-dark)}
-.sr-price-marker:hover{transform:scale(1.15);z-index:1000!important;box-shadow:0 6px 24px rgba(196,176,140,0.4),0 0 0 1px var(--gold)}
-.sr-price-marker.active{background:linear-gradient(135deg,#fff,#f0ebe0);color:var(--bg);transform:scale(1.2);z-index:1000!important;box-shadow:0 6px 24px rgba(196,176,140,0.5),0 0 30px rgba(196,176,140,0.15)}
-.sr-price-marker.active::after{border-top-color:#f0ebe0}
-[data-theme="light"] .sr-price-marker{background:linear-gradient(135deg,var(--gold),var(--gold-dark));color:#fff;box-shadow:0 4px 16px rgba(0,0,0,0.2),0 0 0 1px rgba(139,119,72,0.3)}
-[data-theme="light"] .sr-price-marker.active{background:linear-gradient(135deg,var(--gold-dark),#5a4830);color:#fff}
-[data-theme="light"] .sr-price-marker.active::after{border-top-color:#5a4830}
-
 /* Popup styling */
 .sr-popup.maplibregl-popup .maplibregl-popup-content{background:var(--bg-card);border:1px solid var(--border);border-radius:0;box-shadow:0 12px 40px rgba(0,0,0,0.4),0 0 0 1px rgba(196,176,140,0.1);padding:0;font-family:'Outfit',sans-serif}
 .sr-popup.maplibregl-popup .maplibregl-popup-tip{border-top-color:var(--bg-card)}
@@ -1312,9 +1302,6 @@ textarea.form-input{resize:vertical;min-height:100px}
 .sr-draw-btn.active{background:var(--gold);color:var(--bg);border-color:var(--gold)}
 [data-theme="light"] .sr-draw-btn{background:rgba(255,255,255,0.85);color:var(--gold-dark);border:1px solid rgba(139,119,72,0.25)}
 [data-theme="light"] .sr-draw-btn:hover,[data-theme="light"] .sr-draw-btn.active{background:var(--gold);color:#fff;border-color:var(--gold)}
-
-/* MapLibre marker containers — allow price markers to overflow for hover scale */
-.sr-map-panel .maplibregl-marker{overflow:visible!important;cursor:pointer}
 
 /* Responsive */
 @media(max-width:900px){
@@ -1473,13 +1460,6 @@ textarea.form-input{resize:vertical;min-height:100px}
 .sr-card.viewed:not(.fav-card):hover{opacity:0.85}
 /* Favorited — highlighted card border */
 .sr-card.fav-card{border-color:var(--gold);box-shadow:0 0 12px rgba(196,176,140,0.12)}
-
-/* Viewed marker — muted grey */
-.sr-price-marker.viewed-marker{background:linear-gradient(135deg,#7a7a7a,#5e5e5e)!important;box-shadow:0 4px 12px rgba(0,0,0,0.3),0 0 0 1px rgba(120,120,120,0.3)!important}
-.sr-price-marker.viewed-marker::after{border-top-color:#5e5e5e!important}
-/* Favorited marker — gold glow */
-.sr-price-marker.fav-marker{background:linear-gradient(135deg,var(--gold-light),var(--gold))!important;box-shadow:0 4px 16px rgba(196,176,140,0.5),0 0 20px rgba(196,176,140,0.2),0 0 0 2px var(--gold)!important}
-.sr-price-marker.fav-marker::after{border-top-color:var(--gold)!important}
 
 /* Account indicator in nav */
 .nav-acct{display:flex;align-items:center;gap:0.35rem;font-size:0.65rem;color:var(--gold);cursor:pointer;padding:0.3rem 0.75rem;border:1px solid var(--border);transition:all 0.3s;letter-spacing:0.05em;white-space:nowrap}
