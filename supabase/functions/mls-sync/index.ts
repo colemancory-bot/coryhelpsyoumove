@@ -621,6 +621,78 @@ Deno.serve(async (req) => {
       `[MLS Grid] Starting ${action} for resource: ${resource} (limit: ${maxRecords})`
     );
 
+    // ── Media refresh: re-fetch fresh signed URLs for all Canopy media ──
+    // MLS Grid media URLs expire in ~24 hours. This action pages through
+    // all Active Canopy properties, fetches fresh media URLs via $expand=Media,
+    // and updates the mls_media table. Much faster than full re-import since
+    // it skips listing upsert, price history, notifications, etc.
+    if (action === "media-refresh") {
+      const baseFilter = `OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true and StandardStatus eq 'Active'`;
+      // Resume from body.lastTimestamp if provided (for multi-invocation paging)
+      const resumeTs = body.lastTimestamp || null;
+      const tsFilter = resumeTs ? ` and ModificationTimestamp gt ${normalizeTimestamp(resumeTs)}` : "";
+      let url = `${MLS_GRID_API}/Property?$filter=${baseFilter}${tsFilter}&$expand=Media&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
+      let totalRefreshed = 0;
+      let greatestTs = resumeTs || "";
+
+      while (url && totalRefreshed < maxRecords) {
+        const data = await mlsGridFetch(url);
+        const records = data.value || [];
+        console.log(`[Media Refresh] Page: ${records.length} records`);
+
+        for (const record of records) {
+          if (totalRefreshed >= maxRecords) break;
+          const listingKey = record.ListingKey || "";
+          const listingId = stripPrefix(record.ListingId || "");
+          const modTs = record.ModificationTimestamp || "";
+          if (modTs > greatestTs) greatestTs = modTs;
+
+          // Server-side county + lease filter (same as syncProperties)
+          const county = record.CountyOrParish || "";
+          if (!county || !WNC_COUNTIES.has(county)) continue;
+          if ((record.PropertyType || "") === "Residential Lease") continue;
+          if (record.MlgCanView === false) continue;
+
+          // Only update media — skip full listing upsert
+          const media = record.Media || [];
+          if (media.length > 0) {
+            await supabase.from("mls_media").delete().eq("listing_key", listingKey);
+            const mediaRows = [];
+            for (let i = 0; i < media.length; i++) {
+              const m = media[i];
+              mediaRows.push({
+                listing_key: listingKey,
+                media_key: m.MediaKey || `${listingKey}-${i}`,
+                media_url: m.MediaURL || "",
+                local_url: "",
+                media_type: m.MimeType || "image/jpeg",
+                media_category: m.MediaCategory || "Photo",
+                short_description: m.ShortDescription || "",
+                order: m.Order || i,
+                image_width: m.ImageWidth || null,
+                image_height: m.ImageHeight || null,
+                modification_timestamp: m.ModificationTimestamp || modTs,
+              });
+            }
+            if (mediaRows.length > 0) {
+              await supabase.from("mls_media").insert(mediaRows);
+            }
+          }
+          totalRefreshed++;
+        }
+        url = data["@odata.nextLink"] || "";
+        if (url && totalRefreshed < maxRecords) await sleep(REQUEST_DELAY_MS);
+      }
+
+      const hasMore = !!url && totalRefreshed >= maxRecords;
+      return new Response(JSON.stringify({
+        ok: true, action: "media-refresh",
+        refreshed: totalRefreshed, lastTimestamp: greatestTs, hasMore
+      }), {
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      });
+    }
+
     // ── Cleanup action: remove non-WNC listings that slipped through ──
     if (action === "cleanup") {
       const wncList = Array.from(WNC_COUNTIES);
