@@ -83,9 +83,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Outfit:wght@200;300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=79">
-<link href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.1.0/dist/maplibre-gl.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.1.0/dist/maplibre-gl.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.1.0/dist/maplibre-gl.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.1.0/dist/maplibre-gl.css"></noscript>
+<script defer src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.1.0/dist/maplibre-gl.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script defer src="https://www.google.com/recaptcha/api.js?render=6LcZ7WssAAAAAAfFNuMeWyKnQnRcc5a2kvS8yVdx"></script>
@@ -438,7 +439,7 @@
       <img src="images/about-cory.jpg" data-production-src="images/cory-coleman-real-estate-broker-western-north-carolina.png" alt="Cory Coleman - Real Estate Broker, Keller Williams Great Smokies, Western North Carolina" loading="lazy">
     </div>
     <div class="about-accent"></div>
-    <div class="about-kw"><img src="keller-williams-great-smokies-western-nc-real-estate.png" alt="Keller Williams Great Smokies Broker Cory Coleman Western NC"><div class="kw-num">KW</div><div class="kw-text">Great Smokies</div></div>
+    <div class="about-kw"><img src="keller-williams-great-smokies-western-nc-real-estate.png" alt="Keller Williams Great Smokies Broker Cory Coleman Western NC" loading="lazy"><div class="kw-num">KW</div><div class="kw-text">Great Smokies</div></div>
   </div>
   <div class="about-text reveal">
     <div class="section-label">About Cory</div>

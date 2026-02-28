@@ -892,7 +892,6 @@ textarea.form-input{resize:vertical;min-height:100px}
 .page-stat{text-align:center;padding:1.5rem;border:1px solid var(--border)}
 .page-stat-num{font-family:'Cormorant Garamond',Georgia,serif;font-size:2rem;color:var(--gold);font-weight:300}
 .page-stat-label{font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--text-muted);margin-top:0.25rem}
-.page-listings-title{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.8rem;font-weight:400;color:var(--cream);margin-bottom:0.5rem}
 .page-listings-sub{font-size:0.85rem;color:var(--text-muted);margin-bottom:2rem}
 .page-cta{text-align:center;padding:3rem 2rem;margin-top:2rem;border:1px solid var(--border);background:var(--bg-warm)}
 .page-cta h3{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.6rem;font-weight:300;color:var(--cream);margin-bottom:0.5rem}
@@ -1198,8 +1197,7 @@ textarea.form-input{resize:vertical;min-height:100px}
 /* Listing cards in results */
 .sr-cards{padding:0.75rem;display:grid;grid-template-columns:1fr 1fr;gap:0.65rem}
 .sr-card{display:flex;flex-direction:column;gap:0;padding:0;border:1px solid var(--border);cursor:pointer;transition:all 0.3s;overflow:hidden;background:var(--bg-card)}
-.sr-card:hover{border-color:var(--gold);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.2)}
-.sr-card:hover{background:var(--surface)}
+.sr-card:hover{border-color:var(--gold);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.2);background:var(--surface)}
 .sr-card.highlighted{border-color:var(--gold);background:rgba(196,176,140,0.06);box-shadow:0 4px 16px rgba(196,176,140,0.15)}
 .sr-card-img{width:100%;height:120px;flex-shrink:0;overflow:hidden;position:relative}
 .sr-card-img img{width:100%;height:100%;object-fit:cover}
@@ -2322,12 +2320,6 @@ textarea.form-input{resize:vertical;min-height:100px}
 .admin-slot { padding:0.2rem 0; margin-left:0.5rem; }
 .admin-showing-actions { display:flex; gap:0.5rem; align-items:center; margin-top:0.8rem; }
 .admin-showing-actions select { padding:0.4rem 0.6rem; background:var(--bg-card); border:1px solid var(--border); color:var(--cream); font-size:0.78rem; }
-.admin-action-btn { padding:0.4rem 0.8rem; border:1px solid var(--gold); background:transparent; color:var(--gold); font-family:'Outfit',sans-serif; font-size:0.68rem; letter-spacing:0.05em; text-transform:uppercase; cursor:pointer; transition:all 0.2s; }
-.admin-action-btn:hover { background:var(--gold); color:var(--bg); }
-.admin-action-btn.cancel { border-color:var(--red-soft); color:var(--red-soft); }
-.admin-action-btn.cancel:hover { background:var(--red-soft); color:#fff; }
-.admin-action-btn.small { padding:0.2rem 0.5rem; font-size:0.6rem; }
-
 /* Admin Questions */
 .admin-questions { display:flex; flex-direction:column; gap:0.8rem; }
 .admin-q-group-title { font-size:0.65rem; letter-spacing:0.12em; text-transform:uppercase; color:var(--gold); padding-bottom:0.3rem; border-bottom:1px solid var(--border); }
@@ -2340,8 +2332,6 @@ textarea.form-input{resize:vertical;min-height:100px}
 .admin-q-reply { font-size:0.82rem; color:var(--gold); margin-top:0.4rem; padding-top:0.4rem; border-top:1px solid var(--border); }
 .admin-reply-ta { width:100%; padding:0.6rem; background:var(--bg-card); border:1px solid var(--border); color:var(--cream); font-family:'Outfit',sans-serif; font-size:0.82rem; resize:vertical; min-height:60px; outline:none; margin-bottom:0.4rem; }
 .admin-reply-ta:focus { border-color:var(--gold); }
-.admin-add-form { display:flex; flex-direction:column; gap:0.6rem; padding:1rem; background:var(--surface); border:1px solid var(--border); margin-bottom:1rem; }
-
 /* --- Affordability Overlay --- */
 .afford-overlay { position:fixed; inset:0; z-index:7000; background:var(--bg); display:none; flex-direction:column; overflow:hidden; }
 .afford-overlay[style*="flex"] { display:flex; }
@@ -2562,24 +2552,11 @@ textarea.form-input{resize:vertical;min-height:100px}
   letter-spacing: 0.03em;
 }
 .demo-banner-icon { font-size: 1rem; }
-.demo-banner-close {
-  background: none;
-  border: none;
-  color: var(--gold);
-  font-size: 1.2rem;
-  cursor: pointer;
-  padding: 0 0.25rem;
-  margin-left: 0.5rem;
-  opacity: 0.6;
-  transition: opacity 0.2s;
-}
-.demo-banner-close:hover { opacity: 1; }
 [data-theme="light"] .demo-banner {
   background: linear-gradient(135deg, #faf5e8 0%, #f0e8d0 100%);
   border-bottom-color: var(--gold);
 }
 [data-theme="light"] .demo-banner-inner { color: #6b5a2e; }
-[data-theme="light"] .demo-banner-close { color: #6b5a2e; }
 
 /* Demo banner inside property overlay */
 .prop-demo-banner {

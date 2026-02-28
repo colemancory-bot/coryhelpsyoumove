@@ -1,4 +1,7 @@
 var _isAdmin = false;
+var _DEBUG = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+function _log(){ if(_DEBUG) console.log.apply(console, arguments); }
+function _warn(){ if(_DEBUG) console.warn.apply(console, arguments); }
 
 // ═══ CTRL+P INTERCEPT — Custom print for logged-in users ═══
 window.addEventListener('keydown', function(e){
@@ -139,7 +142,7 @@ async function mobileLogin(){
     var result=await _sb.auth.signInWithPassword({email:email,password:pass});
     if(result.error){
       // Smart probe: try signUp to see if account exists
-      console.log('[Auth] Mobile login failed, probing with signUp...');
+      _log('[Auth] Mobile login failed, probing with signUp...');
       _smartSignupInProgress=true;
       try{
         var probe=await _sb.auth.signUp({email:email,password:pass});
@@ -157,7 +160,7 @@ async function mobileLogin(){
         // No account existed — user created. Show completion form.
         if(probe.data&&probe.data.user){
           _currentUser=probe.data.user;
-          console.log('[Auth] Mobile: No account found, showing completion form.');
+          _log('[Auth] Mobile: No account found, showing completion form.');
           btn.textContent='Sign In';btn.disabled=false;
           showMobileComplete(email);
           setTimeout(function(){_smartSignupInProgress=false},30000);
@@ -543,10 +546,10 @@ var SIMPLYRETS = {
   // Load all listings and populate site data structures
   init: function() {
     if(!SIMPLYRETS.enabled) return Promise.resolve();
-    console.log('[SimplyRETS] Fetching listings...');
+    _log('[SimplyRETS] Fetching listings...');
     return SIMPLYRETS.fetch('status=Active&include=association').then(function(data) {
-      if(!data || !data.length) { console.warn('[SimplyRETS] No listings returned'); return; }
-      console.log('[SimplyRETS] Received ' + data.length + ' listings');
+      if(!data || !data.length) { _warn('[SimplyRETS] No listings returned'); return; }
+      _log('[SimplyRETS] Received ' + data.length + ' listings');
       var mapped = data.map(SIMPLYRETS.mapListing);
 
       // Build TOWN_LISTINGS from API data
@@ -651,7 +654,7 @@ var SIMPLYRETS = {
       if(_sb && ALL_LISTINGS.length > 0){
         SIMPLYRETS._syncListingsCache(ALL_LISTINGS);
       }
-      console.log('[SimplyRETS] Site updated with ' + ALL_LISTINGS.length + ' total listings across ' + Object.keys(TOWN_LISTINGS).length + ' areas');
+      _log('[SimplyRETS] Site updated with ' + ALL_LISTINGS.length + ' total listings across ' + Object.keys(TOWN_LISTINGS).length + ' areas');
       // Briefly show success for debugging — remove in production
       var okDiv = document.createElement('div');
       okDiv.style.cssText = 'position:fixed;top:80px;left:50%;transform:translateX(-50%);background:#1a2e1a;color:#90ee90;padding:12px 20px;border-radius:8px;z-index:99999;font-size:13px;border:1px solid #2a5e2a;max-width:90%';
@@ -660,7 +663,7 @@ var SIMPLYRETS = {
       setTimeout(function(){ okDiv.remove(); }, 5000);
     }).catch(function(err){
       console.error('[SimplyRETS] Failed to load:', err.message);
-      console.log('[SimplyRETS] Falling back to demo data');
+      _log('[SimplyRETS] Falling back to demo data');
       // Briefly show error for debugging — remove in production
       var errDiv = document.createElement('div');
       errDiv.style.cssText = 'position:fixed;top:80px;left:50%;transform:translateX(-50%);background:#331a1a;color:#ff9999;padding:12px 20px;border-radius:8px;z-index:99999;font-size:13px;border:1px solid #662222;max-width:90%';
@@ -672,7 +675,7 @@ var SIMPLYRETS = {
 
   // Update the town page navigation if new towns from API
   _updateTownNav: function() {
-    console.log('[SimplyRETS] Available towns:', Object.keys(TOWN_LISTINGS).map(function(k){return TOWN_LISTINGS[k].display}));
+    _log('[SimplyRETS] Available towns:', Object.keys(TOWN_LISTINGS).map(function(k){return TOWN_LISTINGS[k].display}));
   },
 
   // Sync listings to Supabase cache for new-listing notifications
@@ -696,9 +699,9 @@ var SIMPLYRETS = {
       var slice = batch.slice(i, i+chunk);
       _sb.from('listings_cache').upsert(slice, {onConflict:'listing_key', ignoreDuplicates:true})
         .then(function(){})
-        .catch(function(e){ console.warn('[SimplyRETS] Cache sync error:', e); });
+        .catch(function(e){ _warn('[SimplyRETS] Cache sync error:', e); });
     }
-    console.log('[SimplyRETS] Syncing ' + batch.length + ' listings to notification cache');
+    _log('[SimplyRETS] Syncing ' + batch.length + ' listings to notification cache');
   }
 };
 
@@ -871,7 +874,7 @@ var MLS_GRID = {
       if(_fg) { var _ld = _fg.querySelector('.idx-loading'); if(_ld) _ld.innerHTML = '<div style="margin-bottom:0.8rem;font-size:1.8rem;">&#x26A0;</div>Unable to connect to listing database.<div style="margin-top:0.5rem;font-size:0.85rem;opacity:0.6;">Please refresh the page or try again later.</div>'; }
       return Promise.resolve();
     }
-    console.log('[MLS Grid] Loading listings from Supabase...');
+    _log('[MLS Grid] Loading listings from Supabase...');
 
     // Fetch all listings (paginated) and all primary photos (paginated) in parallel
     var listingsPromise = MLS_GRID._fetchAll('mls_listings',
@@ -892,12 +895,12 @@ var MLS_GRID = {
         var mediaRows = results[1];
 
         if(!listingRows || !listingRows.length) {
-          console.warn('[MLS Grid] No listings found');
+          _warn('[MLS Grid] No listings found');
           var _fg2 = document.getElementById('featuredGrid');
           if(_fg2) { var _ld2 = _fg2.querySelector('.idx-loading'); if(_ld2) _ld2.innerHTML = '<div style="margin-bottom:0.8rem;font-size:1.8rem;">&#x1F3E0;</div>No active listings found at this time.<div style="margin-top:0.5rem;font-size:0.85rem;opacity:0.6;">Please check back soon.</div>'; }
           return;
         }
-        console.log('[MLS Grid] Received ' + listingRows.length + ' listings');
+        _log('[MLS Grid] Received ' + listingRows.length + ' listings');
         var mapped = listingRows.map(MLS_GRID.mapListing);
 
         // Build photo lookup from paginated media results
@@ -905,7 +908,7 @@ var MLS_GRID = {
         mediaRows.forEach(function(m) {
           mediaMap[m.listing_key] = m.local_url || m.media_url;
         });
-        console.log('[MLS Grid] Primary photos loaded: ' + mediaRows.length + ' rows, ' + Object.keys(mediaMap).length + ' unique listings');
+        _log('[MLS Grid] Primary photos loaded: ' + mediaRows.length + ' rows, ' + Object.keys(mediaMap).length + ' unique listings');
 
         // Assign primary photo to listings
         var withPhoto = 0, noPhoto = 0;
@@ -914,7 +917,7 @@ var MLS_GRID = {
           l.photos = l.photo ? [l.photo] : [];
           if(l.photo) withPhoto++; else noPhoto++;
         });
-        console.log('[MLS Grid] Photo assignment: ' + withPhoto + ' with photo, ' + noPhoto + ' without');
+        _log('[MLS Grid] Photo assignment: ' + withPhoto + ' with photo, ' + noPhoto + ' without');
 
         // ── Multi-MLS deduplication ─────────────────────────────
         // Both CSAR (Navica) and Canopy MLS (MLS Grid) write to the same table.
@@ -923,7 +926,7 @@ var MLS_GRID = {
         var preDedupCount = mapped.length;
         mapped = MLS_GRID._deduplicateListings(mapped);
         if(preDedupCount !== mapped.length) {
-          console.log('[MLS Grid] Deduplicated: ' + preDedupCount + ' → ' + mapped.length + ' listings (' + (preDedupCount - mapped.length) + ' duplicates merged)');
+          _log('[MLS Grid] Deduplicated: ' + preDedupCount + ' → ' + mapped.length + ' listings (' + (preDedupCount - mapped.length) + ' duplicates merged)');
         }
 
         // Populate TOWN_LISTINGS
@@ -989,8 +992,8 @@ var MLS_GRID = {
             ts: Date.now(),
             listings: _slimListings
           }));
-          console.log('[MLS Grid] Cached ' + _slimListings.length + ' listings to localStorage');
-        } catch(e) { console.warn('[MLS Grid] Cache write failed:', e.message); }
+          _log('[MLS Grid] Cached ' + _slimListings.length + ' listings to localStorage');
+        } catch(e) { _warn('[MLS Grid] Cache write failed:', e.message); }
 
         // Update timestamps
         var _tsNow = new Date();
@@ -1009,7 +1012,7 @@ var MLS_GRID = {
 
         // Re-render
         renderFeatured();
-        console.log('[MLS Grid] Site updated with ' + ALL_LISTINGS.length + ' listings across ' + Object.keys(TOWN_LISTINGS).length + ' areas');
+        _log('[MLS Grid] Site updated with ' + ALL_LISTINGS.length + ' listings across ' + Object.keys(TOWN_LISTINGS).length + ' areas');
       }).catch(function(err){
         console.error('[MLS Grid] Failed to load:', err.message || err);
         var _fg = document.getElementById('featuredGrid');
@@ -1028,7 +1031,7 @@ var MLS_GRID = {
         if(!res.data || !res.data.length) return [];
         return res.data.map(function(m) { return m.local_url || m.media_url; });
       }).catch(function(err) {
-        console.warn('[MLS Grid] Failed to load photos for ' + listingKey, err);
+        _warn('[MLS Grid] Failed to load photos for ' + listingKey, err);
         return [];
       });
   }
@@ -1372,11 +1375,11 @@ function _pushToFUB(leadData){
       body: JSON.stringify(leadData)
     }).then(function(r){ return r.json(); })
       .then(function(d){
-        if(d.success) console.log('[FUB] Lead pushed successfully');
-        else console.warn('[FUB] Push response:', d);
+        if(d.success) _log('[FUB] Lead pushed successfully');
+        else _warn('[FUB] Push response:', d);
       })
-      .catch(function(e){ console.warn('[FUB] Push failed:', e); });
-  } catch(e){ console.warn('[FUB] Push error:', e); }
+      .catch(function(e){ _warn('[FUB] Push failed:', e); });
+  } catch(e){ _warn('[FUB] Push error:', e); }
 }
 
 // --- FUB lead capture from chat ---
@@ -1407,8 +1410,8 @@ function tryPushChatLead(){
       source: 'chatbot'
     };
     _sb.from('leads').insert(chatLeadData)
-      .then(function(){ _chatLeadPushed = true; console.log('[Chat] Lead saved'); _pushToFUB(chatLeadData); })
-      .catch(function(e){ console.warn('[Chat] Lead push failed:', e); });
+      .then(function(){ _chatLeadPushed = true; _log('[Chat] Lead saved'); _pushToFUB(chatLeadData); })
+      .catch(function(e){ _warn('[Chat] Lead push failed:', e); });
   }
 }
 
@@ -1664,7 +1667,7 @@ async function sendMessage(){
 
   // Honeypot check
   var hp = document.getElementById('chatHp');
-  if(hp && hp.value){ console.warn('[Chat] Honeypot triggered'); inp.value=''; return; }
+  if(hp && hp.value){ _warn('[Chat] Honeypot triggered'); inp.value=''; return; }
 
   // Length check
   if(txt.length > CHAT_MAX_LENGTH){
@@ -1682,7 +1685,7 @@ async function sendMessage(){
     if(typeof grecaptcha !== 'undefined'){
       recapToken = await grecaptcha.execute('6LcZ7WssAAAAAAfFNuMeWyKnQnRcc5a2kvS8yVdx', {action:'chat_message'});
     }
-  } catch(e){ console.warn('[Chat] reCAPTCHA error:', e); }
+  } catch(e){ _warn('[Chat] reCAPTCHA error:', e); }
 
   if(!recapToken){
     addMsg('assistant','Having trouble verifying your session. Please refresh the page and try again.');
@@ -1781,9 +1784,9 @@ async function saveSearchFromChat(filters) {
       notify_email: true
     });
     addMsg('assistant', 'Search saved! I\'ll notify you when new listings match: <strong>' + searchName + '</strong>. You can manage your saved searches from your account.');
-    console.log('[Chat] Search saved:', searchName);
+    _log('[Chat] Search saved:', searchName);
   } catch(e) {
-    console.warn('[Chat] Save search error:', e);
+    _warn('[Chat] Save search error:', e);
     addMsg('assistant', 'Had trouble saving that search. You can still view the results though!');
   }
 }
@@ -1810,17 +1813,17 @@ if(chatInp){
 var EVENTS = {
   data: [],
   init: function() {
-    if (!_sb) { console.warn('[Events] No Supabase'); return; }
+    if (!_sb) { _warn('[Events] No Supabase'); return; }
     var today = new Date().toISOString().split('T')[0];
     _sb.from('community_events').select('*').eq('is_published', true).gte('event_date', today)
       .order('is_featured', { ascending: false })
       .order('event_date', { ascending: true }).limit(6)
       .then(function(result) {
-        if (result.error) { console.warn('[Events]', result.error.message); EVENTS._clear(); return; }
+        if (result.error) { _warn('[Events]', result.error.message); EVENTS._clear(); return; }
         EVENTS.data = result.data || [];
         if (EVENTS.data.length) { EVENTS.renderPreview(); EVENTS.generateSchema(); }
         else { EVENTS._clear(); }
-        console.log('[Events] Loaded ' + EVENTS.data.length + ' preview events');
+        _log('[Events] Loaded ' + EVENTS.data.length + ' preview events');
       });
   },
   _clear: function() {
@@ -2035,7 +2038,7 @@ function submitSellForm(){
 
   // Collect data
   const formData={firstName:first,lastName:last,email,phone,property,hasPassword:!!password,type:'Seller Inquiry'};
-  console.log('[Sell Form] Lead captured:',formData);
+  _log('[Sell Form] Lead captured:',formData);
 
   // Save profile to localStorage (used by chatbot + greeting suppression)
   if(password){
@@ -3152,14 +3155,15 @@ function propShare(type) {
     var printStatsEl = document.getElementById('printStats');
     if(statsEl && printStatsEl){
       var statDivs = statsEl.querySelectorAll('.prop-stat');
-      printStatsEl.innerHTML = '';
+      var _statParts = [];
       statDivs.forEach(function(s){
         var val = s.querySelector('.prop-stat-val');
         var label = s.querySelector('.prop-stat-label');
         if(val && label){
-          printStatsEl.innerHTML += '<div class="print-page-stat"><div class="print-page-stat-val">'+val.textContent+'</div><div class="print-page-stat-label">'+label.textContent+'</div></div>';
+          _statParts.push('<div class="print-page-stat"><div class="print-page-stat-val">'+val.textContent+'</div><div class="print-page-stat-label">'+label.textContent+'</div></div>');
         }
       });
+      printStatsEl.innerHTML = _statParts.join('');
     }
     // Property Overview (description)
     var d1 = document.getElementById('propDesc1');
@@ -3171,14 +3175,15 @@ function propShare(type) {
     var featEls = document.querySelectorAll('#propFeatures .prop-feat');
     var printDetailsEl = document.getElementById('printDetails');
     if(printDetailsEl){
-      printDetailsEl.innerHTML = '';
+      var _featParts = [];
       featEls.forEach(function(f){
         var val = f.querySelector('.prop-feat-val');
         var label = f.querySelector('.prop-feat-label');
         if(val && label){
-          printDetailsEl.innerHTML += '<div class="print-detail-item"><span class="print-detail-label">'+label.textContent+'</span><span class="print-detail-val">'+val.textContent+'</span></div>';
+          _featParts.push('<div class="print-detail-item"><span class="print-detail-label">'+label.textContent+'</span><span class="print-detail-val">'+val.textContent+'</span></div>');
         }
       });
+      printDetailsEl.innerHTML = _featParts.join('');
     }
 
     // Cory's Take
@@ -3188,15 +3193,16 @@ function propShare(type) {
     if(printCT && printCTInsights && corysTakeEl && corysTakeEl.style.display !== 'none'){
       var insightEls = corysTakeEl.querySelectorAll('.corys-take-insight');
       if(insightEls.length > 0){
-        printCTInsights.innerHTML = '';
+        var _ctParts = [];
         insightEls.forEach(function(ins){
           var textDiv = ins.querySelector('div:last-child');
           if(textDiv){
             // Strip HTML spans but keep the text content
             var text = textDiv.textContent;
-            printCTInsights.innerHTML += '<div class="print-ct-insight">'+text+'</div>';
+            _ctParts.push('<div class="print-ct-insight">'+text+'</div>');
           }
         });
+        printCTInsights.innerHTML = _ctParts.join('');
         printCT.style.display = '';
       } else {
         printCT.style.display = 'none';
@@ -3257,15 +3263,16 @@ function propShare(type) {
     if(printQA && printQAList) {
       var qaItems = document.querySelectorAll('#propQuestionsList .prop-qa-item');
       if(qaItems && qaItems.length > 0) {
-        printQAList.innerHTML = '';
+        var _qaParts = [];
         qaItems.forEach(function(item) {
           var qEl = item.querySelector('.prop-qa-q');
           var aEl = item.querySelector('.prop-qa-a');
           var html = '<div class="print-qa-item"><div class="print-qa-q">' + (qEl ? qEl.textContent : '') + '</div>';
           if(aEl) html += '<div class="print-qa-a">' + aEl.textContent + '</div>';
           html += '</div>';
-          printQAList.innerHTML += html;
+          _qaParts.push(html);
         });
+        printQAList.innerHTML = _qaParts.join('');
         printQA.style.display = '';
       } else {
         printQA.style.display = 'none';
@@ -4520,17 +4527,6 @@ function srUnhighlightCardById(lid){
   var card = document.querySelector('.sr-card[data-lid="' + lid + '"]');
   if(card) card.classList.remove('highlighted');
 }
-// Legacy index-based (kept for compatibility)
-function srHighlightMarker(idx){ var m = _srMarkers[idx]; if(m) srHighlightMarkerById(m._lid); }
-function srUnhighlightMarker(idx){ var m = _srMarkers[idx]; if(m) srUnhighlightMarkerById(m._lid); }
-function srHighlightCard(idx){
-  var cards = document.querySelectorAll('.sr-card');
-  if(cards[idx]) cards[idx].classList.add('highlighted');
-}
-function srUnhighlightCard(idx){
-  var cards = document.querySelectorAll('.sr-card');
-  if(cards[idx]) cards[idx].classList.remove('highlighted');
-}
 
 // ═══ VIEWPORT-BASED CARD FILTERING ═══
 function srFilterCardsByViewport(){
@@ -4774,7 +4770,7 @@ async function saveCurrentSearch() {
     if(btn) { btn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg> Saved!'; }
     setTimeout(function(){ if(btn) { btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg> Save Search'; btn.disabled = false; } }, 3000);
   } catch(e) {
-    console.warn('[Search] Save error:', e);
+    _warn('[Search] Save error:', e);
     showToast('Failed to save search', 'error');
     if(btn) { btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg> Save Search'; btn.disabled = false; }
   }
@@ -4875,7 +4871,7 @@ try { _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
     storageKey: 'cc-supabase-auth',
     storage: window.localStorage
   }
-}); } catch(e){ console.warn('[Supabase] Could not init:', e); }
+}); } catch(e){ _warn('[Supabase] Could not init:', e); }
 
 // ═══ LOAD REVIEWS FROM SUPABASE ═══
 (function(){
@@ -4910,16 +4906,31 @@ try { _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
     });
   }
 
-  _sb.from('reviews')
-    .select('*')
-    .eq('rating', 5)
-    .eq('is_published', true)
-    .order('review_date', {ascending: false})
-    .limit(9)
-    .then(function(res){
-      if(res.error){ console.warn('[Reviews]', res.error.message); return; }
-      renderReviews(res.data);
-    });
+  // Defer query until testimonials section is near viewport
+  var testSection = document.getElementById('testimonials');
+  function fetchReviews(){
+    _sb.from('reviews')
+      .select('*')
+      .eq('rating', 5)
+      .eq('is_published', true)
+      .order('review_date', {ascending: false})
+      .limit(9)
+      .then(function(res){
+        if(res.error){ _warn('[Reviews]', res.error.message); return; }
+        renderReviews(res.data);
+      });
+  }
+  if(testSection && 'IntersectionObserver' in window){
+    var revObs = new IntersectionObserver(function(entries){
+      if(entries[0].isIntersecting){
+        revObs.disconnect();
+        fetchReviews();
+      }
+    }, {rootMargin: '200px'});
+    revObs.observe(testSection);
+  } else {
+    fetchReviews(); // fallback for old browsers
+  }
 })();
 
 // --- Account state ---
@@ -4933,7 +4944,7 @@ async function checkAdminRole() {
     var resp = await _sb.from('profiles').select('role').eq('id', _currentUser.id).single();
     if(resp.data && resp.data.role === 'admin') {
       _isAdmin = true;
-      console.log('[Auth] Admin mode active');
+      _log('[Auth] Admin mode active');
     } else { _isAdmin = false; }
   } catch(e) { _isAdmin = false; }
   updateAcctUI();
@@ -4964,7 +4975,7 @@ async function loadFavoritesFromCloud() {
       resp.data.forEach(function(f){ _favProps[f.property_key] = true; });
       saveFavs(); // cache locally
     }
-  } catch(e){ console.warn('[Supabase] Load favs error:', e); }
+  } catch(e){ _warn('[Supabase] Load favs error:', e); }
 }
 
 async function saveFavToCloud(key, isFav) {
@@ -4975,7 +4986,7 @@ async function saveFavToCloud(key, isFav) {
     } else {
       await _sb.from('favorites').delete().eq('user_id', _currentUser.id).eq('property_key', key);
     }
-  } catch(e){ console.warn('[Supabase] Save fav error:', e); }
+  } catch(e){ _warn('[Supabase] Save fav error:', e); }
 }
 
 // --- Auth initialization (runs on page load) ---
@@ -5002,7 +5013,7 @@ async function initSupabaseAuth() {
         if(_activeParty) await loadPartyFavorites();
         updateAcctUI();
         checkAdminRole();
-        console.log('[Auth] Session refreshed successfully');
+        _log('[Auth] Session refreshed successfully');
       }
     }
     // Listen for auth changes (login/logout/token refresh)
@@ -5036,7 +5047,7 @@ async function initSupabaseAuth() {
       // Don't log out on TOKEN_REFRESHED failures — keep cached state
       updateAcctUI();
     });
-  } catch(e){ console.warn('[Supabase] Auth init error:', e); }
+  } catch(e){ _warn('[Supabase] Auth init error:', e); }
 }
 // Run auth check
 initSupabaseAuth();
@@ -5090,8 +5101,8 @@ async function loadActiveParty() {
       .eq('party_id', partyId)
       .eq('status', 'active');
     _activeParty = {id: party.id, name: party.name, members: members || []};
-    console.log('[Party] Active party loaded:', _activeParty.name, 'with', _activeParty.members.length, 'members');
-  } catch(e) { console.warn('[Party] Load error:', e); _activeParty = null; }
+    _log('[Party] Active party loaded:', _activeParty.name, 'with', _activeParty.members.length, 'members');
+  } catch(e) { _warn('[Party] Load error:', e); _activeParty = null; }
 }
 
 async function loadPartyFavorites() {
@@ -5111,7 +5122,7 @@ async function loadPartyFavorites() {
         });
       });
     }
-  } catch(e) { console.warn('[Party] Load favs error:', e); }
+  } catch(e) { _warn('[Party] Load favs error:', e); }
 }
 
 async function loadPartyNotes(propertyKey) {
@@ -5125,7 +5136,7 @@ async function loadPartyNotes(propertyKey) {
     var notes = data || [];
     _partyNotes[propertyKey] = notes;
     return notes;
-  } catch(e) { console.warn('[Party] Load notes error:', e); return []; }
+  } catch(e) { _warn('[Party] Load notes error:', e); return []; }
 }
 
 async function sendPartyNote(propertyKey) {
@@ -5163,7 +5174,7 @@ async function sendPartyNote(propertyKey) {
     var listing = window._currentListing;
     var addr = listing ? listing.address : propertyKey.split('|')[0];
     notifyPartyMembers('note', addr, text, propertyKey);
-  } catch(e) { console.warn('[Party] Send note error:', e); }
+  } catch(e) { _warn('[Party] Send note error:', e); }
 }
 
 function renderPartyTranscript(propertyKey) {
@@ -5209,7 +5220,7 @@ function notifyPartyMembers(actionType, propertyAddress, notePreview, propertyKe
     } else {
       _doPartyNotify(token, actionType, actorName, propertyAddress, notePreview, propertyKey);
     }
-  } catch(e) { console.warn('[Party] Notify error:', e); }
+  } catch(e) { _warn('[Party] Notify error:', e); }
 }
 
 function _doPartyNotify(token, actionType, actorName, propertyAddress, notePreview, propertyKey) {
@@ -5228,7 +5239,7 @@ function _doPartyNotify(token, actionType, actorName, propertyAddress, notePrevi
       note_preview: notePreview || '',
       property_key: propertyKey || ''
     })
-  }).catch(function(e){ console.warn('[Party] Notify fetch error:', e); });
+  }).catch(function(e){ _warn('[Party] Notify fetch error:', e); });
 }
 
 async function createSearchParty(name) {
@@ -5291,7 +5302,7 @@ async function acceptPartyInvite(token) {
       .eq('invite_token', token)
       .eq('status', 'pending')
       .single();
-    if(!member) { console.warn('[Party] Invalid or expired invite token'); return false; }
+    if(!member) { _warn('[Party] Invalid or expired invite token'); return false; }
     var prof = null;
     try { prof = JSON.parse(localStorage.getItem('cc_profile')); } catch(e){}
     var displayName = prof ? ((prof.firstName || '') + ' ' + (prof.lastName || '')).trim() : (_currentUser.email || '');
@@ -5430,7 +5441,7 @@ function initGoogleOneTap(){
       cancel_on_tap_outside: true
     });
     google.accounts.id.prompt();
-  } catch(e) { console.warn('[OneTap] Init error:', e); }
+  } catch(e) { _warn('[OneTap] Init error:', e); }
 }
 async function handleGoogleOneTap(response){
   if(!_sb || !response.credential) return;
@@ -5444,7 +5455,7 @@ async function handleGoogleOneTap(response){
       return;
     }
     // onAuthStateChange will fire SIGNED_IN → _handleOAuthProfile creates profile + lead
-    console.log('[OneTap] Success');
+    _log('[OneTap] Success');
   } catch(e) { console.error('[OneTap] Error:', e); }
 }
 // Initialize Google One Tap after a delay (let auth state settle first)
@@ -5693,7 +5704,7 @@ async function loadSavedSearchesUI() {
       container.appendChild(row);
     });
   } catch(e) {
-    console.warn('[Acct] Load saved searches error:', e);
+    _warn('[Acct] Load saved searches error:', e);
     container.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem">Could not load saved searches</p>';
   }
 }
@@ -5704,7 +5715,7 @@ async function toggleSearchNotify(id, newValue, btn) {
     await _sb.from('saved_searches').update({notify_email: newValue}).eq('id', id);
     btn.textContent = newValue ? 'Alerts On' : 'Alerts Off';
     btn.style.color = newValue ? 'var(--green)' : 'var(--text-muted)';
-  } catch(e){ console.warn('[Acct] Toggle notify error:', e); }
+  } catch(e){ _warn('[Acct] Toggle notify error:', e); }
 }
 
 async function deleteSearchSaved(id, rowEl) {
@@ -5713,7 +5724,7 @@ async function deleteSearchSaved(id, rowEl) {
   try {
     await _sb.from('saved_searches').delete().eq('id', id);
     rowEl.remove();
-  } catch(e){ console.warn('[Acct] Delete search error:', e); }
+  } catch(e){ _warn('[Acct] Delete search error:', e); }
 }
 
 function showAcctLogin() {
@@ -5798,8 +5809,8 @@ async function completeAcctSetup() {
         if(transcript){ leadData.message += '\n\n' + transcript; leadData.source = 'chatbot_smart_signup'; }
       }
       _sb.from('leads').insert(leadData)
-        .then(function(){ _chatLeadPushed = true; console.log('[SmartSignup] Lead saved'); _pushToFUB(leadData); })
-        .catch(function(e){ console.warn('[SmartSignup] Lead push failed:', e); });
+        .then(function(){ _chatLeadPushed = true; _log('[SmartSignup] Lead saved'); _pushToFUB(leadData); })
+        .catch(function(e){ _warn('[SmartSignup] Lead push failed:', e); });
     }
     _acctLoggedIn = true;
     _smartSignupInProgress = false;
@@ -5971,7 +5982,7 @@ async function _handleOAuthProfile(session){
     _sb.from('leads').insert(leadData).then(function(){_pushToFUB(leadData)}).catch(function(){});
     // Cache profile locally
     try{localStorage.setItem('cc_profile',JSON.stringify({firstName:first,lastName:last,email:email,phone:'',avatar:avatar}))}catch(e){}
-  }catch(e){console.warn('[OAuth] Profile creation:',e)}
+  }catch(e){_warn('[OAuth] Profile creation:',e)}
 }
 
 // --- Open pending property after auth (registration gate) ---
@@ -5989,14 +6000,14 @@ function _openPendingProp(){
     try{
       var p=JSON.parse(stored);
       if(p&&p.listing){
-        console.log('[Auth] Restoring pending property after OAuth redirect');
+        _log('[Auth] Restoring pending property after OAuth redirect');
         // Wait longer for page to fully load after OAuth redirect
         setTimeout(function(){
           closeAcctModal();
           openProp(p.listing,p.townName);
         },2000);
       }
-    }catch(e){console.warn('[Auth] Failed to restore pending property:',e)}
+    }catch(e){_warn('[Auth] Failed to restore pending property:',e)}
   }
 }
 
@@ -6018,7 +6029,7 @@ async function loginAcct() {
     var result = await _sb.auth.signInWithPassword({ email: email, password: pass });
     if(result.error) {
       // Smart probe: try signUp to see if account exists
-      console.log('[Auth] Login failed, probing with signUp...');
+      _log('[Auth] Login failed, probing with signUp...');
       _smartSignupInProgress = true;
       try {
         var probe = await _sb.auth.signUp({ email: email, password: pass });
@@ -6037,7 +6048,7 @@ async function loginAcct() {
         // No account existed — user just got created. Show completion form.
         if(probe.data && probe.data.user) {
           _currentUser = probe.data.user;
-          console.log('[Auth] No account found, created via smart probe. Showing completion form.');
+          _log('[Auth] No account found, created via smart probe. Showing completion form.');
           btn.textContent = 'Sign In'; btn.disabled = false;
           showAcctComplete(email);
           // Safety timeout to clear flag
@@ -6118,7 +6129,7 @@ async function submitConsultation(btn) {
       await _sb.from('leads').insert(ctaLeadData);
       _pushToFUB(ctaLeadData);
       if(convHistory && convHistory.length > 0) _chatLeadPushed = true;
-    } catch(e){ console.warn('[Supabase] Lead insert error:', e); }
+    } catch(e){ _warn('[Supabase] Lead insert error:', e); }
   }
 
   // If account opt-in is checked, create account too
@@ -6142,7 +6153,7 @@ async function submitConsultation(btn) {
           try{localStorage.setItem('cc_profile',JSON.stringify({firstName:first,lastName:last,email:email,phone:phone,password:true}))}catch(e){}
           updateAcctUI();
         }
-      } catch(e){ console.warn('[Supabase] Acct create error:', e); }
+      } catch(e){ _warn('[Supabase] Acct create error:', e); }
     }
     btn.textContent = 'Sent! Account Created';
     btn.style.background = 'var(--green)';
@@ -6317,10 +6328,12 @@ function updateFavBtn() {
       var dots = document.createElement('div');
       dots.id = 'propFavPartyDots';
       dots.className = 'prop-fav-party-dots';
+      var _dotParts = [];
       others.forEach(function(f) {
         var color = getPartyColor(f.user_id);
-        dots.innerHTML += '<span class="party-fav-dot" style="background:' + color + '" title="' + (f.user_display_name||'Party member') + '">' + getInitials(f.user_display_name) + '</span>';
+        _dotParts.push('<span class="party-fav-dot" style="background:' + color + '" title="' + (f.user_display_name||'Party member') + '">' + getInitials(f.user_display_name) + '</span>');
       });
+      dots.innerHTML = _dotParts.join('');
       var favWrap = btn.closest('.prop-action') || btn.parentElement;
       if(favWrap) favWrap.appendChild(dots);
     }
@@ -6907,7 +6920,7 @@ function printComparison() {
 
   // Broker attribution per property (multi-MLS aware)
   var brokersEl = document.getElementById('cpBrokers');
-  brokersEl.innerHTML = '';
+  var _brokerParts = [];
   props.forEach(function(l) {
     var parts = [];
     if(l.listAgent) parts.push(l.listAgent);
@@ -6916,9 +6929,10 @@ function printComparison() {
     var cpMlsNums = _formatMlsNums(l);
     if(cpMlsNums) parts.push(cpMlsNums);
     if(parts.length > 0) {
-      brokersEl.innerHTML += '<div class="cp-broker-line">' + (l.address||'') + ': Listed by ' + parts.join(' \u2022 ') + '</div>';
+      _brokerParts.push('<div class="cp-broker-line">' + (l.address||'') + ': Listed by ' + parts.join(' \u2022 ') + '</div>');
     }
   });
+  brokersEl.innerHTML = _brokerParts.join('');
 
   // Timestamp
   document.getElementById('cpUpdated').textContent = 'Data last updated: ' + new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
@@ -6969,6 +6983,7 @@ async function loadPropertyHistory(listing) {
         .order('recorded_at', { ascending: false });
       if(resp.data && resp.data.length > 0) {
         hasPriceData = true;
+        var _priceParts = [];
         resp.data.forEach(function(row) {
           var change = '';
           var changeClass = '';
@@ -6981,15 +6996,16 @@ async function loadPropertyHistory(listing) {
           }
           var dateStr = row.recorded_at ? new Date(row.recorded_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
           var eventLabel = (row.event_type || 'Price Change').replace(/_/g,' ').replace(/\b\w/g, function(c){return c.toUpperCase();});
-          priceBody.innerHTML +=
+          _priceParts.push(
             '<tr><td>' + dateStr + '</td>' +
             '<td><span class="prop-history-event">' + eventLabel + '</span></td>' +
             '<td class="prop-history-price">' + (row.price ? '$' + row.price.toLocaleString() : '—') + '</td>' +
             '<td class="' + changeClass + '">' + change + '</td>' +
-            '<td class="prop-history-source">' + (row.source || 'MLS') + '</td></tr>';
+            '<td class="prop-history-source">' + (row.source || 'MLS') + '</td></tr>');
         });
+        priceBody.innerHTML = _priceParts.join('');
       }
-    } catch(err) { console.warn('[PropHistory] Price error:', err); }
+    } catch(err) { _warn('[PropHistory] Price error:', err); }
   }
 
   // Fallback: construct from listing fields if no DB data
@@ -6997,14 +7013,13 @@ async function loadPropertyHistory(listing) {
     if(listing.originalListPrice && listing.originalListPrice !== listing.price) {
       hasPriceData = true;
       var listDate = listing.listDate ? new Date(listing.listDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
-      priceBody.innerHTML =
-        '<tr><td>' + listDate + '</td><td><span class="prop-history-event">Listed</span></td>' +
-        '<td class="prop-history-price">$' + listing.originalListPrice.toLocaleString() + '</td><td></td><td class="prop-history-source">MLS</td></tr>';
       var diff = listing.price - listing.originalListPrice;
       var pct = ((diff / listing.originalListPrice) * 100).toFixed(1);
       var sign = diff > 0 ? '+' : '';
       var cls = diff > 0 ? 'prop-history-up' : 'prop-history-down';
-      priceBody.innerHTML +=
+      priceBody.innerHTML =
+        '<tr><td>' + listDate + '</td><td><span class="prop-history-event">Listed</span></td>' +
+        '<td class="prop-history-price">$' + listing.originalListPrice.toLocaleString() + '</td><td></td><td class="prop-history-source">MLS</td></tr>' +
         '<tr><td>—</td><td><span class="prop-history-event">Price Change</span></td>' +
         '<td class="prop-history-price">$' + listing.price.toLocaleString() + '</td>' +
         '<td class="' + cls + '">' + sign + '$' + Math.abs(diff).toLocaleString() + ' (' + sign + pct + '%)</td><td class="prop-history-source">MLS</td></tr>';
@@ -7025,6 +7040,7 @@ async function loadPropertyHistory(listing) {
         .order('year', { ascending: false });
       if(taxResp.data && taxResp.data.length > 0) {
         hasTaxData = true;
+        var _taxParts = [];
         taxResp.data.forEach(function(row, i) {
           var change = '';
           var changeClass = '';
@@ -7037,14 +7053,15 @@ async function loadPropertyHistory(listing) {
               changeClass = diff > 0 ? 'prop-history-up' : diff < 0 ? 'prop-history-down' : '';
             }
           }
-          taxBody.innerHTML +=
+          _taxParts.push(
             '<tr><td>' + row.year + '</td>' +
             '<td class="prop-history-price">$' + Math.round(row.tax_amount || 0).toLocaleString() + '</td>' +
             '<td class="prop-history-price">$' + Math.round(row.assessed_value || 0).toLocaleString() + '</td>' +
-            '<td class="' + changeClass + '">' + change + '</td></tr>';
+            '<td class="' + changeClass + '">' + change + '</td></tr>');
         });
+        taxBody.innerHTML = _taxParts.join('');
       }
-    } catch(err) { console.warn('[PropHistory] Tax error:', err); }
+    } catch(err) { _warn('[PropHistory] Tax error:', err); }
   }
 
   // Fallback: use single tax year/amount from listing
@@ -7375,9 +7392,9 @@ if(MLS_GRID.enabled) {
         var _cTownSlug = _cPathMatch ? _cPathMatch[1].toLowerCase() : '';
         if(_cTownSlug && TOWN_LISTINGS[_cTownSlug]) { renderTownFeatured(_cTownSlug); townSearch(_cTownSlug); }
       }
-      console.log('[MLS Grid] Loaded ' + ALL_LISTINGS.length + ' cached listings (fresh fetch in background)');
+      _log('[MLS Grid] Loaded ' + ALL_LISTINGS.length + ' cached listings (fresh fetch in background)');
     }
-  } catch(e) { console.warn('[MLS Grid] Cache restore failed:', e.message); }
+  } catch(e) { _warn('[MLS Grid] Cache restore failed:', e.message); }
 
   // Fetch fresh data from Supabase (overwrites cache when done)
   MLS_GRID.init().then(function(){
@@ -7391,21 +7408,21 @@ if(MLS_GRID.enabled) {
         townSearch(townSlug);
         // Populate featured grid with real MLS listings
         renderTownFeatured(townSlug);
-        console.log('[MLS Grid] Town page refreshed: ' + townSlug + ' with ' + TOWN_LISTINGS[townSlug].listings.length + ' listings');
+        _log('[MLS Grid] Town page refreshed: ' + townSlug + ' with ' + TOWN_LISTINGS[townSlug].listings.length + ' listings');
       }
     }
     // If search overlay is already open, refresh results with live data
     var srOverlay = document.getElementById('searchOverlay');
     if(srOverlay && srOverlay.classList.contains('active') && typeof srApplyFilters === 'function') {
       srApplyFilters();
-      console.log('[MLS Grid] Search results refreshed with live data');
+      _log('[MLS Grid] Search results refreshed with live data');
     }
   });
   EVENTS.init();
 } else if(SIMPLYRETS.enabled) {
   var isLocal = (window.location.protocol === 'file:');
   if(isLocal) {
-    console.log('[SimplyRETS] Skipped — site is running from a local file. SimplyRETS will activate automatically once hosted on your domain.');
+    _log('[SimplyRETS] Skipped — site is running from a local file. SimplyRETS will activate automatically once hosted on your domain.');
   } else {
     SIMPLYRETS.init().then(function(){
       if(typeof updateAcctUI === 'function') updateAcctUI();
@@ -7453,7 +7470,7 @@ function _checkPropDeepLink(){
         setTimeout(function(){ openProp({price:match.price,address:match.address,type:match.type,beds:match.beds,baths:match.baths,sqft:match.sqft,sqftRange:match.sqftRange||'',lot:match.lot,restrictions:match.restrictions||'unrestricted',status:match.status||'Active',photo:match.photo||null,photos:match.photos||[],description:match.description||''}, match.city||propCity); }, 300);
       }
     }
-  } catch(e){ console.warn('[DeepLink] Error:', e); }
+  } catch(e){ _warn('[DeepLink] Error:', e); }
 }
 // Also check on page load in case SimplyRETS is disabled
 if(!SIMPLYRETS.enabled) _checkPropDeepLink();
@@ -7477,7 +7494,7 @@ async function savePropertyNote(propertyKey, text) {
       user_id: _currentUser.id, property_key: propertyKey,
       note_text: text, updated_at: new Date().toISOString()
     }, { onConflict: 'user_id,property_key' });
-  } catch(e) { console.warn('[Notes] Save error:', e); }
+  } catch(e) { _warn('[Notes] Save error:', e); }
 }
 
 // ═══ VIEWING HISTORY ═══
@@ -7488,7 +7505,7 @@ async function logViewingHistory(propertyKey, listing, townName) {
       user_id: _currentUser.id, property_key: propertyKey,
       property_data: { address: listing.address, city: townName||listing.city, price: listing.price, type: listing.type, photo: listing.photo||(listing.photos&&listing.photos[0])||null, beds: listing.beds, baths: listing.baths, sqft: listing.sqft }
     });
-  } catch(e) { console.warn('[History] Log error:', e); }
+  } catch(e) { _warn('[History] Log error:', e); }
 }
 async function loadViewingHistoryUI() {
   var container = document.getElementById('acctViewingHistory');
@@ -7566,9 +7583,9 @@ async function checkReengagement() {
         source: 'reengagement',
         message: 'Re-engaged after ' + daysSince + ' days — ' + userName + ' is back on CoryHelpsYouMove.com'
       });
-      console.log('[Activity] Re-engagement alert sent (' + daysSince + ' days)');
+      _log('[Activity] Re-engagement alert sent (' + daysSince + ' days)');
     }
-  } catch(e) { console.warn('[Reengagement] Check failed:', e); }
+  } catch(e) { _warn('[Reengagement] Check failed:', e); }
 }
 
 // High-intent: detect when a user views the same property 3+ times
@@ -7593,9 +7610,9 @@ async function checkHighIntent(propertyKey, address) {
         source: 'high_intent',
         message: 'High intent — ' + userName + ' viewed ' + address + ' ' + resp.count + ' times'
       });
-      console.log('[Activity] High-intent alert sent for ' + address + ' (' + resp.count + ' views)');
+      _log('[Activity] High-intent alert sent for ' + address + ' (' + resp.count + ' views)');
     }
-  } catch(e) { console.warn('[HighIntent] Check failed:', e); }
+  } catch(e) { _warn('[HighIntent] Check failed:', e); }
 }
 
 // ═══ NOTIFICATION CENTER ═══
@@ -7676,7 +7693,7 @@ async function subscribePriceDrop() {
     if(btn) { btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg> Subscribed'; btn.classList.add('subscribed'); }
     logActivity('price_drop_sub', _currentPropKey, {price: price});
   } catch(e) {
-    console.warn('[PriceDrop] Subscribe error:', e);
+    _warn('[PriceDrop] Subscribe error:', e);
     showToast('Failed to subscribe', 'error');
     if(btn) { btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M22 17H2"/><path d="M6 17V4"/><path d="M12 17V10"/><path d="M18 17V7"/><path d="M3 7l3-3 3 3"/></svg> Get Price Drop Alerts'; btn.disabled = false; }
   }
