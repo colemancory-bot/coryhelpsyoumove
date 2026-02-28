@@ -3623,6 +3623,7 @@ var _srActiveCard = null;
 var _srMobileView = 'list';      // 'list' or 'map'
 var _srAllFilteredResults = [];  // Full dropdown-filtered results (before viewport/spatial)
 var _srViewportDebounce = null;
+var _srProgrammaticMove = false;  // true during flyTo/fitBounds — suppresses "Search this area" button
 var _srPopup = null;             // Current open maplibregl.Popup
 
 // Drawing state
@@ -4004,6 +4005,7 @@ function initSearchMap(){
         srRenderMarkers(_srAllFilteredResults);
         var withCoords = _srAllFilteredResults.filter(function(l){return l.lat && l.lng});
         if(withCoords.length > 0){
+          _srProgrammaticMove = true;
           var bounds = new maplibregl.LngLatBounds();
           withCoords.forEach(function(l){ bounds.extend([l.lng, l.lat]); });
           _srMap.fitBounds(bounds, {padding:40, maxZoom:13});
@@ -4064,11 +4066,12 @@ function initSearchMap(){
         _srShowMarkerPopup(e.features[0].properties.id, e.features[0].geometry.coordinates);
     });
 
-    // Viewport-based card filtering on pan/zoom
+    // Show "Search this area" button on user-initiated map moves (not auto-filter)
     _srMap.on('moveend',function(){
       if(_srSpatialFilters.length > 0) return;
-      clearTimeout(_srViewportDebounce);
-      _srViewportDebounce = setTimeout(srFilterCardsByViewport, 350);
+      if(_srProgrammaticMove){ _srProgrammaticMove = false; return; }
+      var btn = document.getElementById('srSearchAreaBtn');
+      if(btn) btn.classList.add('visible');
     });
 
     // Freehand drawing events
@@ -4268,6 +4271,8 @@ function srApplyFilters(){
   srRenderMarkers(results);
 
   // Fit map to results — context-aware zoom based on selected areas
+  // Flag suppresses "Search this area" button from the resulting moveend
+  _srProgrammaticMove = true;
   if(_srMap && _srMapLayersReady){
     var withCoords = results.filter(function(l){return l.lat && l.lng});
     if(withCoords.length > 0){
@@ -4290,7 +4295,11 @@ function srApplyFilters(){
         withCoords.forEach(function(l){ bounds.extend([l.lng, l.lat]); });
         _srMap.fitBounds(bounds, {padding:40, maxZoom:13});
       }
+    } else {
+      _srProgrammaticMove = false; // Nothing to animate to
     }
+  } else {
+    _srProgrammaticMove = false; // Map not ready
   }
 
   // Render cards — always render immediately, then viewport filter can refine
@@ -4312,6 +4321,10 @@ function srApplyFilters(){
     document.getElementById('srCount').textContent = results.length + ' listing' + (results.length!==1?'s':'');
     srRenderCards(results);
   }
+
+  // Cards now match current state — hide "Search this area" button
+  var _saBtn = document.getElementById('srSearchAreaBtn');
+  if(_saBtn) _saBtn.classList.remove('visible');
 }
 
 var _srCardLookup = {}; // listing ID → listing object (for delegated click handler)
@@ -4678,6 +4691,13 @@ function srFilterCardsByViewport(){
   srRenderCards(inView);
 }
 
+// "Search this area" button handler
+function srSearchThisArea(){
+  var btn = document.getElementById('srSearchAreaBtn');
+  if(btn) btn.classList.remove('visible');
+  srFilterCardsByViewport();
+}
+
 // ═══ SPATIAL MATH ═══
 function srPointInPolygon(lat, lng, verts){
   // Ray-casting algorithm
@@ -4932,12 +4952,18 @@ function srToggleView(){
     icon.innerHTML = '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>';
     _srMobileView = 'map';
     if(_srMap) _srMap.resize();
+    // Hide search area button when showing map (will reappear on next user move)
+    var _saBtn = document.getElementById('srSearchAreaBtn');
+    if(_saBtn) _saBtn.classList.remove('visible');
   } else {
     body.classList.remove('list-hidden');
     body.classList.add('map-hidden');
     label.textContent = 'Show Map';
     icon.innerHTML = '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>';
     _srMobileView = 'list';
+    // Hide search area button (map is now hidden)
+    var _saBtn2 = document.getElementById('srSearchAreaBtn');
+    if(_saBtn2) _saBtn2.classList.remove('visible');
     // Render cards filtered to current map viewport (user zoomed to area of interest)
     if(_srMap && _srAllFilteredResults.length && _srSpatialFilters.length === 0) {
       var bounds = _srMap.getBounds();
@@ -7407,13 +7433,20 @@ function srApplyViewedFavStates() {
 
   if(!_srCurrentResults || !_srCurrentResults.length) return;
 
-  var cards = document.querySelectorAll('.sr-card');
+  // Build data-lid lookup for cards (avoids fragile positional indexing)
+  var cardEls = document.querySelectorAll('.sr-card');
+  var cardMap = {};
+  cardEls.forEach(function(c){ cardMap[c.getAttribute('data-lid')] = c; });
 
-  _srCurrentResults.forEach(function(l, i){
+  // Batch: DOM class updates first, then GPU feature-state updates
+  var featureUpdates = [];
+
+  _srCurrentResults.forEach(function(l){
     var key = propKey(l, l.city);
-    var card = cards[i];
+    var lid = l.listingKey || l.mlsId || (l.address + '|' + l.city);
+    var card = cardMap[lid];
 
-    // Card states
+    // Card states (DOM operations)
     if(card) {
       card.classList.remove('viewed','fav-card');
       if(_favProps[key]) {
@@ -7423,17 +7456,21 @@ function srApplyViewedFavStates() {
       }
     }
 
-    // Marker states via GPU feature-state (only after map layers are ready)
+    // Collect marker state updates (defer GPU calls to avoid interleaving with DOM)
     if(_srMapLayersReady) {
-      var lid = l.listingKey || l.mlsId || (l.address + '|' + l.city);
       var numId = _srLidToNumId[lid];
-      if(numId !== undefined && _srMap) {
-        _srMap.setFeatureState({source:'listings',id:numId},{
-          viewed: !!_viewedProps[key] && !_favProps[key]
-        });
+      if(numId !== undefined) {
+        featureUpdates.push({id: numId, viewed: !!_viewedProps[key] && !_favProps[key]});
       }
     }
   });
+
+  // Apply all GPU feature-state updates in one batch
+  if(_srMap && featureUpdates.length > 0) {
+    featureUpdates.forEach(function(u){
+      _srMap.setFeatureState({source:'listings', id:u.id}, {viewed: u.viewed});
+    });
+  }
 }
 
 // --- Hook into srApplyFilters to apply states after render ---
