@@ -847,15 +847,18 @@ var MLS_GRID = {
     return merged;
   },
   // Paginated fetch helper — Supabase caps at 1000 rows per request
-  _fetchAll: function(table, selectCols, filters) {
+  _fetchAll: function(table, selectCols, filters, orderCol) {
     var PAGE = 1000;
     var allRows = [];
     function fetchPage(offset) {
-      var q = _sb.from(table).select(selectCols).range(offset, offset + PAGE - 1);
+      var q = _sb.from(table).select(selectCols);
       // Apply filters
       if(filters) {
         filters.forEach(function(f) { q = q[f.method].apply(q, f.args); });
       }
+      // Deterministic ordering required for stable .range() pagination
+      if(orderCol) q = q.order(orderCol);
+      q = q.range(offset, offset + PAGE - 1);
       return q.then(function(res) {
         if(res.error) throw new Error(res.error.message);
         var rows = res.data || [];
@@ -885,10 +888,10 @@ var MLS_GRID = {
       { method: 'eq', args: ['mlg_can_view', true] },
       { method: 'in', args: ['standard_status', ['Active','Active Under Contract','Pending']] },
       { method: 'neq', args: ['property_type', 'Residential Lease'] }
-    ]);
+    ], 'listing_key');
     var mediaPromise = MLS_GRID._fetchAll('mls_media', 'listing_key, local_url, media_url, "order"', [
       { method: 'in', args: ['"order"', [0, 1]] }
-    ]);
+    ], 'listing_key');
 
     return Promise.all([listingsPromise, mediaPromise]).then(function(results) {
         var listingRows = results[0];
