@@ -626,10 +626,35 @@ Deno.serve(async (req) => {
     // all Active Canopy properties, fetches fresh media URLs via $expand=Media,
     // and updates the mls_media table. Much faster than full re-import since
     // it skips listing upsert, price history, notifications, etc.
+    //
+    // Cursor paging: the sync_cursors table stores the last processed
+    // ModificationTimestamp so that each cron invocation picks up where the
+    // previous one left off. When all listings are processed, cursor is set
+    // to 'DONE' so remaining invocations in the cycle are no-ops. A separate
+    // cron resets the cursor to '' before each AM/PM cycle.
     if (action === "media-refresh") {
+      // 1. Read cursor from DB (body.lastTimestamp overrides for manual calls)
+      let resumeTs = body.lastTimestamp || null;
+      if (!resumeTs) {
+        const { data: cursorRow } = await supabase
+          .from("sync_cursors")
+          .select("value")
+          .eq("key", "media-refresh")
+          .single();
+        const cursorVal = cursorRow?.value || "";
+        if (cursorVal === "DONE") {
+          console.log("[Media Refresh] Cycle already complete (cursor=DONE), skipping");
+          return new Response(JSON.stringify({
+            ok: true, action: "media-refresh", refreshed: 0,
+            status: "cycle-complete", hasMore: false
+          }), {
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          });
+        }
+        resumeTs = cursorVal || null;
+      }
+
       const baseFilter = `OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true and StandardStatus eq 'Active'`;
-      // Resume from body.lastTimestamp if provided (for multi-invocation paging)
-      const resumeTs = body.lastTimestamp || null;
       const tsFilter = resumeTs ? ` and ModificationTimestamp gt ${normalizeTimestamp(resumeTs)}` : "";
       let url = `${MLS_GRID_API}/Property?$filter=${baseFilter}${tsFilter}&$expand=Media&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
       let totalRefreshed = 0;
@@ -685,6 +710,14 @@ Deno.serve(async (req) => {
       }
 
       const hasMore = !!url && totalRefreshed >= maxRecords;
+
+      // 2. Save cursor back to DB for the next cron invocation
+      const cursorValue = hasMore ? greatestTs : "DONE";
+      await supabase
+        .from("sync_cursors")
+        .upsert({ key: "media-refresh", value: cursorValue, updated_at: new Date().toISOString() });
+      console.log(`[Media Refresh] Saved cursor: ${cursorValue} (refreshed ${totalRefreshed})`);
+
       return new Response(JSON.stringify({
         ok: true, action: "media-refresh",
         refreshed: totalRefreshed, lastTimestamp: greatestTs, hasMore
