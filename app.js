@@ -886,8 +886,8 @@ var MLS_GRID = {
       { method: 'in', args: ['standard_status', ['Active','Active Under Contract','Pending']] },
       { method: 'neq', args: ['property_type', 'Residential Lease'] }
     ]);
-    var mediaPromise = MLS_GRID._fetchAll('mls_media', 'listing_key, local_url, media_url', [
-      { method: 'eq', args: ['"order"', 1] }
+    var mediaPromise = MLS_GRID._fetchAll('mls_media', 'listing_key, local_url, media_url, "order"', [
+      { method: 'in', args: ['"order"', [0, 1]] }
     ]);
 
     return Promise.all([listingsPromise, mediaPromise]).then(function(results) {
@@ -904,9 +904,12 @@ var MLS_GRID = {
         var mapped = listingRows.map(MLS_GRID.mapListing);
 
         // Build photo lookup from paginated media results
+        // Canopy (MLS Grid) uses 0-indexed order, CSAR uses 1-indexed — prefer lowest order
         var mediaMap = {};
         mediaRows.forEach(function(m) {
-          mediaMap[m.listing_key] = m.local_url || m.media_url;
+          if(!mediaMap[m.listing_key] || m.order === 0) {
+            mediaMap[m.listing_key] = m.local_url || m.media_url;
+          }
         });
         _log('[MLS Grid] Primary photos loaded: ' + mediaRows.length + ' rows, ' + Object.keys(mediaMap).length + ' unique listings');
 
