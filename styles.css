@@ -1185,7 +1185,7 @@ textarea.form-input{resize:vertical;min-height:100px}
 /* Split layout */
 .sr-body{display:flex;flex:1;overflow:hidden}
 .sr-list-panel{width:520px;flex-shrink:0;overflow-y:auto;border-right:1px solid var(--border);background:var(--bg);order:-1}
-.sr-map-panel{flex:1;position:relative;min-width:0}
+.sr-map-panel{flex:1;position:relative;min-width:0;contain:layout style paint}
 .sr-list-panel::-webkit-scrollbar{width:6px}
 .sr-list-panel::-webkit-scrollbar-track{background:var(--bg)}
 .sr-list-panel::-webkit-scrollbar-thumb{background:var(--gold-dark);border-radius:3px}
@@ -1239,28 +1239,23 @@ textarea.form-input{resize:vertical;min-height:100px}
 /* Map container background prevents flash while vector tiles load */
 .sr-map-panel .maplibregl-map{height:100%;width:100%;background:#58513f}
 [data-theme="light"] .sr-map-panel .maplibregl-map{background:#e8e4db}
-/* Warm filter matching old Voyager raster tile look — one canvas element, minimal cost */
-.sr-map-panel canvas{filter:brightness(0.82) sepia(0.18)}
-[data-theme="light"] .sr-map-panel canvas{filter:brightness(0.97) sepia(0.08)}
+/* GPU perf: no CSS filter on canvas — use static overlay div for tint instead */
 /* Zoom controls */
 .sr-map-panel .maplibregl-ctrl-group{border:none!important;border-radius:4px!important;overflow:hidden;box-shadow:none!important}
-.sr-map-panel .maplibregl-ctrl-group button{background:rgba(12,11,9,0.75)!important;color:var(--gold)!important;border:1px solid rgba(196,176,140,0.25)!important;width:38px!important;height:38px!important;backdrop-filter:blur(12px)!important;transition:all 0.3s!important}
+.sr-map-panel .maplibregl-ctrl-group button{background:rgba(12,11,9,0.88)!important;color:var(--gold)!important;border:1px solid rgba(196,176,140,0.25)!important;width:38px!important;height:38px!important;transition:all 0.3s!important}
 .sr-map-panel .maplibregl-ctrl-group button:hover{background:var(--gold)!important;color:var(--bg)!important;border-color:var(--gold)!important}
 .sr-map-panel .maplibregl-ctrl-group button .maplibregl-ctrl-icon{filter:invert(0.7) sepia(1) hue-rotate(10deg) saturate(0.5)}
 .sr-map-panel .maplibregl-ctrl-group button:hover .maplibregl-ctrl-icon{filter:invert(0) sepia(0) saturate(1)}
 [data-theme="light"] .sr-map-panel .maplibregl-ctrl-group button{background:rgba(255,255,255,0.85)!important;color:var(--gold-dark)!important;border:1px solid rgba(139,119,72,0.25)!important}
 /* Attribution */
-.sr-map-panel .maplibregl-ctrl-attrib{background:rgba(12,11,9,0.6)!important;color:rgba(196,176,140,0.35)!important;font-size:9px!important;backdrop-filter:blur(8px)!important;padding:3px 8px!important}
+.sr-map-panel .maplibregl-ctrl-attrib{background:rgba(12,11,9,0.75)!important;color:rgba(196,176,140,0.35)!important;font-size:9px!important;padding:3px 8px!important}
 .sr-map-panel .maplibregl-ctrl-attrib a{color:rgba(196,176,140,0.5)!important}
 [data-theme="light"] .sr-map-panel .maplibregl-ctrl-attrib{background:rgba(248,246,241,0.7)!important;color:rgba(139,119,72,0.4)!important}
 
-/* Map edge vignette overlay for depth */
-.sr-map-vignette{position:absolute;inset:0;z-index:401;pointer-events:none;box-shadow:inset 0 0 80px rgba(12,11,9,0.4),inset 0 0 200px rgba(12,11,9,0.15)}
-[data-theme="light"] .sr-map-vignette{box-shadow:inset 0 0 80px rgba(248,246,241,0.4),inset 0 0 200px rgba(248,246,241,0.15)}
-
-/* Subtle gold grid overlay */
-.sr-map-overlay{position:absolute;inset:0;z-index:400;pointer-events:none;background:radial-gradient(ellipse at 50% 50%,transparent 40%,rgba(12,11,9,0.3) 100%);mix-blend-mode:multiply}
-[data-theme="light"] .sr-map-overlay{background:radial-gradient(ellipse at 50% 50%,transparent 40%,rgba(248,246,241,0.3) 100%)}
+/* Single tint+vignette overlay — static radial gradient, no blend mode, no box-shadow.
+   Replaces old per-frame CSS filter + mix-blend-mode + inset box-shadow for smooth zoom. */
+.sr-map-overlay{position:absolute;inset:0;z-index:400;pointer-events:none;background:radial-gradient(ellipse at 50% 50%,rgba(12,11,9,0.12) 0%,rgba(12,11,9,0.38) 100%);will-change:transform}
+[data-theme="light"] .sr-map-overlay{background:radial-gradient(ellipse at 50% 50%,rgba(248,246,241,0.06) 0%,rgba(248,246,241,0.3) 100%)}
 
 /* Map compass/branding */
 .sr-map-brand{position:absolute;top:1.25rem;left:1.25rem;z-index:402;pointer-events:none}
@@ -1293,7 +1288,7 @@ textarea.form-input{resize:vertical;min-height:100px}
 
 /* Drawing Toolbar */
 .sr-draw-toolbar{position:absolute;top:6.5rem;right:1.25rem;z-index:1000;display:flex;flex-direction:column;gap:1px}
-.sr-draw-btn{width:38px;height:38px;display:flex;align-items:center;justify-content:center;background:rgba(12,11,9,0.75);color:var(--gold);border:1px solid rgba(196,176,140,0.25);cursor:pointer;padding:0;backdrop-filter:blur(12px);transition:all 0.3s}
+.sr-draw-btn{width:38px;height:38px;display:flex;align-items:center;justify-content:center;background:rgba(12,11,9,0.88);color:var(--gold);border:1px solid rgba(196,176,140,0.25);cursor:pointer;padding:0;transition:all 0.3s}
 .sr-draw-btn svg{width:18px;height:18px}
 .sr-draw-btn:first-child{border-radius:4px 4px 0 0}
 .sr-draw-btn:nth-child(3){border-radius:0 0 4px 4px}

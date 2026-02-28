@@ -3969,9 +3969,8 @@ function initSearchMap(){
       minZoom:7
     });
 
-    // Boost trackpad/wheel zoom sensitivity
-    _srMap.scrollZoom.setWheelZoomRate(1/200);
-    _srMap.scrollZoom.setZoomRate(1/50);
+    // Use MapLibre default zoom rates — boosted rates caused jerky trackpad/touchscreen zoom
+    // Defaults: wheelZoomRate=1/450, zoomRate=1/100
 
     _srMap.addControl(new maplibregl.NavigationControl({showCompass:false}), 'top-right');
 
