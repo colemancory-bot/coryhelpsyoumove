@@ -3626,22 +3626,19 @@ var _srViewportDebounce = null;
 var _srProgrammaticMove = false;  // true during flyTo/fitBounds — suppresses "Search this area" button
 var _srSkipMapFit = false;        // true when refreshing data silently — skips fitBounds/flyTo
 
-// Generate price label background image (dark box for dark theme, light box for light)
-function _srCreatePriceBg(dark){
+// SDF rounded rect for price labels — white fill, colored via icon-color paint property
+function _srCreatePriceBg(){
   var s = 20, r = 3, c = document.createElement('canvas');
   c.width = s; c.height = s;
   var ctx = c.getContext('2d');
+  ctx.fillStyle = '#FFFFFF';
   ctx.beginPath();
   ctx.moveTo(r, 0); ctx.lineTo(s-r, 0); ctx.quadraticCurveTo(s, 0, s, r);
   ctx.lineTo(s, s-r); ctx.quadraticCurveTo(s, s, s-r, s);
   ctx.lineTo(r, s); ctx.quadraticCurveTo(0, s, 0, s-r);
   ctx.lineTo(0, r); ctx.quadraticCurveTo(0, 0, r, 0);
   ctx.closePath();
-  ctx.fillStyle = dark ? 'rgba(12,11,9,0.88)' : 'rgba(255,255,255,0.92)';
   ctx.fill();
-  ctx.strokeStyle = dark ? 'rgba(196,176,140,0.3)' : 'rgba(139,119,72,0.25)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
   return ctx.getImageData(0, 0, s, s);
 }
 var _srPopup = null;             // Current open maplibregl.Popup
@@ -3924,19 +3921,22 @@ function _srAddMapLayers(){
       },
       paint:{'text-color': isDark ? '#0C0B09' : '#FFFFFF'}
     });
-    // Create + add background image for price label boxes
-    _srMap.addImage('price-bg', _srCreatePriceBg(isDark), {width:20, height:20, pixelRatio:1});
+    // Create + add SDF background image for price label boxes (tinted via icon-color)
+    _srMap.addImage('price-bg', _srCreatePriceBg(), {width:20, height:20, pixelRatio:1, sdf:true});
 
-    // Unclustered price labels — GPU-rendered symbol layer with background box
+    // Unclustered price labels — GPU symbol layer with SDF background box
+    // Box color: gold (default), cream (viewed), rose (favorited), bright (hover)
     _srMap.addLayer({
       id:'unclustered-point', type:'symbol', source:'listings',
       filter:['!',['has','point_count']],
       layout:{
         'icon-image':'price-bg',
         'icon-text-fit':'both',
-        'icon-text-fit-padding':[2, 5, 2, 5],
+        'icon-text-fit-padding':[3, 6, 3, 6],
         'icon-allow-overlap':true,
-        'text-field':['get','priceLabel'],
+        'text-field':['case',
+          ['boolean',['get','isFav'],false], ['concat','\u2665 ',['get','priceLabel']],
+          ['get','priceLabel']],
         'text-font':['Open Sans Semibold','Arial Unicode MS Bold'],
         'text-size':11,
         'text-allow-overlap':true,
@@ -3945,10 +3945,16 @@ function _srAddMapLayers(){
         'text-padding':0
       },
       paint:{
+        'icon-color':['case',
+          ['boolean',['feature-state','hover'],false], isDark ? '#E8D5B0' : '#A08850',
+          ['boolean',['get','isFav'],false], '#C0616B',
+          ['boolean',['feature-state','viewed'],false], isDark ? '#3D3A32' : '#D8D2C8',
+          isDark ? '#C4B08C' : '#8B7748'],
         'text-color':['case',
-          ['boolean',['feature-state','hover'],false], '#FFFFFF',
-          ['boolean',['feature-state','viewed'],false], '#999999',
-          isDark ? '#C4B08C' : '#5a4830'],
+          ['boolean',['feature-state','hover'],false], isDark ? '#0C0B09' : '#FFFFFF',
+          ['boolean',['get','isFav'],false], '#FFFFFF',
+          ['boolean',['feature-state','viewed'],false], isDark ? '#8a8a7a' : '#777',
+          isDark ? '#1A1815' : '#FFFFFF'],
         'text-halo-width':0
       }
     });
@@ -4451,6 +4457,7 @@ function _srListingsToGeoJSON(results){
     type:'FeatureCollection',
     features: results.filter(function(l){return l.lat && l.lng}).map(function(l, idx){
       var lid = l.listingKey || l.mlsId || (l.address + '|' + l.city);
+      var key = propKey(l, l.city);
       return {
         type:'Feature',
         geometry:{type:'Point',coordinates:[l.lng, l.lat]},
@@ -4459,6 +4466,7 @@ function _srListingsToGeoJSON(results){
           priceLabel: l.price >= 1000000
             ? '$' + (l.price/1000000).toFixed(1).replace(/\.0$/,'') + 'M'
             : '$' + Math.round(l.price/1000) + 'K',
+          isFav: !!_favProps[key],
           address:l.address, city:l.city, type:l.type,
           beds:l.beds, baths:l.baths, sqft:l.sqft, lot:l.lot||'',
           photo:l.photo||'', status:l.status||'Active', listOffice:l.listOffice||''
@@ -5026,15 +5034,18 @@ toggleTheme = function(){
     if(_srMap.getLayer('cluster-count')){
       _srMap.setPaintProperty('cluster-count', 'text-color', isDark ? '#0C0B09' : '#FFFFFF');
     }
-    // Price label colors + background image swap
+    // Price label colors (SDF icon-color + text-color)
     if(_srMap.getLayer('unclustered-point')){
+      _srMap.setPaintProperty('unclustered-point', 'icon-color', ['case',
+        ['boolean',['feature-state','hover'],false], isDark ? '#E8D5B0' : '#A08850',
+        ['boolean',['get','isFav'],false], '#C0616B',
+        ['boolean',['feature-state','viewed'],false], isDark ? '#3D3A32' : '#D8D2C8',
+        isDark ? '#C4B08C' : '#8B7748']);
       _srMap.setPaintProperty('unclustered-point', 'text-color', ['case',
-        ['boolean',['feature-state','hover'],false], '#FFFFFF',
-        ['boolean',['feature-state','viewed'],false], '#999999',
-        isDark ? '#C4B08C' : '#5a4830']);
-      // Swap background image for theme
-      if(_srMap.hasImage('price-bg')) _srMap.removeImage('price-bg');
-      _srMap.addImage('price-bg', _srCreatePriceBg(isDark), {width:20, height:20, pixelRatio:1});
+        ['boolean',['feature-state','hover'],false], isDark ? '#0C0B09' : '#FFFFFF',
+        ['boolean',['get','isFav'],false], '#FFFFFF',
+        ['boolean',['feature-state','viewed'],false], isDark ? '#8a8a7a' : '#777',
+        isDark ? '#1A1815' : '#FFFFFF']);
     }
     // Town boundary line color
     if(_srMap.getLayer('town-boundary-line')){
@@ -6522,6 +6533,10 @@ function toggleFavProp() {
     }
   }
   updateFavBtn();
+  // Re-render map markers so GeoJSON isFav property updates (drives heart label + box color)
+  if(_srMap && _srAllFilteredResults && _srAllFilteredResults.length) {
+    srRenderMarkers(_srAllFilteredResults);
+  }
   // Update search results if open
   srApplyViewedFavStates();
 }
