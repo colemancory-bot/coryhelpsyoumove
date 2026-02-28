@@ -3,6 +3,23 @@ var _DEBUG = location.hostname === 'localhost' || location.hostname === '127.0.0
 function _log(){ if(_DEBUG) console.log.apply(console, arguments); }
 function _warn(){ if(_DEBUG) console.warn.apply(console, arguments); }
 
+// ═══ GRAIN — generate static noise texture once (replaces GPU-intensive SVG filter) ═══
+(function(){
+  var g = document.querySelector('.grain');
+  if(!g) return;
+  var c = document.createElement('canvas');
+  c.width = 128; c.height = 128;
+  var ctx = c.getContext('2d');
+  var img = ctx.createImageData(128, 128);
+  var d = img.data;
+  for(var i = 0; i < d.length; i += 4){
+    var v = Math.random() * 255 | 0;
+    d[i] = v; d[i+1] = v; d[i+2] = v; d[i+3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  g.style.backgroundImage = 'url(' + c.toDataURL('image/png') + ')';
+})();
+
 // ═══ CTRL+P INTERCEPT — Custom print for logged-in users ═══
 window.addEventListener('keydown', function(e){
   if((e.ctrlKey || e.metaKey) && e.key === 'p'){
@@ -3945,7 +3962,7 @@ function initSearchMap(){
       _srScheduleMarkerRefresh();
       if(_srSpatialFilter) return;
       clearTimeout(_srViewportDebounce);
-      _srViewportDebounce = setTimeout(srFilterCardsByViewport, 150);
+      _srViewportDebounce = setTimeout(srFilterCardsByViewport, 350);
     });
     _srMap.on('zoomend',function(){ _srScheduleMarkerRefresh(); });
 
@@ -4147,9 +4164,11 @@ function srApplyFilters(){
   }
 }
 
+var _srCardLookup = {}; // listing ID → listing object (for delegated click handler)
 function srRenderCards(results){
   var container = document.getElementById('srCards');
   container.innerHTML = '';
+  _srBindCardDelegation(); // Bind once
 
   if(results.length === 0){
     if(ALL_LISTINGS.length === 0 && MLS_GRID.enabled) {
@@ -4160,11 +4179,14 @@ function srRenderCards(results){
     return;
   }
 
+  _srCardLookup = {}; // Reset lookup for new result set
+  var frag = document.createDocumentFragment();
   results.forEach(function(l, i){
     var card = document.createElement('div');
     card.className = 'sr-card';
     var lid = l.listingKey || l.mlsId || (l.address + '|' + l.city);
     card.setAttribute('data-lid', lid);
+    _srCardLookup[lid] = l;
 
     var feats = l.type === 'Land'
       ? '<strong>' + l.lot + '</strong>'
@@ -4200,17 +4222,40 @@ function srRenderCards(results){
         srBrokerHtml +
       '</div>';
 
-    (function(listing, listingId){
-      card.onclick = function(){
-        if(window._cardSwiped){window._cardSwiped=false;return;}
-        try { openProp({price:listing.price,address:listing.address,type:listing.type,beds:listing.beds,baths:listing.baths,sqft:listing.sqft,sqftRange:listing.sqftRange||'',lot:listing.lot,restrictions:listing.restrictions||'unrestricted',status:listing.status||'Active',photo:listing.photo||null,photos:listing.photos||[],description:listing.description||'',listAgent:listing.listAgent||'',listOffice:listing.listOffice||'',listOfficePhone:listing.listOfficePhone||'',attributionContact:listing.attributionContact||'',mlsId:listing.mlsId||'',daysOnMarket:listing.daysOnMarket||0,listingKey:listing.listingKey||'',originatingSystem:listing.originatingSystem||'',mlsSources:listing.mlsSources||[]}, listing.city); } catch(err){console.error(err)}
-      };
-      card.onmouseenter = function(){ srHighlightMarkerById(listingId) };
-      card.onmouseleave = function(){ srUnhighlightMarkerById(listingId) };
-    })(l, lid);
-
-    container.appendChild(card);
+    frag.appendChild(card);
   });
+  container.appendChild(frag);
+}
+
+// ═══ Event delegation for search cards (one handler instead of 3 per card) ═══
+var _srCardDelegationBound = false;
+function _srBindCardDelegation(){
+  if(_srCardDelegationBound) return;
+  var container = document.getElementById('srCards');
+  if(!container) return;
+  _srCardDelegationBound = true;
+
+  container.addEventListener('click', function(e){
+    // Ignore clicks on fav heart buttons
+    if(e.target.closest('.card-fav-btn')) return;
+    var card = e.target.closest('.sr-card');
+    if(!card) return;
+    if(window._cardSwiped){window._cardSwiped=false;return;}
+    var lid = card.getAttribute('data-lid');
+    var listing = _srCardLookup[lid];
+    if(!listing) return;
+    try { openProp({price:listing.price,address:listing.address,type:listing.type,beds:listing.beds,baths:listing.baths,sqft:listing.sqft,sqftRange:listing.sqftRange||'',lot:listing.lot,restrictions:listing.restrictions||'unrestricted',status:listing.status||'Active',photo:listing.photo||null,photos:listing.photos||[],description:listing.description||'',listAgent:listing.listAgent||'',listOffice:listing.listOffice||'',listOfficePhone:listing.listOfficePhone||'',attributionContact:listing.attributionContact||'',mlsId:listing.mlsId||'',daysOnMarket:listing.daysOnMarket||0,listingKey:listing.listingKey||'',originatingSystem:listing.originatingSystem||'',mlsSources:listing.mlsSources||[]}, listing.city); } catch(err){console.error(err)}
+  });
+
+  container.addEventListener('mouseenter', function(e){
+    var card = e.target.closest('.sr-card');
+    if(card) srHighlightMarkerById(card.getAttribute('data-lid'));
+  }, true);
+
+  container.addEventListener('mouseleave', function(e){
+    var card = e.target.closest('.sr-card');
+    if(card) srUnhighlightMarkerById(card.getAttribute('data-lid'));
+  }, true);
 }
 
 function _srListingsToGeoJSON(results){
@@ -4258,6 +4303,7 @@ function srRenderMarkers(results){
 }
 
 // Create/update DOM price markers for unclustered individual listings
+var _SR_MAX_MARKERS = 150; // Cap DOM markers to prevent browser lag at wide zoom levels
 function _srUpdatePriceMarkers(){
   if(!_srMap || !_srMap.isStyleLoaded()) return;
   // Query currently visible unclustered features from the source
@@ -4270,7 +4316,14 @@ function _srUpdatePriceMarkers(){
     var id = f.properties.id;
     if(!seen[id]){ seen[id] = true; unique.push(f); }
   });
-  // Track which markers exist
+  // If too many unclustered points, skip DOM markers entirely (clusters should handle it)
+  if(unique.length > _SR_MAX_MARKERS){
+    _srMarkers.forEach(function(m){ m.remove(); });
+    _srMarkers = [];
+    _srMarkerMap = {};
+    return;
+  }
+  // Track which markers should be active
   var activeIds = {};
   unique.forEach(function(f){
     var lid = f.properties.id;
@@ -4328,7 +4381,7 @@ function _srShowMarkerPopup(lid, coords){
 var _srMarkerRefreshTimer = null;
 function _srScheduleMarkerRefresh(){
   clearTimeout(_srMarkerRefreshTimer);
-  _srMarkerRefreshTimer = setTimeout(_srUpdatePriceMarkers, 100);
+  _srMarkerRefreshTimer = setTimeout(_srUpdatePriceMarkers, 300);
 }
 // Hook into map events after init (called from initSearchMap's load handler)
 // We call this via moveend which is already bound
