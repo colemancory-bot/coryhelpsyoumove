@@ -3957,14 +3957,22 @@ function initSearchMap(){
     _srMap.addControl(new maplibregl.NavigationControl({showCompass:false}), 'top-right');
 
     // Once style loads, add data layers
-    _srMap.on('load', function(){
+    function _srOnMapReady(){
+      if(_srMapLayersReady) return; // prevent double-call
       _srAddMapLayers();
       // If listings already loaded, render markers + apply viewed/fav states
       if(_srAllFilteredResults && _srAllFilteredResults.length > 0){
         srRenderMarkers(_srAllFilteredResults);
         srApplyViewedFavStates();
       }
+    }
+    _srMap.on('load', _srOnMapReady);
+    // Fallback: 'load' waits for all tiles; if style parsed from cache, fire now
+    _srMap.on('style.load', function(){
+      setTimeout(function(){ if(!_srMapLayersReady) _srOnMapReady(); }, 0);
     });
+    // Belt-and-suspenders: poll in case both events already fired
+    setTimeout(function(){ if(_srMap.isStyleLoaded() && !_srMapLayersReady) _srOnMapReady(); }, 500);
 
     // Cluster click → expand
     _srMap.on('click','clusters',function(e){
