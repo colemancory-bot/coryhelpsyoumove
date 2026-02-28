@@ -3025,12 +3025,12 @@ textarea.form-input{resize:vertical;min-height:100px}
 .prop-pricedrop-btn{display:flex;align-items:center;justify-content:center;gap:0.5rem;width:100%;padding:0.7rem 1rem;border:1px solid var(--border);background:transparent;color:var(--text-body);border-radius:10px;font-family:'Outfit',sans-serif;font-size:0.82rem;font-weight:500;cursor:pointer;transition:all 0.25s;margin-top:0.5rem}
 .prop-pricedrop-btn:hover{border-color:var(--gold);color:var(--gold)}
 .prop-pricedrop-btn.subscribed{border-color:var(--green);color:var(--green);cursor:default}
-.prop-pricedrop-btn svg{flex-shrink:0}
+.prop-pricedrop-btn svg{width:18px;height:18px;flex-shrink:0}
 
 /* ═══ Share with Search Party button ═══ */
 .prop-partyshare-btn{display:flex;align-items:center;justify-content:center;gap:0.5rem;width:100%;padding:0.7rem 1rem;border:1px solid var(--gold);background:rgba(196,176,140,0.08);color:var(--gold);border-radius:10px;font-family:'Outfit',sans-serif;font-size:0.82rem;font-weight:500;cursor:pointer;transition:all 0.25s;margin-top:0.5rem}
 .prop-partyshare-btn:hover{background:rgba(196,176,140,0.15)}
-.prop-partyshare-btn svg{flex-shrink:0}
+.prop-partyshare-btn svg{width:18px;height:18px;flex-shrink:0}
 
 /* ═══ SMS Share (mobile only) ═══ */
 .prop-sms-share{display:none}
