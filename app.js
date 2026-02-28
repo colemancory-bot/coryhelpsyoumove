@@ -1172,7 +1172,7 @@ if(!MLS_GRID.enabled) {
   if(fb){
     var disc=document.createElement('div');
     disc.className='idx-disclaimer';
-    disc.innerHTML='<p class="idx-source">Listing data provided by Carolina Smokies Association of Realtors (CSAR).</p><p>All data is obtained from various sources and may not have been verified by broker or MLS. Supplied Open House Information is subject to change without notice. All information should be independently reviewed and verified for accuracy. Properties may or may not be listed by the office/agent presenting the information.</p><p>IDX information is provided exclusively for consumers\u2019 personal, non-commercial use and may not be used for any purpose other than to identify prospective properties consumers may be interested in purchasing. Data is deemed reliable but is not guaranteed accurate by the MLS.</p><p>Properties displayed may be listed or sold by various participants in the MLS. \u00A9 2026 Carolina Smokies Association of Realtors. All rights reserved.</p><p class="idx-timestamp" id="idxTimestamp">Data last updated: loading...</p>';
+    disc.innerHTML='<p class="idx-source">Listings courtesy of Carolina Smokies Association of Realtors (CSAR) and Canopy MLS as distributed by MLS GRID.</p><p>Some IDX listings have been excluded from this website.</p><p>Based on information submitted to the MLS GRID as of <span id="idxGridTimestamp">the last data refresh</span>. All data is obtained from various sources and may not have been verified by broker or MLS GRID. Supplied Open House Information is subject to change without notice. All information should be independently reviewed and verified for accuracy. Properties may or may not be listed by the office/agent presenting the information.</p><p>IDX information is provided exclusively for consumers\u2019 personal, non-commercial use and may not be used for any purpose other than to identify prospective properties consumers may be interested in purchasing. Data is deemed reliable but is not guaranteed accurate by the MLS.</p><p>Properties displayed may be listed or sold by various participants in the MLS. \u00A9 2026 Carolina Smokies Association of Realtors. \u00A9 2026 Canopy MLS. All rights reserved.</p><p class="idx-timestamp" id="idxTimestamp">Data last updated: loading...</p>';
     // DMCA notice (Rule 30)
     var dmca=document.createElement('div');
     dmca.className='idx-dmca';
@@ -2652,23 +2652,25 @@ function openProp(listing, townName) {
     brokerEl.style.display = brokerText ? '' : 'none';
   }
 
-  // IDX source attribution — show ONLY the primary data source + Rule 24 required verbiage
+  // IDX source attribution — show ONLY the primary data source + source-appropriate disclaimer
   // MLS Grid best practice: attribute the specific source whose data is displayed,
   // so data discrepancies (e.g. agent forgot to update status in one MLS) are traceable.
+  // CSAR data comes via Navica — MLS Grid timestamp language only applies to Canopy MLS data.
   var idxSrcEl = document.getElementById('propIdxSource');
   if(idxSrcEl) {
     var primarySys = listing.originatingSystem || '';
     var primaryLabel = MLS_GRID._mlsLabel(primarySys);
-    var srcName;
+    var disclaimerText;
     if(primaryLabel === 'CSAR') {
-      srcName = 'Carolina Smokies Association of Realtors';
+      // CSAR data comes from Navica, not MLS Grid — use CSAR-specific disclaimer
+      disclaimerText = 'Listing courtesy of Carolina Smokies Association of Realtors. All data is obtained from various sources and may not have been verified by broker or MLS. All information should be independently reviewed and verified for accuracy. Properties may or may not be listed by the office/agent presenting the information.';
     } else {
-      srcName = 'Canopy MLS as distributed by MLS GRID';
+      // Canopy MLS data comes via MLS Grid — include Rule 24 required timestamp
+      var _gridTs = document.getElementById('idxGridTimestamp');
+      var _gridTsText = (_gridTs && _gridTs.textContent !== 'the last data refresh') ? _gridTs.textContent : new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) + ' at ' + new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+      disclaimerText = 'Listing courtesy of Canopy MLS as distributed by MLS GRID. Based on information submitted to the MLS GRID as of ' + _gridTsText + '. All data is obtained from various sources and may not have been verified by broker or MLS GRID. Supplied Open House Information is subject to change without notice. All information should be independently reviewed and verified for accuracy. Properties may or may not be listed by the office/agent presenting the information.';
     }
-    // Rule 24 compliant disclaimer with MLS GRID timestamp
-    var _gridTs = document.getElementById('idxGridTimestamp');
-    var _gridTsText = (_gridTs && _gridTs.textContent !== 'the last data refresh') ? _gridTs.textContent : new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) + ' at ' + new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
-    idxSrcEl.textContent = 'Listing courtesy of ' + srcName + '. Based on information submitted to the MLS GRID as of ' + _gridTsText + '. All data is obtained from various sources and may not have been verified by broker or MLS GRID. Supplied Open House Information is subject to change without notice. All information should be independently reviewed and verified for accuracy. Properties may or may not be listed by the office/agent presenting the information.';
+    idxSrcEl.textContent = disclaimerText;
   }
 
   // Stats ribbon
