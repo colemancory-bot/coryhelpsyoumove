@@ -4917,8 +4917,16 @@ function srToggleView(){
     label.textContent = 'Show Map';
     icon.innerHTML = '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>';
     _srMobileView = 'list';
-    // Re-render cards showing all filtered results (no viewport filter when map hidden)
-    if(_srAllFilteredResults.length) {
+    // Render cards filtered to current map viewport (user zoomed to area of interest)
+    if(_srMap && _srAllFilteredResults.length && _srSpatialFilters.length === 0) {
+      var bounds = _srMap.getBounds();
+      var inView = _srAllFilteredResults.filter(function(l){
+        return l.lat && l.lng && bounds.contains(new maplibregl.LngLat(l.lng, l.lat));
+      });
+      _srCurrentResults = inView;
+      document.getElementById('srCount').textContent = inView.length + ' of ' + _srAllFilteredResults.length + ' listing' + (_srAllFilteredResults.length!==1?'s':'') + ' in view';
+      srRenderCards(inView);
+    } else if(_srAllFilteredResults.length) {
       _srCurrentResults = _srAllFilteredResults;
       document.getElementById('srCount').textContent = _srAllFilteredResults.length + ' listing' + (_srAllFilteredResults.length!==1?'s':'');
       srRenderCards(_srAllFilteredResults);
