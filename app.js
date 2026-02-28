@@ -257,6 +257,7 @@ if(_isTownPage){
       '<div class="prop-info-right">' +
         '<div class="prop-info-scroll-hint"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 5v14M19 12l-7 7-7-7" stroke="currentColor" stroke-width="2" fill="none"/></svg><span>Scroll for details</span></div>' +
         '<button class="prop-fav-btn" id="propFavBtn" onclick="toggleFavProp()"><svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg><span id="propFavLabel">Save</span></button>' +
+        '<button class="prop-share-topbar" id="propShareBtn" onclick="propShare(navigator.share?\'native\':\'copy\')"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg><span>Share</span></button>' +
         '<button class="prop-info-print-btn" id="propInfoPrintBtn" onclick="propShare(\'print\')"><svg viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg><span>Print</span></button>' +
       '</div>' +
     '</div></div>' +
@@ -292,7 +293,7 @@ if(_isTownPage){
         '<div class="prop-notes-wrap" id="propNotesWrap" style="display:none"><div class="prop-notes-header"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg><div class="prop-notes-title">Your Notes</div></div><textarea class="prop-notes-ta" id="propNotesTA" placeholder="Jot down thoughts, questions, or things to look for at the showing..."></textarea><div class="prop-notes-hint"><svg viewBox="0 0 24 24" width="12" height="12"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Notes appear on your printed property sheet</div></div>' +
         '<div class="prop-ask-cory" id="propAskCory" style="display:none"><div class="prop-notes-header"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><div class="prop-notes-title">Ask Cory</div></div><div id="propQuestionsList"></div><textarea class="prop-notes-ta" id="propQuestionTA" placeholder="Have a question about this property? Ask Cory directly..."></textarea><button class="prop-ask-send" onclick="submitPropertyQuestion()">Send Question</button></div>' +
         '<div class="gated-wrap locked" id="gatedCalc" onclick="onGatedClick()"><div class="gated-prompt"><svg class="gated-prompt-icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><div class="gated-prompt-text"><strong>Unlock Mortgage Estimates</strong> &mdash; Free</div><div class="gated-prompt-sub">Click anywhere to unlock</div></div><div class="gated-content"><div class="prop-calc"><div class="prop-calc-title">Estimated Payment</div><div class="prop-calc-row"><span class="prop-calc-label">Purchase Price</span><span class="prop-calc-val" id="calcPrice"></span></div><div class="prop-calc-row"><span class="prop-calc-label">Down Payment (20%)</span><span class="prop-calc-val" id="calcDown"></span></div><div class="prop-calc-row"><span class="prop-calc-label">Loan Amount</span><span class="prop-calc-val" id="calcLoan"></span></div><div class="prop-calc-row"><span class="prop-calc-label">Interest Rate</span><span class="prop-calc-val">6.75%</span></div><div class="prop-calc-row"><span class="prop-calc-label">Loan Term</span><span class="prop-calc-val">30 years</span></div><div class="prop-calc-total"><span class="prop-calc-label">Est. Monthly</span><span class="prop-calc-val" id="calcMonthly"></span></div><div class="prop-calc-note">Estimate only. Does not include taxes, insurance, or HOA. Contact a lender for an accurate pre-approval.</div></div></div></div>' +
-        '<div class="prop-share"><button class="prop-share-btn" onclick="propShare(\'copy\')"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy Link</button><button class="prop-share-btn" onclick="propShare(\'email\')"><svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M22 6l-10 7L2 6"/></svg> Email</button><button class="prop-share-btn gated-print-btn" id="propPrintBtn" onclick="propShare(\'print\')"><svg viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print</button></div>' +
+        '<div class="prop-share"><button class="prop-share-btn" onclick="propShare(\'copy\')"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy Link</button><button class="prop-share-btn" onclick="propShare(\'email\')"><svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M22 6l-10 7L2 6"/></svg> Email</button><button class="prop-share-btn" onclick="propShare(\'sms\')"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg> Text</button><button class="prop-share-btn gated-print-btn" id="propPrintBtn" onclick="propShare(\'print\')"><svg viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print</button></div>' +
       '</div>' +
     '</div></div>' +
     '<div class="corys-suggestions" id="corysSuggestions" style="display:none"><div class="corys-suggestions-inner"><div class="corys-take-label">Personalized for You</div><div class="prop-section-title" style="margin-bottom:0.5rem">Cory\'s <em>Suggestions</em></div><div class="corys-suggestions-reason" id="corysSuggestionsReason"></div><div class="corys-suggestions-grid" id="corysSuggestionsGrid"></div></div></div>' +
@@ -2850,7 +2851,9 @@ function openProp(listing, townName) {
   o.classList.add('active');
   o.scrollTop = 0;
   _lockScroll();
-  try{history.pushState({page:'property'},'','#property')}catch(he){}
+  // Build shareable hash: #property/<mlsId> or #property/<address>|<city>
+  var _propHashId = listing.mlsId || listing.listingKey || (listing.address + '|' + (townName||''));
+  try{history.pushState({page:'property'},'','#property/' + encodeURIComponent(_propHashId))}catch(he){}
 
   // Fetch full MLS data for admin — reads raw_data from Navica API
   if(_isAdmin && listing.listingKey && _sb) {
@@ -3142,18 +3145,36 @@ function closeProp(fromPopstate) {
   }
 }
 
+function _propShareUrl() {
+  var listing = window._currentListing;
+  if(!listing) return 'https://coryhelpsyoumove.com';
+  var id = listing.mlsId || listing.listingKey || (listing.address + '|' + (window._currentTownName||''));
+  return window.location.origin + window.location.pathname + '#property/' + encodeURIComponent(id);
+}
+
 function propShare(type) {
   var addr = document.getElementById('propAddr').textContent;
   var price = document.getElementById('propPrice').textContent;
+  var url = _propShareUrl();
   if (type === 'copy') {
-    var text = addr + ' — ' + price + ' | Cory Coleman Real Estate | coryhelpsyoumove.com';
-    navigator.clipboard.writeText(text).then(function(){
-      event.target.closest('.prop-share-btn').innerHTML = '<svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg> Copied!';
+    navigator.clipboard.writeText(url).then(function(){
+      var btn = document.querySelector('.prop-share-btn[onclick*="copy"]') || event.target.closest('.prop-share-btn');
+      if(btn) btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg> Copied!';
+      // Also update info bar share button if it exists
+      var infoBtn = document.getElementById('propShareBtn');
+      if(infoBtn) { infoBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg><span>Copied!</span>'; setTimeout(function(){ infoBtn.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg><span>Share</span>'; }, 2000); }
     });
+  } else if (type === 'native') {
+    // Native Web Share API (mobile)
+    if(navigator.share) {
+      navigator.share({title: addr + ' - ' + price, text: addr + ', ' + (window._currentTownName||'NC') + ' - ' + price, url: url}).catch(function(){});
+    } else {
+      propShare('copy');
+    }
   } else if (type === 'email') {
-    window.location.href = 'mailto:?subject=Check out this property in Western NC&body=' + encodeURIComponent(addr + ' — ' + price + '\n\nView at coryhelpsyoumove.com');
+    window.location.href = 'mailto:?subject=Check out this property in Western NC&body=' + encodeURIComponent(addr + ' - ' + price + '\n\n' + url);
   } else if (type === 'sms') {
-    window.location.href = 'sms:?body=' + encodeURIComponent('Check out this property: ' + addr + ' — ' + price + ' | coryhelpsyoumove.com');
+    window.location.href = 'sms:?body=' + encodeURIComponent('Check out this property: ' + addr + ' - ' + price + '\n' + url);
   } else if (type === 'print') {
     if(!_acctLoggedIn) { openAcctModal(); return; }
     // Hide compare print page if present
@@ -7573,10 +7594,44 @@ if(MLS_GRID.enabled) {
   }
 }
 
-// ═══ DEEP LINK: Open property from ?prop=address&city=town query params ═══
+// Find a listing by mlsId, listingKey, or address|city fallback
+function _findListingById(id) {
+  if(!id) return null;
+  for(var i = 0; i < ALL_LISTINGS.length; i++){
+    var l = ALL_LISTINGS[i];
+    if(l.mlsId && l.mlsId.toString() === id) return l;
+    if(l.listingKey && l.listingKey === id) return l;
+    var fallback = l.address + '|' + (l.city||'');
+    if(fallback === id) return l;
+  }
+  // Also check LISTINGS (demo data)
+  if(typeof LISTINGS !== 'undefined') {
+    for(var j = 0; j < LISTINGS.length; j++){
+      var dl = LISTINGS[j];
+      if(dl.mlsId && dl.mlsId.toString() === id) return dl;
+      if(dl.address + '|' + (dl.city||'') === id) return dl;
+    }
+  }
+  return null;
+}
+
+// ═══ DEEP LINK: Open property from #property/<id> hash or ?prop=address&city=town query ═══
 var _propDeepLinkRef = null; // Return URL when coming from town page
 function _checkPropDeepLink(){
   try {
+    // Check hash-based deep link: #property/<mlsId> or #property/<address|city>
+    var hash = window.location.hash || '';
+    if(hash.indexOf('#property/') === 0) {
+      var propId = decodeURIComponent(hash.substring('#property/'.length));
+      if(propId) {
+        var match = _findListingById(propId);
+        if(match) {
+          setTimeout(function(){ openProp(match, match.city || ''); }, 300);
+        }
+        return; // Don't process query params if hash link found
+      }
+    }
+    // Fallback: query param deep link (?prop=address&city=town)
     var params = new URLSearchParams(window.location.search);
     var propAddr = params.get('prop');
     var propCity = params.get('city');

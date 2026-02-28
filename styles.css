@@ -985,11 +985,16 @@ textarea.form-input{resize:vertical;min-height:100px}
 .prop-info-print-btn{display:inline-flex;align-items:center;gap:0.5rem;padding:0.6rem 1.2rem;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-family:'Outfit',sans-serif;font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;transition:all 0.3s}
 .prop-info-print-btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.5;transition:all 0.3s}
 .prop-info-print-btn:hover{border-color:var(--gold);color:var(--gold)}
+.prop-share-topbar{display:inline-flex;align-items:center;gap:0.5rem;padding:0.6rem 1.2rem;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-family:'Outfit',sans-serif;font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;transition:all 0.3s}
+.prop-share-topbar svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.5;transition:all 0.3s}
+.prop-share-topbar:hover{border-color:var(--gold);color:var(--gold)}
 @media(max-width:768px){
   .prop-info-bar-inner{padding:1.25rem 1.5rem}
   .prop-info-scroll-hint{display:none}
   .prop-info-print-btn span{display:none}
   .prop-info-print-btn{padding:0.5rem}
+  .prop-share-topbar span{display:none}
+  .prop-share-topbar{padding:0.5rem}
 }
 
 .prop-hero-status{display:inline-flex;align-items:center;gap:0.5rem;padding:0.4rem 0.9rem;font-size:0.55rem;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;backdrop-filter:blur(8px)}
