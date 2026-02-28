@@ -3607,7 +3607,8 @@ var _srPopup = null;             // Current open maplibregl.Popup
 // Drawing state
 var _srDrawMode = null;          // null | 'radius' | 'polygon' | 'freedraw'
 var _srDrawnSourceAdded = false; // Whether the drawing GeoJSON source exists
-var _srSpatialFilter = null;     // function(lat, lng) => boolean
+var _srSpatialFilters = [];      // array of function(lat, lng) => boolean
+var _srDrawnShapes = [];         // array of GeoJSON features for map display
 var _srFreedrawing = false;      // True while freehand drawing in progress
 var _srFreedrawPoints = [];      // [lng, lat] array for freehand
 var _srFreedrawLine = null;      // GeoJSON for preview line during freehand
@@ -3856,7 +3857,7 @@ function _srAddMapLayers(){
     _srMap.addSource('listings',{
       type:'geojson',
       data:{type:'FeatureCollection',features:[]},
-      cluster:true, clusterMaxZoom:14, clusterRadius:50,
+      cluster:true, clusterMaxZoom:13, clusterRadius:40,
       promoteId:'_numId'
     });
     // Cluster circles
@@ -3907,6 +3908,24 @@ function _srAddMapLayers(){
         'text-halo-blur':0
       }
     });
+  }
+
+  // Town boundary overlay (loaded once, filtered dynamically by area selection)
+  if(!_srMap.getSource('town-boundaries')){
+    _srMap.addSource('town-boundaries',{
+      type:'geojson',
+      data:'data/town-boundaries.geojson'
+    });
+    _srMap.addLayer({
+      id:'town-boundary-fill', type:'fill', source:'town-boundaries',
+      paint:{'fill-color':'#C4B08C','fill-opacity':0.06},
+      filter:['in','name','']
+    }, 'town-labels');
+    _srMap.addLayer({
+      id:'town-boundary-line', type:'line', source:'town-boundaries',
+      paint:{'line-color': isDark ? '#C4B08C' : '#8B7748', 'line-width':2, 'line-opacity':0.5},
+      filter:['in','name','']
+    }, 'town-labels');
   }
 
   // Drawing overlay source
@@ -3960,9 +3979,15 @@ function initSearchMap(){
     function _srOnMapReady(){
       if(_srMapLayersReady) return; // prevent double-call
       _srAddMapLayers();
-      // If listings already loaded, render markers + apply viewed/fav states
+      // If listings already loaded, render markers + fit bounds + apply viewed/fav states
       if(_srAllFilteredResults && _srAllFilteredResults.length > 0){
         srRenderMarkers(_srAllFilteredResults);
+        var withCoords = _srAllFilteredResults.filter(function(l){return l.lat && l.lng});
+        if(withCoords.length > 0){
+          var bounds = new maplibregl.LngLatBounds();
+          withCoords.forEach(function(l){ bounds.extend([l.lng, l.lat]); });
+          _srMap.fitBounds(bounds, {padding:40, maxZoom:13});
+        }
         srApplyViewedFavStates();
       }
     }
@@ -4021,7 +4046,7 @@ function initSearchMap(){
 
     // Viewport-based card filtering on pan/zoom
     _srMap.on('moveend',function(){
-      if(_srSpatialFilter) return;
+      if(_srSpatialFilters.length > 0) return;
       clearTimeout(_srViewportDebounce);
       _srViewportDebounce = setTimeout(srFilterCardsByViewport, 350);
     });
@@ -4052,10 +4077,11 @@ function initSearchMap(){
       var coords = _srFreedrawPoints.slice();
       coords.push(coords[0]); // close ring
       var poly = {type:'Feature',geometry:{type:'Polygon',coordinates:[coords]},properties:{}};
-      if(_srMap.getSource('drawing')) _srMap.getSource('drawing').setData({type:'FeatureCollection',features:[poly]});
+      _srDrawnShapes.push(poly);
+      if(_srMap.getSource('drawing')) _srMap.getSource('drawing').setData({type:'FeatureCollection',features:_srDrawnShapes});
       // Build spatial filter using [lat,lng] for our existing srPointInPolygon
       var verts = _srFreedrawPoints.map(function(p){return [p[1], p[0]]}); // [lat, lng]
-      _srSpatialFilter = function(lat, lng){ return srPointInPolygon(lat, lng, verts); };
+      _srSpatialFilters.push(function(lat, lng){ return srPointInPolygon(lat, lng, verts); });
       _srDrawMode = 'freedraw';
       srApplySpatialFilter();
       document.getElementById('srDrawClear').style.display = '';
@@ -4095,6 +4121,23 @@ function srApplyFilters(){
   // Highlight text search chip if has content
   var textChip = document.getElementById('srfTextChip');
   if(textChip) textChip.classList.toggle('active', textQuery.length > 0);
+
+  // Update town boundary outlines on map
+  if(_srMapLayersReady && _srMap && _srMap.getLayer('town-boundary-fill')){
+    if(selectedAreas.length > 0){
+      var boundaryNames = [];
+      selectedAreas.forEach(function(a){
+        var cities = AREA_CITIES[a] || [a];
+        cities.forEach(function(c){ if(boundaryNames.indexOf(c)===-1) boundaryNames.push(c); });
+      });
+      var bFilter = ['in','name'].concat(boundaryNames);
+      _srMap.setFilter('town-boundary-fill', bFilter);
+      _srMap.setFilter('town-boundary-line', bFilter);
+    } else {
+      _srMap.setFilter('town-boundary-fill', ['in','name','']);
+      _srMap.setFilter('town-boundary-line', ['in','name','']);
+    }
+  }
 
   // Filter — when a text query is present, skip area filter so address/MLS searches
   // always find the property regardless of which location checkboxes are active
@@ -4172,10 +4215,11 @@ function srApplyFilters(){
     });
   }
 
-  // Apply spatial filter if a shape is drawn
-  if(_srSpatialFilter) {
+  // Apply spatial filters if shapes are drawn (listing passes if inside ANY shape)
+  if(_srSpatialFilters.length > 0) {
     results = results.filter(function(l){
-      return l.lat && l.lng && _srSpatialFilter(l.lat, l.lng);
+      if(!l.lat || !l.lng) return false;
+      return _srSpatialFilters.some(function(fn){ return fn(l.lat, l.lng); });
     });
   }
 
@@ -4203,9 +4247,35 @@ function srApplyFilters(){
   // Render map markers (all filtered results — clustering handles visibility)
   srRenderMarkers(results);
 
+  // Fit map to results — context-aware zoom based on selected areas
+  if(_srMap && _srMapLayersReady){
+    var withCoords = results.filter(function(l){return l.lat && l.lng});
+    if(withCoords.length > 0){
+      if(selectedAreas.length === 1 && TOWN_COORDS[selectedAreas[0]]){
+        // Single town: flyTo town center for a guaranteed visible pan/zoom
+        var tc = TOWN_COORDS[selectedAreas[0]];
+        _srMap.flyTo({center:[tc.lng, tc.lat], zoom:12});
+      } else if(selectedAreas.length > 1){
+        // Multiple towns: fit bounds including town centers for tight framing
+        var bounds = new maplibregl.LngLatBounds();
+        withCoords.forEach(function(l){ bounds.extend([l.lng, l.lat]); });
+        selectedAreas.forEach(function(a){
+          var tc = TOWN_COORDS[a];
+          if(tc) bounds.extend([tc.lng, tc.lat]);
+        });
+        _srMap.fitBounds(bounds, {padding:60, maxZoom:13});
+      } else {
+        // No town filter: fit to all results
+        var bounds = new maplibregl.LngLatBounds();
+        withCoords.forEach(function(l){ bounds.extend([l.lng, l.lat]); });
+        _srMap.fitBounds(bounds, {padding:40, maxZoom:13});
+      }
+    }
+  }
+
   // Render cards — always render immediately, then viewport filter can refine
   var _mapVisible = _srMap && !document.getElementById('srBody').classList.contains('map-hidden');
-  if(_srSpatialFilter) {
+  if(_srSpatialFilters.length > 0) {
     document.getElementById('srCount').textContent = results.length + ' listing' + (results.length!==1?'s':'');
     srRenderCards(results);
   } else if(_mapVisible) {
@@ -4352,14 +4422,6 @@ function srRenderMarkers(results){
   // Update GeoJSON source (drives clusters + GPU symbol layer)
   var src = _srMap.getSource('listings');
   if(src) src.setData(geojson);
-
-  // Fit bounds
-  var withCoords = results.filter(function(l){return l.lat && l.lng});
-  if(withCoords.length > 0){
-    var bounds = new maplibregl.LngLatBounds();
-    withCoords.forEach(function(l){ bounds.extend([l.lng, l.lat]); });
-    _srMap.fitBounds(bounds, {padding:40, maxZoom:13});
-  }
 }
 
 function _srShowMarkerPopup(lid, coords){
@@ -4585,7 +4647,7 @@ function srUnhighlightCardById(lid){
 // ═══ VIEWPORT-BASED CARD FILTERING ═══
 function srFilterCardsByViewport(){
   if(!_srMap || !_srAllFilteredResults.length) return;
-  if(_srSpatialFilter) return; // Drawing active — spatial filter controls cards
+  if(_srSpatialFilters.length > 0) return; // Drawing active — spatial filter controls cards
   if(document.getElementById('srBody').classList.contains('map-hidden')) return;
   var bounds = _srMap.getBounds();
   var inView = _srAllFilteredResults.filter(function(l){
@@ -4647,7 +4709,6 @@ var _srPolyMoveHandler = null;
 function srStartRadius(){
   if(!_srMap) return;
   srCancelDrawing();
-  srClearDrawingShape();
   _srDrawMode = 'radius';
   document.getElementById('srDrawRadius').classList.add('active');
   _srMap.getCanvas().style.cursor = 'crosshair';
@@ -4662,7 +4723,8 @@ function srStartRadius(){
     var pt = [e.lngLat.lng, e.lngLat.lat];
     var dist = turf.distance(turf.point(center), turf.point(pt), {units:'meters'});
     var circle = turf.circle(turf.point(center), dist, {units:'meters', steps:64});
-    if(_srMap.getSource('drawing')) _srMap.getSource('drawing').setData({type:'FeatureCollection',features:[circle]});
+    // Show preview: existing shapes + this circle
+    if(_srMap.getSource('drawing')) _srMap.getSource('drawing').setData({type:'FeatureCollection',features:_srDrawnShapes.concat([circle])});
   }
   function onMouseUp(e){
     if(!center) return;
@@ -4670,9 +4732,17 @@ function srStartRadius(){
     _srMap.getCanvas().style.cursor = '';
     var pt = [e.lngLat.lng, e.lngLat.lat];
     var radiusMeters = turf.distance(turf.point(center), turf.point(pt), {units:'meters'});
-    if(radiusMeters < 100){ center = null; return; } // Too small
+    if(radiusMeters < 100){
+      // Too small — restore previous shapes
+      if(_srMap.getSource('drawing')) _srMap.getSource('drawing').setData({type:'FeatureCollection',features:_srDrawnShapes});
+      center = null; return;
+    }
     var cLat = center[1], cLng = center[0];
-    _srSpatialFilter = function(lat, lng){ return srPointInCircle(lat, lng, cLat, cLng, radiusMeters); };
+    // Add filter and shape to arrays
+    _srSpatialFilters.push(function(lat, lng){ return srPointInCircle(lat, lng, cLat, cLng, radiusMeters); });
+    var finalCircle = turf.circle(turf.point(center), radiusMeters, {units:'meters', steps:64});
+    _srDrawnShapes.push(finalCircle);
+    if(_srMap.getSource('drawing')) _srMap.getSource('drawing').setData({type:'FeatureCollection',features:_srDrawnShapes});
     // Clean up listeners
     _srMap.off('mousedown', onMouseDown);
     _srMap.off('mousemove', onMouseMove);
@@ -4693,7 +4763,6 @@ function srStartRadius(){
 function srStartPolygon(){
   if(!_srMap) return;
   srCancelDrawing();
-  srClearDrawingShape();
   _srDrawMode = 'polygon';
   _srPolyPoints = [];
   document.getElementById('srDrawPolygon').classList.add('active');
@@ -4715,13 +4784,14 @@ function srStartPolygon(){
     if(_srMap.getSource('drawing-preview')) _srMap.getSource('drawing-preview').setData({type:'FeatureCollection',features:[]});
     _srMap.getCanvas().style.cursor = '';
     _srMap.doubleClickZoom.enable();
-    // Close polygon
+    // Close polygon and add to shapes array
     var coords = _srPolyPoints.slice();
     coords.push(coords[0]);
     var poly = {type:'Feature',geometry:{type:'Polygon',coordinates:[coords]}};
-    if(_srMap.getSource('drawing')) _srMap.getSource('drawing').setData({type:'FeatureCollection',features:[poly]});
+    _srDrawnShapes.push(poly);
+    if(_srMap.getSource('drawing')) _srMap.getSource('drawing').setData({type:'FeatureCollection',features:_srDrawnShapes});
     var verts = _srPolyPoints.map(function(p){return [p[1],p[0]]}); // [lat, lng]
-    _srSpatialFilter = function(lat, lng){ return srPointInPolygon(lat, lng, verts); };
+    _srSpatialFilters.push(function(lat, lng){ return srPointInPolygon(lat, lng, verts); });
     _srMap.off('click', onClick);
     _srMap.off('mousemove', onMove);
     _srMap.off('dblclick', onDblClick);
@@ -4743,7 +4813,6 @@ function updatePolyPreview(){
 function srStartFreedraw(){
   if(!_srMap) return;
   srCancelDrawing();
-  srClearDrawingShape();
   _srDrawMode = 'freedraw';
   _srFreedrawing = true;
   _srFreedrawPoints = [];
@@ -4766,7 +4835,8 @@ function srClearDrawingShape(){
 function srClearDrawing(){
   srCancelDrawing();
   srClearDrawingShape();
-  _srSpatialFilter = null;
+  _srSpatialFilters = [];
+  _srDrawnShapes = [];
   _srDrawMode = null;
   document.getElementById('srDrawClear').style.display = 'none';
   srApplyFilters();
@@ -4886,6 +4956,10 @@ toggleTheme = function(){
       _srMap.setPaintProperty('unclustered-point', 'text-halo-color', ['case',
         ['boolean',['feature-state','hover'],false], isDark ? '#C4B08C' : '#5a4830',
         isDark ? 'rgba(12,11,9,0.9)' : 'rgba(255,255,255,0.9)']);
+    }
+    // Town boundary line color
+    if(_srMap.getLayer('town-boundary-line')){
+      _srMap.setPaintProperty('town-boundary-line', 'line-color', isDark ? '#C4B08C' : '#8B7748');
     }
   }
   // Update search overlay theme toggle icons
