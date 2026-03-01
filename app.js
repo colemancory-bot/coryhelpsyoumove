@@ -199,6 +199,7 @@ async function mobileLogin(){
     btn.textContent='Sign In';btn.disabled=false;
     document.getElementById('mobileLoginEmail').value='';
     document.getElementById('mobileLoginPass').value='';
+    closeMobile();
   }catch(e){_showMobileError('mobileLoginError','Something went wrong');btn.textContent='Sign In';btn.disabled=false}
 }
 
@@ -1055,7 +1056,16 @@ var MLS_GRID = {
       .limit(50)
       .then(function(res) {
         if(!res.data || !res.data.length) return [];
-        return res.data.map(function(m) { return m.local_url || m.media_url; });
+        return res.data
+          .filter(function(m) {
+            // Has R2 copy — always good
+            if(m.local_url) return true;
+            // Permanent CDN URL (CSAR/Navica CloudFront etc.) — keep
+            if(m.media_url && m.media_url.indexOf('mlsgrid.com') === -1) return true;
+            // MLS Grid signed URL — expires in ~24h, skip until R2 backfill
+            return false;
+          })
+          .map(function(m) { return m.local_url || m.media_url; });
       }).catch(function(err) {
         _warn('[MLS Grid] Failed to load photos for ' + listingKey, err);
         return [];
@@ -2612,6 +2622,12 @@ function openProp(listing, townName) {
   var o = document.getElementById('propOverlay');
   if (!o) {console.error('propOverlay not found');return;}
 
+  // Ensure swipe is wired up (needed for dynamically injected overlays on town pages)
+  var _hz = document.getElementById('propHeroZone');
+  if(_hz && !_hz._swipeInit){ addSwipe(_hz, function(){ propImgNav(1); }, function(){ propImgNav(-1); }); _hz._swipeInit = true; }
+  var _lb = document.getElementById('propLightbox');
+  if(_lb && !_lb._swipeInit){ addSwipe(_lb, function(){ lbNav(1); }, function(){ lbNav(-1); }); _lb._swipeInit = true; }
+
   // Show/hide demo indicators based on whether listing has DEMO mlsId
   var _isDemo = listing.mlsId && listing.mlsId.toString().indexOf('DEMO') === 0;
   var _demoBanner = document.getElementById('propDemoBanner');
@@ -2638,7 +2654,16 @@ function openProp(listing, townName) {
 
   // Mobile photo counter (thumbnails are hidden on small screens)
   var _counterEl = document.getElementById('propHeroCounter');
-  if(_counterEl) _counterEl.textContent = imgs.length > 1 ? '1 / ' + imgs.length : '';
+  if(_counterEl) {
+    _counterEl.classList.remove('loaded');
+    if(imgs.length > 1) {
+      _counterEl.textContent = '1 / ' + imgs.length;
+    } else if(MLS_GRID.enabled && listing.listingKey) {
+      _counterEl.textContent = '\u2022 \u2022 \u2022';
+    } else {
+      _counterEl.textContent = '';
+    }
+  }
 
   // Thumbnails — render what we have now
   function _renderThumbs(imgArr) {
@@ -2666,11 +2691,22 @@ function openProp(listing, townName) {
         window._propImgIdx = 0;
         document.getElementById('propHeroImg').src = allPhotos[0];
         _renderThumbs(allPhotos);
-        // Update mobile photo counter
+        // Update mobile photo counter with pulse animation
         var _ctr = document.getElementById('propHeroCounter');
-        if(_ctr) _ctr.textContent = '1 / ' + allPhotos.length;
+        if(_ctr) {
+          _ctr.textContent = '1 / ' + allPhotos.length;
+          _ctr.classList.add('loaded');
+        }
+        // Flash nav arrows briefly on mobile to show they exist
+        var _navs = document.querySelectorAll('#propHeroZone .prop-nav');
+        _navs.forEach(function(n){ n.style.opacity='1'; });
+        setTimeout(function(){ _navs.forEach(function(n){ n.style.opacity=''; }); }, 1200);
         // Update the listing's cached photos for future opens
         listing.photos = allPhotos;
+      } else {
+        // No extra photos found
+        var _ctr2 = document.getElementById('propHeroCounter');
+        if(_ctr2) _ctr2.textContent = '';
       }
     });
   }
@@ -5318,6 +5354,8 @@ async function initSupabaseAuth() {
           if(gpb) gpb.remove();
           // OAuth: create profile + lead for social login users
           _handleOAuthProfile(session);
+          // Close mobile menu if open (user just logged in via hamburger)
+          closeMobile();
           // Open pending property if user was gated (skip during smart signup flow)
           if(!_smartSignupInProgress) _openPendingProp();
         }
