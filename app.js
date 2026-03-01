@@ -2560,6 +2560,25 @@ var PROP_IMAGES = {
   ]
 };
 
+// Global image error fallback — if an MLS photo fails (expired URL, R2 outage, etc.)
+// replace the broken <img> with a styled placeholder. Uses event delegation in capture
+// phase so it catches errors on dynamically-created images without per-element handlers.
+document.addEventListener('error', function(e) {
+  if (!e.target || e.target.tagName !== 'IMG') return;
+  var img = e.target;
+  // Only handle MLS/R2 photos, not stock images or logos
+  var src = img.src || '';
+  if (src.indexOf('unsplash.com') !== -1 || src.indexOf('/images/') !== -1) return;
+  // Prevent infinite loop
+  if (img._photoFallbackDone) return;
+  img._photoFallbackDone = true;
+  img.style.display = 'none';
+  var ph = document.createElement('div');
+  ph.style.cssText = 'aspect-ratio:16/10;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.75rem';
+  ph.textContent = 'Photo unavailable';
+  if (img.parentNode) img.parentNode.insertBefore(ph, img);
+}, true);
+
 var PROP_DESCRIPTIONS = {
   'Single Family': [
     'This beautifully maintained home sits on a quiet street with mature landscaping and mountain views from nearly every room. The open floor plan features hardwood floors throughout, a stone fireplace, and a chef\'s kitchen with granite counters and stainless appliances. The primary suite offers a spa-like bathroom with a soaking tub and walk-in shower.',
@@ -3891,58 +3910,37 @@ function _srAddMapLayers(){
     });
   }
 
-  // Listings source + cluster layers (empty initially, populated by srRenderMarkers)
+  // Listings source (empty initially, populated by srRenderMarkers)
+  // No clustering — GPU collision detection handles label visibility at each zoom level.
   if(!_srMap.getSource('listings')){
     _srMap.addSource('listings',{
       type:'geojson',
       data:{type:'FeatureCollection',features:[]},
-      cluster:true, clusterMaxZoom:13, clusterRadius:40,
       promoteId:'_numId'
-    });
-    // Cluster circles
-    _srMap.addLayer({
-      id:'clusters', type:'circle', source:'listings',
-      filter:['has','point_count'],
-      paint:{
-        'circle-color': isDark ? '#C4B08C' : '#8B7748',
-        'circle-radius':['step',['get','point_count'],18, 20,22, 50,28],
-        'circle-stroke-width':2,
-        'circle-stroke-color': isDark ? 'rgba(196,176,140,0.3)' : 'rgba(139,119,72,0.25)',
-        'circle-opacity':0.92
-      }
-    });
-    // Cluster count text
-    _srMap.addLayer({
-      id:'cluster-count', type:'symbol', source:'listings',
-      filter:['has','point_count'],
-      layout:{
-        'text-field':'{point_count_abbreviated}', 'text-size':12,
-        'text-font':['Open Sans Bold','Arial Unicode MS Bold']
-      },
-      paint:{'text-color': isDark ? '#0C0B09' : '#FFFFFF'}
     });
     // Create + add SDF background image for price label boxes (tinted via icon-color)
     _srMap.addImage('price-bg', _srCreatePriceBg(), {width:20, height:20, pixelRatio:1, sdf:true});
 
-    // Unclustered price labels — GPU symbol layer with SDF background box
+    // Price labels — GPU symbol layer with SDF background box.
+    // Collision detection auto-hides overlapping labels; more appear as user zooms in.
     // Box color: gold (default), cream (viewed), rose (favorited), bright (hover)
     _srMap.addLayer({
       id:'unclustered-point', type:'symbol', source:'listings',
-      filter:['!',['has','point_count']],
       layout:{
         'icon-image':'price-bg',
         'icon-text-fit':'both',
         'icon-text-fit-padding':[3, 6, 3, 6],
-        'icon-allow-overlap':true,
+        'icon-allow-overlap':false,
         'text-field':['case',
           ['boolean',['get','isFav'],false], ['concat','\u2665 ',['get','priceLabel']],
           ['get','priceLabel']],
         'text-font':['Open Sans Semibold','Arial Unicode MS Bold'],
         'text-size':11,
-        'text-allow-overlap':true,
-        'text-ignore-placement':true,
+        'text-allow-overlap':false,
+        'text-ignore-placement':false,
         'text-anchor':'center',
-        'text-padding':0
+        'text-padding':2,
+        'symbol-sort-key':['get','price']
       },
       paint:{
         'icon-color':['case',
@@ -4019,8 +4017,20 @@ function initSearchMap(){
       minZoom:7
     });
 
-    // Use MapLibre default zoom rates — boosted rates caused jerky trackpad/touchscreen zoom
-    // Defaults: wheelZoomRate=1/450, zoomRate=1/100
+    // Use MapLibre's native scroll zoom with boosted rates.
+    // Native handler has built-in smoothing, inertia, and cursor-anchored zoom.
+    _srMap.scrollZoom.setZoomRate(1 / 50);
+    _srMap.scrollZoom.setWheelZoomRate(1 / 120);
+    // Track active zoom for debouncing moveend side effects
+    (function(){
+      var el = _srMap.getCanvasContainer();
+      var _zoomSettleTimer = null;
+      el.addEventListener('wheel', function(){
+        window._srActiveZoom = true;
+        clearTimeout(_zoomSettleTimer);
+        _zoomSettleTimer = setTimeout(function(){ window._srActiveZoom = false; }, 400);
+      }, {passive:true});
+    })();
 
     _srMap.addControl(new maplibregl.NavigationControl({showCompass:false}), 'top-right');
 
@@ -4048,21 +4058,6 @@ function initSearchMap(){
     });
     // Belt-and-suspenders: poll in case both events already fired
     setTimeout(function(){ if(_srMap.isStyleLoaded() && !_srMapLayersReady) _srOnMapReady(); }, 500);
-
-    // Cluster click → expand
-    _srMap.on('click','clusters',function(e){
-      var features = _srMap.queryRenderedFeatures(e.point,{layers:['clusters']});
-      if(!features.length) return;
-      var clusterId = features[0].properties.cluster_id;
-      _srMap.getSource('listings').getClusterExpansionZoom(clusterId,function(err,zoom){
-        if(err) return;
-        _srMap.easeTo({center:features[0].geometry.coordinates, zoom:zoom});
-      });
-    });
-
-    // Cursor pointer on clusters
-    _srMap.on('mouseenter','clusters',function(){ _srMap.getCanvas().style.cursor='pointer'; });
-    _srMap.on('mouseleave','clusters',function(){ if(!_srFreedrawing) _srMap.getCanvas().style.cursor=''; });
 
     // ── Price label hover (GPU symbol layer) ──
     var _srHoveredFeatureId = null;
@@ -4094,12 +4089,17 @@ function initSearchMap(){
         _srShowMarkerPopup(e.features[0].properties.id, e.features[0].geometry.coordinates);
     });
 
-    // Show "Search this area" button on user-initiated map moves (not auto-filter)
+    // Auto-filter cards to viewport after zoom/pan settles.
+    // 1s delay so finger-resets between pinches don't trigger mid-zoom.
+    var _srMoveEndTimer = null;
     _srMap.on('moveend',function(){
       if(_srSpatialFilters.length > 0) return;
       if(_srProgrammaticMove){ _srProgrammaticMove = false; return; }
-      var btn = document.getElementById('srSearchAreaBtn');
-      if(btn) btn.classList.add('visible');
+      clearTimeout(_srMoveEndTimer);
+      _srMoveEndTimer = setTimeout(function(){
+        if(window._srActiveZoom) return; // still zooming, skip
+        srFilterCardsByViewport();
+      }, 1000);
     });
 
     // Freehand drawing events
@@ -4295,7 +4295,7 @@ function srApplyFilters(){
   _srAllFilteredResults = results;
   _srCurrentResults = results;
 
-  // Render map markers (all filtered results — clustering handles visibility)
+  // Render map markers (all filtered results — GPU collision detection handles label visibility)
   srRenderMarkers(results);
 
   // Fit map to results — context-aware zoom based on selected areas
@@ -4485,7 +4485,7 @@ function srRenderMarkers(results){
   var geojson = _srListingsToGeoJSON(results);
   geojson.features.forEach(function(f){ _srLidToNumId[f.properties.id] = f.properties._numId; });
 
-  // Update GeoJSON source (drives clusters + GPU symbol layer)
+  // Update GeoJSON source (drives GPU symbol layer with collision detection)
   var src = _srMap.getSource('listings');
   if(src) src.setData(geojson);
 }
@@ -4500,7 +4500,7 @@ function _srShowMarkerPopup(lid, coords){
     ? '<img class="sr-popup-img" src="' + l.photo + '" alt="' + l.address + '">'
     : '<div style="width:100%;height:110px;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.6rem">Property Photo</div>';
   var popBroker = l.listOffice ? '<div class="sr-popup-office">Listed by ' + l.listOffice + '</div>' : '';
-  var popupHtml = '<div class="sr-popup-inner">' + popupImg +
+  var popupHtml = '<div class="sr-popup-inner" onclick="srOpenFromMapById(\'' + lid.replace(/'/g,"\\'") + '\')">' + popupImg +
     '<div class="sr-popup-body"><div class="sr-popup-price">$' + l.price.toLocaleString() + '</div>' +
     '<div class="sr-popup-addr">' + l.address + '</div><div class="sr-popup-city">' + l.city + ', NC</div>' +
     '<div class="sr-popup-feats">' + feats + '</div>' + popBroker +
@@ -4722,6 +4722,9 @@ function srFilterCardsByViewport(){
   _srCurrentResults = inView;
   document.getElementById('srCount').textContent = inView.length + ' of ' + _srAllFilteredResults.length + ' listing' + (_srAllFilteredResults.length!==1?'s':'') + ' in view';
   srRenderCards(inView);
+  // Hide "Search this area" button since we just filtered
+  var btn = document.getElementById('srSearchAreaBtn');
+  if(btn) btn.classList.remove('visible');
 }
 
 // "Search this area" button handler
@@ -5025,14 +5028,6 @@ toggleTheme = function(){
     if(_srMap.getLayer('town-labels')){
       _srMap.setPaintProperty('town-labels', 'text-color', isDark ? '#F5F0E8' : '#2A2520');
       _srMap.setPaintProperty('town-labels', 'text-halo-color', isDark ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.8)');
-    }
-    // Cluster colors
-    if(_srMap.getLayer('clusters')){
-      _srMap.setPaintProperty('clusters', 'circle-color', isDark ? '#C4B08C' : '#8B7748');
-      _srMap.setPaintProperty('clusters', 'circle-stroke-color', isDark ? 'rgba(196,176,140,0.3)' : 'rgba(139,119,72,0.25)');
-    }
-    if(_srMap.getLayer('cluster-count')){
-      _srMap.setPaintProperty('cluster-count', 'text-color', isDark ? '#0C0B09' : '#FFFFFF');
     }
     // Price label colors (SDF icon-color + text-color)
     if(_srMap.getLayer('unclustered-point')){
