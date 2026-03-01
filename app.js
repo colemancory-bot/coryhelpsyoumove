@@ -325,8 +325,9 @@ if(_isTownPage){
     '<div class="acct-error" id="acctSignupError" style="display:none"></div><div class="acct-field"><label>Email Address</label><input type="email" id="acctEmail" placeholder="john@example.com" required></div><div class="acct-field"><label>Password</label><input type="password" id="acctPass" placeholder="Create a password" required minlength="6"><div class="acct-pass-note">Minimum 6 characters</div></div><button class="acct-submit" onclick="submitAcct()">Continue</button><div class="acct-or">&mdash; or &mdash;</div><div class="acct-login-link" onclick="showAcctLogin()">Already have an account? <strong>Sign in</strong></div></div>' +
     '<div id="acctCompleteView" style="display:none"><div class="acct-modal-badge">Almost There</div><h3>Complete Your <em>Account</em></h3><div class="acct-modal-sub">Just one more detail to unlock full property access.</div>' +
     '<div class="acct-complete-email" id="acctCompleteEmail"></div>' +
-    '<div class="acct-error" id="acctCompleteError" style="display:none"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem"><div class="acct-field"><label>First Name</label><input type="text" id="acctCompleteFirst" placeholder="John" required></div><div class="acct-field"><label>Last Name <span class="acct-optional">(optional)</span></label><input type="text" id="acctCompleteLast" placeholder="Smith"></div></div><button class="acct-submit" onclick="completeAcctSetup()">Get Free Access</button><div class="form-privacy"><svg viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Your information stays with me &mdash; I never sell or share it with third parties.</div></div>' +
+    '<div class="acct-error" id="acctCompleteError" style="display:none"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem"><div class="acct-field"><label>First Name</label><input type="text" id="acctCompleteFirst" placeholder="John" required></div><div class="acct-field"><label>Last Name <span class="acct-optional">(optional)</span></label><input type="text" id="acctCompleteLast" placeholder="Smith"></div></div><div class="acct-field" style="margin-top:0.75rem"><label>Phone <span class="acct-optional">(optional)</span></label><input type="tel" id="acctCompletePhone" placeholder="(828) 555-1234"></div><button class="acct-submit" onclick="completeAcctSetup()">Get Free Access</button><div class="form-privacy"><svg viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Your information stays with me &mdash; I never sell or share it with third parties.</div></div>' +
     '<div id="acctSuccessView" style="display:none"><div class="acct-success"><svg class="acct-success-icon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg><h3>Welcome!</h3><p>Your free account is ready. You now have full access to property details, mortgage estimates, and can save your favorites.</p></div></div>' +
+    '<div id="acctPhoneView" style="display:none"><div class="acct-success"><svg class="acct-success-icon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg><h3>Welcome, <span id="acctPhoneName"></span>!</h3><p>Your account is ready. Want to add your number so Cory can reach out directly?</p></div><div class="acct-field"><input type="tel" id="acctPhoneInput" placeholder="(828) 555-1234"></div><button class="acct-submit" onclick="saveOAuthPhone()">Save</button><div style="text-align:center;margin-top:0.75rem"><button class="acct-skip-btn" onclick="skipOAuthPhone()" style="background:none;border:none;color:var(--text-muted);font-size:0.8rem;cursor:pointer;text-decoration:underline">Skip for now</button></div></div>' +
     '<div id="acctDashView" style="display:none"><div style="text-align:center;margin-bottom:1rem"><svg viewBox="0 0 24 24" style="width:40px;height:40px;stroke:var(--gold);fill:none;stroke-width:1.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><h3 id="acctDashName" style="margin:0.5rem 0 0;color:var(--text)">My Account</h3><p id="acctDashEmail" style="margin:0;font-size:0.85rem;color:var(--text-muted)"></p></div>' +
       '<div class="acct-dash-tools"><button onclick="closeAcctModal();openAfford()" class="acct-tool-btn"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>Affordability</button><button onclick="closeAcctModal();openCol()" class="acct-tool-btn"><svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>Cost of Living</button><button onclick="closeAcctModal();openQA()" class="acct-tool-btn"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Local Q&A</button></div>' +
       '<div style="margin:1rem 0"><h4 style="color:var(--gold);font-size:0.9rem;margin-bottom:0.5rem;border-bottom:1px solid var(--border);padding-bottom:0.4rem">Saved Searches</h4><div id="acctSavedSearches" style="max-height:200px;overflow-y:auto"></div></div><div style="margin:1rem 0"><h4 style="color:var(--gold);font-size:0.9rem;margin-bottom:0.5rem;border-bottom:1px solid var(--border);padding-bottom:0.4rem">Favorites</h4><p id="acctFavCount" style="font-size:0.85rem;color:var(--text-muted)"></p><button onclick="closeAcctModal();openCompare()" style="margin-top:0.5rem;padding:0.55rem 1rem;border:1px solid var(--gold);background:transparent;color:var(--gold);font-family:\'Outfit\',sans-serif;font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;transition:all 0.3s;width:100%" id="acctCompareBtn">Compare Favorites</button></div>' +
@@ -5423,11 +5424,20 @@ async function initSupabaseAuth() {
           var gpb = document.getElementById('guestPreviewBanner');
           if(gpb) gpb.remove();
           // OAuth: create profile + lead for social login users
-          _handleOAuthProfile(session);
+          _handleOAuthProfile(session).then(function(){
+            if(window._oauthNewUser){
+              var u = window._oauthNewUser;
+              window._oauthNewUser = null;
+              document.getElementById('acctPhoneName').textContent = u.first;
+              showAcctPhoneView();
+              openAcctModal();
+              return;
+            }
+            // Open pending property if user was gated (skip during smart signup flow)
+            if(!_smartSignupInProgress) _openPendingProp();
+          }).catch(function(){});
           // Close mobile menu if open (user just logged in via hamburger)
           closeMobile();
-          // Open pending property if user was gated (skip during smart signup flow)
-          if(!_smartSignupInProgress) _openPendingProp();
         }
       } else if(event === 'SIGNED_OUT') {
         _acctLoggedIn = false;
@@ -6189,6 +6199,7 @@ function showAcctComplete(email) {
 async function completeAcctSetup() {
   var first = document.getElementById('acctCompleteFirst').value.trim();
   var last = document.getElementById('acctCompleteLast').value.trim();
+  var phone = (document.getElementById('acctCompletePhone').value || '').trim();
   clearAcctErrors();
   if(!first){ document.getElementById('acctCompleteFirst').focus(); document.getElementById('acctCompleteFirst').style.borderColor='#c07070'; return; }
   // Last name is optional
@@ -6197,8 +6208,8 @@ async function completeAcctSetup() {
   var email = (document.getElementById('acctCompleteEmail').textContent || '').trim();
   try {
     if(_sb && _currentUser) {
-      await _sb.from('profiles').insert({ id: _currentUser.id, first_name: first, last_name: last, email: email });
-      var leadData = { first_name: first, last_name: last, email: email, source: 'smart_signup', message: 'Account created via smart login flow' };
+      await _sb.from('profiles').insert({ id: _currentUser.id, first_name: first, last_name: last, email: email, phone: phone });
+      var leadData = { first_name: first, last_name: last, email: email, phone: phone, source: 'smart_signup', message: 'Account created via smart login flow' };
       if(!_chatLeadPushed && typeof convHistory !== 'undefined' && convHistory && convHistory.length > 0){
         var transcript = buildChatTranscript();
         if(transcript){ leadData.message += '\n\n' + transcript; leadData.source = 'chatbot_smart_signup'; }
@@ -6209,7 +6220,7 @@ async function completeAcctSetup() {
     }
     _acctLoggedIn = true;
     _smartSignupInProgress = false;
-    try{ localStorage.setItem('cc_profile', JSON.stringify({firstName:first, lastName:last, email:email, password:true})) }catch(e){}
+    try{ localStorage.setItem('cc_profile', JSON.stringify({firstName:first, lastName:last, email:email, phone:phone, password:true})) }catch(e){}
     document.getElementById('acctCompleteView').style.display = 'none';
     document.getElementById('acctSuccessView').style.display = '';
     updateAcctUI();
@@ -6222,6 +6233,55 @@ async function completeAcctSetup() {
     showAcctError('acctCompleteError', 'Something went wrong. Please try again.');
     btn.textContent = 'Get Free Access'; btn.disabled = false;
     _smartSignupInProgress = false;
+  }
+}
+
+// --- OAuth phone prompt helpers ---
+function showAcctPhoneView() {
+  document.getElementById('acctLoginView').style.display = 'none';
+  document.getElementById('acctFormView').style.display = 'none';
+  document.getElementById('acctCompleteView').style.display = 'none';
+  document.getElementById('acctSuccessView').style.display = 'none';
+  document.getElementById('acctDashView').style.display = 'none';
+  document.getElementById('acctPhoneView').style.display = '';
+}
+
+async function saveOAuthPhone() {
+  var phone = (document.getElementById('acctPhoneInput').value || '').trim();
+  if(!phone){ document.getElementById('acctPhoneInput').focus(); return; }
+  var btn = document.querySelector('#acctPhoneView .acct-submit');
+  btn.textContent = 'Saving...'; btn.disabled = true;
+  try {
+    if(_sb && _currentUser) {
+      await _sb.from('profiles').update({ phone: phone }).eq('id', _currentUser.id);
+      // Update lead with phone
+      var cached = {};
+      try { cached = JSON.parse(localStorage.getItem('cc_profile') || '{}'); } catch(e) {}
+      cached.phone = phone;
+      try { localStorage.setItem('cc_profile', JSON.stringify(cached)); } catch(e) {}
+      // Re-push to FUB with phone
+      _pushToFUB({ first_name: cached.firstName || '', last_name: cached.lastName || '', email: cached.email || '', phone: phone, source: 'oauth_phone_added', message: 'Added phone number after OAuth signup' });
+      // Update lead record
+      _sb.from('leads').update({ phone: phone }).eq('email', cached.email || '').then(function(){}).catch(function(){});
+    }
+  } catch(e) { _warn('[OAuthPhone] Save error:', e); }
+  btn.textContent = 'Save'; btn.disabled = false;
+  document.getElementById('acctPhoneView').style.display = 'none';
+  if(_pendingProp){
+    closeAcctModal();
+    setTimeout(function(){ openProp(_pendingProp.listing, _pendingProp.townName); _pendingProp = null; }, 300);
+  } else {
+    closeAcctModal();
+  }
+}
+
+function skipOAuthPhone() {
+  document.getElementById('acctPhoneView').style.display = 'none';
+  if(_pendingProp){
+    closeAcctModal();
+    setTimeout(function(){ openProp(_pendingProp.listing, _pendingProp.townName); _pendingProp = null; }, 300);
+  } else {
+    closeAcctModal();
   }
 }
 
@@ -6240,6 +6300,7 @@ async function mobileCompleteSignup() {
   _clearMobileErrors();
   var first = document.getElementById('mobileCompleteFirst').value.trim();
   var last = document.getElementById('mobileCompleteLast').value.trim();
+  var phone = (document.getElementById('mobileCompletePhone').value || '').trim();
   if(!first){ _showMobileError('mobileCompleteError', 'First name is required'); return; }
   // Last name is optional
   var btn = document.querySelector('#mobileCompleteFields .mobile-acct-submit');
@@ -6247,8 +6308,8 @@ async function mobileCompleteSignup() {
   var email = (document.getElementById('mobileCompleteEmail').textContent || '').trim();
   try {
     if(_sb && _currentUser) {
-      await _sb.from('profiles').insert({ id: _currentUser.id, first_name: first, last_name: last, email: email });
-      var leadData = { first_name: first, last_name: last, email: email, source: 'smart_signup_mobile', message: 'Account created via smart login flow (mobile)' };
+      await _sb.from('profiles').insert({ id: _currentUser.id, first_name: first, last_name: last, email: email, phone: phone });
+      var leadData = { first_name: first, last_name: last, email: email, phone: phone, source: 'smart_signup_mobile', message: 'Account created via smart login flow (mobile)' };
       if(!_chatLeadPushed && typeof convHistory !== 'undefined' && convHistory && convHistory.length > 0){
         var transcript = buildChatTranscript();
         if(transcript){ leadData.message += '\n\n' + transcript; leadData.source = 'chatbot_smart_signup_mobile'; }
@@ -6259,7 +6320,7 @@ async function mobileCompleteSignup() {
     }
     _acctLoggedIn = true;
     _smartSignupInProgress = false;
-    try{ localStorage.setItem('cc_profile', JSON.stringify({firstName:first, lastName:last, email:email, password:true})) }catch(e){}
+    try{ localStorage.setItem('cc_profile', JSON.stringify({firstName:first, lastName:last, email:email, phone:phone, password:true})) }catch(e){}
     updateAcctUI(); checkAdminRole();
     btn.textContent = 'Get Free Access'; btn.disabled = false;
     // Reset form
@@ -6377,6 +6438,8 @@ async function _handleOAuthProfile(session){
     _sb.from('leads').insert(leadData).then(function(){_pushToFUB(leadData)}).catch(function(){});
     // Cache profile locally
     try{localStorage.setItem('cc_profile',JSON.stringify({firstName:first,lastName:last,email:email,phone:'',avatar:avatar}))}catch(e){}
+    // Flag new OAuth user for phone prompt
+    window._oauthNewUser = { first: first, email: email, provider: provider };
   }catch(e){_warn('[OAuth] Profile creation:',e)}
 }
 
