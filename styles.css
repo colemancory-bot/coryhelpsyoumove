@@ -692,6 +692,7 @@ textarea.form-input{resize:vertical;min-height:100px}
 }
 @media(max-width:640px){
   .hero{padding:0 1.5rem 3.5rem}
+  .about,.areas,.featured,.services,.testimonials,.blog,.cta{padding-left:1.25rem;padding-right:1.25rem}
   .nav{padding:0.85rem 1.5rem}
   .nav-logo-name{font-size:1rem}
   .nav-logo-sub{font-size:0.4rem;letter-spacing:0.2em}
