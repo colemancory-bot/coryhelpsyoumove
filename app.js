@@ -4021,13 +4021,16 @@ function initSearchMap(){
     // Native handler has built-in smoothing, inertia, and cursor-anchored zoom.
     _srMap.scrollZoom.setZoomRate(1 / 50);
     _srMap.scrollZoom.setWheelZoomRate(1 / 120);
-    // Track active zoom for debouncing moveend side effects
+    // Track active zoom for debouncing moveend side effects.
+    // Cancels any pending card-filter timer the instant a new zoom gesture starts.
+    window._srMoveEndTimer = null;
     (function(){
       var el = _srMap.getCanvasContainer();
       var _zoomSettleTimer = null;
       el.addEventListener('wheel', function(){
         window._srActiveZoom = true;
         clearTimeout(_zoomSettleTimer);
+        clearTimeout(window._srMoveEndTimer);
         _zoomSettleTimer = setTimeout(function(){ window._srActiveZoom = false; }, 400);
       }, {passive:true});
     })();
@@ -4091,12 +4094,12 @@ function initSearchMap(){
 
     // Auto-filter cards to viewport after zoom/pan settles.
     // 1s delay so finger-resets between pinches don't trigger mid-zoom.
-    var _srMoveEndTimer = null;
+    // Timer is on window so the wheel listener can cancel it instantly on new zoom.
     _srMap.on('moveend',function(){
       if(_srSpatialFilters.length > 0) return;
       if(_srProgrammaticMove){ _srProgrammaticMove = false; return; }
-      clearTimeout(_srMoveEndTimer);
-      _srMoveEndTimer = setTimeout(function(){
+      clearTimeout(window._srMoveEndTimer);
+      window._srMoveEndTimer = setTimeout(function(){
         if(window._srActiveZoom) return; // still zooming, skip
         srFilterCardsByViewport();
       }, 1000);
