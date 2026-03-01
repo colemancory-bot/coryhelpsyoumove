@@ -758,6 +758,30 @@ var MLS_GRID = {
     'Franklin': 'franklin',
     'Dillsboro': 'dillsboro',
     'Cullowhee': 'cullowhee',
+    // Nearby / satellite cities mapped to closest main town
+    'Whittier': 'sylva',
+    'Webster': 'sylva',
+    'Tuckasegee': 'sylva',
+    'Glenville': 'cashiers-highlands',
+    'Sapphire': 'cashiers-highlands',
+    'Scaly Mountain': 'cashiers-highlands',
+    'Sky Valley': 'cashiers-highlands',
+    'Clyde': 'waynesville',
+    'Canton': 'waynesville',
+    'Lake Junaluska': 'waynesville',
+    'Balsam': 'waynesville',
+    'Cherokee': 'bryson-city',
+    'Qualla': 'bryson-city',
+    'Almond': 'bryson-city',
+    'Stecoah': 'bryson-city',
+    'Topton': 'bryson-city',
+    'Robbinsville': 'bryson-city',
+    'Robbinsville (Graham)': 'bryson-city',
+    'Otto': 'franklin',
+    'Hayesville': 'franklin',
+    'Murphy': 'franklin',
+    'Franklin City Limits': 'franklin',
+    'Barkers Creek': 'franklin',
   },
   resolveTown: function(city) {
     if(MLS_GRID.cityMap[city]) return MLS_GRID.cityMap[city];
@@ -7757,8 +7781,11 @@ openProp = function(listing, townName) {
   if(oldShowForm) oldShowForm.remove();
   // Render neighborhood and distances
   var townSlug = '';
-  var tn = (townName||listing.city||'').toLowerCase().replace(/\s*\/\s*/g,'-').replace(/\s+/g,'-');
-  if(NEIGHBORHOOD_DATA[tn]) townSlug = tn;
+  var _rawCity = townName||listing.city||'';
+  var tn = _rawCity.toLowerCase().replace(/\s*\/\s*/g,'-').replace(/\s+/g,'-');
+  if(NEIGHBORHOOD_DATA[tn]) { townSlug = tn; }
+  else if(MLS_GRID.cityMap[_rawCity]) { townSlug = MLS_GRID.cityMap[_rawCity]; }
+  else { var _tnTitle = _rawCity.replace(/\b\w/g,function(c){return c.toUpperCase()}); if(MLS_GRID.cityMap[_tnTitle]) townSlug = MLS_GRID.cityMap[_tnTitle]; }
   renderNeighborhoodDive(townSlug);
   renderDistances(townSlug);
   // Admin print buttons
