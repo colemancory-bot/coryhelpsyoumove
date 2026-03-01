@@ -410,10 +410,20 @@ if(_isTownPage){
 })();
 }
 
-// ═══ INJECT NAV EXTRAS (notification bell + admin link) ═══
+// ═══ INJECT NAV EXTRAS (chat button, notification bell + admin link) ═══
 (function(){
   var navAcct = document.getElementById('navAcct');
   if(!navAcct) return;
+  // Nav chat button (inject if missing — town/blog pages don't have it)
+  if(!document.getElementById('navChat')){
+    var chatBtn = document.createElement('button');
+    chatBtn.className = 'nav-chat';
+    chatBtn.id = 'navChat';
+    chatBtn.title = 'Chat with Cory';
+    chatBtn.onclick = function(){ toggleChat(); };
+    chatBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><span class="nav-chat-label">Chat</span><span class="nav-chat-dot"></span>';
+    navAcct.parentNode.insertBefore(chatBtn, navAcct);
+  }
   // Notification bell (before account button)
   if(!document.getElementById('navNotifBell')){
     var bell = document.createElement('div');
@@ -2104,7 +2114,9 @@ setTimeout(function(){
     var referrer = document.referrer || '';
     var isInternal = referrer.indexOf('coryhelpsyoumove.com') !== -1;
     if(!chatOpen && lastShown !== today && !isInternal){
-      var cp=document.getElementById('chatPreview');if(cp)cp.classList.add('show');
+      if(window.innerWidth > 1024){
+        var cp=document.getElementById('chatPreview');if(cp)cp.classList.add('show');
+      }
       var cb=document.getElementById('chatBadge');if(cb)cb.classList.add('show');
       localStorage.setItem('cc_preview_shown_date', today);
     }

@@ -578,12 +578,19 @@ textarea.form-input{resize:vertical;min-height:100px}
 .chat-badge.show{opacity:1;transform:scale(1)}
 
 /* ── Nav Chat Icon (mobile only — hidden on desktop) ── */
-.nav-chat{display:none;position:relative;align-items:center;justify-content:center;width:36px;height:36px;padding:0;border:none;background:transparent;cursor:pointer;z-index:1001}
-.nav-chat svg{width:20px;height:20px;stroke:var(--cream);fill:none;stroke-width:1.5;transition:stroke 0.3s}
-.nav-chat:hover svg{stroke:var(--gold)}
-.nav-chat-dot{position:absolute;top:4px;right:4px;width:7px;height:7px;background:var(--green);border-radius:50%;border:1.5px solid var(--nav-bg);animation:pulse 2s ease-in-out infinite}
-.nav-chat.open svg{stroke:var(--gold)}
-.nav-chat.open .nav-chat-dot{display:none}
+.nav-chat{display:none;position:relative;align-items:center;justify-content:center;gap:0.35rem;height:34px;padding:0 0.7rem;border:none;background:var(--gold);border-radius:999px;cursor:pointer;z-index:1001;animation:navChatPulse 3s ease-in-out 2s 3}
+.nav-chat svg{width:18px;height:18px;stroke:var(--bg);fill:none;stroke-width:2;transition:stroke 0.3s;flex-shrink:0}
+.nav-chat-label{font-size:0.65rem;font-weight:600;color:var(--bg);letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap}
+.nav-chat:active{transform:scale(0.95)}
+.nav-chat-dot{position:absolute;top:0;right:0;width:8px;height:8px;background:var(--green);border-radius:50%;border:2px solid var(--nav-bg);animation:pulse 2s ease-in-out infinite}
+.nav-chat.open{background:transparent}
+.nav-chat.open svg{stroke:var(--gold);stroke-width:1.5}
+.nav-chat.open .nav-chat-dot,.nav-chat.open .nav-chat-label{display:none}
+@keyframes navChatPulse{0%,100%{box-shadow:0 0 0 0 rgba(196,176,140,0)}50%{box-shadow:0 0 0 6px rgba(196,176,140,0.25)}}
+[data-theme="light"] .nav-chat{background:var(--gold)}
+[data-theme="light"] .nav-chat svg{stroke:#fff}
+[data-theme="light"] .nav-chat-label{color:#fff}
+[data-theme="light"] @keyframes navChatPulse{0%,100%{box-shadow:0 0 0 0 rgba(139,119,72,0)}50%{box-shadow:0 0 0 6px rgba(139,119,72,0.2)}}
 
 /* ── Chat Preview Widget ── */
 .chat-preview{position:fixed;bottom:6.5rem;right:2rem;z-index:10000;width:320px;background:var(--bg-warm);border:1px solid var(--border);box-shadow:0 16px 48px var(--shadow);display:flex;flex-direction:column;opacity:0;transform:translateY(12px) scale(0.95);pointer-events:none;transition:all 0.4s cubic-bezier(0.16,1,0.3,1);overflow:hidden}
