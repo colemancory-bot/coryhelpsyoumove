@@ -3595,12 +3595,24 @@ document.addEventListener('click', function(e) {
 
 // ═══ TOUCH SWIPE HELPER ═══
 function addSwipe(el, onLeft, onRight) {
-  var startX = 0, startY = 0, tracking = false;
+  var startX = 0, startY = 0, tracking = false, dirLocked = false, isHoriz = false;
   el.addEventListener('touchstart', function(e) {
     startX = e.touches[0].clientX;
     startY = e.touches[0].clientY;
     tracking = true;
+    dirLocked = false;
+    isHoriz = false;
   }, {passive: true});
+  el.addEventListener('touchmove', function(e) {
+    if (!tracking) return;
+    var dx = e.touches[0].clientX - startX;
+    var dy = e.touches[0].clientY - startY;
+    if (!dirLocked && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
+      dirLocked = true;
+      isHoriz = Math.abs(dx) > Math.abs(dy);
+    }
+    if (dirLocked && isHoriz) e.preventDefault();
+  }, {passive: false});
   el.addEventListener('touchend', function(e) {
     if (!tracking) return;
     tracking = false;

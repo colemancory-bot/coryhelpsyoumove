@@ -908,7 +908,7 @@ textarea.form-input{resize:vertical;min-height:100px}
 /* ═══════════════════════════════════════════════════════
    PROPERTY DETAIL PAGE
    ═══════════════════════════════════════════════════════ */
-.prop-overlay{position:fixed;inset:0;z-index:5000;background:var(--bg);overflow-y:auto;opacity:0;pointer-events:none;transition:opacity 0.5s cubic-bezier(0.16,1,0.3,1)}
+.prop-overlay{position:fixed;inset:0;z-index:5000;background:var(--bg);overflow-y:auto;overflow-x:hidden;opacity:0;pointer-events:none;transition:opacity 0.5s cubic-bezier(0.16,1,0.3,1)}
 .prop-overlay.active{opacity:1;pointer-events:all}
 
 /* Property page theme toggle */
