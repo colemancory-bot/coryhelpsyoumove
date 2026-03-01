@@ -4031,6 +4031,7 @@ function initSearchMap(){
         window._srActiveZoom = true;
         clearTimeout(_zoomSettleTimer);
         clearTimeout(window._srMoveEndTimer);
+        if(window._srCardRenderRAF){ cancelAnimationFrame(window._srCardRenderRAF); window._srCardRenderRAF = null; }
         _zoomSettleTimer = setTimeout(function(){ window._srActiveZoom = false; }, 400);
       }, {passive:true});
     })();
@@ -4336,29 +4337,31 @@ function srApplyFilters(){
     }
   }
 
-  // Render cards — always render immediately, then viewport filter can refine
-  var _mapVisible = _srMap && !document.getElementById('srBody').classList.contains('map-hidden');
-  if(_srSpatialFilters.length > 0) {
-    document.getElementById('srCount').textContent = results.length + ' listing' + (results.length!==1?'s':'');
-    srRenderCards(results);
-  } else if(_mapVisible) {
-    // Map is visible — render viewport-filtered cards immediately
-    // (don't rely solely on moveend, which may not fire if bounds don't change)
-    var bounds = _srMap.getBounds();
-    var inView = results.filter(function(l){
-      return l.lat && l.lng && bounds.contains(new maplibregl.LngLat(l.lng, l.lat));
-    });
-    _srCurrentResults = inView;
-    document.getElementById('srCount').textContent = inView.length + ' of ' + results.length + ' listing' + (results.length!==1?'s':'') + ' in view';
-    srRenderCards(inView);
-  } else {
-    document.getElementById('srCount').textContent = results.length + ' listing' + (results.length!==1?'s':'');
-    srRenderCards(results);
-  }
-
-  // Cards now match current state — hide "Search this area" button
-  var _saBtn = document.getElementById('srSearchAreaBtn');
-  if(_saBtn) _saBtn.classList.remove('visible');
+  // Render cards — deferred to next animation frame so map can paint first.
+  // Cancellable via window._srCardRenderRAF if a new zoom starts before cards finish.
+  if(window._srCardRenderRAF) cancelAnimationFrame(window._srCardRenderRAF);
+  var _cardResults = results; // capture for closure
+  window._srCardRenderRAF = requestAnimationFrame(function(){
+    window._srCardRenderRAF = null;
+    var _mapVisible = _srMap && !document.getElementById('srBody').classList.contains('map-hidden');
+    if(_srSpatialFilters.length > 0) {
+      document.getElementById('srCount').textContent = _cardResults.length + ' listing' + (_cardResults.length!==1?'s':'');
+      srRenderCards(_cardResults);
+    } else if(_mapVisible) {
+      var bounds = _srMap.getBounds();
+      var inView = _cardResults.filter(function(l){
+        return l.lat && l.lng && bounds.contains(new maplibregl.LngLat(l.lng, l.lat));
+      });
+      _srCurrentResults = inView;
+      document.getElementById('srCount').textContent = inView.length + ' of ' + _cardResults.length + ' listing' + (_cardResults.length!==1?'s':'') + ' in view';
+      srRenderCards(inView);
+    } else {
+      document.getElementById('srCount').textContent = _cardResults.length + ' listing' + (_cardResults.length!==1?'s':'');
+      srRenderCards(_cardResults);
+    }
+    var _saBtn = document.getElementById('srSearchAreaBtn');
+    if(_saBtn) _saBtn.classList.remove('visible');
+  });
 }
 
 var _srCardLookup = {}; // listing ID → listing object (for delegated click handler)
@@ -4378,6 +4381,8 @@ function srRenderCards(results){
 
   _srCardLookup = {}; // Reset lookup for new result set
   var frag = document.createDocumentFragment();
+  // Hoist DOM read outside loop — avoids getElementById on every card iteration
+  var _curSort = (document.getElementById('srSort')||{}).value || '';
   results.forEach(function(l, i){
     var card = document.createElement('div');
     card.className = 'sr-card';
@@ -4399,8 +4404,6 @@ function srRenderCards(results){
     var srBrokerParts=[];if(l.listAgent)srBrokerParts.push(l.listAgent);if(l.listOffice)srBrokerParts.push(l.listOffice);
     var srMlsNums = _formatMlsNums(l);
     var srBrokerHtml=srBrokerParts.length?'<div class="sr-card-office">Listed by '+srBrokerParts.join(' &bull; ')+(srMlsNums?' | '+srMlsNums:'')+'</div>':'';
-    // Value metric badge when sorting by price/sqft or price/acre
-    var _curSort = (document.getElementById('srSort')||{}).value || '';
     var valueBadge = '';
     if(_curSort === 'priceSqft-asc' && l.sqft && l.sqft > 0 && l.price) {
       valueBadge = '<div class="sr-card-value">$' + Math.round(l.price / l.sqft).toLocaleString() + '/sqft</div>';
@@ -4714,20 +4717,25 @@ function srUnhighlightCardById(lid){
 }
 
 // ═══ VIEWPORT-BASED CARD FILTERING ═══
+// Deferred to next animation frame so map is never blocked by card DOM work.
 function srFilterCardsByViewport(){
   if(!_srMap || !_srAllFilteredResults.length) return;
   if(_srSpatialFilters.length > 0) return; // Drawing active — spatial filter controls cards
   if(document.getElementById('srBody').classList.contains('map-hidden')) return;
+  if(window._srCardRenderRAF) cancelAnimationFrame(window._srCardRenderRAF);
   var bounds = _srMap.getBounds();
-  var inView = _srAllFilteredResults.filter(function(l){
-    return l.lat && l.lng && bounds.contains(new maplibregl.LngLat(l.lng, l.lat));
+  var allResults = _srAllFilteredResults;
+  window._srCardRenderRAF = requestAnimationFrame(function(){
+    window._srCardRenderRAF = null;
+    var inView = allResults.filter(function(l){
+      return l.lat && l.lng && bounds.contains(new maplibregl.LngLat(l.lng, l.lat));
+    });
+    _srCurrentResults = inView;
+    document.getElementById('srCount').textContent = inView.length + ' of ' + allResults.length + ' listing' + (allResults.length!==1?'s':'') + ' in view';
+    srRenderCards(inView);
+    var btn = document.getElementById('srSearchAreaBtn');
+    if(btn) btn.classList.remove('visible');
   });
-  _srCurrentResults = inView;
-  document.getElementById('srCount').textContent = inView.length + ' of ' + _srAllFilteredResults.length + ' listing' + (_srAllFilteredResults.length!==1?'s':'') + ' in view';
-  srRenderCards(inView);
-  // Hide "Search this area" button since we just filtered
-  var btn = document.getElementById('srSearchAreaBtn');
-  if(btn) btn.classList.remove('visible');
 }
 
 // "Search this area" button handler
