@@ -1325,6 +1325,11 @@ textarea.form-input{resize:vertical;min-height:100px}
 [data-theme="light"] .sr-draw-btn{background:rgba(255,255,255,0.85);color:var(--gold-dark);border:1px solid rgba(139,119,72,0.25)}
 [data-theme="light"] .sr-draw-btn:hover,[data-theme="light"] .sr-draw-btn.active{background:var(--gold);color:#fff;border-color:var(--gold)}
 
+/* Show More cards button */
+.sr-show-more{width:100%;padding:0.85rem;background:var(--surface);border:1px solid var(--border);color:var(--gold);font-family:'Outfit',sans-serif;font-size:0.75rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;transition:all 0.2s;grid-column:1/-1}
+.sr-show-more:hover{background:var(--gold);color:var(--bg);border-color:var(--gold)}
+[data-theme="light"] .sr-show-more:hover{color:#fff}
+
 /* Search this area button */
 .sr-search-area-btn{position:absolute;top:1rem;left:50%;transform:translateX(-50%);z-index:1000;display:none;align-items:center;gap:0.4rem;background:rgba(12,11,9,0.92);color:var(--gold);border:1px solid rgba(196,176,140,0.35);padding:0.55rem 1.25rem;font-size:0.65rem;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;cursor:pointer;font-family:'Outfit',sans-serif;box-shadow:0 4px 20px rgba(0,0,0,0.35);border-radius:4px;transition:all 0.3s cubic-bezier(0.16, 1, 0.3, 1);white-space:nowrap}
 .sr-search-area-btn:hover{background:var(--gold);color:var(--bg);border-color:var(--gold)}

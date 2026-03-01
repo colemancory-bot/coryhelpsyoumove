@@ -4471,8 +4471,16 @@ function srApplyFilters(){
   // Cancellable via window._srCardRenderRAF if a new zoom starts before cards finish.
   if(window._srCardRenderRAF) cancelAnimationFrame(window._srCardRenderRAF);
   var _cardResults = results; // capture for closure
+  var _listHidden = document.getElementById('srBody').classList.contains('list-hidden');
   window._srCardRenderRAF = requestAnimationFrame(function(){
     window._srCardRenderRAF = null;
+    // Skip card DOM when list is hidden (mobile map-only) — saves memory on iPhones
+    if(_listHidden){
+      document.getElementById('srCount').textContent = _cardResults.length + ' listing' + (_cardResults.length!==1?'s':'');
+      var _saBtn = document.getElementById('srSearchAreaBtn');
+      if(_saBtn) _saBtn.classList.remove('visible');
+      return;
+    }
     var _mapVisible = _srMap && !document.getElementById('srBody').classList.contains('map-hidden');
     if(_srSpatialFilters.length > 0) {
       document.getElementById('srCount').textContent = _cardResults.length + ' listing' + (_cardResults.length!==1?'s':'');
@@ -4513,6 +4521,11 @@ function srRenderCards(results){
   var frag = document.createDocumentFragment();
   // Hoist DOM read outside loop — avoids getElementById on every card iteration
   var _curSort = (document.getElementById('srSort')||{}).value || '';
+  // Cap initial render to 40 cards — "Show More" button loads the rest
+  var _SR_CARD_LIMIT = 40;
+  var _fullResults = results;
+  var _capped = results.length > _SR_CARD_LIMIT;
+  if(_capped) results = results.slice(0, _SR_CARD_LIMIT);
   results.forEach(function(l, i){
     var card = document.createElement('div');
     card.className = 'sr-card';
@@ -4555,6 +4568,37 @@ function srRenderCards(results){
     frag.appendChild(card);
   });
   container.appendChild(frag);
+
+  // "Show More" button when results are capped
+  if(_capped){
+    var more = document.createElement('button');
+    more.className = 'sr-show-more';
+    more.textContent = 'Show ' + (_fullResults.length - _SR_CARD_LIMIT) + ' More';
+    more.onclick = function(){
+      more.remove();
+      var frag2 = document.createDocumentFragment();
+      _fullResults.slice(_SR_CARD_LIMIT).forEach(function(l){
+        var card = document.createElement('div');
+        card.className = 'sr-card';
+        var lid = l.listingKey || l.mlsId || (l.address + '|' + l.city);
+        card.setAttribute('data-lid', lid);
+        _srCardLookup[lid] = l;
+        if(l.listingKey) card.setAttribute('data-lk', l.listingKey);
+        var feats = l.type === 'Land' ? '<strong>' + l.lot + '</strong>' : '<span><strong>' + l.beds + '</strong> Bed</span><span><strong>' + l.baths + '</strong> Bath</span>' + (_hasSqftData(l) ? '<span><strong>' + _formatSqft(l) + '</strong> ' + _sqftLabel(l) + '</span>' : (l.lot ? '<span><strong>' + l.lot + '</strong> Lot</span>' : ''));
+        var imgHtml = l.photo ? '<img src="' + l.photo + '" alt="' + l.address + '" loading="lazy">' : '<div style="width:100%;height:100%;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.55rem">Photo</div>';
+        var badgeClass = l.type === 'Land' ? 'sr-card-badge land' : 'sr-card-badge';
+        var statusTag = l.status === 'Under Contract' ? '<div class="card-status-tag">Under Contract</div>' : '';
+        var srBrokerParts=[];if(l.listAgent)srBrokerParts.push(l.listAgent);if(l.listOffice)srBrokerParts.push(l.listOffice);
+        var srMlsNums = _formatMlsNums(l);
+        var srBrokerHtml=srBrokerParts.length?'<div class="sr-card-office">Listed by '+srBrokerParts.join(' &bull; ')+(srMlsNums?' | '+srMlsNums:'')+'</div>':'';
+        card.innerHTML = '<div class="sr-card-img">' + imgHtml + '<div class="' + badgeClass + '">' + l.type + '</div>' + statusTag + cardFavHtml(l.address, l.city) + '</div><div class="sr-card-body"><div class="sr-card-price">$' + l.price.toLocaleString() + '</div><div class="sr-card-addr">' + l.address + '</div><div class="sr-card-city">' + l.city + ', NC</div><div class="sr-card-feats">' + feats + '</div>' + srBrokerHtml + '</div>';
+        frag2.appendChild(card);
+      });
+      container.appendChild(frag2);
+      _srPreloadCardPhotos(_fullResults.slice(_SR_CARD_LIMIT));
+    };
+    container.appendChild(more);
+  }
 
   // Batch preload photos for visible cards (enables swipe + shows photo count)
   _srPreloadCardPhotos(results);
@@ -4906,6 +4950,7 @@ function srFilterCardsByViewport(){
   if(!_srMap || !_srAllFilteredResults.length) return;
   if(_srSpatialFilters.length > 0) return; // Drawing active — spatial filter controls cards
   if(document.getElementById('srBody').classList.contains('map-hidden')) return;
+  if(document.getElementById('srBody').classList.contains('list-hidden')) return; // Mobile map-only — skip card work
   if(window._srCardRenderRAF) cancelAnimationFrame(window._srCardRenderRAF);
   var bounds = _srMap.getBounds();
   var allResults = _srAllFilteredResults;
