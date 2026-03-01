@@ -6706,6 +6706,9 @@ function toggleFavProp() {
   }
   // Update search results if open
   srApplyViewedFavStates();
+  // Feature hint: suggest Compare when 2+ favorites
+  var _fc = Object.keys(_favProps).filter(function(k) { return _favProps[k]; }).length;
+  if (_fc >= 2) _maybeShowHint('hint_compare');
 }
 
 function updateFavBtn() {
@@ -7512,6 +7515,9 @@ openProp = function(listing, townName) {
   _currentPropKey = key;
   _viewedProps[key] = true;
   saveViewed();
+  // Feature hint: suggest saving on 2nd or 3rd unique property view
+  var _uvCount = Object.keys(_viewedProps).length;
+  if (_uvCount === 2 || _uvCount === 3) _maybeShowHint('hint_save_listing');
   // Update fav button
   updateFavBtn();
   // Update gated features
@@ -7628,7 +7634,79 @@ openProp = function(listing, townName) {
   setTimeout(function(){ buildCorysSuggestions(listing, townName); }, 80);
   // Update card/marker states
   srApplyViewedFavStates();
+  // Feature hint: deep scroll detection on property overlay
+  var _ov = document.getElementById('propOverlay');
+  if (_ov) {
+    if (_ov._hintScroll) _ov.removeEventListener('scroll', _ov._hintScroll);
+    _ov._hintScroll = function() {
+      var pct = _ov.scrollTop / (_ov.scrollHeight - _ov.clientHeight);
+      if (pct > 0.6) {
+        _maybeShowHint('hint_ask_cory');
+        _ov.removeEventListener('scroll', _ov._hintScroll);
+      }
+    };
+    _ov.addEventListener('scroll', _ov._hintScroll, { passive: true });
+  }
 };
+
+// ═══ FEATURE HINTS ═══
+// Contextual chat hints that point out site features as users navigate.
+// Max 1 per session, never repeat a seen hint, only when chat is idle.
+var _FEATURE_HINTS = [
+  { id: 'hint_save_listing', message: "By the way, you can tap the heart on any listing to save it. Makes it easy to compare later." },
+  { id: 'hint_town_chat', messageFn: function(town) { return "If you want, I can tell you about living in " + town + ". Cost of living, what the area is like, that kind of thing."; } },
+  { id: 'hint_compare', message: "Nice picks! You can compare your saved listings side by side if you tap Compare in your favorites." },
+  { id: 'hint_ask_cory', message: "If you want Cory's take on this property or the neighborhood, just ask. That's what I'm here for." },
+  { id: 'hint_search_chat', message: "You can also just tell me what you're looking for in here. 'Cabins under 400k near Bryson City' works great." }
+];
+
+function _maybeShowHint(hintId, dynamicMessage) {
+  try {
+    // 1. One hint per session max
+    if (sessionStorage.getItem('cc_hint_shown')) return;
+    // 2. Already seen this hint (lifetime)
+    var seen = {};
+    try { seen = JSON.parse(localStorage.getItem('cc_hints_seen') || '{}'); } catch(e) {}
+    if (seen[hintId]) return;
+    // 3. Chat must NOT be in an active conversation
+    if (convHistory.length > 1) return;
+    // 4. Don't compete with the chat preview bubble
+    var cprev = document.getElementById('chatPreview');
+    if (cprev && cprev.classList.contains('show')) return;
+
+    // 5. Resolve message text
+    var hintDef = null;
+    for (var i = 0; i < _FEATURE_HINTS.length; i++) {
+      if (_FEATURE_HINTS[i].id === hintId) { hintDef = _FEATURE_HINTS[i]; break; }
+    }
+    if (!hintDef) return;
+    var text = dynamicMessage || hintDef.message || '';
+    if (!text) return;
+
+    // 6. Mark as shown (session + lifetime)
+    sessionStorage.setItem('cc_hint_shown', '1');
+    seen[hintId] = true;
+    try { localStorage.setItem('cc_hints_seen', JSON.stringify(seen)); } catch(e) {}
+
+    // 7. Delayed delivery (feels natural)
+    setTimeout(function() {
+      // Re-check: user might have started chatting during delay
+      if (convHistory.length > 1) return;
+      // Ensure chat DOM has messages container ready
+      var cm = document.getElementById('chatMessages');
+      if (cm && !cm.children.length) {
+        if (typeof _restoreChatMessages === 'function' && !_restoreChatMessages()) addInitMsg();
+      }
+      // Add the hint as a chat bubble
+      addMsg('assistant', text);
+      // If chat is closed, pulse the badge so user knows there's a message
+      if (!chatOpen) {
+        var cb = document.getElementById('chatBadge');
+        if (cb) cb.classList.add('show');
+      }
+    }, 5000);
+  } catch(e) {}
+}
 
 // --- Apply viewed/favorited states to search result cards & map markers ---
 function srApplyViewedFavStates() {
@@ -7748,6 +7826,8 @@ var _origOpenSearchResults = openSearchResults;
 openSearchResults = function(filters) {
   _origOpenSearchResults(filters);
   setTimeout(gateRestrictionFilters, 150);
+  // Feature hint: suggest using chat for search
+  _maybeShowHint('hint_search_chat');
 };
 
 // Re-gate when town pages open
@@ -7755,6 +7835,9 @@ var _origOpenPage = openPage;
 openPage = function(id) {
   _origOpenPage(id);
   setTimeout(gateRestrictionFilters, 150);
+  // Feature hint: offer town info via chat
+  var _td = TOWN_LISTINGS[id];
+  if (_td && _td.display) _maybeShowHint('hint_town_chat', _FEATURE_HINTS[1].messageFn(_td.display));
 };
 
 // ═══ LISTING DATA INIT ═══
@@ -8552,6 +8635,11 @@ if(_isTownPage){
     var townSlug = pathMatch ? pathMatch[1].toLowerCase() : '';
     var townData = townSlug ? TOWN_LISTINGS[townSlug] : null;
     var townName = townData ? townData.display : '';
+
+    // Feature hint: offer town info via chat on standalone town pages
+    if (townName) {
+      setTimeout(function() { _maybeShowHint('hint_town_chat', _FEATURE_HINTS[1].messageFn(townName)); }, 2000);
+    }
 
     // 1. Wire static f-cards to openProp()
     var cards = document.querySelectorAll('.f-card');
