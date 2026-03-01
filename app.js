@@ -3938,6 +3938,18 @@ function openSearchResults(filters){
   _lockScroll();
   history.pushState({page:'search'},'','#search');
 
+  // Default to list view on mobile (hide map)
+  var srBody = document.getElementById('srBody');
+  if(srBody && window.innerWidth <= 900){
+    srBody.classList.add('map-hidden');
+    srBody.classList.remove('list-hidden');
+    _srMobileView = 'list';
+    var lbl = document.getElementById('srToggleLabel');
+    if(lbl) lbl.textContent = 'Show Map';
+    var ico = document.getElementById('srToggleIcon');
+    if(ico) ico.innerHTML = '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>';
+  }
+
   // Update theme toggle
   var theme = document.documentElement.getAttribute('data-theme');
   overlay.querySelectorAll('.prop-toggle-sun').forEach(function(el){el.style.display = theme==='light'?'inline':'none'});
