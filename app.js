@@ -2561,22 +2561,18 @@ var PROP_IMAGES = {
 };
 
 // Global image error fallback — if an MLS photo fails (expired URL, R2 outage, etc.)
-// replace the broken <img> with a styled placeholder. Uses event delegation in capture
-// phase so it catches errors on dynamically-created images without per-element handlers.
+// swap src to the stock placeholder. Uses event delegation in capture phase so it
+// catches errors on dynamically-created images without per-element handlers.
 document.addEventListener('error', function(e) {
   if (!e.target || e.target.tagName !== 'IMG') return;
   var img = e.target;
-  // Only handle MLS/R2 photos, not stock images or logos
   var src = img.src || '';
+  // Ignore stock images and local assets (they won't have a better fallback)
   if (src.indexOf('unsplash.com') !== -1 || src.indexOf('/images/') !== -1) return;
-  // Prevent infinite loop
+  // Prevent infinite loop: only try fallback once
   if (img._photoFallbackDone) return;
   img._photoFallbackDone = true;
-  img.style.display = 'none';
-  var ph = document.createElement('div');
-  ph.style.cssText = 'aspect-ratio:16/10;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.75rem';
-  ph.textContent = 'Photo unavailable';
-  if (img.parentNode) img.parentNode.insertBefore(ph, img);
+  img.src = 'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=700&q=80';
 }, true);
 
 var PROP_DESCRIPTIONS = {
