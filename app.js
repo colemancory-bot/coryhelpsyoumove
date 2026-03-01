@@ -250,6 +250,7 @@ if(_isTownPage){
       '<div class="prop-nav prop-nav-left" onclick="propImgNav(-1)"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></div>' +
       '<div class="prop-nav prop-nav-right" onclick="propImgNav(1)"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>' +
       '<div class="prop-hero-expand" onclick="openLightbox()"><svg viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg> View Photos</div>' +
+      '<div class="prop-hero-counter" id="propHeroCounter"></div>' +
       '<div class="prop-hero-content"><div class="prop-hero-status active-status" id="propStatus">Active Listing</div><div class="prop-demo-notice" id="propDemoNotice" style="display:none">Sample Listing — Demo Data</div><div class="prop-thumbs" id="propThumbs"></div></div>' +
     '</div></div>' +
     '<div class="prop-info-bar"><div class="prop-info-bar-inner">' +
@@ -2634,6 +2635,10 @@ function openProp(listing, townName) {
   window._propImgs = imgs;
   window._propImgIdx = 0;
 
+  // Mobile photo counter (thumbnails are hidden on small screens)
+  var _counterEl = document.getElementById('propHeroCounter');
+  if(_counterEl) _counterEl.textContent = imgs.length > 1 ? '1 / ' + imgs.length : '';
+
   // Thumbnails — render what we have now
   function _renderThumbs(imgArr) {
     var thumbsEl = document.getElementById('propThumbs');
@@ -2660,6 +2665,9 @@ function openProp(listing, townName) {
         window._propImgIdx = 0;
         document.getElementById('propHeroImg').src = allPhotos[0];
         _renderThumbs(allPhotos);
+        // Update mobile photo counter
+        var _ctr = document.getElementById('propHeroCounter');
+        if(_ctr) _ctr.textContent = '1 / ' + allPhotos.length;
         // Update the listing's cached photos for future opens
         listing.photos = allPhotos;
       }
@@ -3435,6 +3443,9 @@ function propGoTo(idx) {
     heroImg.src = imgs[idx];
     heroImg.classList.remove('fade');
   }, 250);
+  // Update mobile photo counter
+  var _ctr = document.getElementById('propHeroCounter');
+  if(_ctr && imgs.length > 1) _ctr.textContent = (idx + 1) + ' / ' + imgs.length;
   var thumbs = document.querySelectorAll('.prop-thumb');
   thumbs.forEach(function(t, i) { t.classList.toggle('active', i === idx) });
   // Auto-scroll thumbnail strip to keep active thumb visible
