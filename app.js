@@ -4360,10 +4360,13 @@ function srApplyFilters(){
     if(_srMap && _srMapLayersReady){
       var withCoords = results.filter(function(l){return l.lat && l.lng});
       if(withCoords.length > 0){
-        if(selectedAreas.length === 1 && TOWN_COORDS[selectedAreas[0]]){
-          // Single town: flyTo town center for a guaranteed visible pan/zoom
+        if(selectedAreas.length === 1){
+          // Single town: fit bounds to all listings in area + town center
           var tc = TOWN_COORDS[selectedAreas[0]];
-          _srMap.flyTo({center:[tc.lng, tc.lat], zoom:12});
+          var bounds = new maplibregl.LngLatBounds();
+          withCoords.forEach(function(l){ bounds.extend([l.lng, l.lat]); });
+          if(tc) bounds.extend([tc.lng, tc.lat]);
+          _srMap.fitBounds(bounds, {padding:60, maxZoom:14});
         } else if(selectedAreas.length > 1){
           // Multiple towns: fit bounds including town centers for tight framing
           var bounds = new maplibregl.LngLatBounds();

@@ -1166,7 +1166,7 @@ textarea.form-input{resize:vertical;min-height:100px}
 .sr-back svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2}
 .sr-title{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.3rem;font-weight:300;color:var(--cream)}
 .sr-title em{font-style:italic;color:var(--gold)}
-.sr-count{font-size:0.6rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--text-muted)}
+.sr-count{font-size:0.72rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold);font-weight:500}
 .sr-topbar-right{display:flex;align-items:center;gap:0.75rem}
 
 /* Filter bar */
