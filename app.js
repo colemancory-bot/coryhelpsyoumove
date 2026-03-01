@@ -2685,12 +2685,36 @@ function openProp(listing, townName) {
   document.getElementById('propAddr').textContent = listing.address;
   document.getElementById('propCity').textContent = townName + ', North Carolina';
 
-  // Admin: show MLS number(s) in info bar, hide scroll hint
+  // Admin: show MLS number(s) as copy-to-clipboard chips, hide scroll hint
   var _adminMlsEl = document.getElementById('propAdminMls');
   var _scrollHintEl = document.getElementById('propScrollHint');
   if(_isAdmin) {
-    var _mlsText = _formatMlsNums(listing);
-    if(_adminMlsEl) { _adminMlsEl.textContent = _mlsText; _adminMlsEl.style.display = _mlsText ? '' : 'none'; }
+    var _copyIcon = '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+    var _mlsChips = [];
+    if(listing.mlsSources && listing.mlsSources.length) {
+      listing.mlsSources.forEach(function(s) {
+        if(s.mlsId) _mlsChips.push({label: 'MLS# ' + s.mlsId, value: s.mlsId});
+      });
+    } else if(listing.mlsId) {
+      _mlsChips.push({label: 'MLS# ' + listing.mlsId, value: listing.mlsId});
+    }
+    if(_adminMlsEl) {
+      _adminMlsEl.innerHTML = '';
+      _mlsChips.forEach(function(chip) {
+        var el = document.createElement('button');
+        el.className = 'prop-admin-mls-chip';
+        el.innerHTML = _copyIcon + chip.label;
+        el.onclick = function() {
+          navigator.clipboard.writeText(chip.value).then(function() {
+            el.classList.add('copied');
+            el.innerHTML = _copyIcon + 'Copied!';
+            setTimeout(function() { el.classList.remove('copied'); el.innerHTML = _copyIcon + chip.label; }, 1200);
+          });
+        };
+        _adminMlsEl.appendChild(el);
+      });
+      _adminMlsEl.style.display = _mlsChips.length ? '' : 'none';
+    }
     if(_scrollHintEl) _scrollHintEl.style.display = 'none';
   } else {
     if(_adminMlsEl) _adminMlsEl.style.display = 'none';
