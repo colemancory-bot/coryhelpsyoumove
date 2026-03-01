@@ -981,6 +981,7 @@ textarea.form-input{resize:vertical;min-height:100px}
 .prop-hero-addr{font-size:0.95rem;color:var(--text-body);font-weight:300;margin-bottom:0.1rem}
 .prop-hero-city{font-size:0.6rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--gold)}
 .prop-info-right{display:flex;align-items:center;gap:0.75rem}
+.prop-admin-mls{font-size:0.65rem;letter-spacing:0.1em;color:var(--gold);font-family:var(--font-body);white-space:nowrap}
 .prop-info-scroll-hint{display:flex;align-items:center;gap:0.4rem;color:var(--text-muted);font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;animation:hintPulse 2s ease-in-out infinite}
 @keyframes hintPulse{0%,100%{opacity:0.4}50%{opacity:1}}
 .prop-info-print-btn{display:inline-flex;align-items:center;gap:0.5rem;padding:0.6rem 1.2rem;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-family:'Outfit',sans-serif;font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;transition:all 0.3s}

@@ -256,7 +256,8 @@ if(_isTownPage){
     '<div class="prop-info-bar"><div class="prop-info-bar-inner">' +
       '<div class="prop-info-left"><div class="prop-hero-price" id="propPrice"></div><div class="prop-hero-addr" id="propAddr"></div><div class="prop-hero-city" id="propCity"></div><div class="prop-listing-broker" id="propListingBroker"></div></div>' +
       '<div class="prop-info-right">' +
-        '<div class="prop-info-scroll-hint"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 5v14M19 12l-7 7-7-7" stroke="currentColor" stroke-width="2" fill="none"/></svg><span>Scroll for details</span></div>' +
+        '<div class="prop-admin-mls" id="propAdminMls" style="display:none"></div>' +
+        '<div class="prop-info-scroll-hint" id="propScrollHint"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 5v14M19 12l-7 7-7-7" stroke="currentColor" stroke-width="2" fill="none"/></svg><span>Scroll for details</span></div>' +
         '<button class="prop-fav-btn" id="propFavBtn" onclick="toggleFavProp()"><svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg><span id="propFavLabel">Save</span></button>' +
         '<button class="prop-share-topbar" id="propShareBtn" onclick="propShare(navigator.share?\'native\':\'copy\')"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg><span>Share</span></button>' +
         '<button class="prop-info-print-btn" id="propInfoPrintBtn" onclick="propShare(\'print\')"><svg viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg><span>Print</span></button>' +
@@ -2683,6 +2684,18 @@ function openProp(listing, townName) {
   document.getElementById('propPrice').textContent = '$' + listing.price.toLocaleString();
   document.getElementById('propAddr').textContent = listing.address;
   document.getElementById('propCity').textContent = townName + ', North Carolina';
+
+  // Admin: show MLS number(s) in info bar, hide scroll hint
+  var _adminMlsEl = document.getElementById('propAdminMls');
+  var _scrollHintEl = document.getElementById('propScrollHint');
+  if(_isAdmin) {
+    var _mlsText = _formatMlsNums(listing);
+    if(_adminMlsEl) { _adminMlsEl.textContent = _mlsText; _adminMlsEl.style.display = _mlsText ? '' : 'none'; }
+    if(_scrollHintEl) _scrollHintEl.style.display = 'none';
+  } else {
+    if(_adminMlsEl) _adminMlsEl.style.display = 'none';
+    if(_scrollHintEl) _scrollHintEl.style.display = '';
+  }
 
   // Listing broker attribution (IDX compliance)
   // IDX disclaimer attributes the single data source (per MLS Grid advice),
