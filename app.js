@@ -4514,8 +4514,61 @@ function srRenderCards(results){
     frag.appendChild(card);
   });
   container.appendChild(frag);
+
+  // Batch preload photos for visible cards (enables swipe + shows photo count)
+  _srPreloadCardPhotos(results);
 }
 
+// Batch preload: fetch all photos for rendered cards in one query
+var _srPreloadRAF = null;
+function _srPreloadCardPhotos(listings) {
+  if(_srPreloadRAF) cancelAnimationFrame(_srPreloadRAF);
+  _srPreloadRAF = requestAnimationFrame(function(){
+    _srPreloadRAF = null;
+    if(!_sb || !MLS_GRID.enabled) return;
+    var cache = window._cardPhotoCache || {};
+    var keys = [];
+    listings.forEach(function(l){ if(l.listingKey && !cache[l.listingKey]) keys.push(l.listingKey); });
+    if(!keys.length) return;
+    // Limit to first 30 to keep query fast
+    keys = keys.slice(0, 30);
+    _sb.from('mls_media')
+      .select('listing_key, local_url, media_url, "order"')
+      .in('listing_key', keys)
+      .order('"order"', {ascending: true})
+      .limit(1500)
+      .then(function(res){
+        if(!res.data) return;
+        // Group by listing_key
+        var grouped = {};
+        res.data.forEach(function(m){
+          if(!grouped[m.listing_key]) grouped[m.listing_key] = [];
+          // Keep R2 copies and permanent CDN URLs, skip expired MLS Grid signed URLs
+          if(m.local_url) {
+            grouped[m.listing_key].push(m.local_url);
+          } else if(m.media_url && m.media_url.indexOf('mlsgrid.com') === -1) {
+            grouped[m.listing_key].push(m.media_url);
+          }
+        });
+        // Populate swipe cache + add count badges to cards
+        Object.keys(grouped).forEach(function(key){
+          cache[key] = grouped[key];
+          if(grouped[key].length > 1) {
+            var card = document.querySelector('.sr-card[data-lk="' + key + '"]');
+            if(card) {
+              var imgDiv = card.querySelector('.sr-card-img');
+              if(imgDiv && !imgDiv.querySelector('.card-photo-count')) {
+                var badge = document.createElement('div');
+                badge.className = 'card-photo-count';
+                badge.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg> ' + grouped[key].length;
+                imgDiv.appendChild(badge);
+              }
+            }
+          }
+        });
+      });
+  });
+}
 // ═══ Event delegation for search cards (one handler instead of 3 per card) ═══
 var _srCardDelegationBound = false;
 function _srBindCardDelegation(){
@@ -4621,8 +4674,9 @@ function srOpenFromMapById(lid){
 }
 
 // ═══ Card Image Swipe — carousel slide with peek (touch to browse photos) ═══
+window._cardPhotoCache = window._cardPhotoCache || {};  // shared with batch preload
 (function(){
-  var _photoCache = {};  // listingKey → [url, ...]
+  var _photoCache = window._cardPhotoCache;  // listingKey → [url, ...]
   var _photoIdx = {};    // listingKey → current index
   var _swipe = null;     // active touch state
   var EASE = 'cubic-bezier(0.16, 1, 0.3, 1)';
