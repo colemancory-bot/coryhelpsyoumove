@@ -4574,15 +4574,16 @@ function srRenderCards(results){
   });
   container.appendChild(frag);
 
-  // "Show More" button when results are capped
+  // "Show More" button — loads next batch of 40 cards at a time
   if(_capped){
+    var _srShown = _SR_CARD_LIMIT;
     var more = document.createElement('button');
     more.className = 'sr-show-more';
-    more.textContent = 'Show ' + (_fullResults.length - _SR_CARD_LIMIT) + ' More';
+    more.textContent = 'Show More (' + (_fullResults.length - _srShown).toLocaleString() + ' remaining)';
     more.onclick = function(){
-      more.remove();
+      var batch = _fullResults.slice(_srShown, _srShown + _SR_CARD_LIMIT);
       var frag2 = document.createDocumentFragment();
-      _fullResults.slice(_SR_CARD_LIMIT).forEach(function(l){
+      batch.forEach(function(l){
         var card = document.createElement('div');
         card.className = 'sr-card';
         var lid = l.listingKey || l.mlsId || (l.address + '|' + l.city);
@@ -4599,8 +4600,15 @@ function srRenderCards(results){
         card.innerHTML = '<div class="sr-card-img">' + imgHtml + '<div class="' + badgeClass + '">' + l.type + '</div>' + statusTag + cardFavHtml(l.address, l.city) + '</div><div class="sr-card-body"><div class="sr-card-price">$' + l.price.toLocaleString() + '</div><div class="sr-card-addr">' + l.address + '</div><div class="sr-card-city">' + l.city + ', NC</div><div class="sr-card-feats">' + feats + '</div>' + srBrokerHtml + '</div>';
         frag2.appendChild(card);
       });
-      container.appendChild(frag2);
-      _srPreloadCardPhotos(_fullResults.slice(_SR_CARD_LIMIT));
+      container.insertBefore(frag2, more);
+      _srPreloadCardPhotos(batch);
+      _srShown += batch.length;
+      var remaining = _fullResults.length - _srShown;
+      if(remaining > 0){
+        more.textContent = 'Show More (' + remaining.toLocaleString() + ' remaining)';
+      } else {
+        more.remove();
+      }
     };
     container.appendChild(more);
   }

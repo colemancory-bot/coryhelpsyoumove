@@ -1342,6 +1342,7 @@ textarea.form-input{resize:vertical;min-height:100px}
   .sr-map-panel{height:50vh;flex:none}
   .sr-list-panel{width:100%;flex:1;border-right:none;border-top:1px solid var(--border);order:0}
   .sr-view-toggle{display:flex;align-items:center}
+  .sr-cards{padding-bottom:5rem}
   .sr-body.map-hidden .sr-map-panel{display:none}
   .sr-body.map-hidden .sr-list-panel{height:100%;flex:1}
   .sr-body.list-hidden .sr-list-panel{display:none}
