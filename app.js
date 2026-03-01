@@ -351,7 +351,7 @@ if(_isTownPage){
       '<button class="sr-filter-clear" id="srfClear" onclick="srClearFilters()">Clear All</button>' +
     '</div>' +
     '<div class="sr-body" id="srBody"><div class="sr-map-panel" id="srMapPanel"><div class="sr-map-loading" id="srMapLoading"><span>Loading Map...</span></div><div id="srMap" style="height:100%;width:100%"></div><div class="sr-map-vignette"></div><div class="sr-map-overlay"></div><div class="sr-map-brand"><div class="sr-map-brand-text">Western North Carolina</div><div class="sr-map-brand-sub">Cory Coleman Real Estate</div></div></div><div class="sr-list-panel" id="srListPanel"><div class="sr-sort"><span>Sort by</span><select id="srSort" onchange="srApplyFilters()"><option value="relevance">Best Match</option><option value="daysOnMarket-asc">Newest</option><option value="price-asc">Price: Low to High</option><option value="price-desc">Price: High to Low</option><option value="priceSqft-asc">Price/SqFt</option><option value="priceAcre-asc">Price/Acre</option><option value="beds-desc">Most Bedrooms</option><option value="sqft-desc">Largest</option></select></div><div class="sr-cards" id="srCards"></div></div></div>' +
-    '<button class="sr-view-toggle" id="srViewToggle" onclick="srToggleView()"><svg viewBox="0 0 24 24" id="srToggleIcon"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span id="srToggleLabel">Show Map</span></button>' +
+    '<button class="sr-view-toggle" id="srViewToggle" onclick="srToggleView()"><svg viewBox="0 0 24 24" id="srToggleIcon"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg><span id="srToggleLabel">Show List</span></button>' +
   '</div>';
 
   // --- Compare Overlay ---
@@ -3742,7 +3742,7 @@ var _srMap = null;
 var _srLidToNumId = {};          // listing ID → numeric _numId for feature-state hover sync
 var _srMapLayersReady = false;   // true once _srAddMapLayers() has run (source + layers exist)
 var _srActiveCard = null;
-var _srMobileView = 'list';      // 'list' or 'map'
+var _srMobileView = 'map';       // 'list' or 'map'
 var _srAllFilteredResults = [];  // Full dropdown-filtered results (before viewport/spatial)
 var _srViewportDebounce = null;
 var _srProgrammaticMove = false;  // true during flyTo/fitBounds — suppresses "Search this area" button
@@ -3938,16 +3938,16 @@ function openSearchResults(filters){
   _lockScroll();
   history.pushState({page:'search'},'','#search');
 
-  // Default to list view on mobile (hide map)
+  // Default to map view on mobile (hide list)
   var srBody = document.getElementById('srBody');
   if(srBody && window.innerWidth <= 900){
-    srBody.classList.add('map-hidden');
-    srBody.classList.remove('list-hidden');
-    _srMobileView = 'list';
+    srBody.classList.add('list-hidden');
+    srBody.classList.remove('map-hidden');
+    _srMobileView = 'map';
     var lbl = document.getElementById('srToggleLabel');
-    if(lbl) lbl.textContent = 'Show Map';
+    if(lbl) lbl.textContent = 'Show List';
     var ico = document.getElementById('srToggleIcon');
-    if(ico) ico.innerHTML = '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>';
+    if(ico) ico.innerHTML = '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>';
   }
 
   // Update theme toggle
@@ -5255,11 +5255,11 @@ document.addEventListener('keydown', function(e){
   }
 });
 
-// Mobile: default to list view
+// Mobile: default to map view
 (function(){
   var body = document.getElementById('srBody');
   if(body && window.innerWidth <= 900){
-    body.classList.add('map-hidden');
+    body.classList.add('list-hidden');
   }
 })();
 // ═══════════════════════════════════════════════════
