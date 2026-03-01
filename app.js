@@ -481,7 +481,7 @@ setTimeout(()=>{document.querySelectorAll('.reveal:not(.vis)').forEach(el=>el.cl
 })();
 
 // ═══ SMOOTH SCROLL ═══
-document.querySelectorAll('a[href^="#"]').forEach(a=>{a.addEventListener('click',function(e){e.preventDefault();const t=document.querySelector(this.getAttribute('href'));if(t)t.scrollIntoView({behavior:'smooth',block:'start'})})});
+document.querySelectorAll('a[href^="#"]').forEach(a=>{a.addEventListener('click',function(e){e.preventDefault();var href=this.getAttribute('href');var t=document.querySelector(href);if(!t)return;var mm=document.getElementById('mobileMenu');if(mm&&mm.classList.contains('open')){closeMobile();setTimeout(function(){t.scrollIntoView({behavior:'smooth',block:'start'})},80)}else{t.scrollIntoView({behavior:'smooth',block:'start'})}})});
 
 // ═══ SIMPLYRETS IDX INTEGRATION ═══
 var SIMPLYRETS = {

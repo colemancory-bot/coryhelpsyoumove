@@ -1491,9 +1491,12 @@ textarea.form-input{resize:vertical;min-height:100px}
 /* ═══════════════════════════════════════════════════════
    VIEWED / FAVORITED — Card & Marker states
    ═══════════════════════════════════════════════════════ */
-/* Viewed but NOT favorited — dimmed card */
-.sr-card.viewed:not(.fav-card){opacity:0.55;transition:opacity 0.4s,border-color 0.3s,transform 0.3s}
-.sr-card.viewed:not(.fav-card):hover{opacity:0.85}
+/* Viewed but NOT favorited — muted text below image */
+.sr-card.viewed:not(.fav-card) .sr-card-price{color:var(--text-muted)}
+.sr-card.viewed:not(.fav-card) .sr-card-addr{color:var(--text-muted)}
+.sr-card.viewed:not(.fav-card) .sr-card-city{color:var(--text-muted)}
+.sr-card.viewed:not(.fav-card) .sr-card-feats{color:var(--text-muted)}
+.sr-card.viewed:not(.fav-card) .sr-card-feats strong{color:var(--text-muted)}
 /* Favorited — highlighted card border */
 .sr-card.fav-card{border-color:var(--gold);box-shadow:0 0 12px rgba(196,176,140,0.12)}
 
