@@ -3,6 +3,11 @@ var _DEBUG = location.hostname === 'localhost' || location.hostname === '127.0.0
 function _log(){ if(_DEBUG) console.log.apply(console, arguments); }
 function _warn(){ if(_DEBUG) console.warn.apply(console, arguments); }
 
+// ═══ PROFILE CACHE — avoid repeated JSON.parse of localStorage ═══
+var _profileCache = null;
+function _getProfile(){ if(_profileCache) return _profileCache; try{ _profileCache=JSON.parse(localStorage.getItem('cc_profile')||'{}'); }catch(e){ _profileCache={}; } return _profileCache; }
+function _clearProfileCache(){ _profileCache=null; }
+
 // ═══ GRAIN — generate static noise texture once (replaces GPU-intensive SVG filter) ═══
 (function(){
   var g = document.querySelector('.grain');
@@ -69,7 +74,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
 // ═══ NAV ═══
 const nav=document.getElementById('nav');
-if(nav) window.addEventListener('scroll',()=>nav.classList.toggle('scrolled',window.scrollY>50));
+if(nav){var _navTick=false;window.addEventListener('scroll',function(){if(_navTick)return;_navTick=true;requestAnimationFrame(function(){nav.classList.toggle('scrolled',window.scrollY>50);_navTick=false})},{passive:true})}
 var _navToggle=document.getElementById('navToggle');
 if(_navToggle) _navToggle.addEventListener('click',function(){var mm=document.getElementById('mobileMenu');if(mm){var opening=!mm.classList.contains('open');mm.classList.toggle('open');if(mm.classList.contains('open')){_lockScroll()}else{_unlockScroll()}if(opening){history.pushState({page:'menu'},'','#menu')}else{if(history.state&&history.state.page==='menu')history.back()}}});
 function closeMobile(fromPopstate){var mm=document.getElementById('mobileMenu');if(mm&&mm.classList.contains('open')){mm.classList.remove('open');_unlockScroll();if(!fromPopstate&&history.state&&history.state.page==='menu')history.back()}}
@@ -5859,7 +5864,7 @@ function maybeShowAuthPopup(){
       shown=true;
       showAuthPopup();
     }
-  });
+  }, {passive:true});
 }
 function showAuthPopup(){
   if(_acctLoggedIn) return;
