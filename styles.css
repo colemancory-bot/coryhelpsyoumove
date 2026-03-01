@@ -1245,11 +1245,9 @@ textarea.form-input{resize:vertical;min-height:100px}
 .sr-card-city{font-size:0.55rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold);margin-bottom:0.35rem}
 .sr-card-feats{display:flex;gap:0.65rem;font-size:0.65rem;color:var(--text-muted)}
 .sr-card-feats strong{color:var(--cream);font-weight:500}
-/* Status tag overlay (Under Contract / Pending) on card images */
-.card-status-tag{position:absolute;bottom:0.5rem;right:0.5rem;padding:0.2rem 0.55rem;font-size:0.48rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;background:rgba(160,65,65,0.92);color:#fff;z-index:4;border-radius:2px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
-.card-status-tag~.card-fav-heart{right:auto;left:0.6rem}
-.sr-card-img .card-status-tag{bottom:0.35rem;right:0.35rem;padding:0.15rem 0.4rem;font-size:0.42rem}
-.sr-card-img .card-status-tag~.card-fav-heart{left:0.35rem}
+/* Status tag overlay (Under Contract / Pending) on card images — always bottom-left */
+.card-status-tag{position:absolute;bottom:0.5rem;left:0.6rem;padding:0.2rem 0.55rem;font-size:0.48rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;background:rgba(160,65,65,0.92);color:#fff;z-index:4;border-radius:2px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.sr-card-img .card-status-tag{bottom:0.35rem;left:0.35rem;padding:0.15rem 0.4rem;font-size:0.42rem}
 .card-photo-count{position:absolute;top:0.35rem;right:0.35rem;background:rgba(0,0,0,0.55);backdrop-filter:blur(4px);color:rgba(255,255,255,0.9);font-size:0.5rem;font-weight:500;letter-spacing:0.05em;padding:0.15rem 0.4rem;display:flex;align-items:center;gap:0.25rem;font-family:var(--font-body)}
 .card-photo-count svg{opacity:0.8}
 
