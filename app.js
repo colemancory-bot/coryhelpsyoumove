@@ -2657,11 +2657,11 @@ function openProp(listing, townName) {
   if(_counterEl) {
     _counterEl.classList.remove('loaded');
     if(imgs.length > 1) {
-      _counterEl.textContent = '1 / ' + imgs.length;
+      _setPhotoCounter(_counterEl, '1/' + imgs.length);
     } else if(MLS_GRID.enabled && listing.listingKey) {
-      _counterEl.textContent = '\u2022 \u2022 \u2022';
+      _setPhotoCounter(_counterEl, '\u2022\u2022\u2022');
     } else {
-      _counterEl.textContent = '';
+      _counterEl.innerHTML = '';
     }
   }
 
@@ -2694,7 +2694,7 @@ function openProp(listing, townName) {
         // Update mobile photo counter with pulse animation
         var _ctr = document.getElementById('propHeroCounter');
         if(_ctr) {
-          _ctr.textContent = '1 / ' + allPhotos.length;
+          _setPhotoCounter(_ctr, '1/' + allPhotos.length);
           _ctr.classList.add('loaded');
         }
         // Flash nav arrows briefly on mobile to show they exist
@@ -2706,7 +2706,7 @@ function openProp(listing, townName) {
       } else {
         // No extra photos found
         var _ctr2 = document.getElementById('propHeroCounter');
-        if(_ctr2) _ctr2.textContent = '';
+        if(_ctr2) _ctr2.innerHTML = '';
       }
     });
   }
@@ -3524,7 +3524,7 @@ function propGoTo(idx) {
   }, 250);
   // Update mobile photo counter
   var _ctr = document.getElementById('propHeroCounter');
-  if(_ctr && imgs.length > 1) _ctr.textContent = (idx + 1) + ' / ' + imgs.length;
+  if(_ctr && imgs.length > 1) _setPhotoCounter(_ctr, (idx + 1) + '/' + imgs.length);
   var thumbs = document.querySelectorAll('.prop-thumb');
   thumbs.forEach(function(t, i) { t.classList.toggle('active', i === idx) });
   // Auto-scroll thumbnail strip to keep active thumb visible
@@ -3592,6 +3592,10 @@ document.addEventListener('click', function(e) {
   openLightbox();
 });
 
+
+// ═══ PHOTO COUNTER HELPER ═══
+var _photoSvg = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>';
+function _setPhotoCounter(el, text) { if(el) el.innerHTML = _photoSvg + ' ' + text; }
 
 // ═══ TOUCH SWIPE HELPER ═══
 function addSwipe(el, onLeft, onRight) {
