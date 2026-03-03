@@ -837,6 +837,28 @@ var MLS_GRID = {
     if(s === 'carolina' || s.indexOf('canopy') > -1) return 'Canopy MLS';
     return sys;
   },
+  // USPS standard suffix abbreviations → canonical form for address matching
+  _suffixMap: {
+    'rd':'road','dr':'drive','st':'street','ave':'avenue','blvd':'boulevard',
+    'ct':'court','ln':'lane','cir':'circle','pl':'place','trl':'trail',
+    'pkwy':'parkway','hwy':'highway','rdg':'ridge','xing':'crossing',
+    'ter':'terrace','terr':'terrace','pt':'point','crk':'creek','hl':'hill',
+    'hls':'hills','holw':'hollow','lk':'lake','brg':'bridge','brk':'brook',
+    'est':'estates','gln':'glen','grv':'grove','knl':'knoll','lndg':'landing',
+    'mdw':'meadow','mdws':'meadows','ml':'mill','mls':'mills','mt':'mount',
+    'mtn':'mountain','psge':'passage','rnch':'ranch','spg':'spring',
+    'spgs':'springs','vly':'valley','vw':'view','vis':'vista','run':'run',
+    'frk':'fork','frks':'forks','pass':'pass','cv':'cove','bnd':'bend',
+    'n':'north','s':'south','e':'east','w':'west',
+    'ne':'northeast','nw':'northwest','se':'southeast','sw':'southwest'
+  },
+  // Normalize address for dedup: expand abbreviations, strip punctuation
+  _normalizeAddress: function(addr) {
+    if(!addr) return '';
+    var parts = addr.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/);
+    var map = this._suffixMap;
+    return parts.map(function(w){ return map[w] || w; }).join('');
+  },
   // Merge duplicate listings that appear in both CSAR and Canopy MLS.
   // Match by normalized address+city. The merged listing keeps the data from
   // the version with the most complete info (photo, description, etc.) and
@@ -844,15 +866,39 @@ var MLS_GRID = {
   // Same-system duplicates (e.g. 3 CSAR listings for one property) are
   // collapsed to the newest MLS# only — the older ones are stale relists.
   _deduplicateListings: function(listings) {
+    var self = this;
     var groups = {};
-    listings.forEach(function(l) {
-      // Normalize: lowercase, strip punctuation/whitespace, combine address+city
+    var keyByIdx = {}; // track which key each listing got, for lat/lng fallback
+    listings.forEach(function(l, idx) {
+      // Normalize: expand suffix abbreviations, strip punctuation, combine address+city
       // If address is empty/missing, use mlsId as key so it never groups with others
       var addr = (l.address || '').trim();
-      var key = addr ? (addr + '|' + l.city).toLowerCase().replace(/[^a-z0-9|]/g, '') : ('_mls_' + l.mlsId);
+      var key = addr ? (self._normalizeAddress(addr) + '|' + (l.city||'').toLowerCase().replace(/[^a-z0-9]/g, '')) : ('_mls_' + l.mlsId);
       if(!groups[key]) groups[key] = [];
       groups[key].push(l);
+      keyByIdx[idx] = key;
     });
+
+    // Secondary pass: merge groups whose listings are within ~50m of each other (same property, different address text)
+    var groupKeys = Object.keys(groups);
+    for(var i = 0; i < groupKeys.length; i++) {
+      var gA = groups[groupKeys[i]];
+      if(!gA) continue; // already merged away
+      var aRep = gA[0];
+      if(!aRep.lat || !aRep.lng) continue;
+      for(var j = i + 1; j < groupKeys.length; j++) {
+        var gB = groups[groupKeys[j]];
+        if(!gB) continue;
+        var bRep = gB[0];
+        if(!bRep.lat || !bRep.lng) continue;
+        // Quick distance check: ~0.0005 degrees ≈ 50m at these latitudes
+        if(Math.abs(aRep.lat - bRep.lat) < 0.0005 && Math.abs(aRep.lng - bRep.lng) < 0.0005) {
+          // Merge group B into group A
+          gB.forEach(function(l){ gA.push(l); });
+          delete groups[groupKeys[j]];
+        }
+      }
+    }
     var merged = [];
     Object.keys(groups).forEach(function(key) {
       var group = groups[key];
@@ -896,11 +942,21 @@ var MLS_GRID = {
         primary.mlsSources = bestPerSystem.map(function(l) {
           return { system: MLS_GRID._mlsLabel(l.originatingSystem), mlsId: l.mlsId, attributionContact: l.attributionContact };
         });
-        // If primary lacks a photo but another has one, take it
-        if(!primary.photo) {
-          for(var i = 1; i < bestPerSystem.length; i++) {
-            if(bestPerSystem[i].photo) { primary.photo = bestPerSystem[i].photo; primary.photos = bestPerSystem[i].photos; break; }
-          }
+        // Merge best data from all sources into primary
+        for(var i = 1; i < bestPerSystem.length; i++) {
+          var alt = bestPerSystem[i];
+          // Photo: take from alt if primary has none
+          if(!primary.photo && alt.photo) { primary.photo = alt.photo; primary.photos = alt.photos; }
+          // Days on market: take the MAX (longest = most accurate original list date)
+          if((alt.daysOnMarket || 0) > (primary.daysOnMarket || 0)) primary.daysOnMarket = alt.daysOnMarket;
+          // Sqft: take non-zero, prefer larger (more complete data)
+          if((!primary.sqft || primary.sqft === 0) && alt.sqft > 0) primary.sqft = alt.sqft;
+          // Description: take longer description
+          if((alt.description||'').length > (primary.description||'').length) primary.description = alt.description;
+          // Lat/lng: fill in if primary is missing
+          if(!primary.lat && alt.lat) { primary.lat = alt.lat; primary.lng = alt.lng; }
+          // Year built
+          if(!primary.yearBuilt && alt.yearBuilt) primary.yearBuilt = alt.yearBuilt;
         }
         merged.push(primary);
       }
@@ -1172,14 +1228,11 @@ function _cardFeats(l) {
   return h;
 }
 
-// Helper: format MLS numbers from mlsSources array for display
-// Single source: "MLS# 12345"
-// Dual source:   "CSAR MLS# 12345 | Canopy MLS# 67890"
+// Helper: format MLS number for public display — show primary source only.
+// Dual-listed properties show one MLS# to avoid conflicting info.
+// Admin chips (propAdminMls) still show all sources for Cory's reference.
 function _formatMlsNums(l) {
-  if(l.mlsSources && l.mlsSources.length > 1) {
-    return l.mlsSources.map(function(s) { return s.system + ' MLS# ' + s.mlsId; }).join(' | ');
-  }
-  if(l.mlsSources && l.mlsSources.length === 1) {
+  if(l.mlsSources && l.mlsSources.length >= 1) {
     return 'MLS# ' + l.mlsSources[0].mlsId;
   }
   return l.mlsId ? 'MLS# ' + l.mlsId : '';
@@ -2816,7 +2869,7 @@ function openProp(listing, townName) {
     if(listing.listOffice) parts.push(listing.listOffice);
     if(listing.attributionContact) parts.push(listing.attributionContact);
     var brokerText = parts.join(' \u2022 ');
-    // Show all MLS numbers (dual-source listings get both)
+    // Show primary MLS number only (admin chips show all sources for Cory)
     var mlsNums = _formatMlsNums(listing);
     if(mlsNums) brokerText += ' | ' + mlsNums;
     brokerEl.textContent = brokerText || '';
@@ -2851,7 +2904,7 @@ function openProp(listing, townName) {
       '<div class="prop-stat"><div class="prop-stat-val">' + listing.lot + '</div><div class="prop-stat-label">Total Acreage</div></div>' +
       '<div class="prop-stat"><div class="prop-stat-val">' + (RESTRICT_LABELS[listing.restrictions]||'—').split('—')[0].trim() + '</div><div class="prop-stat-label">Restrictions</div></div>' +
       '<div class="prop-stat"><div class="prop-stat-val">' + (parseFloat(listing.lot) > 0 ? '$' + Math.round(listing.price/parseFloat(listing.lot)).toLocaleString() : '—') + '</div><div class="prop-stat-label">Price Per Acre</div></div>' +
-      '<div class="prop-stat"><div class="prop-stat-val">' + (listing.days||Math.floor(Math.random()*40+5)) + '</div><div class="prop-stat-label">Days on Market</div></div>';
+      '<div class="prop-stat"><div class="prop-stat-val">' + (listing.daysOnMarket || listing.days || '—') + '</div><div class="prop-stat-label">Days on Market</div></div>';
   } else {
     var _hasSqft = (listing.sqft && listing.sqft > 0) || listing.sqftRange;
     var _sqftStat = _hasSqft
@@ -2903,7 +2956,7 @@ function openProp(listing, townName) {
     feats.push({icon:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/>',val:listing.lot,label:'Lot Size'});
     if(listing.yearBuilt){feats.push({icon:'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',val:listing.yearBuilt.toString(),label:'Year Built'});}
     feats.push({icon:'<path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/>',val:RESTRICT_LABELS[listing.restrictions]||'Contact Agent',label:'Restrictions'});
-    feats.push({icon:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',val:(listing.days||Math.floor(Math.random()*40+5))+' days',label:'Days on Market'});
+    feats.push({icon:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',val:(listing.daysOnMarket||listing.days||'—')+' days',label:'Days on Market'});
   } else {
     feats.push({icon:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/>',val:listing.lot,label:'Total Acreage'});
     feats.push({icon:'<path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/>',val:RESTRICT_LABELS[listing.restrictions]||'Unrestricted',label:'Restrictions'});
@@ -6933,39 +6986,51 @@ function buildCorysTake(listing, townName) {
   var homeIcon = '<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M9 22V12h6v10"/></svg>';
   var starIcon = '<svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
 
-  // --- Insight: $/sqft vs area average (homes) ---
+  // --- Insight: $/sqft vs area median (homes) ---
   if(listing.type !== 'Land' && listing.sqft > 0) {
-    var homes = areaListings.filter(function(l){ return l.type !== 'Land' && l.sqft > 0 && l.price > 0; });
+    // Filter to homes with reasonable $/sqft (exclude data errors: tiny sqft, extreme ratios)
+    var homes = areaListings.filter(function(l){
+      if(l.type === 'Land' || l.sqft <= 0 || l.price <= 0) return false;
+      var psf = l.price / l.sqft;
+      return l.sqft >= 200 && psf >= 20 && psf <= 1500; // reasonable WNC range
+    });
     if(homes.length >= 3) {
-      var avgPsf = homes.reduce(function(s,l){ return s + l.price/l.sqft; }, 0) / homes.length;
+      // Use median $/sqft — immune to outliers unlike mean
+      var psfValues = homes.map(function(l){ return l.price / l.sqft; }).sort(function(a,b){ return a - b; });
+      var medianPsf = psfValues[Math.floor(psfValues.length / 2)];
       var thisPsf = listing.price / listing.sqft;
-      var psfDiff = ((thisPsf - avgPsf) / avgPsf * 100);
+      var psfDiff = ((thisPsf - medianPsf) / medianPsf * 100);
       var absDiff = Math.abs(Math.round(psfDiff));
       if(absDiff >= 5) {
         if(psfDiff < 0) {
-          insights.push({ icon: dollarIcon, text: 'Priced at <strong>$'+Math.round(thisPsf)+'/sqft</strong> — <span class="insight-great">'+absDiff+'% below</span> the '+townName+' average of $'+Math.round(avgPsf)+'/sqft. Strong value positioning.' });
+          insights.push({ icon: dollarIcon, text: 'Priced at <strong>$'+Math.round(thisPsf)+'/sqft</strong> — <span class="insight-great">'+absDiff+'% below</span> the '+townName+' median of $'+Math.round(medianPsf)+'/sqft. Strong value positioning.' });
         } else {
-          insights.push({ icon: dollarIcon, text: 'At <strong>$'+Math.round(thisPsf)+'/sqft</strong>, this property reflects <span class="insight-note">premium quality</span> for '+townName+' (avg $'+Math.round(avgPsf)+'/sqft) — often indicative of superior finishes or setting.' });
+          insights.push({ icon: dollarIcon, text: 'At <strong>$'+Math.round(thisPsf)+'/sqft</strong>, this property reflects <span class="insight-note">premium quality</span> for '+townName+' (median $'+Math.round(medianPsf)+'/sqft) — often indicative of superior finishes or setting.' });
         }
       }
     }
   }
 
-  // --- Insight: $/acre vs area average (land) ---
+  // --- Insight: $/acre vs area median (land) ---
   if(listing.type === 'Land' && listing.lot) {
     var acres = parseFloat(listing.lot);
     if(acres > 0) {
-      var lands = areaListings.filter(function(l){ return l.type === 'Land' && l.lot && parseFloat(l.lot) > 0 && l.price > 0; });
+      var lands = areaListings.filter(function(l){
+        if(l.type !== 'Land' || !l.lot || l.price <= 0) return false;
+        var la = parseFloat(l.lot);
+        return la > 0 && l.price / la >= 500 && l.price / la <= 5000000; // reasonable range
+      });
       if(lands.length >= 2) {
-        var avgPpa = lands.reduce(function(s,l){ return s + l.price/parseFloat(l.lot); }, 0) / lands.length;
+        var ppaValues = lands.map(function(l){ return l.price / parseFloat(l.lot); }).sort(function(a,b){ return a - b; });
+        var medianPpa = ppaValues[Math.floor(ppaValues.length / 2)];
         var thisPpa = listing.price / acres;
-        var ppaDiff = ((thisPpa - avgPpa) / avgPpa * 100);
+        var ppaDiff = ((thisPpa - medianPpa) / medianPpa * 100);
         var absPpaDiff = Math.abs(Math.round(ppaDiff));
         if(absPpaDiff >= 8) {
           if(ppaDiff < 0) {
-            insights.push({ icon: lotIcon, text: 'At <strong>$'+Math.round(thisPpa).toLocaleString()+'/acre</strong>, this parcel is <span class="insight-great">'+absPpaDiff+'% below</span> the '+townName+' average of $'+Math.round(avgPpa).toLocaleString()+'/acre — excellent value for the area.' });
+            insights.push({ icon: lotIcon, text: 'At <strong>$'+Math.round(thisPpa).toLocaleString()+'/acre</strong>, this parcel is <span class="insight-great">'+absPpaDiff+'% below</span> the '+townName+' median of $'+Math.round(medianPpa).toLocaleString()+'/acre — excellent value for the area.' });
           } else {
-            insights.push({ icon: lotIcon, text: 'At <strong>$'+Math.round(thisPpa).toLocaleString()+'/acre</strong>, this parcel commands a <span class="insight-note">premium</span> over the area average — often reflecting views, access, or desirable topography.' });
+            insights.push({ icon: lotIcon, text: 'At <strong>$'+Math.round(thisPpa).toLocaleString()+'/acre</strong>, this parcel commands a <span class="insight-note">premium</span> over the area median — often reflecting views, access, or desirable topography.' });
           }
         }
       }
@@ -6975,15 +7040,16 @@ function buildCorysTake(listing, townName) {
   // --- Insight: Days on market ---
   var dom = listing.daysOnMarket || listing.days || 0;
   if(dom > 0) {
-    var listingsWithDom = areaListings.filter(function(l){ return (l.daysOnMarket || 0) > 0; });
+    var listingsWithDom = areaListings.filter(function(l){ var d = l.daysOnMarket || 0; return d > 0 && d < 730; }); // exclude stale >2yr
     if(listingsWithDom.length >= 3) {
-      var avgDom = listingsWithDom.reduce(function(s,l){ return s + (l.daysOnMarket||0); }, 0) / listingsWithDom.length;
-      if(dom < avgDom * 0.6) {
-        insights.push({ icon: clockIcon, text: 'Only <strong>'+dom+' days on market</strong> — well below the '+townName+' average of '+Math.round(avgDom)+' days. <span class="insight-note">Fresh listing generating early interest.</span>' });
-      } else if(dom > avgDom * 1.5 && dom > 30) {
-        insights.push({ icon: clockIcon, text: 'At <strong>'+dom+' days on market</strong> ('+townName+' avg: '+Math.round(avgDom)+'), <span class="insight-great">this listing may present a strong negotiation opportunity.</span>' });
+      var domValues = listingsWithDom.map(function(l){ return l.daysOnMarket; }).sort(function(a,b){ return a - b; });
+      var medianDom = domValues[Math.floor(domValues.length / 2)];
+      if(dom < medianDom * 0.6) {
+        insights.push({ icon: clockIcon, text: 'Only <strong>'+dom+' days on market</strong> — well below the '+townName+' median of '+Math.round(medianDom)+' days. <span class="insight-note">Fresh listing generating early interest.</span>' });
+      } else if(dom > medianDom * 1.5 && dom > 30) {
+        insights.push({ icon: clockIcon, text: 'At <strong>'+dom+' days on market</strong> ('+townName+' median: '+Math.round(medianDom)+'), <span class="insight-great">this listing may present a strong negotiation opportunity.</span>' });
       } else {
-        insights.push({ icon: clockIcon, text: 'At <strong>'+dom+' days on market</strong>, this property is tracking near the '+townName+' average of '+Math.round(avgDom)+' days — healthy market activity.' });
+        insights.push({ icon: clockIcon, text: 'At <strong>'+dom+' days on market</strong>, this property is tracking near the '+townName+' median of '+Math.round(medianDom)+' days — healthy market activity.' });
       }
     }
   }
@@ -7012,9 +7078,10 @@ function buildCorysTake(listing, townName) {
     if(thisAcres > 0) {
       var sameTypeWithLot = areaListings.filter(function(l){ return l.lot && parseFloat(l.lot) > 0 && l.type === listing.type; });
       if(sameTypeWithLot.length >= 3) {
-        var avgLot = sameTypeWithLot.reduce(function(s,l){ return s + parseFloat(l.lot); }, 0) / sameTypeWithLot.length;
-        if(thisAcres > avgLot * 1.5 && thisAcres - avgLot > 0.5) {
-          insights.push({ icon: lotIcon, text: '<strong>'+listing.lot+'</strong> — <span class="insight-great">significantly more land</span> than the '+townName+' average of '+avgLot.toFixed(1)+' acres for this property type. Great for privacy and outdoor space.' });
+        var lotValues = sameTypeWithLot.map(function(l){ return parseFloat(l.lot); }).sort(function(a,b){ return a - b; });
+        var medianLot = lotValues[Math.floor(lotValues.length / 2)];
+        if(thisAcres > medianLot * 1.5 && thisAcres - medianLot > 0.5) {
+          insights.push({ icon: lotIcon, text: '<strong>'+listing.lot+'</strong> — <span class="insight-great">significantly more land</span> than the '+townName+' median of '+medianLot.toFixed(1)+' acres for this property type. Great for privacy and outdoor space.' });
         }
       }
     }
