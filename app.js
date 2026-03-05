@@ -795,7 +795,16 @@ var MLS_GRID = {
     var lotAc = row.lot_size_acres ? parseFloat(row.lot_size_acres).toFixed(2)+' ac' :
                 row.lot_size_square_feet ? (parseFloat(row.lot_size_square_feet)/43560).toFixed(2)+' ac' : '';
     var restrict = 'unrestricted';
-    if(row.association_fee && parseFloat(row.association_fee) > 0) restrict = 'hoa';
+    var _rawRestrictions = row.restrictions || [];
+    var _meaningfulRestrictions = _rawRestrictions.filter(function(r) {
+        var v = (r || '').trim().toLowerCase();
+        return v && v !== 'no' && v !== 'none' && v !== 'no restrictions';
+    });
+    if(_meaningfulRestrictions.length > 0) {
+        restrict = 'hoa';
+    } else if(row.association_fee && parseFloat(row.association_fee) > 0) {
+        restrict = 'hoa';
+    }
     var status = row.standard_status || 'Active';
     if(status.toLowerCase().indexOf('pending')>-1 || status.toLowerCase().indexOf('contract')>-1) status = 'Under Contract';
     if(status.toLowerCase().indexOf('closed')>-1) status = 'Sold';
@@ -814,6 +823,7 @@ var MLS_GRID = {
       lot: lotAc,
       status: status,
       restrictions: restrict,
+      restrictionsList: _meaningfulRestrictions,
       photo: null, // Set from media query
       photos: [],
       lat: row.latitude && parseFloat(row.latitude) > 34.8 && parseFloat(row.latitude) < 36.0 ? parseFloat(row.latitude) : null,
@@ -851,6 +861,20 @@ var MLS_GRID = {
     'frk':'fork','frks':'forks','pass':'pass','cv':'cove','bnd':'bend',
     'n':'north','s':'south','e':'east','w':'west',
     'ne':'northeast','nw':'northwest','se':'southeast','sw':'southwest'
+  },
+  // Data quality score for dedup ranking: higher = more complete listing data
+  _qualityScore: function(l) {
+    var score = 0;
+    if(l.photo) score += 100;
+    if(l.sqft && l.sqft > 0) score += 10;
+    if(l.lat && l.lng) score += 15;
+    var descLen = (l.description || '').length;
+    if(descLen > 200) score += 20;
+    else if(descLen > 50) score += 10;
+    else if(descLen > 0) score += 3;
+    if(l.yearBuilt) score += 5;
+    if(l.lot && l.lot !== '0.00 ac') score += 5;
+    return score;
   },
   // Normalize address for dedup: expand abbreviations, strip punctuation
   _normalizeAddress: function(addr) {
@@ -925,39 +949,26 @@ var MLS_GRID = {
             var aId = parseInt(a.mlsId) || 0;
             var bId = parseInt(b.mlsId) || 0;
             if(bId !== aId) return bId - aId;
-            // Tiebreak: prefer one with photo/description
-            var aScore = (a.photo ? 100 : 0) + (a.description ? 10 : 0) + (a.sqft ? 1 : 0);
-            var bScore = (b.photo ? 100 : 0) + (b.description ? 10 : 0) + (b.sqft ? 1 : 0);
+            // Tiebreak: prefer one with better data quality
+            var aScore = MLS_GRID._qualityScore(a);
+            var bScore = MLS_GRID._qualityScore(b);
             return bScore - aScore;
           });
           bestPerSystem.push(sysGroup[0]); // newest from this system
         });
-        // Now pick the best across systems as primary
+        // Now pick the best across systems as primary (winner-takes-all)
         bestPerSystem.sort(function(a, b) {
-          var aScore = (a.photo ? 100 : 0) + (a.description ? 10 : 0) + (a.sqft ? 1 : 0);
-          var bScore = (b.photo ? 100 : 0) + (b.description ? 10 : 0) + (b.sqft ? 1 : 0);
+          var aScore = MLS_GRID._qualityScore(a);
+          var bScore = MLS_GRID._qualityScore(b);
           return bScore - aScore;
         });
         var primary = bestPerSystem[0];
+        // Build mlsSources array: winner first, then alternates
         primary.mlsSources = bestPerSystem.map(function(l) {
           return { system: MLS_GRID._mlsLabel(l.originatingSystem), mlsId: l.mlsId, attributionContact: l.attributionContact };
         });
-        // Merge best data from all sources into primary
-        for(var i = 1; i < bestPerSystem.length; i++) {
-          var alt = bestPerSystem[i];
-          // Photo: take from alt if primary has none
-          if(!primary.photo && alt.photo) { primary.photo = alt.photo; primary.photos = alt.photos; }
-          // Days on market: take the MAX (longest = most accurate original list date)
-          if((alt.daysOnMarket || 0) > (primary.daysOnMarket || 0)) primary.daysOnMarket = alt.daysOnMarket;
-          // Sqft: take non-zero, prefer larger (more complete data)
-          if((!primary.sqft || primary.sqft === 0) && alt.sqft > 0) primary.sqft = alt.sqft;
-          // Description: take longer description
-          if((alt.description||'').length > (primary.description||'').length) primary.description = alt.description;
-          // Lat/lng: fill in if primary is missing
-          if(!primary.lat && alt.lat) { primary.lat = alt.lat; primary.lng = alt.lng; }
-          // Year built
-          if(!primary.yearBuilt && alt.yearBuilt) primary.yearBuilt = alt.yearBuilt;
-        }
+        // Winner-takes-all: NO field-level merging from secondary sources.
+        // All displayed data comes from the winning MLS (highest quality score).
         merged.push(primary);
       }
     });
@@ -1001,7 +1012,7 @@ var MLS_GRID = {
       'listing_id,listing_key,list_price,full_address,city,property_type,property_sub_type,' +
       'bedrooms_total,bathrooms_total_integer,living_area,living_area_range,lot_size_acres,lot_size_square_feet,' +
       'standard_status,association_fee,latitude,longitude,year_built,days_on_market,' +
-      'public_remarks,list_agent_full_name,list_office_name,list_office_phone,attribution_contact,originating_system_name', [
+      'public_remarks,list_agent_full_name,list_office_name,list_office_phone,attribution_contact,originating_system_name,restrictions', [
       { method: 'eq', args: ['mlg_can_view', true] },
       { method: 'in', args: ['standard_status', ['Active','Active Under Contract','Pending']] },
       { method: 'neq', args: ['property_type', 'Residential Lease'] }
@@ -1233,7 +1244,8 @@ function _cardFeats(l) {
 // Admin chips (propAdminMls) still show all sources for Cory's reference.
 function _formatMlsNums(l) {
   if(l.mlsSources && l.mlsSources.length >= 1) {
-    return 'MLS# ' + l.mlsSources[0].mlsId;
+    var primary = l.mlsSources[0];
+    return 'MLS# ' + primary.mlsId + ' (' + (primary.system || 'MLS') + ')';
   }
   return l.mlsId ? 'MLS# ' + l.mlsId : '';
 }
@@ -2869,10 +2881,17 @@ function openProp(listing, townName) {
     if(listing.listOffice) parts.push(listing.listOffice);
     if(listing.attributionContact) parts.push(listing.attributionContact);
     var brokerText = parts.join(' \u2022 ');
-    // Show primary MLS number only (admin chips show all sources for Cory)
+    // Show winning MLS with system name
     var mlsNums = _formatMlsNums(listing);
     if(mlsNums) brokerText += ' | ' + mlsNums;
-    brokerEl.textContent = brokerText || '';
+    // Add "Also listed in" for secondary sources (Zillow-style)
+    if(listing.mlsSources && listing.mlsSources.length > 1) {
+      var alsoIn = listing.mlsSources.slice(1).map(function(s) {
+        return s.system + ' (MLS# ' + s.mlsId + ')';
+      }).join(', ');
+      brokerText += '\nAlso listed in ' + alsoIn;
+    }
+    brokerEl.innerHTML = (brokerText || '').replace(/\n/g, '<br>');
     brokerEl.style.display = brokerText ? '' : 'none';
   }
 
