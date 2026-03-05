@@ -829,7 +829,8 @@ var MLS_GRID = {
       lat: row.latitude && parseFloat(row.latitude) > 34.8 && parseFloat(row.latitude) < 36.0 ? parseFloat(row.latitude) : null,
       lng: row.longitude && parseFloat(row.longitude) > -84.5 && parseFloat(row.longitude) < -82.5 ? parseFloat(row.longitude) : null,
       yearBuilt: row.year_built,
-      daysOnMarket: row.days_on_market || 0,
+      listDate: row.list_date || null,
+      daysOnMarket: row.list_date ? Math.max(0, Math.floor((Date.now() - new Date(row.list_date+'T00:00:00').getTime()) / 86400000)) : (row.days_on_market || 0),
       description: row.public_remarks || '',
       listAgent: row.list_agent_full_name || '',
       listOffice: row.list_office_name || '',
@@ -967,8 +968,20 @@ var MLS_GRID = {
         primary.mlsSources = bestPerSystem.map(function(l) {
           return { system: MLS_GRID._mlsLabel(l.originatingSystem), mlsId: l.mlsId, attributionContact: l.attributionContact };
         });
-        // Winner-takes-all: NO field-level merging from secondary sources.
-        // All displayed data comes from the winning MLS (highest quality score).
+        // Winner-takes-all with gap-fill: primary source controls all data,
+        // but if a field is completely missing (null/0/empty), fill from secondary.
+        if(bestPerSystem.length > 1) {
+          for(var si = 1; si < bestPerSystem.length; si++) {
+            var sec = bestPerSystem[si];
+            if(!primary.sqft && sec.sqft) primary.sqft = sec.sqft;
+            if(!primary.sqftRange && sec.sqftRange) primary.sqftRange = sec.sqftRange;
+            if((!primary.lot || primary.lot === '0.00 ac') && sec.lot && sec.lot !== '0.00 ac') primary.lot = sec.lot;
+            if(!primary.yearBuilt && sec.yearBuilt) primary.yearBuilt = sec.yearBuilt;
+            if(!primary.description && sec.description) primary.description = sec.description;
+            if(!primary.lat && sec.lat) { primary.lat = sec.lat; primary.lng = sec.lng; }
+            if(!primary.photo && sec.photo) { primary.photo = sec.photo; primary.photos = sec.photos; }
+          }
+        }
         merged.push(primary);
       }
     });
@@ -1012,7 +1025,7 @@ var MLS_GRID = {
       'listing_id,listing_key,list_price,full_address,city,property_type,property_sub_type,' +
       'bedrooms_total,bathrooms_total_integer,living_area,living_area_range,lot_size_acres,lot_size_square_feet,' +
       'standard_status,association_fee,latitude,longitude,year_built,days_on_market,' +
-      'public_remarks,list_agent_full_name,list_office_name,list_office_phone,attribution_contact,originating_system_name,restrictions', [
+      'public_remarks,list_agent_full_name,list_office_name,list_office_phone,attribution_contact,originating_system_name,restrictions,list_date', [
       { method: 'eq', args: ['mlg_can_view', true] },
       { method: 'in', args: ['standard_status', ['Active','Active Under Contract','Pending']] },
       { method: 'neq', args: ['property_type', 'Residential Lease'] }
@@ -1086,7 +1099,7 @@ var MLS_GRID = {
             beds:l.beds, baths:l.baths, sqft:l.sqft, sqftRange:l.sqftRange||'', lot:l.lot,
             photo:l.photo, photos:l.photos, days:l.daysOnMarket,
             mlsId:l.mlsId, restrictions:l.restrictions, status:l.status,
-            listingKey:l.listingKey,
+            listingKey:l.listingKey, listDate:l.listDate,
             listAgent:l.listAgent, listOffice:l.listOffice, listOfficePhone:l.listOfficePhone,
             attributionContact:l.attributionContact,
             originatingSystem:l.originatingSystem, mlsSources:l.mlsSources
@@ -1102,7 +1115,7 @@ var MLS_GRID = {
             photo:l.photo, photos:l.photos, status:l.status,
             restrictions:l.restrictions, _src:'mlsgrid',
             lat:l.lat, lng:l.lng, mlsId:l.mlsId, description:l.description,
-            daysOnMarket:l.daysOnMarket, listingKey:l.listingKey,
+            daysOnMarket:l.daysOnMarket, listDate:l.listDate, listingKey:l.listingKey,
             listAgent:l.listAgent, listOffice:l.listOffice, listOfficePhone:l.listOfficePhone,
             attributionContact:l.attributionContact,
             originatingSystem:l.originatingSystem, mlsSources:l.mlsSources
@@ -1117,7 +1130,7 @@ var MLS_GRID = {
               price:l.price, address:l.address, city:l.city, type:l.type,
               beds:l.beds, baths:l.baths, sqft:l.sqft, sqftRange:l.sqftRange||'', lot:l.lot,
               photo:l.photo, status:l.status, restrictions:l.restrictions,
-              lat:l.lat, lng:l.lng, mlsId:l.mlsId, daysOnMarket:l.daysOnMarket,
+              lat:l.lat, lng:l.lng, mlsId:l.mlsId, daysOnMarket:l.daysOnMarket, listDate:l.listDate,
               listingKey:l.listingKey, listAgent:l.listAgent, listOffice:l.listOffice,
               originatingSystem:l.originatingSystem, _src:'mlsgrid'
             };
@@ -2975,7 +2988,8 @@ function openProp(listing, townName) {
     feats.push({icon:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/>',val:listing.lot,label:'Lot Size'});
     if(listing.yearBuilt){feats.push({icon:'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',val:listing.yearBuilt.toString(),label:'Year Built'});}
     feats.push({icon:'<path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/>',val:RESTRICT_LABELS[listing.restrictions]||'Contact Agent',label:'Restrictions'});
-    feats.push({icon:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',val:(listing.daysOnMarket||listing.days||'—')+' days',label:'Days on Market'});
+    var _dom = listing.daysOnMarket||listing.days||'—';
+    feats.push({icon:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',val:_dom+(_dom===1?' day':' days'),label:'Days on Market'});
   } else {
     feats.push({icon:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/>',val:listing.lot,label:'Total Acreage'});
     feats.push({icon:'<path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/>',val:RESTRICT_LABELS[listing.restrictions]||'Unrestricted',label:'Restrictions'});
@@ -8106,7 +8120,11 @@ if(MLS_GRID.enabled) {
     var _cached = JSON.parse(localStorage.getItem('cc_listings_cache'));
     if(_cached && _cached.listings && _cached.listings.length > 0) {
       ALL_LISTINGS.length = 0;
-      _cached.listings.forEach(function(l){ ALL_LISTINGS.push(l); });
+      _cached.listings.forEach(function(l){
+        // Recalculate DOM from list_date so it stays fresh across cache loads
+        if(l.listDate) l.daysOnMarket = Math.max(0, Math.floor((Date.now() - new Date(l.listDate+'T00:00:00').getTime()) / 86400000));
+        ALL_LISTINGS.push(l);
+      });
       // Rebuild TOWN_LISTINGS from cache
       var _cachedTowns = {};
       ALL_LISTINGS.forEach(function(l){
