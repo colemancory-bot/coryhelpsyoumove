@@ -2855,10 +2855,10 @@ function openProp(listing, townName) {
         return aIsCsar - bIsCsar;
       });
       _sortedSources.forEach(function(s) {
-        if(s.mlsId) _mlsChips.push({label: 'MLS# ' + s.mlsId, value: s.mlsId});
+        if(s.mlsId) _mlsChips.push({label: (s.system || 'MLS') + ' # ' + s.mlsId, value: s.mlsId.replace(/[^0-9]/g, '')});
       });
     } else if(listing.mlsId) {
-      _mlsChips.push({label: 'MLS# ' + listing.mlsId, value: listing.mlsId});
+      _mlsChips.push({label: 'MLS# ' + listing.mlsId, value: listing.mlsId.replace(/[^0-9]/g, '')});
     }
     if(_adminMlsEl) {
       _adminMlsEl.innerHTML = '';
@@ -3136,14 +3136,28 @@ function openProp(listing, townName) {
 
         var html = '';
 
-        // ── Copy MLS # button at top of admin panel ──
-        var _mlsNum = r.ListingId || d.listing_id || '';
-        if(_mlsNum) {
-          var _mlsDisplay = 'R' + _mlsNum + 'A';
-          html += '<div class="admin-mls-copy">' +
-            '<button class="admin-mls-btn" onclick="navigator.clipboard.writeText(\'' + _mlsDisplay + '\').then(function(){var b=this;b.textContent=\'Copied!\';setTimeout(function(){b.innerHTML=\'<svg viewBox=&quot;0 0 24 24&quot; width=&quot;14&quot; height=&quot;14&quot;><rect x=&quot;9&quot; y=&quot;9&quot; width=&quot;13&quot; height=&quot;13&quot; rx=&quot;2&quot; ry=&quot;2&quot;/><path d=&quot;M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1&quot;/></svg> MLS# ' + _mlsDisplay + '\'},1200)}.bind(this))">' +
-            '<svg viewBox="0 0 24 24" width="14" height="14"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> MLS# ' + _mlsDisplay +
-            '</button></div>';
+        // ── Copy MLS # buttons at top of admin panel (all sources) ──
+        var _adminSources = [];
+        if(listing.mlsSources && listing.mlsSources.length) {
+          listing.mlsSources.slice().sort(function(a, b) {
+            var aIsCsar = (a.system || '').indexOf('CSAR') > -1 ? 0 : 1;
+            var bIsCsar = (b.system || '').indexOf('CSAR') > -1 ? 0 : 1;
+            return aIsCsar - bIsCsar;
+          }).forEach(function(s) {
+            if(s.mlsId) _adminSources.push({label: (s.system || 'MLS') + ' # ' + s.mlsId, value: s.mlsId.replace(/[^0-9]/g, '')});
+          });
+        } else {
+          var _mlsNum = r.ListingId || d.listing_id || '';
+          if(_mlsNum) _adminSources.push({label: 'MLS# ' + _mlsNum, value: _mlsNum.replace(/[^0-9]/g, '')});
+        }
+        if(_adminSources.length) {
+          html += '<div class="admin-mls-copy">';
+          _adminSources.forEach(function(src) {
+            html += '<button class="admin-mls-btn" onclick="navigator.clipboard.writeText(\'' + src.value + '\').then(function(){var b=this;b.textContent=\'Copied!\';setTimeout(function(){b.innerHTML=\'<svg viewBox=&quot;0 0 24 24&quot; width=&quot;14&quot; height=&quot;14&quot;><rect x=&quot;9&quot; y=&quot;9&quot; width=&quot;13&quot; height=&quot;13&quot; rx=&quot;2&quot; ry=&quot;2&quot;/><path d=&quot;M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1&quot;/></svg> ' + src.label.replace(/'/g, "\\'") + '\'},1200)}.bind(this))">' +
+              '<svg viewBox="0 0 24 24" width="14" height="14"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> ' + src.label +
+              '</button>';
+          });
+          html += '</div>';
         }
 
         // ── 1. Agent Remarks & Showing (always open) ──
