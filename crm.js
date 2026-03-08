@@ -1933,15 +1933,12 @@ async function cmaSearchSubject(query) {
   var results = document.getElementById('cmaSubjectResults');
   if (!query || query.length < 2) { results.innerHTML = ''; return; }
   try {
-    // Build fuzzy search: split query into words, each word must match somewhere in address
-    var words = query.toLowerCase().split(/\s+/).filter(function(w) { return w.length > 0; });
-    // Build ilike filter for each word against full_address
-    var filters = words.map(function(w) { return 'full_address.ilike.*' + w + '*'; });
-    // Also allow MLS# search
-    var orFilter = filters.join(',') + ',listing_id.ilike.*' + query + '*';
+    // Build fuzzy search: join words with wildcards so all must appear in order
+    var words = query.trim().split(/\s+/).filter(function(w) { return w.length > 0; });
+    var pattern = '*' + words.join('*') + '*';
     var resp = await _sb.from('mls_listings')
       .select('listing_key, full_address, city, county_or_parish, property_type, living_area, lot_size_acres, bedrooms_total, bathrooms_total_integer, year_built, list_price, close_price, close_date, standard_status, latitude, longitude, garage_spaces, property_sub_type, stories, public_remarks')
-      .or(orFilter)
+      .or('full_address.ilike.' + pattern + ',listing_id.ilike.*' + query.trim() + '*')
       .order('modification_timestamp', { ascending: false })
       .limit(10);
     if (resp.error) { console.error('[CMA] Search error:', resp.error); results.innerHTML = '<div class="cma-search-empty">Search error: ' + esc(resp.error.message) + '</div>'; return; }
