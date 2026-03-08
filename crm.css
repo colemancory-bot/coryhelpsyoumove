@@ -1010,6 +1010,10 @@ a:hover { color: var(--crm-accent-light); }
 .cma-manual-form { margin-top: 1rem; padding: 1.2rem; background: var(--crm-bg-surface); border: 1px solid var(--crm-border); border-radius: 8px; }
 .cma-manual-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem; }
 .cma-manual-full { grid-column: 1 / -1; }
+.cma-county-lookup { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; align-items: center; }
+.cma-man-source-wrap { margin-bottom: 0.5rem; }
+.cma-man-source { font-size: 0.75rem; color: var(--crm-accent); background: var(--crm-accent-bg); padding: 0.25rem 0.6rem; border-radius: 4px; }
+.cma-notes-input { resize: vertical; min-height: 2.5rem; font-size: 0.85rem; }
 .cma-status-badge { font-size: 0.6rem; padding: 0.1rem 0.35rem; border-radius: 3px; font-weight: 600; text-transform: uppercase; }
 .cma-status-active { background: var(--crm-green-bg); color: var(--crm-green); }
 .cma-status-closed { background: var(--crm-text-muted); color: white; opacity: 0.7; }
