@@ -1770,9 +1770,27 @@ function cmaRenderStep1() {
   html += cmaStepIndicator(1);
   html += '<div class="cma-step-content">';
   html += '<h3 class="cma-step-title">Select Subject Property</h3>';
-  html += '<p class="cma-step-desc">Search for the property you want to price</p>';
+  html += '<p class="cma-step-desc">Search your MLS listings or enter property details manually</p>';
   html += '<div class="cma-search-wrap"><input class="crm-input cma-search-input" id="cmaSubjectSearch" placeholder="Search by address or MLS #..." autocomplete="off" />';
   html += '<div class="cma-search-results" id="cmaSubjectResults"></div></div>';
+  html += '<div class="cma-manual-toggle"><button class="crm-btn crm-btn-secondary cma-manual-btn" onclick="cmaShowManualEntry()">Property not in MLS? Enter manually</button></div>';
+  html += '<div class="cma-manual-form" id="cmaManualForm" style="display:none">';
+  html += '<div class="cma-manual-grid">';
+  html += '<div class="crm-form-group cma-manual-full"><label class="crm-form-label">Street Address *</label><input class="crm-input" id="cmaManAddr" placeholder="35 Coweeta Ridge Rd" /></div>';
+  html += '<div class="crm-form-group"><label class="crm-form-label">City *</label><input class="crm-input" id="cmaManCity" placeholder="Franklin" /></div>';
+  html += '<div class="crm-form-group"><label class="crm-form-label">County</label><input class="crm-input" id="cmaManCounty" placeholder="Macon" /></div>';
+  html += '<div class="crm-form-group"><label class="crm-form-label">Property Type</label><select class="crm-select" id="cmaManType"><option value="Residential">Residential</option><option value="Land">Land</option><option value="Residential Income">Multi-Family</option><option value="Commercial">Commercial</option></select></div>';
+  html += '<div class="crm-form-group"><label class="crm-form-label">Subtype</label><select class="crm-select" id="cmaManSubtype"><option value="Single Family Residence">Single Family</option><option value="Cabin">Cabin</option><option value="Manufactured Home">Manufactured</option><option value="Condo">Condo</option><option value="Townhouse">Townhouse</option><option value="">Other</option></select></div>';
+  html += '<div class="crm-form-group"><label class="crm-form-label">Living Area (sqft)</label><input class="crm-input" id="cmaManSqft" type="number" placeholder="1800" /></div>';
+  html += '<div class="crm-form-group"><label class="crm-form-label">Lot Size (acres)</label><input class="crm-input" id="cmaManLot" type="number" step="0.01" placeholder="1.5" /></div>';
+  html += '<div class="crm-form-group"><label class="crm-form-label">Bedrooms</label><input class="crm-input" id="cmaManBeds" type="number" placeholder="3" /></div>';
+  html += '<div class="crm-form-group"><label class="crm-form-label">Bathrooms</label><input class="crm-input" id="cmaManBaths" type="number" step="0.5" placeholder="2" /></div>';
+  html += '<div class="crm-form-group"><label class="crm-form-label">Year Built</label><input class="crm-input" id="cmaManYear" type="number" placeholder="2005" /></div>';
+  html += '<div class="crm-form-group"><label class="crm-form-label">Garage Spaces</label><input class="crm-input" id="cmaManGarage" type="number" placeholder="0" /></div>';
+  html += '<div class="crm-form-group"><label class="crm-form-label">List/Ask Price</label><input class="crm-input" id="cmaManPrice" type="number" step="1000" placeholder="350000" /></div>';
+  html += '</div>';
+  html += '<div class="cma-step-actions"><button class="crm-btn crm-btn-secondary" onclick="cmaHideManualEntry()">Cancel</button><button class="crm-btn crm-btn-primary" onclick="cmaSubmitManual()">Use This Property</button></div>';
+  html += '</div>';
   if (_cmaState.subject) {
     html += cmaSubjectCard(_cmaState.subject);
     html += '<div class="cma-step-actions"><button class="crm-btn crm-btn-primary" onclick="cmaGoStep2()">Continue to Comp Selection</button></div>';
@@ -1787,6 +1805,47 @@ function cmaRenderStep1() {
     debounce = setTimeout(function() { cmaSearchSubject(searchInput.value.trim()); }, 300);
   });
   searchInput.focus();
+}
+
+function cmaShowManualEntry() {
+  var form = document.getElementById('cmaManualForm');
+  if (form) form.style.display = 'block';
+  var toggle = document.querySelector('.cma-manual-toggle');
+  if (toggle) toggle.style.display = 'none';
+}
+
+function cmaHideManualEntry() {
+  var form = document.getElementById('cmaManualForm');
+  if (form) form.style.display = 'none';
+  var toggle = document.querySelector('.cma-manual-toggle');
+  if (toggle) toggle.style.display = 'block';
+}
+
+function cmaSubmitManual() {
+  var addr = (document.getElementById('cmaManAddr').value || '').trim();
+  var city = (document.getElementById('cmaManCity').value || '').trim();
+  if (!addr || !city) { toast('Address and city are required', 'error'); return; }
+  var listing = {
+    listing_key: 'manual_' + Date.now(),
+    full_address: addr,
+    city: city,
+    county_or_parish: (document.getElementById('cmaManCounty').value || '').trim(),
+    property_type: document.getElementById('cmaManType').value || 'Residential',
+    property_sub_type: document.getElementById('cmaManSubtype').value || '',
+    living_area: parseInt(document.getElementById('cmaManSqft').value) || null,
+    lot_size_acres: parseFloat(document.getElementById('cmaManLot').value) || null,
+    bedrooms_total: parseInt(document.getElementById('cmaManBeds').value) || null,
+    bathrooms_total_integer: parseInt(document.getElementById('cmaManBaths').value) || null,
+    year_built: parseInt(document.getElementById('cmaManYear').value) || null,
+    garage_spaces: parseInt(document.getElementById('cmaManGarage').value) || 0,
+    list_price: parseInt(document.getElementById('cmaManPrice').value) || null,
+    standard_status: 'Off Market',
+    latitude: null,
+    longitude: null
+  };
+  _cmaState.subject = { listing: listing, features: {} };
+  toast('Subject property set', 'success');
+  cmaRenderStep1();
 }
 
 async function cmaSearchSubject(query) {
@@ -1869,7 +1928,22 @@ async function cmaGoStep2() {
   var main = document.getElementById('crmMain');
   main.innerHTML = '<div class="cma-wizard">' + cmaStepIndicator(2) + '<div class="cma-step-content"><div class="crm-loading"><div class="crm-spinner"></div><p>Finding comparable sales...</p></div></div></div>';
 
-  var result = await cmaFetch('find-comps', { listing_key: _cmaState.subject.listing.listing_key });
+  var isManual = (_cmaState.subject.listing.listing_key || '').startsWith('manual_');
+  var result;
+  if (isManual) {
+    // Manual entry: search by county/city/type since we have no listing_key in DB
+    result = await cmaFetch('find-comps', {
+      listing_key: null,
+      manual_subject: _cmaState.subject.listing,
+      filters: {
+        county: _cmaState.subject.listing.county_or_parish || null,
+        property_type: _cmaState.subject.listing.property_type || null,
+        max_distance_miles: 15
+      }
+    });
+  } else {
+    result = await cmaFetch('find-comps', { listing_key: _cmaState.subject.listing.listing_key });
+  }
   if (result.error) { toast('Error finding comps: ' + result.error, 'error'); return; }
 
   _cmaState.comps = (result.comps || []).map(function(c) {

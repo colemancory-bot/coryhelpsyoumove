@@ -828,29 +828,45 @@ Deno.serve(async (req: Request) => {
     // ═══ ACTION: find-comps ═══
     if (action === "find-comps") {
       const listingKey = body.listing_key;
+      const manualSubject = body.manual_subject;
       const filters = body.filters || {};
 
-      // Fetch subject listing
-      const { data: subject, error: subErr } = await sb
-        .from("mls_listings")
-        .select("*")
-        .eq("listing_key", listingKey)
-        .maybeSingle();
+      let subject: Record<string, unknown>;
+      let subjectTags: Record<string, unknown> | null = null;
 
-      if (subErr || !subject) {
+      if (listingKey) {
+        // Fetch from database
+        const { data: dbSubject, error: subErr } = await sb
+          .from("mls_listings")
+          .select("*")
+          .eq("listing_key", listingKey)
+          .maybeSingle();
+
+        if (subErr || !dbSubject) {
+          return jsonResp(
+            { error: "Subject listing not found", detail: subErr?.message },
+            404
+          );
+        }
+        subject = dbSubject;
+
+        // Fetch subject feature tags
+        const { data: tags } = await sb
+          .from("cma_feature_tags")
+          .select("*")
+          .eq("listing_key", listingKey)
+          .is("agent_id", null)
+          .maybeSingle();
+        subjectTags = tags;
+      } else if (manualSubject) {
+        // Manual entry - use provided data directly
+        subject = manualSubject;
+      } else {
         return jsonResp(
-          { error: "Subject listing not found", detail: subErr?.message },
-          404
+          { error: "listing_key or manual_subject required" },
+          400
         );
       }
-
-      // Fetch subject feature tags
-      const { data: subjectTags } = await sb
-        .from("cma_feature_tags")
-        .select("*")
-        .eq("listing_key", listingKey)
-        .is("agent_id", null)
-        .maybeSingle();
 
       // Build comp query
       const dateFloor =
@@ -861,13 +877,17 @@ Deno.serve(async (req: Request) => {
       let compQuery = sb
         .from("mls_listings")
         .select(
-          "listing_key, full_address, city, county_or_parish, property_type, property_sub_type, living_area, lot_size_acres, bedrooms_total, bathrooms_total_integer, year_built, garage_spaces, close_price, close_date, list_price, latitude, longitude, standard_status, stories, photo_url, photos, public_remarks"
+          "listing_key, full_address, city, county_or_parish, property_type, property_sub_type, living_area, lot_size_acres, bedrooms_total, bathrooms_total_integer, year_built, garage_spaces, close_price, close_date, list_price, latitude, longitude, standard_status, stories, public_remarks"
         )
         .eq("standard_status", "Closed")
         .not("close_price", "is", null)
         .gte("close_date", dateFloor)
-        .neq("listing_key", listingKey)
         .limit(100);
+
+      // Exclude subject if it's from DB
+      if (listingKey) {
+        compQuery = compQuery.neq("listing_key", listingKey);
+      }
 
       // County filter (same county by default, allow override)
       if (filters.county) {
@@ -875,7 +895,7 @@ Deno.serve(async (req: Request) => {
       } else if (subject.county_or_parish) {
         compQuery = compQuery.eq(
           "county_or_parish",
-          subject.county_or_parish
+          subject.county_or_parish as string
         );
       }
 
@@ -883,7 +903,7 @@ Deno.serve(async (req: Request) => {
       if (filters.property_type) {
         compQuery = compQuery.eq("property_type", filters.property_type);
       } else if (subject.property_type) {
-        compQuery = compQuery.eq("property_type", subject.property_type);
+        compQuery = compQuery.eq("property_type", subject.property_type as string);
       }
 
       const { data: rawComps, error: compErr } = await compQuery;

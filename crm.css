@@ -1003,6 +1003,13 @@ a:hover { color: var(--crm-accent-light); }
 .cma-search-item-main { font-weight: 500; font-size: 0.9rem; }
 .cma-search-item-meta { font-size: 0.75rem; color: var(--crm-text-secondary); margin-top: 0.2rem; }
 .cma-search-empty { padding: 1rem; text-align: center; color: var(--crm-text-muted); font-size: 0.85rem; }
+
+/* Manual entry */
+.cma-manual-toggle { margin-top: 0.5rem; text-align: center; }
+.cma-manual-btn { font-size: 0.82rem; }
+.cma-manual-form { margin-top: 1rem; padding: 1.2rem; background: var(--crm-bg-surface); border: 1px solid var(--crm-border); border-radius: 8px; }
+.cma-manual-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem; }
+.cma-manual-full { grid-column: 1 / -1; }
 .cma-status-badge { font-size: 0.6rem; padding: 0.1rem 0.35rem; border-radius: 3px; font-weight: 600; text-transform: uppercase; }
 .cma-status-active { background: var(--crm-green-bg); color: var(--crm-green); }
 .cma-status-closed { background: var(--crm-text-muted); color: white; opacity: 0.7; }
