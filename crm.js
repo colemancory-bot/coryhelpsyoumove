@@ -1853,7 +1853,9 @@ async function cmaCountyLookup() {
     // Fall back to county records
     if (result.county_record) {
       var cr = result.county_record;
-      // Fill the form manually since cmaShowEditableSubject expects MLS-shaped data
+      // Clear all fields first, then fill with county data
+      var clearIds = ['cmaManAddr','cmaManCity','cmaManCounty','cmaManSqft','cmaManLot','cmaManBeds','cmaManBaths','cmaManYear','cmaManGarage','cmaManPrice'];
+      clearIds.forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
       var setVal = function(id, val) { var el = document.getElementById(id); if (el && val != null && val !== '') el.value = val; };
       setVal('cmaManAddr', cr.full_address || addr);
       setVal('cmaManCity', '');
