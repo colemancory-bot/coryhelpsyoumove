@@ -1857,6 +1857,9 @@ function cmaFactsSelectRow(label, id, options, starred) {
 function cmaShowManualEntry() {
   var form = document.getElementById('cmaFactsForm');
   if (form) form.style.display = 'block';
+  // Clear search results dropdown
+  var results = document.getElementById('cmaSubjectResults');
+  if (results) results.innerHTML = '';
   // Update title for manual entry
   var title = document.getElementById('cmaFactsTitle');
   if (title) title.textContent = 'Enter Property Details';

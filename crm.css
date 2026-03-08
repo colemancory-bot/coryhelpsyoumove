@@ -1000,6 +1000,7 @@ a:hover { color: var(--crm-accent-light); }
 .cma-search-wrap { position: relative; flex: 1; }
 .cma-search-input { width: 100%; }
 .cma-search-results { position: absolute; top: 100%; left: 0; right: 0; background: var(--crm-bg-card); border: 1px solid var(--crm-border); border-radius: 6px; box-shadow: var(--crm-shadow-lg); z-index: 10; max-height: 340px; overflow-y: auto; }
+.cma-search-results:empty { display: none; }
 .cma-search-item { padding: 0.65rem 1rem; cursor: pointer; border-bottom: 1px solid var(--crm-border); transition: background 0.15s; }
 .cma-search-item:hover { background: var(--crm-bg-surface-hover); }
 .cma-search-item:last-child { border-bottom: none; }
