@@ -11,7 +11,7 @@
 //   NAVICA_DATASET_ID    — Dataset ID (default: nav27 for Carolina Smokies AOR)
 //   SUPABASE_URL         — Supabase project URL
 //   SUPABASE_SERVICE_ROLE_KEY — Supabase service role key
-//   R2_ENDPOINT, R2_ACCESS_KEY, R2_SECRET_KEY, R2_BUCKET, R2_PUBLIC_URL — Cloudflare R2
+//   R2_WORKER_URL, R2_WORKER_SECRET, R2_PUBLIC_URL — Cloudflare R2 via Worker proxy
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -20,10 +20,8 @@ const NAVICA_DATASET_ID = Deno.env.get("NAVICA_DATASET_ID") || "nav27";
 const NAVICA_API_BASE = `https://navapi.navicamls.net/api/v2/OData/${NAVICA_DATASET_ID}`;
 const NAVICA_SERVER_TOKEN = Deno.env.get("NAVICA_SERVER_TOKEN") || "";
 
-const R2_ENDPOINT = Deno.env.get("R2_ENDPOINT") || "";
-const R2_ACCESS_KEY = Deno.env.get("R2_ACCESS_KEY") || "";
-const R2_SECRET_KEY = Deno.env.get("R2_SECRET_KEY") || "";
-const R2_BUCKET = Deno.env.get("R2_BUCKET") || "mls-media";
+const R2_WORKER_URL = Deno.env.get("R2_WORKER_URL") || "";
+const R2_WORKER_SECRET = Deno.env.get("R2_WORKER_SECRET") || "";
 const R2_PUBLIC_URL = Deno.env.get("R2_PUBLIC_URL") || "";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -45,6 +43,11 @@ const PAGE_SIZE = 200;
 // Default max records per invocation (Supabase Edge Functions have time limits)
 // For initial import, run multiple invocations; each picks up where the last left off
 const DEFAULT_MAX_RECORDS = 500;
+
+// ── R2 Worker Proxy ──────────────────────────────────────────
+function r2Available(): boolean {
+  return !!(R2_WORKER_URL && R2_WORKER_SECRET);
+}
 
 // ── Helpers ────────────────────────────────────────────────────
 function sleep(ms: number) {
@@ -81,30 +84,34 @@ async function navicaFetch(url: string): Promise<any> {
   return resp.json();
 }
 
-// Download image and upload to Cloudflare R2
+// Download image and upload to Cloudflare R2 via Worker proxy
 async function uploadMediaToR2(
   mediaUrl: string,
   listingId: string,
   order: number
 ): Promise<string> {
-  if (!R2_ENDPOINT || !R2_ACCESS_KEY) return "";
+  if (!r2Available()) return "";
   try {
     const resp = await fetch(mediaUrl);
     if (!resp.ok) return "";
-    const blob = await resp.blob();
-    const ext = mediaUrl.includes(".png") ? "png" : "jpg";
+    const contentType = resp.headers.get("content-type") || "image/jpeg";
+    const ext = contentType.includes("png") ? "png" : "jpg";
     const key = `listings/${listingId}/${order}.${ext}`;
-    const putUrl = `${R2_ENDPOINT}/${R2_BUCKET}/${key}`;
-    const uploadResp = await fetch(putUrl, {
+    const uploadResp = await fetch(`${R2_WORKER_URL}/${key}`, {
       method: "PUT",
-      headers: { "Content-Type": blob.type || "image/jpeg" },
-      body: blob,
+      headers: {
+        "Authorization": `Bearer ${R2_WORKER_SECRET}`,
+        "Content-Type": contentType,
+      },
+      body: resp.body,
     });
     if (uploadResp.ok) {
       return R2_PUBLIC_URL ? `${R2_PUBLIC_URL}/${key}` : key;
     }
+    console.warn(`[R2] Upload failed for ${key}: ${uploadResp.status}`);
     return "";
-  } catch {
+  } catch (err) {
+    console.warn("[R2] Upload error:", err);
     return "";
   }
 }
@@ -181,12 +188,9 @@ async function syncProperties(
 
       if (modTs > greatestTimestamp) greatestTimestamp = modTs;
 
-      // Handle deleted/withdrawn/expired — remove from our database
-      if (
-        stdStatus === "Deleted" ||
-        stdStatus === "Expired" ||
-        stdStatus === "Withdrawn"
-      ) {
+      // Handle deleted listings — remove from our database
+      // Expired/Withdrawn are RETAINED for CMA back-office use (agent-only valuation tool)
+      if (stdStatus === "Deleted") {
         await supabase
           .from("mls_listings")
           .delete()
@@ -465,6 +469,22 @@ async function syncProperties(
               listing_key: listingKey,
               price: currentPrice,
               event_type: "BACK_ON_MARKET",
+              source: "CSAR",
+              previous_price: prevPrice,
+            });
+          } else if (currentStatus === "Expired") {
+            await supabase.from("price_history").insert({
+              listing_key: listingKey,
+              price: currentPrice,
+              event_type: "EXPIRED",
+              source: "CSAR",
+              previous_price: prevPrice,
+            });
+          } else if (currentStatus === "Withdrawn") {
+            await supabase.from("price_history").insert({
+              listing_key: listingKey,
+              price: currentPrice,
+              event_type: "WITHDRAWN",
               source: "CSAR",
               previous_price: prevPrice,
             });
@@ -772,6 +792,241 @@ Deno.serve(async (req) => {
     console.log(
       `[NavicaSync] Starting ${action} for resource: ${resource} (limit: ${maxRecords})${activeFilter ? " filter: " + activeFilter : ""}`
     );
+
+    // ── Backfill Closed: pull 18-24 months of historical sold listings for CMA ──
+    if (action === "backfill-closed") {
+      let resumeTs = body.lastTimestamp || null;
+      if (!resumeTs) {
+        const { data: cursorRow } = await supabase
+          .from("sync_cursors")
+          .select("value")
+          .eq("key", "navica-backfill-closed")
+          .single();
+        const cursorVal = cursorRow?.value || "";
+        if (cursorVal === "DONE") {
+          console.log("[Navica Backfill Closed] Already complete (cursor=DONE), skipping");
+          return new Response(JSON.stringify({
+            ok: true, action: "backfill-closed", source: "CSAR", synced: 0,
+            status: "complete", hasMore: false
+          }), {
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          });
+        }
+        resumeTs = cursorVal || null;
+      }
+
+      const cutoffDate = new Date();
+      cutoffDate.setMonth(cutoffDate.getMonth() - 24);
+      const cutoffStr = cutoffDate.toISOString().split("T")[0];
+
+      const filters: string[] = [
+        "PropertyType ne 'Residential Lease'",
+        "StandardStatus eq 'Closed'",
+      ];
+      if (resumeTs) {
+        filters.push(`APIModificationTimestamp gt ${normalizeTimestamp(resumeTs)}`);
+      }
+      const filterClause = `$filter=${filters.join(" and ")}&`;
+      let bfUrl = `${NAVICA_API_BASE}/Property?${filterClause}$top=${PAGE_SIZE}&$orderby=APIModificationTimestamp asc`;
+
+      let totalSynced = 0;
+      let greatestTs = resumeTs || "";
+      let skippedOld = 0;
+
+      while (bfUrl && totalSynced < maxRecords) {
+        const data = await navicaFetch(bfUrl);
+        const records = data.value || [];
+        console.log(`[Navica Backfill Closed] Page: ${records.length} records`);
+
+        for (const record of records) {
+          if (totalSynced >= maxRecords) break;
+          const listingKey = record.ListingKey || "";
+          const listingId = record.ListingId || record.ListingKey || "";
+          const modTs = record.APIModificationTimestamp || record.ModificationTimestamp || "";
+          if (modTs > greatestTs) greatestTs = modTs;
+
+          // Skip if closed before cutoff
+          const closeDate = record.CloseDate || "";
+          if (closeDate && closeDate < cutoffStr) {
+            skippedOld++;
+            continue;
+          }
+
+          // Check if we already have this listing
+          const { data: existing } = await supabase
+            .from("mls_listings")
+            .select("listing_key")
+            .eq("listing_key", listingKey)
+            .maybeSingle();
+          if (existing) {
+            totalSynced++;
+            continue;
+          }
+
+          const idxApproved = isIdxApproved(record);
+          const feedType = getFeedType(record);
+
+          const listing: Record<string, any> = {
+            listing_id: listingId,
+            listing_key: listingKey,
+            originating_system_name: record.OriginatingSystemName || ORIGINATING_SYSTEM,
+            modification_timestamp: modTs,
+            standard_status: "Closed",
+            mlg_can_view: idxApproved,
+            feed_type: feedType,
+            list_price: record.ListPrice || null,
+            close_price: record.ClosePrice || null,
+            original_list_price: record.OriginalListPrice || null,
+            street_number: record.StreetNumber || "",
+            street_name: record.StreetName || "",
+            street_suffix: record.StreetSuffix || "",
+            unit_number: record.UnitNumber || "",
+            city: record.City || "",
+            state_or_province: record.StateOrProvince || "NC",
+            postal_code: record.PostalCode || "",
+            county_or_parish: record.CountyOrParish || "",
+            property_type: record.PropertyType || "",
+            property_sub_type: record.PropertySubType || "",
+            bedrooms_total: record.BedroomsTotal || 0,
+            bathrooms_total_integer: record.BathroomsTotalInteger || 0,
+            bathrooms_half: record.BathroomsHalf || 0,
+            living_area: record.LivingArea || null,
+            living_area_range: record.LivingAreaRange || "",
+            living_area_units: record.LivingAreaUnits || "Square Feet",
+            lot_size_acres: record.LotSizeAcres || null,
+            lot_size_square_feet: record.LotSizeSquareFeet || null,
+            year_built: record.YearBuilt || null,
+            stories: record.Stories || null,
+            garage_spaces: record.GarageSpaces || 0,
+            parking_total: record.ParkingTotal || 0,
+            public_remarks: record.PublicRemarks || "",
+            private_remarks: record.PrivateRemarks || "",
+            showing_instructions: toText(record.ShowingInstructions),
+            directions: record.Directions || "",
+            list_agent_key: record.ListAgentKey || "",
+            list_agent_full_name: record.ListAgentFullName || "",
+            list_agent_email: record.ListAgentEmail || "",
+            list_agent_phone: record.ListAgentDirectPhone || record.ListAgentOfficePhone || "",
+            list_office_key: record.ListOfficeKey || "",
+            list_office_name: record.ListOfficeName || "",
+            list_office_phone: record.ListOfficePhone || "",
+            attribution_contact: record.AttributionContact || "",
+            buyer_agent_key: record.BuyerAgentKey || "",
+            buyer_agent_full_name: record.BuyerAgentFullName || "",
+            buyer_office_key: record.BuyerOfficeKey || "",
+            buyer_office_name: record.BuyerOfficeName || "",
+            list_date: record.ListingContractDate || null,
+            close_date: record.CloseDate || null,
+            expiration_date: record.ExpirationDate || null,
+            days_on_market: record.DaysOnMarket || 0,
+            cumulative_days_on_market: record.CumulativeDaysOnMarket || 0,
+            latitude: record.Latitude || null,
+            longitude: record.Longitude || null,
+            association_fee: record.AssociationFee || null,
+            association_fee_frequency: record.AssociationFeeFrequency || "",
+            association_name: record.AssociationName || "",
+            tax_annual_amount: record.TaxAnnualAmount || null,
+            tax_year: record.TaxYear || null,
+            heating: record.Heating || [],
+            cooling: record.Cooling || [],
+            interior_features: record.InteriorFeatures || [],
+            exterior_features: record.ExteriorFeatures || [],
+            appliances: record.Appliances || [],
+            waterfront_features: record.WaterfrontFeatures || [],
+            view: record.View || [],
+            roof: record.Roof || [],
+            flooring: record.Flooring || [],
+            foundation_details: record.FoundationDetails || [],
+            construction_materials: record.ConstructionMaterials || [],
+            water_source: record.WaterSource || [],
+            sewer: record.Sewer || [],
+            electric: record.Electric || [],
+            internet_whole_listing: record.InternetWholeListing || [],
+            zoning: record.Zoning || "",
+            restrictions: record.Restrictions || [],
+            lock_box_type: toText(record.LockBoxType),
+            lock_box_serial_number: toText(record.LockBoxSerialNumber),
+            lock_box_location: toText(record.LockBoxLocation),
+            showing_contact_name: toText(record.ShowingContactName),
+            showing_contact_phone: toText(record.ShowingContactPhone),
+            showing_contact_type: toText(record.ShowingContactType),
+            buyer_agency_compensation: toText(record.BuyerAgencyCompensation),
+            sub_agency_compensation: toText(record.SubAgencyCompensation),
+            transaction_broker_compensation: toText(record.TransactionBrokerCompensation),
+            occupant_name: toText(record.OccupantName),
+            occupant_phone: toText(record.OccupantPhone),
+            occupant_type: toText(record.OccupantType),
+            listing_agreement: toText(record.ListingAgreement),
+            special_listing_conditions: toText(record.SpecialListingConditions),
+            virtual_tour_url: record.VirtualTourURLUnbranded || record.VirtualTourURLBranded || "",
+            video_url: record.VideoURL || "",
+            concessions_amount: record.ConcessionsAmount || null,
+            concessions_comments: record.ConcessionsComments || "",
+            raw_data: record,
+            updated_at: new Date().toISOString(),
+          };
+
+          await supabase.from("mls_listings").upsert(listing, { onConflict: "listing_key" });
+
+          // Record SOLD event in price history
+          if (record.ClosePrice) {
+            await supabase.from("price_history").insert({
+              listing_key: listingKey,
+              price: record.ClosePrice,
+              event_type: "SOLD",
+              source: "CSAR",
+              previous_price: record.ListPrice || null,
+            });
+          }
+
+          // Store media
+          const media = record.Media || [];
+          if (media.length > 0) {
+            const mediaRows = [];
+            for (let i = 0; i < media.length; i++) {
+              const m = media[i];
+              const mediaUrl = m.MediaURL || "";
+              const localUrl = await uploadMediaToR2(mediaUrl, listingId, i);
+              mediaRows.push({
+                listing_key: listingKey,
+                media_key: m.MediaKey || `${listingKey}-${i}`,
+                media_url: mediaUrl,
+                local_url: localUrl,
+                media_type: m.MimeType || "image/jpeg",
+                media_category: m.MediaCategory || "Photo",
+                short_description: m.ShortDescription || "",
+                order: m.Order || i,
+                image_width: m.ImageWidth || null,
+                image_height: m.ImageHeight || null,
+                modification_timestamp: m.ModificationTimestamp || modTs,
+              });
+            }
+            if (mediaRows.length > 0) {
+              await supabase.from("mls_media").insert(mediaRows);
+            }
+          }
+
+          totalSynced++;
+        }
+
+        bfUrl = data["@odata.nextLink"] || "";
+        if (bfUrl && totalSynced < maxRecords) await sleep(REQUEST_DELAY_MS);
+      }
+
+      const hasMore = !!bfUrl && totalSynced >= maxRecords;
+      const cursorValue = hasMore ? greatestTs : "DONE";
+      await supabase.from("sync_cursors")
+        .upsert({ key: "navica-backfill-closed", value: cursorValue, updated_at: new Date().toISOString() });
+      console.log(`[Navica Backfill Closed] Cursor: ${cursorValue} (synced ${totalSynced}, skipped ${skippedOld} old)`);
+
+      return new Response(JSON.stringify({
+        ok: true, action: "backfill-closed", source: "CSAR",
+        synced: totalSynced, skippedOld,
+        lastTimestamp: greatestTs, hasMore
+      }), {
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      });
+    }
 
     const resources =
       resource === "all"

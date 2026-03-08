@@ -825,6 +825,269 @@ Deno.serve(async (req: Request) => {
     const body = await req.json();
     const action = body.action || "";
 
+    // ═══ ACTION: lookup-listing ═══
+    // On-demand MLS API query for properties not in our database
+    // Used when subject property was sold >2 years ago and not in local DB
+    // Queries both MLS Grid (Canopy) and Navica (CSAR) APIs by listing ID or address
+    if (action === "lookup-listing") {
+      const searchId = body.listing_id || "";
+      const searchAddress = body.address || "";
+
+      if (!searchId && !searchAddress) {
+        return jsonResp({ error: "listing_id or address required" }, 400);
+      }
+
+      const results: Record<string, unknown>[] = [];
+      const errors: string[] = [];
+
+      // ── Try MLS Grid (Canopy MLS) ──
+      const mlsGridToken = Deno.env.get("MLS_GRID_TOKEN") || "";
+      const mlsGridSystem = Deno.env.get("MLS_GRID_ORIGINATING_SYSTEM") || "";
+      if (mlsGridToken && mlsGridSystem) {
+        try {
+          const mlsLocalPrefix = Deno.env.get("MLS_LOCAL_PREFIX") || "";
+          const prefixedId = searchId && mlsLocalPrefix ? `${mlsLocalPrefix}${searchId}` : searchId;
+          let filter = `OriginatingSystemName eq '${mlsGridSystem}'`;
+          if (prefixedId) {
+            filter += ` and ListingId eq '${prefixedId}'`;
+          }
+          const url = `https://api.mlsgrid.com/v2/Property?$filter=${filter}&$expand=Media&$top=5`;
+          const resp = await fetch(url, {
+            headers: {
+              Authorization: `Bearer ${mlsGridToken}`,
+              Accept: "application/json",
+            },
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            const records = data.value || [];
+            for (const r of records) {
+              // Store to our DB for future use
+              const listingKey = r.ListingKey || "";
+              const listingId = mlsLocalPrefix && r.ListingId?.startsWith(mlsLocalPrefix)
+                ? r.ListingId.slice(mlsLocalPrefix.length)
+                : (r.ListingId || "");
+
+              const listing = {
+                listing_id: listingId,
+                listing_key: listingKey,
+                originating_system_name: mlsGridSystem,
+                modification_timestamp: r.ModificationTimestamp || "",
+                standard_status: r.StandardStatus || "Closed",
+                mlg_can_view: r.MlgCanView !== false,
+                feed_type: "IDX",
+                list_price: r.ListPrice || null,
+                close_price: r.ClosePrice || null,
+                original_list_price: r.OriginalListPrice || null,
+                street_number: r.StreetNumber || "",
+                street_name: r.StreetName || "",
+                street_suffix: r.StreetSuffix || "",
+                unit_number: r.UnitNumber || "",
+                city: r.City || "",
+                state_or_province: r.StateOrProvince || "NC",
+                postal_code: r.PostalCode || "",
+                county_or_parish: r.CountyOrParish || "",
+                property_type: r.PropertyType || "",
+                property_sub_type: r.PropertySubType || "",
+                bedrooms_total: r.BedroomsTotal || 0,
+                bathrooms_total_integer: r.BathroomsTotalInteger || 0,
+                bathrooms_half: r.BathroomsHalf || 0,
+                living_area: r.LivingArea || null,
+                living_area_units: r.LivingAreaUnits || "Square Feet",
+                lot_size_acres: r.LotSizeAcres || null,
+                lot_size_square_feet: r.LotSizeSquareFeet || null,
+                year_built: r.YearBuilt || null,
+                stories: r.Stories || null,
+                garage_spaces: r.GarageSpaces || 0,
+                parking_total: r.ParkingTotal || 0,
+                public_remarks: r.PublicRemarks || "",
+                list_agent_full_name: r.ListAgentFullName || "",
+                list_office_name: r.ListOfficeName || "",
+                buyer_agent_full_name: r.BuyerAgentFullName || "",
+                buyer_office_name: r.BuyerOfficeName || "",
+                list_date: r.ListingContractDate || null,
+                close_date: r.CloseDate || null,
+                days_on_market: r.DaysOnMarket || 0,
+                latitude: r.Latitude || null,
+                longitude: r.Longitude || null,
+                tax_annual_amount: r.TaxAnnualAmount || null,
+                tax_year: r.TaxYear || null,
+                heating: r.Heating || [],
+                cooling: r.Cooling || [],
+                view: r.View || [],
+                waterfront_features: r.WaterfrontFeatures || [],
+                water_source: r.WaterSource || [],
+                sewer: r.Sewer || [],
+                zoning: r.Zoning || "",
+                raw_data: r,
+                updated_at: new Date().toISOString(),
+              };
+
+              // Upsert to DB so it's available for future queries
+              await sb.from("mls_listings").upsert(listing, { onConflict: "listing_key" });
+
+              // Store media too
+              const media = r.Media || [];
+              if (media.length > 0) {
+                await sb.from("mls_media").delete().eq("listing_key", listingKey);
+                const mediaRows = media.map((m: any, i: number) => ({
+                  listing_key: listingKey,
+                  media_key: m.MediaKey || `${listingKey}-${i}`,
+                  media_url: m.MediaURL || "",
+                  local_url: "",
+                  media_type: m.MimeType || "image/jpeg",
+                  media_category: m.MediaCategory || "Photo",
+                  short_description: m.ShortDescription || "",
+                  order: m.Order || i,
+                  image_width: m.ImageWidth || null,
+                  image_height: m.ImageHeight || null,
+                  modification_timestamp: m.ModificationTimestamp || "",
+                }));
+                await sb.from("mls_media").insert(mediaRows);
+              }
+
+              results.push({
+                listing_key: listingKey,
+                listing_id: listingId,
+                source: "Canopy MLS",
+                full_address: `${r.StreetNumber || ""} ${r.StreetName || ""} ${r.StreetSuffix || ""}`.trim(),
+                city: r.City || "",
+                standard_status: r.StandardStatus || "",
+                close_price: r.ClosePrice || null,
+                close_date: r.CloseDate || null,
+                list_price: r.ListPrice || null,
+                living_area: r.LivingArea || null,
+                bedrooms_total: r.BedroomsTotal || 0,
+                bathrooms_total_integer: r.BathroomsTotalInteger || 0,
+                year_built: r.YearBuilt || null,
+                photo_count: media.length,
+              });
+            }
+          } else {
+            errors.push(`MLS Grid: ${resp.status}`);
+          }
+        } catch (err) {
+          errors.push(`MLS Grid: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+
+      // ── Try Navica (CSAR) ──
+      const navicaToken = Deno.env.get("NAVICA_SERVER_TOKEN") || "";
+      const navicaDataset = Deno.env.get("NAVICA_DATASET_ID") || "nav27";
+      if (navicaToken) {
+        try {
+          let filter = "PropertyType ne 'Residential Lease'";
+          if (searchId) {
+            filter += ` and ListingId eq '${searchId}'`;
+          }
+          const navicaBase = `https://navapi.navicamls.net/api/v2/OData/${navicaDataset}`;
+          const url = `${navicaBase}/Property?$filter=${filter}&$top=5&access_token=${navicaToken}`;
+          const resp = await fetch(url, {
+            headers: { Accept: "application/json" },
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            const records = data.value || [];
+            for (const r of records) {
+              const listingKey = r.ListingKey || "";
+              const listingId = r.ListingId || r.ListingKey || "";
+
+              // Check if already found via MLS Grid (avoid duplicates)
+              if (results.some((res: any) => res.listing_id === listingId)) continue;
+
+              const listing = {
+                listing_id: listingId,
+                listing_key: listingKey,
+                originating_system_name: r.OriginatingSystemName || "CSAR",
+                modification_timestamp: r.APIModificationTimestamp || r.ModificationTimestamp || "",
+                standard_status: r.StandardStatus || "Closed",
+                mlg_can_view: true,
+                feed_type: "IDX",
+                list_price: r.ListPrice || null,
+                close_price: r.ClosePrice || null,
+                original_list_price: r.OriginalListPrice || null,
+                street_number: r.StreetNumber || "",
+                street_name: r.StreetName || "",
+                street_suffix: r.StreetSuffix || "",
+                unit_number: r.UnitNumber || "",
+                city: r.City || "",
+                state_or_province: r.StateOrProvince || "NC",
+                postal_code: r.PostalCode || "",
+                county_or_parish: r.CountyOrParish || "",
+                property_type: r.PropertyType || "",
+                property_sub_type: r.PropertySubType || "",
+                bedrooms_total: r.BedroomsTotal || 0,
+                bathrooms_total_integer: r.BathroomsTotalInteger || 0,
+                bathrooms_half: r.BathroomsHalf || 0,
+                living_area: r.LivingArea || null,
+                living_area_units: r.LivingAreaUnits || "Square Feet",
+                lot_size_acres: r.LotSizeAcres || null,
+                lot_size_square_feet: r.LotSizeSquareFeet || null,
+                year_built: r.YearBuilt || null,
+                stories: r.Stories || null,
+                garage_spaces: r.GarageSpaces || 0,
+                parking_total: r.ParkingTotal || 0,
+                public_remarks: r.PublicRemarks || "",
+                list_agent_full_name: r.ListAgentFullName || "",
+                list_office_name: r.ListOfficeName || "",
+                buyer_agent_full_name: r.BuyerAgentFullName || "",
+                buyer_office_name: r.BuyerOfficeName || "",
+                list_date: r.ListingContractDate || null,
+                close_date: r.CloseDate || null,
+                days_on_market: r.DaysOnMarket || 0,
+                latitude: r.Latitude || null,
+                longitude: r.Longitude || null,
+                tax_annual_amount: r.TaxAnnualAmount || null,
+                tax_year: r.TaxYear || null,
+                heating: r.Heating || [],
+                cooling: r.Cooling || [],
+                view: r.View || [],
+                waterfront_features: r.WaterfrontFeatures || [],
+                water_source: r.WaterSource || [],
+                sewer: r.Sewer || [],
+                zoning: r.Zoning || "",
+                raw_data: r,
+                updated_at: new Date().toISOString(),
+              };
+
+              await sb.from("mls_listings").upsert(listing, { onConflict: "listing_key" });
+
+              results.push({
+                listing_key: listingKey,
+                listing_id: listingId,
+                source: "CSAR",
+                full_address: `${r.StreetNumber || ""} ${r.StreetName || ""} ${r.StreetSuffix || ""}`.trim(),
+                city: r.City || "",
+                standard_status: r.StandardStatus || "",
+                close_price: r.ClosePrice || null,
+                close_date: r.CloseDate || null,
+                list_price: r.ListPrice || null,
+                living_area: r.LivingArea || null,
+                bedrooms_total: r.BedroomsTotal || 0,
+                bathrooms_total_integer: r.BathroomsTotalInteger || 0,
+                year_built: r.YearBuilt || null,
+                photo_count: 0,
+              });
+            }
+          } else {
+            errors.push(`Navica: ${resp.status}`);
+          }
+        } catch (err) {
+          errors.push(`Navica: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+
+      return jsonResp({
+        ok: true,
+        results,
+        found: results.length,
+        errors: errors.length > 0 ? errors : undefined,
+        message: results.length > 0
+          ? `Found ${results.length} listing(s) from MLS API and saved to database`
+          : "No listings found matching that ID",
+      });
+    }
+
     // ═══ ACTION: find-comps ═══
     if (action === "find-comps") {
       const listingKey = body.listing_key;

@@ -1963,10 +1963,48 @@ async function cmaSearchSubject(query) {
         html += '</div></div>';
       });
     } else {
-      html += '<div class="cma-search-empty">No listings found for "' + esc(query) + '"</div>';
+      html += '<div class="cma-search-empty">No listings found locally for "' + esc(query) + '"';
+      html += '<br><button class="crm-btn crm-btn-sm cma-mls-lookup-btn" onclick="cmaMLSLookup(\'' + esc(query).replace(/'/g, "\\'") + '\')">Search MLS API</button>';
+      html += '</div>';
     }
     results.innerHTML = html;
   } catch(e) { results.innerHTML = '<div class="cma-search-empty">Search error</div>'; }
+}
+
+async function cmaMLSLookup(query) {
+  var results = document.getElementById('cmaSubjectResults');
+  results.innerHTML = '<div class="cma-search-empty">Searching MLS API...</div>';
+  try {
+    var resp = await cmaFetch('lookup-listing', { listing_id: query.trim() });
+    if (!resp || resp.error) {
+      results.innerHTML = '<div class="cma-search-empty">MLS API error: ' + esc(resp ? resp.error : 'Unknown') + '</div>';
+      return;
+    }
+    if (resp.found === 0) {
+      results.innerHTML = '<div class="cma-search-empty">No listings found in MLS API for "' + esc(query) + '"</div>';
+      return;
+    }
+    // Show results from API
+    var html = '';
+    (resp.results || []).forEach(function(l) {
+      var statusLower = (l.standard_status || '').toLowerCase();
+      var priceStr = l.close_price ? '$' + l.close_price.toLocaleString() : (l.list_price ? '$' + l.list_price.toLocaleString() : '');
+      var priceLabel = statusLower === 'closed' ? 'Sold' : 'List';
+      html += '<div class="cma-search-item" onclick="cmaSelectSubject(\'' + l.listing_key + '\')">';
+      html += '<div class="cma-search-item-main"><strong>' + esc(l.full_address || '') + '</strong>, ' + esc(l.city || '') + ' <span class="cma-mls-source">(' + esc(l.source || 'MLS') + ')</span></div>';
+      html += '<div class="cma-search-item-meta">';
+      html += '<span class="cma-status-badge cma-status-' + statusLower + '">' + (l.standard_status || '') + '</span>';
+      html += ' ' + (l.living_area ? l.living_area.toLocaleString() + ' sqft' : '') + ' | ' + (l.bedrooms_total || '?') + 'bd/' + (l.bathrooms_total_integer || '?') + 'ba';
+      if (priceStr) html += ' | ' + priceLabel + ': ' + priceStr;
+      if (l.close_date) html += ' | ' + l.close_date;
+      html += '</div></div>';
+    });
+    results.innerHTML = html;
+    toast('Found ' + resp.found + ' listing(s) from MLS API', 'success');
+  } catch(e) {
+    results.innerHTML = '<div class="cma-search-empty">MLS API lookup failed</div>';
+    console.error('[CMA] MLS lookup error:', e);
+  }
 }
 
 async function cmaSelectSubject(listingKey) {

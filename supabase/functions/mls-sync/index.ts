@@ -13,10 +13,8 @@ const MLS_GRID_API = "https://api.mlsgrid.com/v2";
 const ORIGINATING_SYSTEM_NAME = Deno.env.get("MLS_GRID_ORIGINATING_SYSTEM") || "";
 const MLS_GRID_TOKEN = Deno.env.get("MLS_GRID_TOKEN") || "";
 const MLS_LOCAL_PREFIX = Deno.env.get("MLS_LOCAL_PREFIX") || "";
-const R2_ENDPOINT = Deno.env.get("R2_ENDPOINT") || "";
-const R2_ACCESS_KEY = Deno.env.get("R2_ACCESS_KEY") || "";
-const R2_SECRET_KEY = Deno.env.get("R2_SECRET_KEY") || "";
-const R2_BUCKET = Deno.env.get("R2_BUCKET") || "mls-media";
+const R2_WORKER_URL = Deno.env.get("R2_WORKER_URL") || "";
+const R2_WORKER_SECRET = Deno.env.get("R2_WORKER_SECRET") || "";
 const R2_PUBLIC_URL = Deno.env.get("R2_PUBLIC_URL") || "";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -45,6 +43,11 @@ const WNC_COUNTIES = new Set([
   "Haywood", "Jackson", "Swain", "Macon", "Buncombe",
   "Henderson", "Transylvania", "Graham"
 ]);
+
+// ── R2 Worker Proxy ──────────────────────────────────────────
+function r2Available(): boolean {
+  return !!(R2_WORKER_URL && R2_WORKER_SECRET);
+}
 
 // ── Helpers ────────────────────────────────────────────────────
 function sleep(ms: number) {
@@ -84,31 +87,60 @@ async function mlsGridFetch(url: string): Promise<any> {
   return resp.json();
 }
 
-// Download image and upload to Cloudflare R2
+// Download image and upload to Cloudflare R2 via Worker proxy
 async function uploadMediaToR2(
   mediaUrl: string,
   listingId: string,
   order: number
 ): Promise<string> {
-  if (!R2_ENDPOINT || !R2_ACCESS_KEY) return "";
+  if (!r2Available()) return "";
   try {
     const resp = await fetch(mediaUrl);
     if (!resp.ok) return "";
-    const blob = await resp.blob();
-    const ext = mediaUrl.includes(".png") ? "png" : "jpg";
+    const contentType = resp.headers.get("content-type") || "image/jpeg";
+    const ext = contentType.includes("png") ? "png" : "jpg";
     const key = `listings/${listingId}/${order}.${ext}`;
-    const putUrl = `${R2_ENDPOINT}/${R2_BUCKET}/${key}`;
-    const uploadResp = await fetch(putUrl, {
+    const uploadResp = await fetch(`${R2_WORKER_URL}/${key}`, {
       method: "PUT",
-      headers: { "Content-Type": blob.type || "image/jpeg" },
-      body: blob,
+      headers: {
+        "Authorization": `Bearer ${R2_WORKER_SECRET}`,
+        "Content-Type": contentType,
+      },
+      body: resp.body,
     });
     if (uploadResp.ok) {
       return R2_PUBLIC_URL ? `${R2_PUBLIC_URL}/${key}` : key;
     }
+    console.warn(`[R2] Upload failed for ${key}: ${uploadResp.status}`);
     return "";
-  } catch {
+  } catch (err) {
+    console.warn(`[R2] Upload error for ${listingId}/${order}:`, String(err));
     return "";
+  }
+}
+
+// Delete all R2 objects for a listing (cleanup when MlgCanView goes false)
+async function deleteR2Folder(listingId: string): Promise<void> {
+  if (!r2Available() || !listingId) return;
+  try {
+    const prefix = `listings/${listingId}/`;
+    const listResp = await fetch(`${R2_WORKER_URL}/${prefix}?prefix=${encodeURIComponent(prefix)}`, {
+      method: "GET",
+      headers: { "Authorization": `Bearer ${R2_WORKER_SECRET}` },
+    });
+    if (!listResp.ok) return;
+    const { keys } = await listResp.json() as { keys: string[] };
+    for (const k of keys) {
+      await fetch(`${R2_WORKER_URL}/${k}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${R2_WORKER_SECRET}` },
+      });
+    }
+    if (keys.length > 0) {
+      console.log(`[R2] Deleted ${keys.length} objects for listing ${listingId}`);
+    }
+  } catch (err) {
+    console.warn(`[R2] Cleanup error for ${listingId}:`, err);
   }
 }
 
@@ -164,9 +196,21 @@ async function syncProperties(
       }
 
       if (!canView) {
-        // MlgCanView false = marked for deletion
-        await supabase.from("mls_listings").delete().eq("listing_key", listingKey);
-        await supabase.from("mls_media").delete().eq("listing_key", listingKey);
+        // MlgCanView false = no longer IDX-eligible
+        // Soft-delete: set mlg_can_view=false but RETAIN listing data for CMA back-office use
+        // Clean up R2 photos (not needed for public display; CMA uses DB data)
+        await deleteR2Folder(listingId);
+        const { data: existingRow } = await supabase
+          .from("mls_listings")
+          .select("listing_key")
+          .eq("listing_key", listingKey)
+          .maybeSingle();
+        if (existingRow) {
+          await supabase
+            .from("mls_listings")
+            .update({ mlg_can_view: false, updated_at: new Date().toISOString() })
+            .eq("listing_key", listingKey);
+        }
         totalSynced++;
         continue;
       }
@@ -250,6 +294,7 @@ async function syncProperties(
         internet_whole_listing: record.InternetWholeListing || [],
         zoning: record.Zoning || "",
         restrictions: record.Restrictions || [],
+        photos_change_timestamp: record.PhotosChangeTimestamp || null,
         raw_data: record,
         updated_at: new Date().toISOString(),
       };
@@ -260,7 +305,7 @@ async function syncProperties(
 
       const { data: existing } = await supabase
         .from("mls_listings")
-        .select("list_price, standard_status, full_address, city")
+        .select("list_price, standard_status, full_address, city, photos_change_timestamp")
         .eq("listing_key", listingKey)
         .single();
 
@@ -365,15 +410,38 @@ async function syncProperties(
               source: "MLS",
               previous_price: prevPrice,
             });
+          } else if (currentStatus === "Expired") {
+            await supabase.from("price_history").insert({
+              listing_key: listingKey,
+              price: currentPrice,
+              event_type: "EXPIRED",
+              source: "MLS",
+              previous_price: prevPrice,
+            });
+          } else if (currentStatus === "Withdrawn") {
+            await supabase.from("price_history").insert({
+              listing_key: listingKey,
+              price: currentPrice,
+              event_type: "WITHDRAWN",
+              source: "MLS",
+              previous_price: prevPrice,
+            });
           }
         }
       }
 
       await supabase.from("mls_listings").upsert(listing, { onConflict: "listing_key" });
 
-      // Handle media — download to R2, store local URLs
+      // Handle media — only re-download when photos actually changed
+      // PhotosChangeTimestamp signals that media files were updated (per MLS Grid docs)
       const media = record.Media || [];
-      if (media.length > 0) {
+      const newPhotosTs = record.PhotosChangeTimestamp || null;
+      const photosChanged = !existing
+        || !newPhotosTs
+        || !existing.photos_change_timestamp
+        || newPhotosTs !== existing.photos_change_timestamp;
+
+      if (media.length > 0 && photosChanged) {
         await supabase.from("mls_media").delete().eq("listing_key", listingKey);
         const mediaRows = [];
         for (let i = 0; i < media.length; i++) {
@@ -726,6 +794,340 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({
         ok: true, action: "media-refresh",
         refreshed: totalRefreshed, lastTimestamp: greatestTs, hasMore
+      }), {
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      });
+    }
+
+    // ── Backfill action: download existing Canopy photos to R2 ──
+    // Pages through all active Canopy listings via MLS Grid API with $expand=Media,
+    // downloads each photo to R2, and updates local_url in mls_media.
+    // Uses sync_cursors for resume between cron invocations.
+    if (action === "backfill-media") {
+      let resumeTs = body.lastTimestamp || null;
+      if (!resumeTs) {
+        const { data: cursorRow } = await supabase
+          .from("sync_cursors")
+          .select("value")
+          .eq("key", "backfill-media")
+          .single();
+        const cursorVal = cursorRow?.value || "";
+        if (cursorVal === "DONE") {
+          console.log("[Backfill] Already complete (cursor=DONE), skipping");
+          return new Response(JSON.stringify({
+            ok: true, action: "backfill-media", processed: 0,
+            status: "complete", hasMore: false
+          }), {
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          });
+        }
+        resumeTs = cursorVal || null;
+      }
+
+      const baseFilter = `OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true and StandardStatus eq 'Active'`;
+      const tsFilter = resumeTs ? ` and ModificationTimestamp gt ${normalizeTimestamp(resumeTs)}` : "";
+      let bfUrl = `${MLS_GRID_API}/Property?$filter=${baseFilter}${tsFilter}&$expand=Media&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
+      let totalProcessed = 0;
+      let greatestTs = resumeTs || "";
+      let r2Uploaded = 0;
+      let r2Failed = 0;
+
+      while (bfUrl && totalProcessed < maxRecords) {
+        const data = await mlsGridFetch(bfUrl);
+        const records = data.value || [];
+        console.log(`[Backfill] Page: ${records.length} records`);
+
+        for (const record of records) {
+          if (totalProcessed >= maxRecords) break;
+          const lk = record.ListingKey || "";
+          const lid = stripPrefix(record.ListingId || "");
+          const mTs = record.ModificationTimestamp || "";
+          if (mTs > greatestTs) greatestTs = mTs;
+
+          // Server-side filters (same as syncProperties)
+          const county = record.CountyOrParish || "";
+          if (!county || !WNC_COUNTIES.has(county)) continue;
+          if ((record.PropertyType || "") === "Residential Lease") continue;
+          if (record.MlgCanView === false) continue;
+
+          const media = record.Media || [];
+          if (media.length > 0) {
+            // Check if this listing already has R2 photos
+            const { data: existingMedia } = await supabase
+              .from("mls_media")
+              .select("local_url")
+              .eq("listing_key", lk)
+              .neq("local_url", "")
+              .limit(1);
+
+            if (existingMedia && existingMedia.length > 0) {
+              // Already has R2 photos, skip
+              totalProcessed++;
+              continue;
+            }
+
+            // Delete stale media rows and re-insert with R2 URLs
+            await supabase.from("mls_media").delete().eq("listing_key", lk);
+            const mediaRows = [];
+            for (let i = 0; i < media.length; i++) {
+              const m = media[i];
+              const mUrl = m.MediaURL || "";
+              const localUrl = await uploadMediaToR2(mUrl, lid, i);
+              if (localUrl) r2Uploaded++; else r2Failed++;
+              mediaRows.push({
+                listing_key: lk,
+                media_key: m.MediaKey || `${lk}-${i}`,
+                media_url: mUrl,
+                local_url: localUrl,
+                media_type: m.MimeType || "image/jpeg",
+                media_category: m.MediaCategory || "Photo",
+                short_description: m.ShortDescription || "",
+                order: m.Order || i,
+                image_width: m.ImageWidth || null,
+                image_height: m.ImageHeight || null,
+                modification_timestamp: m.ModificationTimestamp || mTs,
+              });
+            }
+            if (mediaRows.length > 0) {
+              await supabase.from("mls_media").insert(mediaRows);
+            }
+            console.log(`[Backfill] ${lid}: ${mediaRows.filter(r => r.local_url).length}/${mediaRows.length} photos to R2`);
+          }
+          totalProcessed++;
+        }
+
+        bfUrl = data["@odata.nextLink"] || "";
+        if (bfUrl && totalProcessed < maxRecords) await sleep(REQUEST_DELAY_MS);
+      }
+
+      const hasMore = !!bfUrl && totalProcessed >= maxRecords;
+      const cursorValue = hasMore ? greatestTs : "DONE";
+      await supabase.from("sync_cursors")
+        .upsert({ key: "backfill-media", value: cursorValue, updated_at: new Date().toISOString() });
+      console.log(`[Backfill] Saved cursor: ${cursorValue} (processed ${totalProcessed}, R2: ${r2Uploaded} ok, ${r2Failed} failed)`);
+
+      return new Response(JSON.stringify({
+        ok: true, action: "backfill-media",
+        processed: totalProcessed, r2Uploaded, r2Failed,
+        lastTimestamp: greatestTs, hasMore
+      }), {
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      });
+    }
+
+    // ── Backfill Closed: pull 18-24 months of historical sold listings for CMA ──
+    // This uses StandardStatus eq 'Closed' to fetch all sold listings.
+    // Run multiple invocations to page through all records (cursor-based).
+    if (action === "backfill-closed") {
+      let resumeTs = body.lastTimestamp || null;
+      if (!resumeTs) {
+        const { data: cursorRow } = await supabase
+          .from("sync_cursors")
+          .select("value")
+          .eq("key", "backfill-closed")
+          .single();
+        const cursorVal = cursorRow?.value || "";
+        if (cursorVal === "DONE") {
+          console.log("[Backfill Closed] Already complete (cursor=DONE), skipping");
+          return new Response(JSON.stringify({
+            ok: true, action: "backfill-closed", synced: 0,
+            status: "complete", hasMore: false
+          }), {
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          });
+        }
+        resumeTs = cursorVal || null;
+      }
+
+      // Only pull listings closed within the last 24 months
+      const cutoffDate = new Date();
+      cutoffDate.setMonth(cutoffDate.getMonth() - 24);
+      const cutoffStr = cutoffDate.toISOString().split("T")[0];
+
+      const baseFilter = `OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and StandardStatus eq 'Closed'`;
+      const tsFilter = resumeTs ? ` and ModificationTimestamp gt ${normalizeTimestamp(resumeTs)}` : "";
+      let bfUrl = `${MLS_GRID_API}/Property?$filter=${baseFilter}${tsFilter}&$expand=Media&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
+      let totalSynced = 0;
+      let greatestTs = resumeTs || "";
+      let skippedOld = 0;
+
+      while (bfUrl && totalSynced < maxRecords) {
+        const data = await mlsGridFetch(bfUrl);
+        const records = data.value || [];
+        console.log(`[Backfill Closed] Page: ${records.length} records`);
+
+        for (const record of records) {
+          if (totalSynced >= maxRecords) break;
+          const listingKey = record.ListingKey || "";
+          const listingId = stripPrefix(record.ListingId || "");
+          const modTs = record.ModificationTimestamp || "";
+          if (modTs > greatestTs) greatestTs = modTs;
+
+          // Server-side county + lease filter
+          const county = record.CountyOrParish || "";
+          if (!county || !WNC_COUNTIES.has(county)) continue;
+          if ((record.PropertyType || "") === "Residential Lease") continue;
+
+          // Skip if closed before cutoff (too old)
+          const closeDate = record.CloseDate || "";
+          if (closeDate && closeDate < cutoffStr) {
+            skippedOld++;
+            continue;
+          }
+
+          // Check if we already have this listing
+          const { data: existing } = await supabase
+            .from("mls_listings")
+            .select("listing_key")
+            .eq("listing_key", listingKey)
+            .maybeSingle();
+          if (existing) {
+            // Already have it, skip
+            totalSynced++;
+            continue;
+          }
+
+          // Map and insert the listing (same mapping as syncProperties)
+          const listing = {
+            listing_id: listingId,
+            listing_key: listingKey,
+            originating_system_name: ORIGINATING_SYSTEM_NAME,
+            modification_timestamp: modTs,
+            standard_status: record.StandardStatus || "Closed",
+            mlg_can_view: record.MlgCanView !== false,
+            feed_type: "IDX",
+            list_price: record.ListPrice || null,
+            close_price: record.ClosePrice || null,
+            original_list_price: record.OriginalListPrice || null,
+            street_number: record.StreetNumber || "",
+            street_name: record.StreetName || "",
+            street_suffix: record.StreetSuffix || "",
+            unit_number: record.UnitNumber || "",
+            city: record.City || "",
+            state_or_province: record.StateOrProvince || "NC",
+            postal_code: record.PostalCode || "",
+            county_or_parish: record.CountyOrParish || "",
+            property_type: record.PropertyType || "",
+            property_sub_type: record.PropertySubType || "",
+            bedrooms_total: record.BedroomsTotal || 0,
+            bathrooms_total_integer: record.BathroomsTotalInteger || 0,
+            bathrooms_half: record.BathroomsHalf || 0,
+            living_area: record.LivingArea || null,
+            living_area_range: record.LivingAreaRange || "",
+            living_area_units: record.LivingAreaUnits || "Square Feet",
+            lot_size_acres: record.LotSizeAcres || null,
+            lot_size_square_feet: record.LotSizeSquareFeet || null,
+            year_built: record.YearBuilt || null,
+            stories: record.Stories || null,
+            garage_spaces: record.GarageSpaces || 0,
+            parking_total: record.ParkingTotal || 0,
+            public_remarks: record.PublicRemarks || "",
+            private_remarks: record.PrivateRemarks || "",
+            showing_instructions: record.ShowingInstructions || "",
+            directions: record.Directions || "",
+            list_agent_key: record.ListAgentKey || "",
+            list_agent_full_name: record.ListAgentFullName || "",
+            list_agent_email: record.ListAgentEmail || "",
+            list_agent_phone: record.ListAgentDirectPhone || record.ListAgentOfficePhone || "",
+            list_office_key: record.ListOfficeKey || "",
+            list_office_name: record.ListOfficeName || "",
+            list_office_phone: record.ListOfficePhone || "",
+            attribution_contact: record.AttributionContact || "",
+            buyer_agent_key: record.BuyerAgentKey || "",
+            buyer_agent_full_name: record.BuyerAgentFullName || "",
+            buyer_office_key: record.BuyerOfficeKey || "",
+            buyer_office_name: record.BuyerOfficeName || "",
+            list_date: record.ListingContractDate || null,
+            close_date: record.CloseDate || null,
+            expiration_date: record.ExpirationDate || null,
+            days_on_market: record.DaysOnMarket || 0,
+            cumulative_days_on_market: record.CumulativeDaysOnMarket || 0,
+            latitude: record.Latitude || null,
+            longitude: record.Longitude || null,
+            association_fee: record.AssociationFee || null,
+            association_fee_frequency: record.AssociationFeeFrequency || "",
+            association_name: record.AssociationName || "",
+            tax_annual_amount: record.TaxAnnualAmount || null,
+            tax_year: record.TaxYear || null,
+            heating: record.Heating || [],
+            cooling: record.Cooling || [],
+            interior_features: record.InteriorFeatures || [],
+            exterior_features: record.ExteriorFeatures || [],
+            appliances: record.Appliances || [],
+            waterfront_features: record.WaterfrontFeatures || [],
+            view: record.View || [],
+            roof: record.Roof || [],
+            flooring: record.Flooring || [],
+            foundation_details: record.FoundationDetails || [],
+            construction_materials: record.ConstructionMaterials || [],
+            water_source: record.WaterSource || [],
+            sewer: record.Sewer || [],
+            electric: record.Electric || [],
+            internet_whole_listing: record.InternetWholeListing || [],
+            zoning: record.Zoning || "",
+            restrictions: record.Restrictions || [],
+            photos_change_timestamp: record.PhotosChangeTimestamp || null,
+            raw_data: record,
+            updated_at: new Date().toISOString(),
+          };
+
+          await supabase.from("mls_listings").upsert(listing, { onConflict: "listing_key" });
+
+          // Record SOLD event in price history
+          if (record.ClosePrice) {
+            await supabase.from("price_history").insert({
+              listing_key: listingKey,
+              price: record.ClosePrice,
+              event_type: "SOLD",
+              source: "MLS",
+              previous_price: record.ListPrice || null,
+            });
+          }
+
+          // Store media (download to R2 for closed listings too)
+          const media = record.Media || [];
+          if (media.length > 0) {
+            const mediaRows = [];
+            for (let i = 0; i < media.length; i++) {
+              const m = media[i];
+              const mUrl = m.MediaURL || "";
+              const localUrl = await uploadMediaToR2(mUrl, listingId, i);
+              mediaRows.push({
+                listing_key: listingKey,
+                media_key: m.MediaKey || `${listingKey}-${i}`,
+                media_url: mUrl,
+                local_url: localUrl,
+                media_type: m.MimeType || "image/jpeg",
+                media_category: m.MediaCategory || "Photo",
+                short_description: m.ShortDescription || "",
+                order: m.Order || i,
+                image_width: m.ImageWidth || null,
+                image_height: m.ImageHeight || null,
+                modification_timestamp: m.ModificationTimestamp || modTs,
+              });
+            }
+            if (mediaRows.length > 0) {
+              await supabase.from("mls_media").insert(mediaRows);
+            }
+          }
+
+          totalSynced++;
+        }
+
+        bfUrl = data["@odata.nextLink"] || "";
+        if (bfUrl && totalSynced < maxRecords) await sleep(REQUEST_DELAY_MS);
+      }
+
+      const hasMore = !!bfUrl && totalSynced >= maxRecords;
+      const cursorValue = hasMore ? greatestTs : "DONE";
+      await supabase.from("sync_cursors")
+        .upsert({ key: "backfill-closed", value: cursorValue, updated_at: new Date().toISOString() });
+      console.log(`[Backfill Closed] Saved cursor: ${cursorValue} (synced ${totalSynced}, skipped ${skippedOld} old)`);
+
+      return new Response(JSON.stringify({
+        ok: true, action: "backfill-closed",
+        synced: totalSynced, skippedOld,
+        lastTimestamp: greatestTs, hasMore
       }), {
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
       });
