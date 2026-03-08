@@ -1793,7 +1793,9 @@ async function cmaSearchSubject(query) {
   var results = document.getElementById('cmaSubjectResults');
   if (!query || query.length < 2) { results.innerHTML = ''; return; }
   try {
-    var { data } = await _sb.from('mls_listings').select('listing_key, full_address, city, county_or_parish, property_type, living_area, lot_size_acres, bedrooms_total, bathrooms_total_integer, year_built, list_price, close_price, close_date, standard_status, photo_url, latitude, longitude, garage_spaces, property_sub_type, stories, photos, public_remarks').or('full_address.ilike.*' + query + '*,listing_id.ilike.*' + query + '*').order('modification_timestamp', { ascending: false }).limit(8);
+    var resp = await _sb.from('mls_listings').select('listing_key, full_address, city, county_or_parish, property_type, living_area, lot_size_acres, bedrooms_total, bathrooms_total_integer, year_built, list_price, close_price, close_date, standard_status, latitude, longitude, garage_spaces, property_sub_type, stories, public_remarks').or('full_address.ilike.*' + query + '*,listing_id.ilike.*' + query + '*').order('modification_timestamp', { ascending: false }).limit(8);
+    if (resp.error) { console.error('[CMA] Search error:', resp.error); results.innerHTML = '<div class="cma-search-empty">Search error: ' + esc(resp.error.message) + '</div>'; return; }
+    var data = resp.data;
     if (!data || !data.length) { results.innerHTML = '<div class="cma-search-empty">No listings found</div>'; return; }
     var html = '';
     data.forEach(function(l) {
