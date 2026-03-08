@@ -1659,7 +1659,8 @@ var _cmaState = {
   aiAdvice: null,    // { considerations, summary, comp_reasoning }
   reportId: null,    // Saved report ID
   reports: [],       // List of saved reports
-  charts: {}         // Chart.js instances
+  charts: {},        // Chart.js instances
+  filters: {}        // Comp search filters { city, county, exclude_cities, max_distance_miles, min_close_date }
 };
 
 var CMA_FUNC_URL = SUPABASE_URL + '/functions/v1/cma-engine';
@@ -1728,7 +1729,7 @@ async function loadCMA() {
 }
 
 function cmaNewReport() {
-  _cmaState = { step: 1, subject: null, comps: [], selectedComps: [], adjustments: [], valuation: null, aiAdvice: null, reportId: null, reports: _cmaState.reports, charts: {} };
+  _cmaState = { step: 1, subject: null, comps: [], selectedComps: [], adjustments: [], valuation: null, aiAdvice: null, reportId: null, reports: _cmaState.reports, charts: {}, filters: {} };
   cmaRenderStep1();
 }
 
@@ -1928,40 +1929,60 @@ async function cmaGoStep2() {
   var main = document.getElementById('crmMain');
   main.innerHTML = '<div class="cma-wizard">' + cmaStepIndicator(2) + '<div class="cma-step-content"><div class="crm-loading"><div class="crm-spinner"></div><p>Finding comparable sales...</p></div></div></div>';
 
-  var isManual = (_cmaState.subject.listing.listing_key || '').startsWith('manual_');
-  var result;
+  var sub = _cmaState.subject.listing;
+  var isManual = (sub.listing_key || '').startsWith('manual_');
+
+  // Build filters from state (user can modify via filter bar)
+  var filters = Object.assign({
+    county: sub.county_or_parish || null,
+    property_type: sub.property_type || null,
+    max_distance_miles: 15
+  }, _cmaState.filters);
+
+  var payload = { filters: filters };
   if (isManual) {
-    // Manual entry: search by county/city/type since we have no listing_key in DB
-    result = await cmaFetch('find-comps', {
-      listing_key: null,
-      manual_subject: _cmaState.subject.listing,
-      filters: {
-        county: _cmaState.subject.listing.county_or_parish || null,
-        property_type: _cmaState.subject.listing.property_type || null,
-        max_distance_miles: 15
-      }
-    });
+    payload.listing_key = null;
+    payload.manual_subject = sub;
   } else {
-    result = await cmaFetch('find-comps', { listing_key: _cmaState.subject.listing.listing_key });
+    payload.listing_key = sub.listing_key;
   }
+
+  var result = await cmaFetch('find-comps', payload);
   if (result.error) { toast('Error finding comps: ' + result.error, 'error'); return; }
 
   _cmaState.comps = (result.comps || []).map(function(c) {
-    c.selected = true; // Pre-select top comps
+    c.selected = true;
     return c;
   });
-  // Only select top 6 by default
   _cmaState.comps.forEach(function(c, i) { c.selected = i < 6; });
   cmaRenderStep2();
 }
 
 function cmaRenderStep2() {
   var main = document.getElementById('crmMain');
+  var sub = _cmaState.subject.listing;
   var html = '<div class="cma-wizard">';
   html += cmaStepIndicator(2);
   html += '<div class="cma-step-content">';
   html += '<h3 class="cma-step-title">Select Comparables</h3>';
   html += '<p class="cma-step-desc">AI-ranked by similarity. Select up to 6 comps for your analysis.</p>';
+
+  // ── Filter bar ──
+  var curCity = _cmaState.filters.city || '';
+  var curExclude = (_cmaState.filters.exclude_cities || []).join(', ');
+  var curDist = _cmaState.filters.max_distance_miles || 15;
+  var curMonths = 12;
+  if (_cmaState.filters.min_close_date) {
+    var daysBack = Math.round((Date.now() - new Date(_cmaState.filters.min_close_date).getTime()) / 86400000);
+    curMonths = Math.round(daysBack / 30);
+  }
+  html += '<div class="cma-filter-bar">';
+  html += '<div class="cma-filter-group"><label class="crm-form-label">City (match)</label><input class="crm-input cma-filter-input" id="cmaFilterCity" value="' + esc(curCity) + '" placeholder="e.g. Franklin" /></div>';
+  html += '<div class="cma-filter-group"><label class="crm-form-label">Exclude cities</label><input class="crm-input cma-filter-input" id="cmaFilterExclude" value="' + esc(curExclude) + '" placeholder="e.g. Highlands, Cashiers" /></div>';
+  html += '<div class="cma-filter-group"><label class="crm-form-label">Max distance (mi)</label><input class="crm-input cma-filter-input" id="cmaFilterDist" type="number" value="' + curDist + '" min="1" max="50" /></div>';
+  html += '<div class="cma-filter-group"><label class="crm-form-label">Sold within</label><select class="crm-select cma-filter-input" id="cmaFilterMonths"><option value="6"' + (curMonths <= 6 ? ' selected' : '') + '>6 months</option><option value="12"' + (curMonths > 6 && curMonths <= 12 ? ' selected' : '') + '>12 months</option><option value="18"' + (curMonths > 12 && curMonths <= 18 ? ' selected' : '') + '>18 months</option><option value="24"' + (curMonths > 18 ? ' selected' : '') + '>24 months</option></select></div>';
+  html += '<div class="cma-filter-group cma-filter-action"><button class="crm-btn crm-btn-secondary" onclick="cmaApplyFilters()">Re-search</button></div>';
+  html += '</div>';
 
   var selectedCount = _cmaState.comps.filter(function(c) { return c.selected; }).length;
   html += '<div class="cma-comp-count">' + selectedCount + ' of ' + _cmaState.comps.length + ' comps selected (max 6)</div>';
@@ -2002,6 +2023,23 @@ function cmaRenderStep2() {
   html += '</div>';
   html += '</div></div>';
   main.innerHTML = html;
+}
+
+function cmaApplyFilters() {
+  var city = (document.getElementById('cmaFilterCity').value || '').trim();
+  var excludeRaw = (document.getElementById('cmaFilterExclude').value || '').trim();
+  var dist = parseInt(document.getElementById('cmaFilterDist').value) || 15;
+  var months = parseInt(document.getElementById('cmaFilterMonths').value) || 12;
+  var excludeCities = excludeRaw ? excludeRaw.split(',').map(function(s) { return s.trim(); }).filter(Boolean) : [];
+  var dateFloor = new Date(Date.now() - months * 30 * 86400000).toISOString().split('T')[0];
+
+  _cmaState.filters = {};
+  if (city) _cmaState.filters.city = city;
+  if (excludeCities.length) _cmaState.filters.exclude_cities = excludeCities;
+  if (dist !== 15) _cmaState.filters.max_distance_miles = dist;
+  if (months !== 12) _cmaState.filters.min_close_date = dateFloor;
+
+  cmaGoStep2();
 }
 
 function cmaToggleComp(index) {

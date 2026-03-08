@@ -906,6 +906,16 @@ Deno.serve(async (req: Request) => {
         compQuery = compQuery.eq("property_type", subject.property_type as string);
       }
 
+      // City filter - match specific city or exclude certain cities
+      if (filters.city) {
+        compQuery = compQuery.eq("city", filters.city);
+      } else if (filters.exclude_cities && filters.exclude_cities.length > 0) {
+        // Exclude luxury/non-comparable markets
+        for (const ec of filters.exclude_cities) {
+          compQuery = compQuery.neq("city", ec);
+        }
+      }
+
       const { data: rawComps, error: compErr } = await compQuery;
       if (compErr) {
         return jsonResp(
