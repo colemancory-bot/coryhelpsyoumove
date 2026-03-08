@@ -793,7 +793,8 @@ Deno.serve(async (req) => {
       `[NavicaSync] Starting ${action} for resource: ${resource} (limit: ${maxRecords})${activeFilter ? " filter: " + activeFilter : ""}`
     );
 
-    // ── Backfill Closed: pull 18-24 months of historical sold listings for CMA ──
+    // ── Backfill Closed: pull 12 months of historical sold listings for CMA ──
+    // Keep batch sizes small to avoid API rate limit issues.
     if (action === "backfill-closed") {
       let resumeTs = body.lastTimestamp || null;
       if (!resumeTs) {
@@ -816,9 +817,11 @@ Deno.serve(async (req) => {
       }
 
       const cutoffDate = new Date();
-      cutoffDate.setMonth(cutoffDate.getMonth() - 24);
+      cutoffDate.setMonth(cutoffDate.getMonth() - 12);
       const cutoffStr = cutoffDate.toISOString().split("T")[0];
 
+      // Use smaller page size for backfill to avoid rate limits
+      const bfPageSize = 100;
       const filters: string[] = [
         "PropertyType ne 'Residential Lease'",
         "StandardStatus eq 'Closed'",
@@ -827,7 +830,7 @@ Deno.serve(async (req) => {
         filters.push(`APIModificationTimestamp gt ${normalizeTimestamp(resumeTs)}`);
       }
       const filterClause = `$filter=${filters.join(" and ")}&`;
-      let bfUrl = `${NAVICA_API_BASE}/Property?${filterClause}$top=${PAGE_SIZE}&$orderby=APIModificationTimestamp asc`;
+      let bfUrl = `${NAVICA_API_BASE}/Property?${filterClause}$top=${bfPageSize}&$orderby=APIModificationTimestamp asc`;
 
       let totalSynced = 0;
       let greatestTs = resumeTs || "";
@@ -979,38 +982,32 @@ Deno.serve(async (req) => {
             });
           }
 
-          // Store media
+          // Store media metadata only (skip R2 download to minimize API calls)
+          // Navica CDN URLs are permanent so CMA can use them directly
           const media = record.Media || [];
           if (media.length > 0) {
-            const mediaRows = [];
-            for (let i = 0; i < media.length; i++) {
-              const m = media[i];
-              const mediaUrl = m.MediaURL || "";
-              const localUrl = await uploadMediaToR2(mediaUrl, listingId, i);
-              mediaRows.push({
-                listing_key: listingKey,
-                media_key: m.MediaKey || `${listingKey}-${i}`,
-                media_url: mediaUrl,
-                local_url: localUrl,
-                media_type: m.MimeType || "image/jpeg",
-                media_category: m.MediaCategory || "Photo",
-                short_description: m.ShortDescription || "",
-                order: m.Order || i,
-                image_width: m.ImageWidth || null,
-                image_height: m.ImageHeight || null,
-                modification_timestamp: m.ModificationTimestamp || modTs,
-              });
-            }
-            if (mediaRows.length > 0) {
-              await supabase.from("mls_media").insert(mediaRows);
-            }
+            const mediaRows = media.map((m: any, i: number) => ({
+              listing_key: listingKey,
+              media_key: m.MediaKey || `${listingKey}-${i}`,
+              media_url: m.MediaURL || "",
+              local_url: "", // Skip R2 for backfilled closed listings
+              media_type: m.MimeType || "image/jpeg",
+              media_category: m.MediaCategory || "Photo",
+              short_description: m.ShortDescription || "",
+              order: m.Order || i,
+              image_width: m.ImageWidth || null,
+              image_height: m.ImageHeight || null,
+              modification_timestamp: m.ModificationTimestamp || modTs,
+            }));
+            await supabase.from("mls_media").insert(mediaRows);
           }
 
           totalSynced++;
         }
 
         bfUrl = data["@odata.nextLink"] || "";
-        if (bfUrl && totalSynced < maxRecords) await sleep(REQUEST_DELAY_MS);
+        // Use longer delay for backfill to stay safe on rate limits
+        if (bfUrl && totalSynced < maxRecords) await sleep(1200);
       }
 
       const hasMore = !!bfUrl && totalSynced >= maxRecords;

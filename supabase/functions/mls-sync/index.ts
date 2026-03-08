@@ -915,9 +915,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ── Backfill Closed: pull 18-24 months of historical sold listings for CMA ──
+    // ── Backfill Closed: pull 12 months of historical sold listings for CMA ──
     // This uses StandardStatus eq 'Closed' to fetch all sold listings.
     // Run multiple invocations to page through all records (cursor-based).
+    // IMPORTANT: Keep batch sizes small (limit 200) to stay under MLS Grid
+    // daily request caps (40K warning, 60K suspension). Run once per hour max.
     if (action === "backfill-closed") {
       let resumeTs = body.lastTimestamp || null;
       if (!resumeTs) {
@@ -939,14 +941,16 @@ Deno.serve(async (req) => {
         resumeTs = cursorVal || null;
       }
 
-      // Only pull listings closed within the last 24 months
+      // Only pull listings closed within the last 12 months
       const cutoffDate = new Date();
-      cutoffDate.setMonth(cutoffDate.getMonth() - 24);
+      cutoffDate.setMonth(cutoffDate.getMonth() - 12);
       const cutoffStr = cutoffDate.toISOString().split("T")[0];
 
+      // Use smaller page size for backfill to avoid MLS Grid rate limit issues
+      const bfPageSize = 100;
       const baseFilter = `OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and StandardStatus eq 'Closed'`;
       const tsFilter = resumeTs ? ` and ModificationTimestamp gt ${normalizeTimestamp(resumeTs)}` : "";
-      let bfUrl = `${MLS_GRID_API}/Property?$filter=${baseFilter}${tsFilter}&$expand=Media&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
+      let bfUrl = `${MLS_GRID_API}/Property?$filter=${baseFilter}${tsFilter}&$expand=Media&$top=${bfPageSize}&$orderby=ModificationTimestamp asc`;
       let totalSynced = 0;
       let greatestTs = resumeTs || "";
       let skippedOld = 0;
@@ -1084,38 +1088,32 @@ Deno.serve(async (req) => {
             });
           }
 
-          // Store media (download to R2 for closed listings too)
+          // Store media metadata only (skip R2 download to minimize API calls)
+          // CMA is admin-only; photos served from MLS Grid URLs or omitted
           const media = record.Media || [];
           if (media.length > 0) {
-            const mediaRows = [];
-            for (let i = 0; i < media.length; i++) {
-              const m = media[i];
-              const mUrl = m.MediaURL || "";
-              const localUrl = await uploadMediaToR2(mUrl, listingId, i);
-              mediaRows.push({
-                listing_key: listingKey,
-                media_key: m.MediaKey || `${listingKey}-${i}`,
-                media_url: mUrl,
-                local_url: localUrl,
-                media_type: m.MimeType || "image/jpeg",
-                media_category: m.MediaCategory || "Photo",
-                short_description: m.ShortDescription || "",
-                order: m.Order || i,
-                image_width: m.ImageWidth || null,
-                image_height: m.ImageHeight || null,
-                modification_timestamp: m.ModificationTimestamp || modTs,
-              });
-            }
-            if (mediaRows.length > 0) {
-              await supabase.from("mls_media").insert(mediaRows);
-            }
+            const mediaRows = media.map((m: any, i: number) => ({
+              listing_key: listingKey,
+              media_key: m.MediaKey || `${listingKey}-${i}`,
+              media_url: m.MediaURL || "",
+              local_url: "", // Skip R2 for backfilled closed listings
+              media_type: m.MimeType || "image/jpeg",
+              media_category: m.MediaCategory || "Photo",
+              short_description: m.ShortDescription || "",
+              order: m.Order || i,
+              image_width: m.ImageWidth || null,
+              image_height: m.ImageHeight || null,
+              modification_timestamp: m.ModificationTimestamp || modTs,
+            }));
+            await supabase.from("mls_media").insert(mediaRows);
           }
 
           totalSynced++;
         }
 
         bfUrl = data["@odata.nextLink"] || "";
-        if (bfUrl && totalSynced < maxRecords) await sleep(REQUEST_DELAY_MS);
+        // Use longer delay for backfill to stay well under MLS Grid rate limits
+        if (bfUrl && totalSynced < maxRecords) await sleep(2000);
       }
 
       const hasMore = !!bfUrl && totalSynced >= maxRecords;
