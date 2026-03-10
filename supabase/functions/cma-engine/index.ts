@@ -136,19 +136,35 @@ function scoreComp(
     scores.type_match = 0.1;
   }
 
-  // Construction type match (manufactured vs site-built penalty)
-  // This is critical: manufactured homes should not be compared to site-built and vice versa
+  // Construction type match (type-aware penalty based on real estate data)
+  // Key distinctions supported by appraisal research:
+  // - Modular homes are built to same building codes as site-built (mild penalty)
+  // - Post-1976 manufactured homes (HUD code) appreciate similarly on owned land (moderate penalty)
+  // - Pre-1976 mobile homes are unfinanceable via FHA/VA/USDA/conventional (severe penalty)
   if (subjectFeatures && compFeatures) {
     const subConstruction = (subjectFeatures.construction_type as string) || "unknown";
     const compConstruction = (compFeatures.construction_type as string) || "unknown";
-    const isManufactured = (t: string) => ["manufactured", "modular", "mobile_home"].includes(t);
+    const isFactory = (t: string) => ["manufactured", "modular", "mobile_home"].includes(t);
+    const isMobileHome = (t: string) => t === "mobile_home";
+    const isModular = (t: string) => t === "modular";
+
     if (subConstruction !== "unknown" && compConstruction !== "unknown") {
-      if (isManufactured(subConstruction) !== isManufactured(compConstruction)) {
-        // Major mismatch: manufactured vs site-built, heavy penalty
-        scores.type_match *= 0.3;
-      } else if (subConstruction === compConstruction) {
-        // Exact match bonus
+      if (subConstruction === compConstruction) {
+        // Exact construction type match bonus
         scores.type_match = Math.min(1.0, scores.type_match * 1.1);
+      } else if (isModular(subConstruction) && !isFactory(compConstruction) ||
+                 isModular(compConstruction) && !isFactory(subConstruction)) {
+        // Modular vs site-built: mild penalty (same building codes, same financing)
+        scores.type_match *= 0.7;
+      } else if (isMobileHome(subConstruction) || isMobileHome(compConstruction)) {
+        // Pre-1976 mobile home involved: severe penalty (unfinanceable, different market)
+        scores.type_match *= 0.15;
+      } else if (isFactory(subConstruction) !== isFactory(compConstruction)) {
+        // Post-1976 manufactured vs site-built: moderate penalty
+        scores.type_match *= 0.3;
+      } else if (isFactory(subConstruction) && isFactory(compConstruction)) {
+        // Both factory-built but different sub-types (e.g., manufactured vs modular)
+        scores.type_match *= 0.8;
       }
     }
   }
@@ -1236,6 +1252,11 @@ Deno.serve(async (req: Request) => {
         );
       }
 
+      // Apply feature overrides from client (e.g. user-set construction_type)
+      if (body.feature_overrides) {
+        subjectTags = { ...(subjectTags || {}), ...body.feature_overrides };
+      }
+
       // Build comp query
       const dateFloor =
         filters.min_close_date ||
@@ -1410,6 +1431,11 @@ Deno.serve(async (req: Request) => {
         return jsonResp({ error: "listing_key or manual_subject required" }, 400);
       }
 
+      // Apply feature overrides from client (e.g. user-set construction_type)
+      if (body.feature_overrides) {
+        subjectTags = { ...(subjectTags || {}), ...body.feature_overrides };
+      }
+
       // Find comps (same logic as find-comps action)
       const dateFloor = filters.min_close_date ||
         new Date(Date.now() - 365 * 86400000).toISOString().split("T")[0];
@@ -1535,7 +1561,11 @@ Select the best ${targetCount} comps for this CMA. Consider:
 - Recency of sale
 - ${isLand ? "Land characteristics match (usability, access, views, water)" : "Similar structure and lot"}
 - Avoid comps with very different property subtypes (e.g., condo vs single family)
-- CRITICAL: Construction type must match. Manufactured/modular homes must be compared to other manufactured/modular homes, NOT site-built homes. Site-built homes must not be compared to manufactured homes. This is the most common CMA error in WNC.
+- CRITICAL: Construction type matters, with nuance:
+  * Pre-1976 "mobile homes" are UNFINANCEABLE (no FHA/VA/USDA/conventional) and are essentially a separate market. Never use as comps for site-built or modern manufactured homes.
+  * Post-1976 manufactured homes (HUD code) should be compared to other manufactured homes, not site-built. They appreciate similarly on owned land but are a different construction class.
+  * Modular homes are built to the SAME building codes as site-built homes and can be reasonable comps for site-built properties (mild penalty, not a dealbreaker).
+  * This is the most common CMA error in WNC where manufactured/mobile homes are prevalent.
 - Prefer comps that bracket the subject's likely value (some above, some below)
 
 Return JSON:

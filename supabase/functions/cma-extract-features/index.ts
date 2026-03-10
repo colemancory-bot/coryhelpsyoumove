@@ -105,7 +105,13 @@ perc_status values: approved, failed, not_tested, unknown
 timber_quality values: mature_hardwood, young_growth, mixed, cleared, unknown
 
 NC-SPECIFIC NOTES:
-- Construction type: WNC has many manufactured and modular homes. These are valued differently than site-built homes. Look for clues in Construction Type, Body Type, Structure Type fields, and in remarks. Indicators include: "manufactured", "mobile", "double wide", "single wide", "modular", "HUD code", "on frame", "permanent foundation" (for permanently sited manufactured). Set construction_type accordingly. This is critical for accurate CMA comp matching.
+- Construction type: WNC has many manufactured and modular homes. Look for clues in Construction Type, Body Type, Structure Type fields, and in remarks. Important distinctions:
+  * "mobile_home" = pre-June 1976 (before HUD code). These are unfinanceable and a separate market. Use if year_built < 1976 AND indicators show factory-built, OR if remarks say "mobile home" and it's clearly old.
+  * "manufactured" = post-June 1976 HUD code homes. Indicators: "manufactured", "double wide", "single wide", "HUD code", "on frame". If year_built >= 1976 and factory-built, use this.
+  * "modular" = built to same building codes as site-built, assembled on-site. Indicators: "modular" in Construction Type or remarks.
+  * "site_built" = traditional stick-built construction.
+  * "log" = log cabin construction.
+  Use year_built to help distinguish mobile_home vs manufactured when clues are ambiguous.
 - Septic bedrooms: NC has no legal definition of "bedroom." In rural areas on septic, the septic permit (120 gal/day/bedroom) sets the functional bedroom count. If remarks mention a specific septic permit capacity (e.g., "3-bedroom septic" or "septic approved for 3 bedrooms"), extract septic_permitted_bedrooms. This may differ from the MLS bedroom count.
 - Above/below grade sqft: NC REALTORS combine all Heated Living Area (HLA) into one number, but above-grade and below-grade sqft are valued differently for appraisals. If structured MLS data provides AboveGradeFinishedArea and BelowGradeFinishedArea, use those. If remarks mention "finished basement" or "lower level," infer a split. Set sqft_source to "mls_structured" if from MLS fields or "ai_inferred" if estimated from context.
 

@@ -71,6 +71,35 @@ var DEV_BYPASS = (window.location.hostname === 'localhost' || window.location.ho
   }
 })();
 
+// Handle browser back/forward within CRM
+window.addEventListener('popstate', function(e) {
+  if (e.state && e.state.crm) {
+    var tab = e.state.tab || 'today';
+    var sub = e.state.sub || null;
+    // Navigate within CRM without pushing new history
+    if (tab === 'cma' && (sub === 'dashboard' || sub === null)) {
+      _currentTab = 'cma';
+      renderSidebar();
+      loadCMA(true);
+    } else if (tab === 'cma' && sub === 'step1' && _cmaState.subject) {
+      _currentTab = 'cma';
+      renderSidebar();
+      cmaRenderStep1();
+    } else if (tab === 'cma') {
+      // Any other CMA sub-state (report, etc.) - go to dashboard
+      _currentTab = 'cma';
+      renderSidebar();
+      loadCMA(true);
+    } else {
+      switchTab(tab, true);
+    }
+  } else {
+    // No CRM state — push a new CRM state to prevent leaving
+    // This keeps the user in the CRM when they hit back at the first view
+    history.pushState({ crm: true, tab: _currentTab }, '');
+  }
+});
+
 function showLoginForm(gate) {
   gate.innerHTML = '<div class="crm-auth-form"><h2 class="fd">Cory CRM</h2><p>Sign in to access your dashboard</p>' +
     '<input class="crm-input" id="loginEmail" type="email" placeholder="Email" />' +
@@ -138,7 +167,20 @@ function renderSidebar() {
   sb.innerHTML = html;
 }
 
-function switchTab(tab) {
+// ── History Management (browser back/forward within CRM) ──
+var _crmHistoryInitialized = false;
+function crmPushState(state) {
+  // Push a state to browser history so back button works within CRM
+  if (!_crmHistoryInitialized) {
+    // Replace the initial entry so going "back" from the first CRM view doesn't leave the CRM
+    history.replaceState({ crm: true, tab: state.tab, sub: state.sub || null }, '');
+    _crmHistoryInitialized = true;
+  } else {
+    history.pushState({ crm: true, tab: state.tab, sub: state.sub || null }, '');
+  }
+}
+
+function switchTab(tab, skipHistory) {
   _currentTab = tab;
   _selectedContacts.clear();
   renderSidebar();
@@ -148,6 +190,9 @@ function switchTab(tab) {
   var titleEl = document.querySelector('.crm-title');
   var tabObj = SIDEBAR_TABS.find(function(t) { return t.id === tab; });
   if (titleEl && tabObj) titleEl.textContent = tabObj.label;
+
+  // Push to history (unless triggered by popstate)
+  if (!skipHistory) crmPushState({ tab: tab });
 
   if (tab === 'today') loadToday();
   else if (tab === 'contacts') loadContacts();
@@ -159,7 +204,7 @@ function switchTab(tab) {
   else if (tab === 'questions') loadQuestions();
   else if (tab === 'analytics') loadAnalytics();
   else if (tab === 'listings') loadListings();
-  else if (tab === 'cma') loadCMA();
+  else if (tab === 'cma') loadCMA(true);
 }
 
 // ── Global Search ──
@@ -538,6 +583,7 @@ async function bulkArchive() {
 
 // ── Contact Detail ──
 async function openContact(id) {
+  crmPushState({ tab: 'contacts', sub: 'detail' });
   var main = document.getElementById('crmMain');
   main.innerHTML = '<div class="crm-loading"><div class="crm-spinner"></div></div>';
   try {
@@ -1692,8 +1738,9 @@ async function cmaExtractFetch(action, data) {
 }
 
 // ── CMA Dashboard ──
-async function loadCMA() {
+async function loadCMA(skipHistory) {
   _cmaState.step = 0;
+  if (!skipHistory) crmPushState({ tab: 'cma', sub: 'dashboard' });
   var main = document.getElementById('crmMain');
   main.innerHTML = '<div class="crm-loading"><div class="crm-spinner"></div></div>';
 
@@ -1721,6 +1768,7 @@ async function loadCMA() {
         html += '<div class="cma-report-price">$' + ((r.agent_recommended_price || r.suggested_price) || 0).toLocaleString() + '</div>';
       }
       html += '<div class="cma-report-meta">' + (r.report_name || '') + '</div>';
+      html += '<button class="cma-report-delete" onclick="event.stopPropagation(); cmaDeleteReport(\'' + r.id + '\', \'' + esc(r.subject_address || 'Untitled').replace(/'/g, "\\'") + '\')" title="Delete CMA"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>';
       html += '</div>';
     });
     html += '</div>';
@@ -1729,14 +1777,27 @@ async function loadCMA() {
   main.innerHTML = html;
 }
 
+async function cmaDeleteReport(reportId, address) {
+  if (!confirm('Delete the CMA for "' + address + '"? This cannot be undone.')) return;
+  toast('Deleting report...', 'info');
+  try {
+    var result = await cmaFetch('delete-report', { report_id: reportId });
+    if (result.error) { toast('Delete failed: ' + result.error, 'error'); return; }
+    toast('CMA deleted', 'success');
+    loadCMA();
+  } catch(e) { toast('Delete failed: ' + e.message, 'error'); }
+}
+
 function cmaNewReport() {
   _cmaState = { step: 1, subject: null, comps: [], selectedComps: [], adjustments: [], valuation: null, aiAdvice: null, aiSelection: null, reportId: null, reports: _cmaState.reports, charts: {}, filters: {} };
+  crmPushState({ tab: 'cma', sub: 'step1' });
   cmaRenderStep1();
 }
 
 // ── Quick CMA: auto-runs all steps after subject is confirmed ──
 async function cmaQuickCMA() {
   if (!_cmaState.subject) { toast('Select a subject property first', 'error'); return; }
+  crmPushState({ tab: 'cma', sub: 'quickcma' });
   var sub = _cmaState.subject.listing;
   var main = document.getElementById('crmMain');
 
@@ -1782,6 +1843,10 @@ async function cmaQuickCMA() {
   };
   if (isManual) { compPayload.listing_key = null; compPayload.manual_subject = sub; }
   else { compPayload.listing_key = sub.listing_key; }
+  // Pass any user feature overrides (e.g. construction_type)
+  if (_cmaState.subject.features && Object.keys(_cmaState.subject.features).length > 0) {
+    compPayload.feature_overrides = _cmaState.subject.features;
+  }
 
   var compResult = await cmaFetch('auto-select-comps', compPayload);
   if (compResult.error) { renderProgress(0, 'Comp selection failed: ' + compResult.error); return; }
@@ -1826,6 +1891,7 @@ async function cmaQuickCMA() {
 }
 
 async function cmaOpenReport(reportId) {
+  crmPushState({ tab: 'cma', sub: 'report' });
   var main = document.getElementById('crmMain');
   main.innerHTML = '<div class="crm-loading"><div class="crm-spinner"></div></div>';
   var result = await cmaFetch('get-report', { report_id: reportId });
@@ -1896,6 +1962,7 @@ function cmaRenderStep1() {
   html += cmaFactsRow('County', 'cmaManCounty', 'text', 'Macon', false);
   html += cmaFactsSelectRow('Property Type', 'cmaManType', [['Residential','Residential'],['Land','Land'],['Residential Income','Multi-Family'],['Commercial','Commercial']], true);
   html += cmaFactsSelectRow('Subtype', 'cmaManSubtype', [['Single Family Residence','Single Family'],['Cabin','Cabin'],['Manufactured Home','Manufactured'],['Condo','Condo'],['Townhouse','Townhouse'],['','Other']], false);
+  html += cmaFactsSelectRow('Construction', 'cmaManConstruction', [['auto','Auto-detect'],['site_built','Site-Built'],['manufactured','Manufactured (post-1976)'],['modular','Modular'],['mobile_home','Mobile Home (pre-1976)'],['log','Log']], false);
   html += '<tr class="cma-facts-divider"><td colspan="3"></td></tr>';
   html += cmaFactsRow('Bedrooms *', 'cmaManBeds', 'number', '3', true);
   html += cmaFactsRow('Bathrooms *', 'cmaManBaths', 'number', '2', true, '0.5');
@@ -2017,7 +2084,12 @@ function cmaSubmitManual() {
     longitude: null,
     improvement_notes: notes
   };
-  _cmaState.subject = { listing: listing, features: window._cmaPrefilledTags || {} };
+  var features = window._cmaPrefilledTags || {};
+  var constructionVal = document.getElementById('cmaManConstruction').value;
+  if (constructionVal && constructionVal !== 'auto') {
+    features.construction_type = constructionVal;
+  }
+  _cmaState.subject = { listing: listing, features: features };
   window._cmaPrefilledKey = null;
   window._cmaPrefilledTags = null;
   toast('Subject property set', 'success');
@@ -2187,6 +2259,16 @@ function cmaShowEditableSubject(data, tags, source) {
   if (data.property_type) setVal('cmaManType', data.property_type);
   if (data.property_sub_type) setVal('cmaManSubtype', data.property_sub_type);
 
+  // Construction type from feature tags
+  var constructionType = (tags && tags.construction_type) ? tags.construction_type : 'auto';
+  setRecord('cmaManConstruction', constructionType === 'auto' || constructionType === 'unknown' ? 'Auto-detect' :
+    constructionType === 'site_built' ? 'Site-Built' :
+    constructionType === 'manufactured' ? 'Manufactured' :
+    constructionType === 'modular' ? 'Modular' :
+    constructionType === 'mobile_home' ? 'Mobile Home' :
+    constructionType === 'log' ? 'Log' : constructionType);
+  setVal('cmaManConstruction', constructionType === 'unknown' ? 'auto' : constructionType);
+
   // Show source badge
   var sourceEl = document.getElementById('cmaManSource');
   if (sourceEl) sourceEl.textContent = source + (data.listing_key ? ' (' + data.listing_key + ')' : '');
@@ -2214,7 +2296,9 @@ function cmaSubjectCard(subject) {
   var html = '<div class="cma-subject-card">';
   html += '<div class="cma-subject-header"><h4>' + esc(l.full_address || '') + '</h4><span class="cma-subject-city">' + esc((l.city || '') + ', ' + (l.county_or_parish || '')) + '</span></div>';
   html += '<div class="cma-subject-details">';
-  html += '<div class="cma-detail-row"><span>Type</span><span>' + esc(l.property_type || '') + '</span></div>';
+  var ctLabel = f && f.construction_type && f.construction_type !== 'site_built' && f.construction_type !== 'unknown' ?
+    (f.construction_type === 'manufactured' ? ' (Manufactured)' : f.construction_type === 'modular' ? ' (Modular)' : f.construction_type === 'mobile_home' ? ' (Mobile Home)' : f.construction_type === 'log' ? ' (Log)' : '') : '';
+  html += '<div class="cma-detail-row"><span>Type</span><span>' + esc(l.property_type || '') + ctLabel + '</span></div>';
   html += '<div class="cma-detail-row"><span>Sqft</span><span>' + (l.living_area ? l.living_area.toLocaleString() : '--') + '</span></div>';
   html += '<div class="cma-detail-row"><span>Lot</span><span>' + (l.lot_size_acres ? l.lot_size_acres + ' ac' : '--') + '</span></div>';
   html += '<div class="cma-detail-row"><span>Bed/Bath</span><span>' + (l.bedrooms_total || '?') + '/' + (l.bathrooms_total_integer || '?') + '</span></div>';
@@ -2267,6 +2351,10 @@ async function cmaGoStep2() {
     payload.manual_subject = sub;
   } else {
     payload.listing_key = sub.listing_key;
+  }
+  // Pass any user feature overrides (e.g. construction_type)
+  if (_cmaState.subject.features && Object.keys(_cmaState.subject.features).length > 0) {
+    payload.feature_overrides = _cmaState.subject.features;
   }
 
   var result = await cmaFetch('find-comps', payload);

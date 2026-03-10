@@ -961,8 +961,11 @@ a:hover { color: var(--crm-accent-light); }
 
 /* Report cards grid */
 .cma-reports-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
-.cma-report-card { background: var(--crm-bg-card); border: 1px solid var(--crm-border); border-radius: 8px; padding: 1.2rem; cursor: pointer; transition: box-shadow 0.2s, border-color 0.2s; }
+.cma-report-card { background: var(--crm-bg-card); border: 1px solid var(--crm-border); border-radius: 8px; padding: 1.2rem; cursor: pointer; transition: box-shadow 0.2s, border-color 0.2s; position: relative; }
 .cma-report-card:hover { box-shadow: var(--crm-shadow-md); border-color: var(--crm-accent); }
+.cma-report-delete { position: absolute; bottom: 0.8rem; right: 0.8rem; background: none; border: none; color: var(--crm-text-muted); cursor: pointer; padding: 4px; border-radius: 4px; opacity: 0; transition: opacity 0.2s, color 0.2s; }
+.cma-report-card:hover .cma-report-delete { opacity: 1; }
+.cma-report-delete:hover { color: var(--crm-red); background: var(--crm-red-bg); }
 .cma-report-card-top { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
 .cma-report-status { font-size: 0.65rem; padding: 0.15rem 0.5rem; border-radius: 10px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em; }
 .cma-status-draft { background: var(--crm-amber-bg); color: var(--crm-amber); }
