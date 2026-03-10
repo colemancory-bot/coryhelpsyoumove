@@ -141,12 +141,43 @@ function scoreComp(
   // - Modular homes are built to same building codes as site-built (mild penalty)
   // - Post-1976 manufactured homes (HUD code) appreciate similarly on owned land (moderate penalty)
   // - Pre-1976 mobile homes are unfinanceable via FHA/VA/USDA/conventional (severe penalty)
-  if (subjectFeatures && compFeatures) {
-    const subConstruction = (subjectFeatures.construction_type as string) || "unknown";
-    const compConstruction = (compFeatures.construction_type as string) || "unknown";
+  {
     const isFactory = (t: string) => ["manufactured", "modular", "mobile_home"].includes(t);
     const isMobileHome = (t: string) => t === "mobile_home";
     const isModular = (t: string) => t === "modular";
+
+    // Resolve construction type with fallback inference from MLS data
+    const resolveConstruction = (features: Record<string, unknown> | null, listing: Record<string, unknown>): string => {
+      // Check feature tags first
+      const tagged = (features?.construction_type as string) || "unknown";
+      if (tagged !== "unknown") return tagged;
+      // Infer from property_sub_type (MLS explicitly flags manufactured/modular)
+      const subType = ((listing.property_sub_type || "") as string).toLowerCase();
+      if (subType.includes("manufactured") || subType.includes("mobile")) return "manufactured";
+      if (subType.includes("modular")) return "modular";
+      // Infer from raw_data if available
+      const raw = (listing.raw_data || {}) as Record<string, unknown>;
+      const carConst = ((raw.CAR_ConstructionType || "") as string).toLowerCase();
+      const bodyType = (Array.isArray(raw.BodyType) ? raw.BodyType.join(" ") : ((raw.BodyType || "") as string)).toLowerCase();
+      if (carConst.includes("manufactured") || carConst.includes("mobile") ||
+          bodyType.includes("double wide") || bodyType.includes("single wide") ||
+          bodyType.includes("manufactured")) {
+        const yr = (listing.year_built || 0) as number;
+        return (yr > 0 && yr < 1976) ? "mobile_home" : "manufactured";
+      }
+      if (carConst.includes("modular") || bodyType.includes("modular")) return "modular";
+      if (carConst.includes("log") || bodyType.includes("log")) return "log";
+      // Default: if subject has known type and we can't determine comp, assume site_built
+      // Rationale: MLS data explicitly flags manufactured/modular; absence implies site-built
+      return "site_built";
+    };
+
+    const subConstruction = subjectFeatures
+      ? resolveConstruction(subjectFeatures, subject)
+      : "unknown";
+    const compConstruction = compFeatures
+      ? resolveConstruction(compFeatures, comp)
+      : resolveConstruction(null, comp);
 
     if (subConstruction !== "unknown" && compConstruction !== "unknown") {
       if (subConstruction === compConstruction) {
@@ -1520,7 +1551,26 @@ Deno.serve(async (req: Request) => {
 
       // Ask Claude to pick the best comps
       const isLand = (subject.property_type as string) === "Land";
-      const subConstructionType = subjectTags?.construction_type as string || "unknown";
+      // Resolve subject construction type using same logic as scoring
+      let subConstructionType = (subjectTags?.construction_type as string) || "unknown";
+      if (subConstructionType === "unknown") {
+        // Try to infer from MLS data
+        const subType = ((subject.property_sub_type || "") as string).toLowerCase();
+        if (subType.includes("manufactured") || subType.includes("mobile")) subConstructionType = "manufactured";
+        else if (subType.includes("modular")) subConstructionType = "modular";
+        else {
+          const raw = (subject.raw_data || {}) as Record<string, unknown>;
+          const carConst = ((raw.CAR_ConstructionType || "") as string).toLowerCase();
+          const bodyTypeArr = Array.isArray(raw.BodyType) ? raw.BodyType.join(" ") : ((raw.BodyType || "") as string);
+          const bodyTypeLc = bodyTypeArr.toLowerCase();
+          if (carConst.includes("manufactured") || carConst.includes("mobile") ||
+              bodyTypeLc.includes("double wide") || bodyTypeLc.includes("single wide")) {
+            subConstructionType = "manufactured";
+          } else if (carConst.includes("modular")) {
+            subConstructionType = "modular";
+          }
+        }
+      }
       const subjectDesc = [
         `${subject.full_address || "Unknown"}, ${subject.city || ""}, ${subject.county_or_parish || ""}`,
         `Type: ${subject.property_type || ""} / ${subject.property_sub_type || ""}`,

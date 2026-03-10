@@ -2191,6 +2191,48 @@ async function cmaMLSLookup(query) {
   }
 }
 
+// Detect construction type from raw MLS data (CAR_ConstructionType, BodyType, etc.)
+function cmaDetectConstructionType(listing) {
+  var raw = listing.raw_data || {};
+  var yearBuilt = listing.year_built || 0;
+  var subtype = (listing.property_sub_type || '').toLowerCase();
+
+  // Check Canopy MLS fields
+  var carConstruction = ((raw.CAR_ConstructionType || '') + '').toLowerCase();
+  // Check CSAR/Navica fields
+  var bodyType = (Array.isArray(raw.BodyType) ? raw.BodyType.join(' ') : (raw.BodyType || '')).toLowerCase();
+  var structureType = (Array.isArray(raw.StructureType) ? raw.StructureType.join(' ') : (raw.StructureType || '')).toLowerCase();
+  var archStyle = (Array.isArray(raw.ArchitecturalStyle) ? raw.ArchitecturalStyle.join(' ') : (raw.ArchitecturalStyle || '')).toLowerCase();
+  var remarks = ((listing.public_remarks || '') + ' ' + (raw.PrivateRemarks || '')).toLowerCase();
+
+  // Check for modular first (built to same codes as site-built)
+  if (carConstruction.indexOf('modular') >= 0 || bodyType.indexOf('modular') >= 0 ||
+      structureType.indexOf('modular') >= 0 || subtype.indexOf('modular') >= 0) {
+    return 'modular';
+  }
+  // Check for manufactured/mobile/double-wide/single-wide
+  if (carConstruction.indexOf('manufactured') >= 0 || carConstruction.indexOf('mobile') >= 0 ||
+      bodyType.indexOf('double wide') >= 0 || bodyType.indexOf('single wide') >= 0 ||
+      bodyType.indexOf('manufactured') >= 0 || bodyType.indexOf('mobile') >= 0 ||
+      structureType.indexOf('manufactured') >= 0 || subtype.indexOf('manufactured') >= 0 ||
+      subtype.indexOf('mobile') >= 0) {
+    // Pre-1976 = mobile_home, post-1976 = manufactured
+    return (yearBuilt > 0 && yearBuilt < 1976) ? 'mobile_home' : 'manufactured';
+  }
+  // Check remarks as last resort
+  if (remarks.indexOf('double wide') >= 0 || remarks.indexOf('doublewide') >= 0 ||
+      remarks.indexOf('single wide') >= 0 || remarks.indexOf('singlewide') >= 0 ||
+      remarks.indexOf('manufactured home') >= 0) {
+    return (yearBuilt > 0 && yearBuilt < 1976) ? 'mobile_home' : 'manufactured';
+  }
+  // Check for log
+  if (carConstruction.indexOf('log') >= 0 || archStyle.indexOf('log') >= 0 ||
+      structureType.indexOf('log') >= 0) {
+    return 'log';
+  }
+  return null; // Could not detect, leave for AI
+}
+
 async function cmaSelectSubject(listingKey) {
   toast('Loading subject property...', 'info');
   // Fetch full listing
@@ -2202,6 +2244,15 @@ async function cmaSelectSubject(listingKey) {
     toast('Extracting mountain features with AI...', 'info');
     var extractResult = await cmaExtractFetch('extract-single', { listing_key: listingKey });
     if (extractResult && extractResult.features) { tags = extractResult.features; }
+  }
+  // Auto-detect construction type from raw MLS data if tags don't have it
+  if (!tags || !tags.construction_type || tags.construction_type === 'unknown') {
+    var detected = cmaDetectConstructionType(listing);
+    if (detected) {
+      if (!tags) tags = {};
+      tags.construction_type = detected;
+      toast('Detected construction type: ' + detected.replace('_', ' '), 'info');
+    }
   }
   // Pre-fill the editable form with MLS data instead of locking it in
   cmaShowEditableSubject(listing, tags, 'MLS Listing');
