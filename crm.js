@@ -1665,6 +1665,7 @@ var _cmaState = {
 
 var CMA_FUNC_URL = SUPABASE_URL + '/functions/v1/cma-engine';
 var CMA_EXTRACT_URL = SUPABASE_URL + '/functions/v1/cma-extract-features';
+var CMA_PDF_URL = SUPABASE_URL + '/functions/v1/cma-pdf';
 
 async function cmaFetch(action, data) {
   var body = Object.assign({ action: action }, data || {});
@@ -1729,8 +1730,99 @@ async function loadCMA() {
 }
 
 function cmaNewReport() {
-  _cmaState = { step: 1, subject: null, comps: [], selectedComps: [], adjustments: [], valuation: null, aiAdvice: null, reportId: null, reports: _cmaState.reports, charts: {}, filters: {} };
+  _cmaState = { step: 1, subject: null, comps: [], selectedComps: [], adjustments: [], valuation: null, aiAdvice: null, aiSelection: null, reportId: null, reports: _cmaState.reports, charts: {}, filters: {} };
   cmaRenderStep1();
+}
+
+// ── Quick CMA: auto-runs all steps after subject is confirmed ──
+async function cmaQuickCMA() {
+  if (!_cmaState.subject) { toast('Select a subject property first', 'error'); return; }
+  var sub = _cmaState.subject.listing;
+  var main = document.getElementById('crmMain');
+
+  // Show progress UI
+  var steps = [
+    { id: 'qc-find', label: 'Finding and ranking comparables' },
+    { id: 'qc-adjust', label: 'Calculating adjustments' },
+    { id: 'qc-ai', label: 'Getting AI market analysis' }
+  ];
+  function renderProgress(activeIdx, error) {
+    var html = '<div class="cma-wizard"><div class="cma-auto-progress">';
+    html += '<h2 class="fd" style="margin-bottom:0.3rem;">Quick CMA</h2>';
+    html += '<p style="color:var(--crm-text-muted);margin-bottom:1.5rem;">' + esc(sub.full_address || '') + '</p>';
+    steps.forEach(function(s, i) {
+      var icon, cls;
+      if (error && i === activeIdx) { icon = '\u2717'; cls = 'qc-error'; }
+      else if (i < activeIdx) { icon = '\u2713'; cls = 'qc-done'; }
+      else if (i === activeIdx) { icon = ''; cls = 'qc-active'; }
+      else { icon = ''; cls = 'qc-pending'; }
+      html += '<div class="qc-step ' + cls + '">';
+      if (i === activeIdx && !error) html += '<div class="crm-spinner" style="width:18px;height:18px;border-width:2px;margin-right:0.5rem;"></div>';
+      else html += '<span class="qc-icon">' + icon + '</span>';
+      html += '<span>' + s.label + '</span></div>';
+    });
+    if (error) {
+      html += '<div style="margin-top:1rem;color:var(--crm-red);font-size:0.85rem;">' + esc(error) + '</div>';
+      html += '<button class="crm-btn crm-btn-secondary" onclick="cmaRenderStep1()" style="margin-top:0.8rem;">Back to Subject</button>';
+    }
+    html += '</div></div>';
+    main.innerHTML = html;
+  }
+
+  // Step 1: Auto-select comps
+  renderProgress(0);
+  var isManual = (sub.listing_key || '').startsWith('manual_');
+  var compPayload = {
+    filters: Object.assign({
+      county: sub.county_or_parish || null,
+      property_type: sub.property_type || null,
+      max_distance_miles: 15
+    }, _cmaState.filters),
+    target_count: 4
+  };
+  if (isManual) { compPayload.listing_key = null; compPayload.manual_subject = sub; }
+  else { compPayload.listing_key = sub.listing_key; }
+
+  var compResult = await cmaFetch('auto-select-comps', compPayload);
+  if (compResult.error) { renderProgress(0, 'Comp selection failed: ' + compResult.error); return; }
+
+  var selected = compResult.selected || [];
+  if (selected.length === 0) { renderProgress(0, 'No comparable sales found. Try adjusting filters or adding a manual subject.'); return; }
+
+  // Map to match expected format
+  _cmaState.comps = selected.map(function(c) { c.selected = true; return c; });
+  if (compResult.remaining) {
+    compResult.remaining.forEach(function(c) { c.selected = false; _cmaState.comps.push(c); });
+  }
+  _cmaState.selectedComps = selected;
+  _cmaState.aiSelection = compResult.ai_selection || null;
+
+  // Step 2: Calculate adjustments
+  renderProgress(1);
+  var calcResult = await cmaFetch('calculate-adjustments', {
+    subject: _cmaState.subject,
+    comps: _cmaState.selectedComps.map(function(c) { return { listing: c.listing, features: c.features }; })
+  });
+  if (calcResult.error) { renderProgress(1, 'Adjustment calculation failed: ' + calcResult.error); return; }
+  _cmaState.adjustments = calcResult.adjustments || [];
+  _cmaState.valuation = calcResult.valuation || {};
+
+  // Step 3: AI advice
+  renderProgress(2);
+  var adviceResult = await cmaFetch('ai-advise', {
+    subject: _cmaState.subject,
+    comps: _cmaState.selectedComps.map(function(c, i) {
+      return { listing: c.listing, features: c.features, adjustments: _cmaState.adjustments[i] };
+    })
+  });
+  _cmaState.aiAdvice = adviceResult.error
+    ? { considerations: [], summary: 'AI analysis unavailable.', comp_reasoning: {} }
+    : adviceResult;
+
+  // Done! Jump to step 4 review
+  _cmaState.step = 4;
+  toast('Quick CMA complete!', 'success');
+  cmaRenderStep4();
 }
 
 async function cmaOpenReport(reportId) {
@@ -1821,7 +1913,7 @@ function cmaRenderStep1() {
   html += '</div>';
   if (_cmaState.subject) {
     html += cmaSubjectCard(_cmaState.subject);
-    html += '<div class="cma-step-actions"><button class="crm-btn crm-btn-primary" onclick="cmaGoStep2()">Continue to Comp Selection</button></div>';
+    html += '<div class="cma-step-actions"><button class="crm-btn crm-btn-secondary" onclick="cmaGoStep2()">Manual Comp Selection</button><button class="crm-btn crm-btn-primary" onclick="cmaQuickCMA()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/></svg> Quick CMA</button></div>';
   }
   html += '</div></div>';
   main.innerHTML = html;
@@ -2616,6 +2708,40 @@ function cmaRenderStep4() {
     html += '<div class="cma-ai-summary">' + esc(ai.summary) + '</div></div>';
   }
 
+  // AI Comp Selection reasoning (from Quick CMA auto-select)
+  if (_cmaState.aiSelection) {
+    var sel = _cmaState.aiSelection;
+    html += '<div class="cma-ai-section"><h4 class="cma-ai-title">AI Comp Selection</h4>';
+    // Selected reasons
+    if (sel.reasoning && typeof sel.reasoning === 'object') {
+      html += '<div class="cma-comp-reasoning">';
+      _cmaState.selectedComps.forEach(function(c) {
+        var key = c.listing.listing_key;
+        var reason = sel.reasoning[key] || '';
+        if (!reason) return;
+        html += '<div class="cma-reasoning-card"><div class="cma-reasoning-header">' + esc((c.listing.full_address || '').split(',')[0]) + '</div>';
+        html += '<div class="cma-reasoning-text">' + esc(reason) + '</div></div>';
+      });
+      html += '</div>';
+    } else if (typeof sel.reasoning === 'string') {
+      html += '<div class="cma-ai-summary">' + esc(sel.reasoning) + '</div>';
+    }
+    // Excluded reasons
+    if (sel.excluded && typeof sel.excluded === 'object') {
+      var exKeys = Object.keys(sel.excluded);
+      if (exKeys.length) {
+        html += '<div style="margin-top:0.5rem;font-size:0.82rem;color:var(--crm-text-muted);">';
+        html += '<strong>Excluded:</strong> ';
+        exKeys.forEach(function(ek, i) {
+          if (i > 0) html += ' | ';
+          html += esc(ek.substring(0, 12)) + ': ' + esc(sel.excluded[ek] || '');
+        });
+        html += '</div>';
+      }
+    }
+    html += '</div>';
+  }
+
   // Per-comp AI Reasoning (admin only, NOT for PDF)
   if (ai.comp_reasoning && Object.keys(ai.comp_reasoning).length) {
     html += '<div class="cma-ai-section cma-admin-only"><h4 class="cma-ai-title">AI Comp Analysis <span class="cma-admin-badge">Admin Only</span></h4>';
@@ -2813,317 +2939,65 @@ function cmaGoToStep(step) {
 }
 
 // ══════════════════════════════════════
-// CMA PDF Generation (jsPDF + AutoTable)
+// CMA PDF Generation (HTML-based via cma-pdf edge function)
 // ══════════════════════════════════════
 
-function cmaGeneratePDF() {
-  if (typeof jspdf === 'undefined' && typeof window.jspdf === 'undefined') {
-    toast('PDF library not loaded. Please refresh the page.', 'error');
-    return;
-  }
+async function cmaGeneratePDF() {
+  toast('Generating CMA report...', 'info');
 
-  toast('Generating PDF...', 'info');
-  setTimeout(function() { _cmaGeneratePDFImpl(); }, 100);
-}
-
-function _cmaGeneratePDFImpl() {
-  var jsPDF = (window.jspdf && window.jspdf.jsPDF) || jspdf.jsPDF;
-  var doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
   var s = _cmaState.subject.listing;
-  var sf = _cmaState.subject.features || {};
-  var v = _cmaState.valuation || {};
   var adjs = _cmaState.adjustments;
   var comps = _cmaState.selectedComps;
+  var v = _cmaState.valuation || {};
   var ai = _cmaState.aiAdvice || {};
 
-  var pageW = 215.9;
-  var pageH = 279.4;
-  var margin = 15;
-  var contentW = pageW - margin * 2;
-  var y = margin;
-
-  // Colors
-  var gold = [196, 176, 140];
-  var dark = [12, 11, 9];
-  var cream = [245, 240, 232];
-
-  // Helper
-  function addPage() { doc.addPage(); y = margin; }
-  function checkPage(needed) { if (y + needed > pageH - margin) addPage(); }
-
-  // ── Page 1: Cover ──
-  doc.setFillColor(dark[0], dark[1], dark[2]);
-  doc.rect(0, 0, pageW, pageH, 'F');
-
-  doc.setTextColor(gold[0], gold[1], gold[2]);
-  doc.setFontSize(28);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Comparative Market Analysis', pageW / 2, 60, { align: 'center' });
-
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(cream[0], cream[1], cream[2]);
-  doc.text(s.full_address || 'Subject Property', pageW / 2, 80, { align: 'center' });
-  doc.text((s.city || '') + ', NC ' + (s.county_or_parish || ''), pageW / 2, 90, { align: 'center' });
-
-  if (v.suggested_price) {
-    doc.setFontSize(32);
-    doc.setTextColor(gold[0], gold[1], gold[2]);
-    doc.text('$' + v.suggested_price.toLocaleString(), pageW / 2, 120, { align: 'center' });
-    doc.setFontSize(12);
-    doc.setTextColor(cream[0], cream[1], cream[2]);
-    doc.text('Suggested List Price', pageW / 2, 130, { align: 'center' });
-    if (v.suggested_low && v.suggested_high) {
-      doc.text('Range: $' + v.suggested_low.toLocaleString() + ' - $' + v.suggested_high.toLocaleString(), pageW / 2, 140, { align: 'center' });
-    }
+  // If we have a saved report_id, use that; otherwise build report_data
+  var payload = { action: 'generate-html', format: 'html' };
+  if (_cmaState.reportId) {
+    payload.report_id = _cmaState.reportId;
+  } else {
+    payload.report_data = {
+      subject: _cmaState.subject,
+      comps: comps.map(function(c, i) {
+        var adj = adjs[i] || {};
+        return {
+          listing: c.listing,
+          features: c.features || null,
+          adjustments: adj.adjustments || adj
+        };
+      }),
+      valuation: { suggested_low: v.suggested_low || 0, suggested_high: v.suggested_high || 0, suggested_price: v.suggested_price || 0 },
+      ai_summary: ai.summary || '',
+      ai_considerations: ai.considerations || []
+    };
   }
 
-  var recPrice = parseInt(document.getElementById('cmaRecPrice')?.value) || null;
-  if (recPrice) {
-    doc.setFontSize(18);
-    doc.setTextColor(gold[0], gold[1], gold[2]);
-    doc.text('Agent Recommended: $' + recPrice.toLocaleString(), pageW / 2, 160, { align: 'center' });
-  }
-
-  doc.setFontSize(10);
-  doc.setTextColor(cream[0], cream[1], cream[2]);
-  doc.text('Prepared by Cory Coleman', pageW / 2, 220, { align: 'center' });
-  doc.text('Keller Williams Great Smokies', pageW / 2, 227, { align: 'center' });
-  doc.text('(828) 506-6413 | coryhelpsyoumove@gmail.com', pageW / 2, 234, { align: 'center' });
-  doc.text(new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }), pageW / 2, 244, { align: 'center' });
-
-  // ── Page 2: Subject Property Details ──
-  addPage();
-  doc.setTextColor(dark[0], dark[1], dark[2]);
-  doc.setFontSize(18);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Subject Property', margin, y + 5);
-  y += 15;
-
-  var subjectDetails = [
-    ['Address', s.full_address || ''],
-    ['City / County', (s.city || '') + ', ' + (s.county_or_parish || '')],
-    ['Property Type', (s.property_type || '') + (s.property_sub_type ? ' / ' + s.property_sub_type : '')],
-    ['Living Area', s.living_area ? s.living_area.toLocaleString() + ' sqft' : '--'],
-    ['Lot Size', s.lot_size_acres ? s.lot_size_acres + ' acres' : '--'],
-    ['Bedrooms / Bathrooms', (s.bedrooms_total || '?') + ' / ' + (s.bathrooms_total_integer || '?')],
-    ['Year Built', s.year_built ? String(s.year_built) : '--'],
-    ['Garage', s.garage_spaces ? String(s.garage_spaces) + ' spaces' : 'None'],
-    ['List Price', s.list_price ? '$' + s.list_price.toLocaleString() : '--'],
-  ];
-
-  doc.autoTable({
-    startY: y,
-    head: [],
-    body: subjectDetails,
-    theme: 'plain',
-    styles: { fontSize: 10, cellPadding: 2 },
-    columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 } },
-    margin: { left: margin, right: margin }
-  });
-
-  y = doc.lastAutoTable.finalY + 10;
-
-  // Mountain features
-  if (sf.view_quality) {
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Mountain Features', margin, y);
-    y += 8;
-
-    var mtnFeatures = [
-      ['View Quality', (sf.view_quality || '--') + '/5'],
-      ['Water Features', (sf.water_quality || '--') + '/5'],
-      ['Land Usability', (sf.land_usability || '--') + '/5'],
-      ['Road Noise (Quiet)', (sf.road_noise || '--') + '/5'],
-      ['Privacy', (sf.privacy_rating || '--') + '/5'],
-      ['Condition', (sf.condition_rating || '--') + '/5'],
-      ['Elevation', sf.elevation_ft ? sf.elevation_ft.toLocaleString() + ' ft' : '--'],
-    ];
-
-    doc.autoTable({
-      startY: y,
-      head: [],
-      body: mtnFeatures,
-      theme: 'plain',
-      styles: { fontSize: 10, cellPadding: 2 },
-      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 } },
-      margin: { left: margin, right: margin }
+  try {
+    var resp = await fetch(CMA_PDF_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY },
+      body: JSON.stringify(payload)
     });
-    y = doc.lastAutoTable.finalY + 10;
-  }
-
-  // ── Page 3: Comparable Sales Summary ──
-  addPage();
-  doc.setFontSize(18);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Comparable Sales', margin, y + 5);
-  y += 15;
-
-  var compHeaders = ['', 'Subject'];
-  comps.forEach(function(c, i) { compHeaders.push('Comp ' + (i+1)); });
-
-  var compRows = [
-    ['Address', (s.full_address || '').split(',')[0]].concat(comps.map(function(c) { return (c.listing.full_address || '').split(',')[0]; })),
-    ['Sale Price', s.list_price ? '$' + s.list_price.toLocaleString() : '--'].concat(adjs.map(function(a) { return '$' + a.sale_price.toLocaleString(); })),
-    ['Sqft', s.living_area ? s.living_area.toLocaleString() : '--'].concat(comps.map(function(c) { return c.listing.living_area ? c.listing.living_area.toLocaleString() : '--'; })),
-    ['Lot', s.lot_size_acres ? s.lot_size_acres + ' ac' : '--'].concat(comps.map(function(c) { return c.listing.lot_size_acres ? c.listing.lot_size_acres + ' ac' : '--'; })),
-    ['Beds/Baths', (s.bedrooms_total || '?') + '/' + (s.bathrooms_total_integer || '?')].concat(comps.map(function(c) { return (c.listing.bedrooms_total || '?') + '/' + (c.listing.bathrooms_total_integer || '?'); })),
-    ['Year Built', s.year_built || '--'].concat(comps.map(function(c) { return c.listing.year_built || '--'; })),
-    ['Close Date', '--'].concat(comps.map(function(c) { return c.listing.close_date || '--'; })),
-  ];
-
-  doc.autoTable({
-    startY: y,
-    head: [compHeaders],
-    body: compRows,
-    theme: 'grid',
-    styles: { fontSize: 8, cellPadding: 2, halign: 'center' },
-    headStyles: { fillColor: [92, 107, 192], textColor: [255, 255, 255], fontSize: 9 },
-    columnStyles: { 0: { fontStyle: 'bold', halign: 'left' } },
-    margin: { left: margin, right: margin }
-  });
-  y = doc.lastAutoTable.finalY + 10;
-
-  // ── Page 4: Full Adjustment Grid ──
-  addPage();
-  doc.setFontSize(18);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Adjustment Grid', margin, y + 5);
-  y += 15;
-
-  var adjLabels = [
-    'Living Area', 'Lot Size', 'Bedrooms', 'Bathrooms', 'Garage', 'Year Built',
-    'View', 'Water Features', 'Land Character', 'Road Noise', 'Privacy', 'Condition', 'Elevation',
-    'Time', 'Concessions',
-    'TOTAL ADJUSTMENT', 'ADJUSTED PRICE'
-  ];
-  var adjKeys = [
-    'adj_living_area', 'adj_lot_size', 'adj_bedrooms', 'adj_bathrooms', 'adj_garage', 'adj_year_built',
-    'adj_view', 'adj_water_features', 'adj_land_character', 'adj_road_noise', 'adj_privacy', 'adj_condition', 'adj_elevation',
-    'adj_time', 'adj_concessions'
-  ];
-
-  var adjHeaders = ['Adjustment'].concat(comps.map(function(c, i) { return 'Comp ' + (i+1); }));
-  var adjRows = adjKeys.map(function(key, idx) {
-    return [adjLabels[idx]].concat(adjs.map(function(a) {
-      var val = a.adjustments[key] || 0;
-      return val === 0 ? '--' : (val > 0 ? '+' : '') + '$' + val.toLocaleString();
-    }));
-  });
-  // Total and adjusted rows
-  adjRows.push(['TOTAL ADJUSTMENT'].concat(adjs.map(function(a) { return (a.total_adjustment >= 0 ? '+' : '') + '$' + a.total_adjustment.toLocaleString(); })));
-  adjRows.push(['ADJUSTED PRICE'].concat(adjs.map(function(a) { return '$' + a.adjusted_price.toLocaleString(); })));
-
-  doc.autoTable({
-    startY: y,
-    head: [adjHeaders],
-    body: adjRows,
-    theme: 'grid',
-    styles: { fontSize: 7, cellPadding: 1.5, halign: 'center' },
-    headStyles: { fillColor: [92, 107, 192], textColor: [255, 255, 255], fontSize: 8 },
-    columnStyles: { 0: { fontStyle: 'bold', halign: 'left', cellWidth: 35 } },
-    margin: { left: margin, right: margin },
-    didParseCell: function(data) {
-      // Bold total rows
-      if (data.row.index >= adjKeys.length) {
-        data.cell.styles.fontStyle = 'bold';
-        if (data.row.index === adjKeys.length + 1) {
-          data.cell.styles.fillColor = [245, 240, 232];
-        }
-      }
+    var html = await resp.text();
+    // Open HTML in new tab for print-to-PDF
+    var win = window.open('', '_blank');
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+      toast('CMA report opened. Use Ctrl+P to save as PDF.', 'success');
+    } else {
+      // Fallback: download as HTML file
+      var blob = new Blob([html], { type: 'text/html' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'CMA-' + (s.full_address || 'Report').replace(/[^a-zA-Z0-9]/g, '-').slice(0, 40) + '.html';
+      a.click();
+      URL.revokeObjectURL(url);
+      toast('CMA report downloaded as HTML. Open in browser and print to PDF.', 'success');
     }
-  });
-  y = doc.lastAutoTable.finalY + 10;
-
-  // Gross/Net pct
-  checkPage(20);
-  var pctRow = ['Gross Adj %'].concat(adjs.map(function(a) { return a.gross_adjustment_pct + '%'; }));
-  var netRow = ['Net Adj %'].concat(adjs.map(function(a) { return a.net_adjustment_pct + '%'; }));
-  doc.autoTable({
-    startY: y,
-    head: [],
-    body: [pctRow, netRow],
-    theme: 'plain',
-    styles: { fontSize: 8, cellPadding: 1.5, halign: 'center' },
-    columnStyles: { 0: { fontStyle: 'bold', halign: 'left', cellWidth: 35 } },
-    margin: { left: margin, right: margin }
-  });
-  y = doc.lastAutoTable.finalY + 10;
-
-  // ── AI Summary Page ──
-  if (ai.summary) {
-    checkPage(40);
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Market Analysis Summary', margin, y);
-    y += 8;
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    var lines = doc.splitTextToSize(ai.summary, contentW);
-    doc.text(lines, margin, y);
-    y += lines.length * 5 + 10;
+  } catch(e) {
+    console.error('[CMA PDF] error:', e);
+    toast('PDF generation failed: ' + e.message, 'error');
   }
-
-  // AI Considerations
-  if (ai.considerations && ai.considerations.length) {
-    checkPage(30);
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Key Considerations', margin, y);
-    y += 8;
-
-    ai.considerations.forEach(function(c) {
-      checkPage(20);
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'bold');
-      doc.text((c.severity === 'critical' ? '! ' : '') + (c.category || '').toUpperCase(), margin, y);
-      y += 5;
-      doc.setFont('helvetica', 'normal');
-      var cLines = doc.splitTextToSize(c.message || '', contentW - 5);
-      doc.text(cLines, margin + 2, y);
-      y += cLines.length * 4 + 5;
-    });
-  }
-
-  // ── Disclaimer Page ──
-  addPage();
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Important Disclosures', margin, y + 5);
-  y += 15;
-
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  var disclaimers = [
-    'This Comparative Market Analysis (CMA) is an estimate of market value based on an analysis of comparable properties. It is not an appraisal and should not be relied upon as such.',
-    'The information contained herein is believed to be accurate but is not guaranteed. Prices, conditions, and other data may have changed since the comparable sales closed.',
-    'Mountain properties in Western North Carolina have unique characteristics including views, water features, road access, elevation, and land usability that significantly affect value. This CMA accounts for these factors using paired sales analysis and market data.',
-    'The final list price is a decision made by the seller in consultation with their real estate agent. This analysis is intended to inform that decision.',
-    'Equal Housing Opportunity. This content is for informational purposes only and does not constitute legal, financial, or tax advice.',
-  ];
-
-  disclaimers.forEach(function(d) {
-    checkPage(20);
-    var dLines = doc.splitTextToSize(d, contentW - 10);
-    doc.text(dLines, margin + 5, y);
-    y += dLines.length * 4.5 + 5;
-  });
-
-  y += 10;
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Prepared by:', margin, y);
-  y += 6;
-  doc.setFont('helvetica', 'normal');
-  doc.text('Cory Coleman, REALTOR', margin, y); y += 5;
-  doc.text('Keller Williams Great Smokies', margin, y); y += 5;
-  doc.text('96 W Sylva Shopping Area, Sylva, NC 28779', margin, y); y += 5;
-  doc.text('(828) 506-6413 | coryhelpsyoumove@gmail.com', margin, y); y += 5;
-  doc.text('coryhelpsyoumove.com', margin, y);
-
-  // Save
-  var fileName = 'CMA-' + (s.full_address || 'Report').replace(/[^a-zA-Z0-9]/g, '-').slice(0, 40) + '.pdf';
-  doc.save(fileName);
-  toast('PDF generated: ' + fileName, 'success');
 }

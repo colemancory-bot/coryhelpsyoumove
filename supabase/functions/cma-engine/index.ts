@@ -4,6 +4,7 @@
 // Deploy: supabase functions deploy cma-engine
 // Invoke: POST /functions/v1/cma-engine
 //   { "action": "find-comps", "listing_key": "...", "filters": {...} }
+//   { "action": "auto-select-comps", "listing_key": "...", "target_count": 4 }
 //   { "action": "calculate-adjustments", "subject": {...}, "comps": [...] }
 //   { "action": "ai-advise", "report_id": "..." }
 //   { "action": "save-report", "report": {...} }
@@ -201,16 +202,27 @@ function scoreComp(
   );
   scores.bedbath_match = Math.max(0, 1 - (bedDiff + bathDiff) / 6);
 
-  // Weighted total
-  const weights = {
-    proximity: 0.25,
-    type_match: 0.15,
-    sqft_sim: 0.2,
-    lot_sim: 0.1,
-    feature_sim: 0.15,
-    recency: 0.1,
-    bedbath_match: 0.05,
-  };
+  // Weighted total (land CMAs weight lot size and features higher, sqft/beds don't apply)
+  const isLand = (subject.property_type || "").toLowerCase() === "land";
+  const weights = isLand
+    ? {
+        proximity: 0.25,
+        type_match: 0.10,
+        sqft_sim: 0.0, // N/A for land
+        lot_sim: 0.25, // Primary driver for land
+        feature_sim: 0.25, // Views, water, usability matter most
+        recency: 0.10,
+        bedbath_match: 0.0, // N/A for land
+      }
+    : {
+        proximity: 0.25,
+        type_match: 0.15,
+        sqft_sim: 0.2,
+        lot_sim: 0.1,
+        feature_sim: 0.15,
+        recency: 0.1,
+        bedbath_match: 0.05,
+      };
 
   let total = 0;
   for (const [k, w] of Object.entries(weights)) {
@@ -249,6 +261,30 @@ const WNC_DEFAULTS = {
   monthly_appreciation_pct: 0.3, // 0.3% per month (approx 3.6% annually)
 };
 
+// Land CMA uses different weights: lot/views/water/access matter more, structure doesn't apply
+const WNC_LAND_DEFAULTS = {
+  // Primary land value drivers
+  per_acre: 20000, // Higher weight for land CMAs (primary value driver)
+
+  // Mountain adjustments per rating point (land values views/water more)
+  view_per_point: 20000, // Views matter MORE for land (buyer choosing build site)
+  water_per_point: 15000, // Creek frontage especially valuable
+  land_per_point: 12000, // Most critical: steep = unbuildable = huge discount
+  road_noise_per_point: 10000, // Road access quality matters more for raw land
+  privacy_per_point: 8000,
+  elevation_per_100ft: 2000,
+
+  // Structure-related: N/A for land
+  price_per_sqft: 0,
+  per_bedroom: 0,
+  per_bathroom: 0,
+  per_garage_space: 0,
+  per_year_age: 0,
+
+  // Market
+  monthly_appreciation_pct: 0.3,
+};
+
 interface AdjustmentResult {
   comp_listing_key: string;
   comp_order: number;
@@ -275,8 +311,10 @@ function calculateCompAdjustments(
   const warnings: string[] = [];
   const salePrice = comp.close_price || comp.list_price || 0;
 
-  // Use paired sales data when available, fall back to WNC defaults
-  const rates = { ...WNC_DEFAULTS, ...(pairedSalesData || {}) };
+  // Use land rates for land CMAs, standard for residential
+  const isLand = (subject.property_type || "").toLowerCase() === "land";
+  const baseRates = isLand ? WNC_LAND_DEFAULTS : WNC_DEFAULTS;
+  const rates = { ...baseRates, ...(pairedSalesData || {}) };
 
   // ── Standard Adjustments ──
 
@@ -1318,6 +1356,246 @@ Deno.serve(async (req: Request) => {
         comps: scored.slice(0, topN),
         total_candidates: filteredComps.length,
       });
+    }
+
+    // ═══ ACTION: auto-select-comps ═══
+    // AI picks the best 3-5 comps from scored candidates with reasoning
+    if (action === "auto-select-comps") {
+      const listingKey = body.listing_key;
+      const manualSubject = body.manual_subject;
+      const filters = body.filters || {};
+      const targetCount = Math.min(body.target_count || 4, 6);
+
+      // Reuse find-comps logic internally
+      let subject: Record<string, unknown>;
+      let subjectTags: Record<string, unknown> | null = null;
+
+      if (listingKey) {
+        const { data: dbSubject, error: subErr } = await sb
+          .from("mls_listings")
+          .select("*")
+          .eq("listing_key", listingKey)
+          .maybeSingle();
+        if (subErr || !dbSubject) {
+          return jsonResp({ error: "Subject listing not found", detail: subErr?.message }, 404);
+        }
+        subject = dbSubject;
+        const { data: tags } = await sb
+          .from("cma_feature_tags")
+          .select("*")
+          .eq("listing_key", listingKey)
+          .is("agent_id", null)
+          .maybeSingle();
+        subjectTags = tags;
+      } else if (manualSubject) {
+        subject = manualSubject;
+      } else {
+        return jsonResp({ error: "listing_key or manual_subject required" }, 400);
+      }
+
+      // Find comps (same logic as find-comps action)
+      const dateFloor = filters.min_close_date ||
+        new Date(Date.now() - 365 * 86400000).toISOString().split("T")[0];
+      const maxDistance = filters.max_distance_miles || 15;
+
+      let compQuery = sb
+        .from("mls_listings")
+        .select("listing_key, full_address, city, county_or_parish, property_type, property_sub_type, living_area, lot_size_acres, bedrooms_total, bathrooms_total_integer, year_built, garage_spaces, close_price, close_date, list_price, latitude, longitude, standard_status, stories, public_remarks")
+        .eq("standard_status", "Closed")
+        .not("close_price", "is", null)
+        .gte("close_date", dateFloor)
+        .limit(100);
+
+      if (listingKey) compQuery = compQuery.neq("listing_key", listingKey);
+      if (filters.county) {
+        compQuery = compQuery.eq("county_or_parish", filters.county);
+      } else if (subject.county_or_parish) {
+        compQuery = compQuery.eq("county_or_parish", subject.county_or_parish as string);
+      }
+      if (filters.property_type) {
+        compQuery = compQuery.eq("property_type", filters.property_type);
+      } else if (subject.property_type) {
+        compQuery = compQuery.eq("property_type", subject.property_type as string);
+      }
+      if (filters.city) {
+        compQuery = compQuery.eq("city", filters.city);
+      }
+
+      const { data: rawComps, error: compErr } = await compQuery;
+      if (compErr) return jsonResp({ error: "Comp query failed", detail: compErr.message }, 500);
+      if (!rawComps || rawComps.length === 0) {
+        return jsonResp({ ok: true, selected: [], message: "No comparable sold listings found" });
+      }
+
+      // Distance filter
+      let filteredComps = rawComps as ListingData[];
+      if (subject.latitude && subject.longitude) {
+        filteredComps = filteredComps.filter((c: ListingData) => {
+          if (!c.latitude || !c.longitude) return true;
+          return distanceMiles(subject.latitude!, subject.longitude!, c.latitude!, c.longitude!) <= maxDistance;
+        });
+      }
+
+      // Fetch feature tags for comps
+      const compKeys = filteredComps.map((c: ListingData) => c.listing_key);
+      const { data: compTags } = await sb
+        .from("cma_feature_tags")
+        .select("*")
+        .in("listing_key", compKeys)
+        .is("agent_id", null);
+      const compTagMap = new Map<string, FeatureTags>();
+      (compTags || []).forEach((t: FeatureTags & { listing_key: string }) => {
+        compTagMap.set(t.listing_key, t);
+      });
+
+      // Score and take top 10
+      const scored = filteredComps.map((c: ListingData) => {
+        const cFeatures = compTagMap.get(c.listing_key) || null;
+        const score = scoreComp(subject as ListingData, c, subjectTags || null, cFeatures);
+        return {
+          listing: c,
+          features: cFeatures,
+          similarity: score,
+          distance: (subject.latitude && subject.longitude && c.latitude && c.longitude)
+            ? Math.round(distanceMiles(subject.latitude as number, subject.longitude as number, c.latitude, c.longitude) * 10) / 10
+            : null,
+        };
+      });
+      scored.sort((a, b) => b.similarity.total - a.similarity.total);
+      const top10 = scored.slice(0, 10);
+
+      if (top10.length <= targetCount) {
+        // Not enough to be selective, return all
+        return jsonResp({
+          ok: true,
+          subject: { listing: subject, features: subjectTags },
+          selected: top10,
+          ai_reasoning: "Not enough candidates to be selective. All available comps included.",
+          total_candidates: filteredComps.length,
+        });
+      }
+
+      // Ask Claude to pick the best comps
+      const isLand = (subject.property_type as string) === "Land";
+      const subjectDesc = [
+        `${subject.full_address || "Unknown"}, ${subject.city || ""}, ${subject.county_or_parish || ""}`,
+        `Type: ${subject.property_type || ""} / ${subject.property_sub_type || ""}`,
+        subject.living_area ? `Sqft: ${subject.living_area}` : "",
+        subject.lot_size_acres ? `Lot: ${subject.lot_size_acres} acres` : "",
+        subject.bedrooms_total ? `Beds: ${subject.bedrooms_total}` : "",
+        subject.bathrooms_total_integer ? `Baths: ${subject.bathrooms_total_integer}` : "",
+        subject.year_built ? `Year Built: ${subject.year_built}` : "",
+        subject.list_price ? `List Price: $${(subject.list_price as number).toLocaleString()}` : "",
+      ].filter(Boolean).join(" | ");
+
+      const compsDesc = top10.map((c, i) => {
+        const l = c.listing;
+        const f = c.features;
+        return [
+          `COMP ${i + 1} [${l.listing_key}]: ${l.full_address || "Unknown"}, ${l.city || ""}`,
+          `  Sale: $${(l.close_price || 0).toLocaleString()} (${l.close_date || "?"})`,
+          `  Score: ${(c.similarity.total * 100).toFixed(1)}% | Distance: ${c.distance ?? "?"}mi`,
+          isLand ? `  Lot: ${l.lot_size_acres || "?"} acres` : `  Sqft: ${l.living_area || "?"} | Lot: ${l.lot_size_acres || "?"} acres`,
+          isLand ? "" : `  Beds: ${l.bedrooms_total || "?"} | Baths: ${l.bathrooms_total_integer || "?"} | Year: ${l.year_built || "?"} | Garage: ${l.garage_spaces || 0}`,
+          f ? `  Features: View ${f.view_quality || "?"}/5, Water ${f.water_quality || "?"}/5, Land ${f.land_usability || "?"}/5` : "",
+          l.public_remarks ? `  Remarks: ${(l.public_remarks as string).substring(0, 150)}...` : "",
+        ].filter(Boolean).join("\n");
+      }).join("\n\n");
+
+      const selectionPrompt = `You are an expert WNC real estate appraiser selecting comparable properties for a CMA.
+
+SUBJECT: ${subjectDesc}
+${isLand ? "\nThis is a LAND CMA. Focus on lot size, usability, access, views, water, and restrictions. Ignore sqft/beds/baths." : ""}
+
+TOP 10 SCORED CANDIDATES:
+${compsDesc}
+
+Select the best ${targetCount} comps for this CMA. Consider:
+- Property similarity (type, size, age, features)
+- Geographic relevance (same neighborhood/area preferred)
+- Recency of sale
+- ${isLand ? "Land characteristics match (usability, access, views, water)" : "Similar structure and lot"}
+- Avoid comps with very different property subtypes (e.g., condo vs single family)
+- Prefer comps that bracket the subject's likely value (some above, some below)
+
+Return JSON:
+{
+  "selected": ["listing_key_1", "listing_key_2", ...],
+  "reasoning": {
+    "listing_key_1": "Why selected (1-2 sentences)",
+    "listing_key_2": "Why selected"
+  },
+  "excluded": {
+    "listing_key_x": "Why excluded (1 sentence)"
+  }
+}`;
+
+      try {
+        const aiResp = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+          },
+          body: JSON.stringify({
+            model: AI_MODEL,
+            max_tokens: 1500,
+            messages: [{ role: "user", content: selectionPrompt }],
+          }),
+        });
+
+        if (!aiResp.ok) {
+          console.error(`Claude API error: ${aiResp.status}`);
+          // Fallback: return top N by score
+          return jsonResp({
+            ok: true,
+            subject: { listing: subject, features: subjectTags },
+            selected: top10.slice(0, targetCount),
+            ai_reasoning: "AI selection unavailable, returning top scored comps.",
+            total_candidates: filteredComps.length,
+          });
+        }
+
+        const aiData = await aiResp.json();
+        const aiText = aiData?.content?.[0]?.text || "";
+        const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+
+        if (!jsonMatch) {
+          return jsonResp({
+            ok: true,
+            subject: { listing: subject, features: subjectTags },
+            selected: top10.slice(0, targetCount),
+            ai_reasoning: "Could not parse AI selection, returning top scored comps.",
+            total_candidates: filteredComps.length,
+          });
+        }
+
+        const aiSelection = JSON.parse(jsonMatch[0]);
+        const selectedKeys = new Set(aiSelection.selected || []);
+
+        // Reorder scored comps to put selected ones first
+        const selectedComps = top10.filter(c => selectedKeys.has(c.listing.listing_key));
+        const remainingComps = top10.filter(c => !selectedKeys.has(c.listing.listing_key));
+
+        return jsonResp({
+          ok: true,
+          subject: { listing: subject, features: subjectTags },
+          selected: selectedComps,
+          remaining: remainingComps,
+          ai_selection: aiSelection,
+          total_candidates: filteredComps.length,
+        });
+      } catch (e) {
+        console.error("AI comp selection error:", e);
+        return jsonResp({
+          ok: true,
+          subject: { listing: subject, features: subjectTags },
+          selected: top10.slice(0, targetCount),
+          ai_reasoning: "AI selection error, returning top scored comps.",
+          total_candidates: filteredComps.length,
+        });
+      }
     }
 
     // ═══ ACTION: calculate-adjustments ═══

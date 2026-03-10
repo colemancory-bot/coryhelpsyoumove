@@ -995,6 +995,17 @@ a:hover { color: var(--crm-accent-light); }
 .cma-step-line { width: 40px; height: 2px; background: var(--crm-border); margin: 0 0.5rem; margin-bottom: 1rem; }
 .cma-step-line.done { background: var(--crm-green); }
 
+/* Quick CMA progress */
+.cma-auto-progress { max-width: 440px; margin: 3rem auto; text-align: center; }
+.cma-auto-progress h2 { margin-bottom: 0.3rem; }
+.qc-step { display: flex; align-items: center; justify-content: flex-start; gap: 0.5rem; padding: 0.7rem 1rem; margin: 0.4rem 0; border-radius: 8px; font-size: 0.9rem; transition: all 0.3s; }
+.qc-step.qc-done { color: var(--crm-green); }
+.qc-step.qc-active { background: var(--crm-bg-surface-hover); font-weight: 600; }
+.qc-step.qc-pending { color: var(--crm-text-muted); }
+.qc-step.qc-error { color: var(--crm-red); }
+.qc-icon { width: 18px; text-align: center; font-weight: 700; font-size: 1rem; flex-shrink: 0; }
+.qc-step.qc-pending .qc-icon { width: 18px; height: 18px; border: 2px solid var(--crm-border); border-radius: 50%; }
+
 /* Search row: search bar + manual button side by side */
 .cma-search-row { display: flex; gap: 0.5rem; align-items: flex-start; margin-bottom: 1rem; }
 .cma-search-wrap { position: relative; flex: 1; }

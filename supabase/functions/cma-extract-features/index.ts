@@ -98,8 +98,15 @@ land_character: wooded, pasture, cleared, steep, gentle_slope, rolling, flat, ro
 road_access: paved_state, paved_county, paved_private, gravel, dirt, shared, gated, state_maintained
 outbuildings: detached_garage, barn, workshop, shed, greenhouse, guest_house, carport, root_cellar
 special_features: wrap_porch, screened_porch, stone_fireplace, wood_stove, hot_tub, deck, covered_porch, rocking_chair_porch, outdoor_kitchen, garden, fenced_yard, dog_run
+utilities_available: public_water, well, shared_well, public_sewer, septic_installed, septic_needed, electric_at_road, underground_electric, natural_gas, propane, no_electric
 
 winter_access values: year_round_paved, year_round_gravel, seasonal_difficulty, chains_recommended, four_wheel_drive
+perc_status values: approved, failed, not_tested, unknown
+timber_quality values: mature_hardwood, young_growth, mixed, cleared, unknown
+
+NC-SPECIFIC NOTES:
+- Septic bedrooms: NC has no legal definition of "bedroom." In rural areas on septic, the septic permit (120 gal/day/bedroom) sets the functional bedroom count. If remarks mention a specific septic permit capacity (e.g., "3-bedroom septic" or "septic approved for 3 bedrooms"), extract septic_permitted_bedrooms. This may differ from the MLS bedroom count.
+- Above/below grade sqft: NC REALTORS combine all Heated Living Area (HLA) into one number, but above-grade and below-grade sqft are valued differently for appraisals. If structured MLS data provides AboveGradeFinishedArea and BelowGradeFinishedArea, use those. If remarks mention "finished basement" or "lower level," infer a split. Set sqft_source to "mls_structured" if from MLS fields or "ai_inferred" if estimated from context.
 
 Return a JSON object with exactly these fields (no additional text, just valid JSON):
 {
@@ -117,12 +124,24 @@ Return a JSON object with exactly these fields (no additional text, just valid J
   "winter_access": "<value>",
   "outbuildings": [<strings>],
   "special_features": [<strings>],
+  "above_grade_sqft": <int or null>,
+  "below_grade_sqft": <int or null>,
+  "sqft_source": "<mls_structured|ai_inferred|unknown>",
+  "septic_permitted_bedrooms": <int or null>,
+  "utilities_available": [<strings>],
+  "perc_status": "<value or null>",
+  "timber_quality": "<value or null>",
+  "buildable_sites": <int or null>,
+  "road_frontage_ft": <int or null>,
+  "subdivision_potential": <boolean or null>,
+  "restrictions_summary": "<brief summary of restrictions or empty string>",
   "confidence": <0.0-1.0 how confident you are in these ratings>
 }
 
 If a feature cannot be determined from the listing data, use your best judgment based on context clues. Set confidence lower (0.3-0.5) when guessing. If you have strong evidence from the remarks, set confidence higher (0.7-0.9).
 
-For land listings with no structure, set condition_rating to null and condition_notes to "Vacant land".`;
+For land listings with no structure, set condition_rating to null and condition_notes to "Vacant land".
+For residential listings, set land-only fields (timber_quality, buildable_sites, subdivision_potential) to null unless clearly relevant.`;
 
 // Extract features for a single listing
 async function extractFeatures(
@@ -136,27 +155,70 @@ async function extractFeatures(
   const extFeatures = (listing.exterior_features as string[]) || [];
   const intFeatures = (listing.interior_features as string[]) || [];
 
+  // Extract structured MLS fields from raw_data for above/below grade and other details
+  const foundationArr = (listing.foundation_details as string[]) || [];
+  const sewerArr = (listing.sewer as string[]) || [];
+  const waterSourceArr = (listing.water_source as string[]) || [];
+  const electricArr = (listing.electric as string[]) || [];
+  const roadSurface = (rawData.RoadSurfaceType as string[]) || [];
+  const lotFeatures = (rawData.LotFeatures as string[]) || [];
+  const basementArr = (rawData.Basement as string[]) || [];
+
+  // Above/below grade from structured MLS data (Canopy MLS provides these)
+  const aboveGrade = rawData.AboveGradeFinishedArea as number | null;
+  const belowGrade = rawData.BelowGradeFinishedArea as number | null;
+  const sqftMain = rawData.CAR_SqFtMain as string | null;
+  const sqftUpper = rawData.CAR_SqFtUpper as string | null;
+  const sqftLower = rawData.CAR_SqFtLower as string | null;
+  const sqftBasement = rawData.CAR_SqFtUnheatedBasement as string | null;
+  const basementYN = rawData.BasementYN as boolean | null;
+  const elevation = rawData.Elevation as number | null;
+
+  // Navica-specific fields
+  const navBasementHtdSqft = rawData.NAV27_BasementHeatedSqFt as string | null;
+  const navRestrictions = rawData.NAV27_Restrictions as boolean | null;
+  const navRestrictionDesc = rawData.NAV27_Restriction_Desc as string | null;
+
+  // Restrictions from Canopy
+  const carRestrictions = rawData.CAR_Restrictions as string | null;
+
   // Build context for Claude
   const propertyContext = [
     `Address: ${listing.full_address || ""}, ${listing.city || ""}, NC`,
     `Property Type: ${listing.property_type || ""}`,
     `Subtype: ${listing.property_sub_type || ""}`,
-    listing.living_area ? `Living Area: ${listing.living_area} sqft` : "",
-    listing.lot_size_acres ? `Lot Size: ${listing.lot_size_acres} acres` : "",
+    listing.living_area ? `Living Area (Total HLA): ${listing.living_area} sqft` : "",
+    aboveGrade != null ? `Above Grade Finished Area: ${aboveGrade} sqft` : "",
+    belowGrade != null && belowGrade > 0 ? `Below Grade Finished Area: ${belowGrade} sqft` : "",
+    sqftMain ? `Main Level Sqft: ${sqftMain}` : "",
+    sqftUpper && sqftUpper !== "0" ? `Upper Level Sqft: ${sqftUpper}` : "",
+    sqftLower && sqftLower !== "0" ? `Lower Level Sqft: ${sqftLower}` : "",
+    listing.lot_size_acres ? `Lot Size: ${listing.lot_size_acres} acres` : (rawData.LotSizeArea && rawData.LotSizeUnits === "Acres" ? `Lot Size: ${rawData.LotSizeArea} acres` : ""),
     listing.bedrooms_total ? `Bedrooms: ${listing.bedrooms_total}` : "",
     listing.bathrooms_total_integer ? `Bathrooms: ${listing.bathrooms_total_integer}` : "",
     listing.year_built ? `Year Built: ${listing.year_built}` : "",
     listing.stories ? `Stories: ${listing.stories}` : "",
     listing.garage_spaces ? `Garage Spaces: ${listing.garage_spaces}` : "",
+    basementYN != null ? `Has Basement: ${basementYN ? "Yes" : "No"}` : "",
+    basementArr.length ? `Basement Details: ${basementArr.join(", ")}` : "",
+    foundationArr.length ? `Foundation: ${foundationArr.join(", ")}` : "",
     viewArr.length ? `MLS View Field: ${viewArr.join(", ")}` : "",
     waterArr.length ? `MLS Waterfront Features: ${waterArr.join(", ")}` : "",
     extFeatures.length ? `Exterior Features: ${extFeatures.join(", ")}` : "",
     intFeatures.length ? `Interior Features: ${intFeatures.join(", ")}` : "",
+    sewerArr.length ? `Sewer: ${sewerArr.join(", ")}` : "",
+    waterSourceArr.length ? `Water Source: ${waterSourceArr.join(", ")}` : "",
+    electricArr.length ? `Electric: ${electricArr.join(", ")}` : "",
+    roadSurface.length ? `Road Surface: ${roadSurface.join(", ")}` : "",
+    lotFeatures.length ? `Lot Features: ${lotFeatures.join(", ")}` : "",
     listing.county_or_parish ? `County: ${listing.county_or_parish}` : "",
     listing.zoning ? `Zoning: ${listing.zoning}` : "",
+    carRestrictions ? `Restrictions (MLS): ${carRestrictions}` : "",
+    navRestrictionDesc ? `Restrictions (CSAR): ${navRestrictionDesc}` : "",
     (listing.restrictions as string[])?.length
       ? `Restrictions: ${(listing.restrictions as string[]).join(", ")}`
       : "",
+    elevation ? `Elevation: ${elevation} ft` : "",
     remarks ? `\nPublic Remarks:\n${remarks}` : "",
     privateRemarks ? `\nPrivate/Agent Remarks:\n${privateRemarks}` : "",
   ]
@@ -173,7 +235,7 @@ async function extractFeatures(
     },
     body: JSON.stringify({
       model: EXTRACTION_MODEL,
-      max_tokens: 800,
+      max_tokens: 1200,
       system: SYSTEM_PROMPT,
       messages: [
         {
@@ -209,6 +271,49 @@ async function extractFeatures(
     console.error("Failed to parse Claude response:", e, text.slice(0, 200));
     return null;
   }
+}
+
+// Build the tag record from extracted features (shared by single + backfill)
+function buildTagRecord(
+  listingKey: string,
+  features: Record<string, unknown>,
+  elevation: number | null
+) {
+  return {
+    listing_key: listingKey,
+    agent_id: null,
+    view_quality: features.view_quality,
+    view_type: features.view_type || [],
+    water_quality: features.water_quality,
+    water_features: features.water_features || [],
+    land_usability: features.land_usability,
+    land_character: features.land_character || [],
+    road_noise: features.road_noise,
+    road_access: features.road_access || [],
+    condition_rating: features.condition_rating,
+    condition_notes: features.condition_notes || "",
+    privacy_rating: features.privacy_rating,
+    winter_access: features.winter_access || "",
+    outbuildings: features.outbuildings || [],
+    special_features: features.special_features || [],
+    above_grade_sqft: features.above_grade_sqft ?? null,
+    below_grade_sqft: features.below_grade_sqft ?? null,
+    sqft_source: features.sqft_source || "unknown",
+    septic_permitted_bedrooms: features.septic_permitted_bedrooms ?? null,
+    utilities_available: features.utilities_available || [],
+    perc_status: features.perc_status || "",
+    timber_quality: features.timber_quality || "",
+    buildable_sites: features.buildable_sites ?? null,
+    road_frontage_ft: features.road_frontage_ft ?? null,
+    subdivision_potential: features.subdivision_potential ?? null,
+    restrictions_summary: features.restrictions_summary || "",
+    elevation_ft: elevation,
+    extraction_model: EXTRACTION_MODEL,
+    extraction_confidence: features.confidence || 0.5,
+    raw_extraction: { response: features._raw, parsed: features },
+    extracted_from: ["public_remarks", "raw_data"],
+    updated_at: new Date().toISOString(),
+  };
 }
 
 Deno.serve(async (req: Request) => {
@@ -286,30 +391,7 @@ Deno.serve(async (req: Request) => {
       }
 
       // Upsert feature tags
-      const tagRecord = {
-        listing_key: listingKey,
-        agent_id: null,
-        view_quality: features.view_quality,
-        view_type: features.view_type || [],
-        water_quality: features.water_quality,
-        water_features: features.water_features || [],
-        land_usability: features.land_usability,
-        land_character: features.land_character || [],
-        road_noise: features.road_noise,
-        road_access: features.road_access || [],
-        condition_rating: features.condition_rating,
-        condition_notes: features.condition_notes || "",
-        privacy_rating: features.privacy_rating,
-        winter_access: features.winter_access || "",
-        outbuildings: features.outbuildings || [],
-        special_features: features.special_features || [],
-        elevation_ft: elevation,
-        extraction_model: EXTRACTION_MODEL,
-        extraction_confidence: features.confidence || 0.5,
-        raw_extraction: { response: features._raw, parsed: features },
-        extracted_from: ["public_remarks", "raw_data"],
-        updated_at: new Date().toISOString(),
-      };
+      const tagRecord = buildTagRecord(listingKey, features, elevation);
 
       const { error: upsertErr } = await sb
         .from("cma_feature_tags")
@@ -400,30 +482,7 @@ Deno.serve(async (req: Request) => {
             );
           }
 
-          const tagRecord = {
-            listing_key: listing.listing_key,
-            agent_id: null,
-            view_quality: features.view_quality,
-            view_type: features.view_type || [],
-            water_quality: features.water_quality,
-            water_features: features.water_features || [],
-            land_usability: features.land_usability,
-            land_character: features.land_character || [],
-            road_noise: features.road_noise,
-            road_access: features.road_access || [],
-            condition_rating: features.condition_rating,
-            condition_notes: features.condition_notes || "",
-            privacy_rating: features.privacy_rating,
-            winter_access: features.winter_access || "",
-            outbuildings: features.outbuildings || [],
-            special_features: features.special_features || [],
-            elevation_ft: elevation,
-            extraction_model: EXTRACTION_MODEL,
-            extraction_confidence: features.confidence || 0.5,
-            raw_extraction: { response: features._raw, parsed: features },
-            extracted_from: ["public_remarks", "raw_data"],
-            updated_at: new Date().toISOString(),
-          };
+          const tagRecord = buildTagRecord(listing.listing_key as string, features, elevation);
 
           const { error: upsertErr } = await sb
             .from("cma_feature_tags")
