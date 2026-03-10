@@ -2968,7 +2968,8 @@ async function cmaGeneratePDF() {
       }),
       valuation: { suggested_low: v.suggested_low || 0, suggested_high: v.suggested_high || 0, suggested_price: v.suggested_price || 0 },
       ai_summary: ai.summary || '',
-      ai_considerations: ai.considerations || []
+      ai_considerations: ai.considerations || [],
+      comp_reasoning: ai.comp_reasoning || {}
     };
   }
 

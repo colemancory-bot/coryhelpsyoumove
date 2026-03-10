@@ -105,6 +105,7 @@ perc_status values: approved, failed, not_tested, unknown
 timber_quality values: mature_hardwood, young_growth, mixed, cleared, unknown
 
 NC-SPECIFIC NOTES:
+- Construction type: WNC has many manufactured and modular homes. These are valued differently than site-built homes. Look for clues in Construction Type, Body Type, Structure Type fields, and in remarks. Indicators include: "manufactured", "mobile", "double wide", "single wide", "modular", "HUD code", "on frame", "permanent foundation" (for permanently sited manufactured). Set construction_type accordingly. This is critical for accurate CMA comp matching.
 - Septic bedrooms: NC has no legal definition of "bedroom." In rural areas on septic, the septic permit (120 gal/day/bedroom) sets the functional bedroom count. If remarks mention a specific septic permit capacity (e.g., "3-bedroom septic" or "septic approved for 3 bedrooms"), extract septic_permitted_bedrooms. This may differ from the MLS bedroom count.
 - Above/below grade sqft: NC REALTORS combine all Heated Living Area (HLA) into one number, but above-grade and below-grade sqft are valued differently for appraisals. If structured MLS data provides AboveGradeFinishedArea and BelowGradeFinishedArea, use those. If remarks mention "finished basement" or "lower level," infer a split. Set sqft_source to "mls_structured" if from MLS fields or "ai_inferred" if estimated from context.
 
@@ -134,6 +135,7 @@ Return a JSON object with exactly these fields (no additional text, just valid J
   "buildable_sites": <int or null>,
   "road_frontage_ft": <int or null>,
   "subdivision_potential": <boolean or null>,
+  "construction_type": "<site_built|manufactured|modular|mobile_home|log|unknown>",
   "restrictions_summary": "<brief summary of restrictions or empty string>",
   "confidence": <0.0-1.0 how confident you are in these ratings>
 }
@@ -182,6 +184,12 @@ async function extractFeatures(
   // Restrictions from Canopy
   const carRestrictions = rawData.CAR_Restrictions as string | null;
 
+  // Construction type / Body type (manufactured/modular detection)
+  const carConstructionType = rawData.CAR_ConstructionType as string | null;
+  const bodyType = rawData.BodyType as string[] | null;
+  const structureType = rawData.StructureType as string[] | null;
+  const architecturalStyle = rawData.ArchitecturalStyle as string[] | null;
+
   // Build context for Claude
   const propertyContext = [
     `Address: ${listing.full_address || ""}, ${listing.city || ""}, NC`,
@@ -218,6 +226,10 @@ async function extractFeatures(
     (listing.restrictions as string[])?.length
       ? `Restrictions: ${(listing.restrictions as string[]).join(", ")}`
       : "",
+    carConstructionType ? `Construction Type: ${carConstructionType}` : "",
+    bodyType?.length ? `Body Type: ${bodyType.join(", ")}` : "",
+    structureType?.length ? `Structure Type: ${structureType.join(", ")}` : "",
+    architecturalStyle?.length ? `Architectural Style: ${architecturalStyle.join(", ")}` : "",
     elevation ? `Elevation: ${elevation} ft` : "",
     remarks ? `\nPublic Remarks:\n${remarks}` : "",
     privateRemarks ? `\nPrivate/Agent Remarks:\n${privateRemarks}` : "",
@@ -306,6 +318,7 @@ function buildTagRecord(
     buildable_sites: features.buildable_sites ?? null,
     road_frontage_ft: features.road_frontage_ft ?? null,
     subdivision_potential: features.subdivision_potential ?? null,
+    construction_type: features.construction_type || "unknown",
     restrictions_summary: features.restrictions_summary || "",
     elevation_ft: elevation,
     extraction_model: EXTRACTION_MODEL,

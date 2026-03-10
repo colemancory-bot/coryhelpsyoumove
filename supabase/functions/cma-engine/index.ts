@@ -136,6 +136,23 @@ function scoreComp(
     scores.type_match = 0.1;
   }
 
+  // Construction type match (manufactured vs site-built penalty)
+  // This is critical: manufactured homes should not be compared to site-built and vice versa
+  if (subjectFeatures && compFeatures) {
+    const subConstruction = (subjectFeatures.construction_type as string) || "unknown";
+    const compConstruction = (compFeatures.construction_type as string) || "unknown";
+    const isManufactured = (t: string) => ["manufactured", "modular", "mobile_home"].includes(t);
+    if (subConstruction !== "unknown" && compConstruction !== "unknown") {
+      if (isManufactured(subConstruction) !== isManufactured(compConstruction)) {
+        // Major mismatch: manufactured vs site-built, heavy penalty
+        scores.type_match *= 0.3;
+      } else if (subConstruction === compConstruction) {
+        // Exact match bonus
+        scores.type_match = Math.min(1.0, scores.type_match * 1.1);
+      }
+    }
+  }
+
   // Living area similarity (weight: 0.20)
   const subSqft = subject.living_area || 0;
   const compSqft = comp.living_area || 0;
@@ -1477,9 +1494,11 @@ Deno.serve(async (req: Request) => {
 
       // Ask Claude to pick the best comps
       const isLand = (subject.property_type as string) === "Land";
+      const subConstructionType = subjectTags?.construction_type as string || "unknown";
       const subjectDesc = [
         `${subject.full_address || "Unknown"}, ${subject.city || ""}, ${subject.county_or_parish || ""}`,
         `Type: ${subject.property_type || ""} / ${subject.property_sub_type || ""}`,
+        subConstructionType !== "unknown" ? `Construction: ${subConstructionType}` : "",
         subject.living_area ? `Sqft: ${subject.living_area}` : "",
         subject.lot_size_acres ? `Lot: ${subject.lot_size_acres} acres` : "",
         subject.bedrooms_total ? `Beds: ${subject.bedrooms_total}` : "",
@@ -1497,7 +1516,7 @@ Deno.serve(async (req: Request) => {
           `  Score: ${(c.similarity.total * 100).toFixed(1)}% | Distance: ${c.distance ?? "?"}mi`,
           isLand ? `  Lot: ${l.lot_size_acres || "?"} acres` : `  Sqft: ${l.living_area || "?"} | Lot: ${l.lot_size_acres || "?"} acres`,
           isLand ? "" : `  Beds: ${l.bedrooms_total || "?"} | Baths: ${l.bathrooms_total_integer || "?"} | Year: ${l.year_built || "?"} | Garage: ${l.garage_spaces || 0}`,
-          f ? `  Features: View ${f.view_quality || "?"}/5, Water ${f.water_quality || "?"}/5, Land ${f.land_usability || "?"}/5` : "",
+          f ? `  Features: View ${f.view_quality || "?"}/5, Water ${f.water_quality || "?"}/5, Land ${f.land_usability || "?"}/5${f.construction_type && f.construction_type !== "unknown" ? ` | Construction: ${f.construction_type}` : ""}` : "",
           l.public_remarks ? `  Remarks: ${(l.public_remarks as string).substring(0, 150)}...` : "",
         ].filter(Boolean).join("\n");
       }).join("\n\n");
@@ -1516,6 +1535,7 @@ Select the best ${targetCount} comps for this CMA. Consider:
 - Recency of sale
 - ${isLand ? "Land characteristics match (usability, access, views, water)" : "Similar structure and lot"}
 - Avoid comps with very different property subtypes (e.g., condo vs single family)
+- CRITICAL: Construction type must match. Manufactured/modular homes must be compared to other manufactured/modular homes, NOT site-built homes. Site-built homes must not be compared to manufactured homes. This is the most common CMA error in WNC.
 - Prefer comps that bracket the subject's likely value (some above, some below)
 
 Return JSON:

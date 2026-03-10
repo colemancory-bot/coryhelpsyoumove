@@ -70,6 +70,7 @@ interface ReportInput {
   };
   ai_summary?: string;
   ai_considerations?: Array<Record<string, string>>;
+  comp_reasoning?: Record<string, string>;
   report_date?: string;
   methodology_note?: string;
 }
@@ -268,6 +269,21 @@ function generateCMAHtml(data: ReportInput): string {
   .disclaimers { margin-top: 1rem; padding-top: 0.6rem; border-top: 1px solid var(--border); font-size: 0.58rem; color: var(--text-muted); line-height: 1.6; }
   .disclaimers p { margin-bottom: 0.3rem; }
   .eho { font-weight: 600; color: var(--text-secondary); }
+  .photo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; margin-top: 0.5rem; }
+  .photo-grid img { width: 100%; height: auto; border-radius: 4px; display: block; object-fit: cover; }
+  .photo-grid .hero { grid-column: 1 / -1; }
+  .photo-grid .hero img { max-height: 3.2in; object-fit: cover; }
+  .photo-grid .small img { height: 1.5in; }
+  .photo-note { font-size: 0.55rem; color: var(--text-muted); text-align: center; margin-top: 0.4rem; }
+  .activity-table { width: 100%; border-collapse: collapse; font-size: 0.65rem; margin-bottom: 0.8rem; }
+  .activity-table th { padding: 0.35rem 0.3rem; font-size: 0.58rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; border-bottom: 2px solid var(--gold-border); background: var(--bg-subtle); text-align: center; color: var(--text-secondary); }
+  .activity-table th:first-child { text-align: left; }
+  .activity-table td { padding: 0.3rem 0.3rem; border-bottom: 1px solid var(--border); text-align: center; }
+  .activity-table td:first-child { text-align: left; }
+  .status-sold { font-size: 0.55rem; font-weight: 600; color: var(--green); background: var(--green-light); padding: 0.1rem 0.3rem; border-radius: 3px; }
+  .comp-highlight { background: var(--bg-subtle); padding: 0.5rem 0.7rem; border-left: 3px solid var(--gold); margin-bottom: 0.4rem; }
+  .comp-highlight-title { font-weight: 600; font-size: 0.72rem; margin-bottom: 0.15rem; }
+  .comp-highlight-text { font-size: 0.65rem; color: var(--text-secondary); line-height: 1.6; }
   @media print {
     body { background: white; margin: 0; padding: 0; }
     .page { width: auto; min-height: auto; margin: 0; padding: 0.5in 0.6in; box-shadow: none; border: none; }
@@ -317,6 +333,7 @@ function generateCMAHtml(data: ReportInput): string {
     <div class="facts-col">
       <div class="fact-row"><span class="fact-label">Property Type</span><span class="fact-value">${sub.property_type || ""}</span></div>
       <div class="fact-row"><span class="fact-label">Subtype</span><span class="fact-value">${sub.property_sub_type || "\u2014"}</span></div>
+      ${subFeats.construction_type && subFeats.construction_type !== "unknown" && subFeats.construction_type !== "site_built" ? `<div class="fact-row"><span class="fact-label">Construction</span><span class="fact-value" style="text-transform:capitalize">${(subFeats.construction_type as string || "").replace(/_/g, " ")}</span></div>` : ""}
       <div class="fact-row"><span class="fact-label">County</span><span class="fact-value">${sub.county_or_parish || ""}</span></div>
       ${sub.list_price ? `<div class="fact-row"><span class="fact-label">List Price</span><span class="fact-value">${fmt(sub.list_price as number)}</span></div>` : ""}
     </div>
@@ -324,7 +341,90 @@ function generateCMAHtml(data: ReportInput): string {
   ${aiSection}
 </div>
 
-<!-- PAGE 3: CMA ADJUSTMENT GRID -->
+<!-- PAGE 3: PROPERTY PHOTOS (only if photos available) -->
+${(() => {
+  const photos = (sub.photos as string[]) || [];
+  const photoUrl = sub.photo_url as string || "";
+  const allPhotos = photos.length ? photos : (photoUrl ? [photoUrl] : []);
+  if (allPhotos.length === 0) return "";
+  const heroPhoto = allPhotos[0];
+  const smallPhotos = allPhotos.slice(1, 7);
+  return `<div class="page">
+  <div class="subject-header">
+    <div class="section-label">Property Photos</div>
+    <h2 style="font-size: 1.2rem; margin-top: 0.2rem;">${sub.full_address || ""}</h2>
+  </div>
+  <hr class="gold-rule-wide">
+  <div class="photo-grid">
+    <div class="hero"><img src="${heroPhoto}" alt="Primary property photo"></div>
+    ${smallPhotos.map((p: string) => `<div class="small"><img src="${p}" alt="Property photo"></div>`).join("\n    ")}
+  </div>
+  <div class="photo-note">Photos from MLS listing. Contact agent for current property photos.</div>
+</div>`;
+})()}
+
+<!-- PAGE 4: COMPARABLE SALES ACTIVITY -->
+<div class="page">
+  <div class="subject-header">
+    <div class="section-label">Comparable Sales Activity</div>
+    <h2 style="font-size: 1.2rem; margin-top: 0.2rem;">Recent Sales Used in Analysis</h2>
+  </div>
+  <hr class="gold-rule-wide">
+
+  <table class="activity-table">
+    <thead>
+      <tr>
+        <th>Address</th>
+        <th>Price</th>
+        ${!isLand ? "<th>Beds/Baths</th><th>SqFt</th>" : ""}
+        <th>Acres</th>
+        ${!isLand ? "<th>Year</th>" : ""}
+        <th>Sold Date</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="background: var(--gold-light);">
+        <td style="font-weight: 600;">${((sub.full_address as string) || "").replace(/,.*/, "")}<br><span style="font-size:0.55rem;color:var(--gold);font-weight:600;">SUBJECT</span></td>
+        <td>${sub.list_price ? fmt(sub.list_price as number) : "\u2014"}</td>
+        ${!isLand ? `<td>${sub.bedrooms_total || "?"} / ${sub.bathrooms_total_integer || "?"}</td><td>${fmtNum(sub.living_area as number)}</td>` : ""}
+        <td>${sub.lot_size_acres || "\u2014"}</td>
+        ${!isLand ? `<td>${sub.year_built || "\u2014"}</td>` : ""}
+        <td>\u2014</td>
+      </tr>
+      ${comps.map((c, i) => {
+        const cl = c.listing;
+        return `<tr>
+        <td>${((cl.full_address as string) || "").replace(/,.*/, "")}<br><span style="font-size:0.55rem;color:var(--text-muted);">Comp ${i + 1}${cl.distance ? " \u2022 " + cl.distance + " mi" : ""}</span></td>
+        <td style="font-weight:600;">${fmt(cl.close_price as number)}</td>
+        ${!isLand ? `<td>${cl.bedrooms_total || "?"} / ${cl.bathrooms_total_integer || "?"}</td><td>${fmtNum(cl.living_area as number)}</td>` : ""}
+        <td>${cl.lot_size_acres || "\u2014"}</td>
+        ${!isLand ? `<td>${cl.year_built || "\u2014"}</td>` : ""}
+        <td>${cl.close_date || "\u2014"}</td>
+      </tr>`;
+      }).join("\n      ")}
+    </tbody>
+  </table>
+
+  ${(() => {
+    const reasoning = data.comp_reasoning || {};
+    const hasReasoning = Object.keys(reasoning).length > 0;
+    if (!hasReasoning) return "";
+    let html = '<div class="subsection-title" style="margin-top:1rem;">Comparable Property Highlights</div>';
+    comps.forEach((c, i) => {
+      const key = c.listing.listing_key as string;
+      const reason = reasoning[key] || "";
+      if (!reason) return;
+      const addr = ((c.listing.full_address as string) || "").replace(/,.*/, "");
+      html += `<div class="comp-highlight">
+        <div class="comp-highlight-title">Comp ${i + 1}: ${addr}</div>
+        <div class="comp-highlight-text">${reason}</div>
+      </div>`;
+    });
+    return html;
+  })()}
+</div>
+
+<!-- PAGE 5: CMA ADJUSTMENT GRID -->
 <div class="page">
   <div class="subject-header">
     <div class="section-label">Comparative Market Analysis</div>
@@ -437,6 +537,16 @@ Deno.serve(async (req: Request) => {
             suggested_price: report.suggested_price || 0,
           },
           ai_summary: report.ai_summary || "",
+          comp_reasoning: (() => {
+            // Build comp reasoning from per-adjustment ai_reasoning
+            const reasons: Record<string, string> = {};
+            (adjustments || []).forEach((adj: Record<string, unknown>) => {
+              const key = adj.comp_listing_key as string;
+              const aiR = adj.ai_reasoning as Record<string, string> | null;
+              if (key && aiR && aiR.summary) reasons[key] = aiR.summary;
+            });
+            return reasons;
+          })(),
           report_date: report.report_date,
         };
       } else if (body.report_data) {
