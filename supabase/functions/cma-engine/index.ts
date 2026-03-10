@@ -837,6 +837,29 @@ Deno.serve(async (req: Request) => {
         return jsonResp({ error: "listing_id or address required" }, 400);
       }
 
+      // Parse address into components for OData filtering
+      // Handles formats like "123 Main St", "123 Main Street, Franklin"
+      let addrStreetNumber = "";
+      let addrStreetName = "";
+      let addrCity = "";
+      if (searchAddress) {
+        const addrParts = searchAddress.split(",").map((s: string) => s.trim());
+        const streetPart = addrParts[0] || "";
+        addrCity = addrParts[1] || "";
+
+        // Split street into number + name
+        const streetMatch = streetPart.match(/^(\d+)\s+(.+)/);
+        if (streetMatch) {
+          addrStreetNumber = streetMatch[1];
+          // Remove suffix (St, Rd, Dr, etc.) for broader matching
+          addrStreetName = streetMatch[2]
+            .replace(/\b(st|street|rd|road|dr|drive|ln|lane|ct|court|cir|circle|ave|avenue|blvd|boulevard|way|pl|place|trl|trail|hwy|highway|pkwy|parkway)\b\.?$/i, "")
+            .trim();
+        } else {
+          addrStreetName = streetPart;
+        }
+      }
+
       const results: Record<string, unknown>[] = [];
       const errors: string[] = [];
 
@@ -850,8 +873,19 @@ Deno.serve(async (req: Request) => {
           let filter = `OriginatingSystemName eq '${mlsGridSystem}'`;
           if (prefixedId) {
             filter += ` and ListingId eq '${prefixedId}'`;
+          } else if (addrStreetName) {
+            // Address-based search: match street number exactly + street name contains
+            if (addrStreetNumber) {
+              filter += ` and StreetNumber eq '${addrStreetNumber}'`;
+            }
+            filter += ` and contains(StreetName,'${addrStreetName.replace(/'/g, "''")}')`;
+            if (addrCity) {
+              filter += ` and City eq '${addrCity.replace(/'/g, "''")}'`;
+            }
           }
-          const url = `https://api.mlsgrid.com/v2/Property?$filter=${filter}&$expand=Media&$top=5`;
+          // Order by most recent close date so we get the latest listing first
+          const orderBy = searchAddress ? "&$orderby=CloseDate desc,ModificationTimestamp desc" : "";
+          const url = `https://api.mlsgrid.com/v2/Property?$filter=${filter}&$expand=Media&$top=5${orderBy}`;
           const resp = await fetch(url, {
             headers: {
               Authorization: `Bearer ${mlsGridToken}`,
@@ -868,6 +902,8 @@ Deno.serve(async (req: Request) => {
                 ? r.ListingId.slice(mlsLocalPrefix.length)
                 : (r.ListingId || "");
 
+              const fullAddr = `${r.StreetNumber || ""} ${r.StreetName || ""} ${r.StreetSuffix || ""}`.trim();
+
               const listing = {
                 listing_id: listingId,
                 listing_key: listingKey,
@@ -876,6 +912,7 @@ Deno.serve(async (req: Request) => {
                 standard_status: r.StandardStatus || "Closed",
                 mlg_can_view: r.MlgCanView !== false,
                 feed_type: "IDX",
+                full_address: fullAddr,
                 list_price: r.ListPrice || null,
                 close_price: r.ClosePrice || null,
                 original_list_price: r.OriginalListPrice || null,
@@ -950,7 +987,7 @@ Deno.serve(async (req: Request) => {
                 listing_key: listingKey,
                 listing_id: listingId,
                 source: "Canopy MLS",
-                full_address: `${r.StreetNumber || ""} ${r.StreetName || ""} ${r.StreetSuffix || ""}`.trim(),
+                full_address: fullAddr,
                 city: r.City || "",
                 standard_status: r.StandardStatus || "",
                 close_price: r.ClosePrice || null,
@@ -979,9 +1016,19 @@ Deno.serve(async (req: Request) => {
           let filter = "PropertyType ne 'Residential Lease'";
           if (searchId) {
             filter += ` and ListingId eq '${searchId}'`;
+          } else if (addrStreetName) {
+            // Address-based search for Navica
+            if (addrStreetNumber) {
+              filter += ` and StreetNumber eq '${addrStreetNumber}'`;
+            }
+            filter += ` and contains(StreetName,'${addrStreetName.replace(/'/g, "''")}')`;
+            if (addrCity) {
+              filter += ` and City eq '${addrCity.replace(/'/g, "''")}'`;
+            }
           }
           const navicaBase = `https://navapi.navicamls.net/api/v2/OData/${navicaDataset}`;
-          const url = `${navicaBase}/Property?$filter=${filter}&$top=5&access_token=${navicaToken}`;
+          const orderBy = searchAddress ? "&$orderby=CloseDate desc" : "";
+          const url = `${navicaBase}/Property?$filter=${filter}&$top=5${orderBy}&access_token=${navicaToken}`;
           const resp = await fetch(url, {
             headers: { Accept: "application/json" },
           });
@@ -995,6 +1042,8 @@ Deno.serve(async (req: Request) => {
               // Check if already found via MLS Grid (avoid duplicates)
               if (results.some((res: any) => res.listing_id === listingId)) continue;
 
+              const navFullAddr = `${r.StreetNumber || ""} ${r.StreetName || ""} ${r.StreetSuffix || ""}`.trim();
+
               const listing = {
                 listing_id: listingId,
                 listing_key: listingKey,
@@ -1003,6 +1052,7 @@ Deno.serve(async (req: Request) => {
                 standard_status: r.StandardStatus || "Closed",
                 mlg_can_view: true,
                 feed_type: "IDX",
+                full_address: navFullAddr,
                 list_price: r.ListPrice || null,
                 close_price: r.ClosePrice || null,
                 original_list_price: r.OriginalListPrice || null,
@@ -1056,7 +1106,7 @@ Deno.serve(async (req: Request) => {
                 listing_key: listingKey,
                 listing_id: listingId,
                 source: "CSAR",
-                full_address: `${r.StreetNumber || ""} ${r.StreetName || ""} ${r.StreetSuffix || ""}`.trim(),
+                full_address: navFullAddr,
                 city: r.City || "",
                 standard_status: r.StandardStatus || "",
                 close_price: r.ClosePrice || null,
@@ -1084,7 +1134,7 @@ Deno.serve(async (req: Request) => {
         errors: errors.length > 0 ? errors : undefined,
         message: results.length > 0
           ? `Found ${results.length} listing(s) from MLS API and saved to database`
-          : "No listings found matching that ID",
+          : searchId ? "No listings found matching that ID" : "No listings found matching that address",
       });
     }
 

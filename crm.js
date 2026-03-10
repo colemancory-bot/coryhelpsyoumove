@@ -1964,24 +1964,44 @@ async function cmaSearchSubject(query) {
       });
     } else {
       html += '<div class="cma-search-empty">No listings found locally for "' + esc(query) + '"';
-      html += '<br><button class="crm-btn crm-btn-sm cma-mls-lookup-btn" onclick="cmaMLSLookup(\'' + esc(query).replace(/'/g, "\\'") + '\')">Search MLS API</button>';
+      html += '<br><button class="crm-btn crm-btn-sm cma-mls-lookup-btn" onclick="cmaMLSLookup(\'' + esc(query).replace(/'/g, "\\'") + '\')">Search MLS API' + (cmaIsAddress(query) ? ' by Address' : '') + '</button>';
       html += '</div>';
     }
     results.innerHTML = html;
   } catch(e) { results.innerHTML = '<div class="cma-search-empty">Search error</div>'; }
 }
 
+// Detect if a query is an address (has a number followed by words) vs a listing ID
+function cmaIsAddress(query) {
+  // Listing IDs are typically numeric or alphanumeric codes (e.g. "4128593", "MLS12345")
+  // Addresses start with a number followed by a street name (e.g. "123 Main St")
+  return /^\d+\s+[a-zA-Z]/.test(query.trim()) && query.trim().split(/\s+/).length >= 2;
+}
+
 async function cmaMLSLookup(query) {
   var results = document.getElementById('cmaSubjectResults');
   results.innerHTML = '<div class="cma-search-empty">Searching MLS API...</div>';
   try {
-    var resp = await cmaFetch('lookup-listing', { listing_id: query.trim() });
+    // Detect address vs listing ID and send the right parameter
+    var payload = {};
+    if (cmaIsAddress(query)) {
+      payload.address = query.trim();
+    } else {
+      payload.listing_id = query.trim();
+    }
+    var resp = await cmaFetch('lookup-listing', payload);
     if (!resp || resp.error) {
       results.innerHTML = '<div class="cma-search-empty">MLS API error: ' + esc(resp ? resp.error : 'Unknown') + '</div>';
       return;
     }
     if (resp.found === 0) {
-      results.innerHTML = '<div class="cma-search-empty">No listings found in MLS API for "' + esc(query) + '"</div>';
+      var noResultHtml = '<div class="cma-search-empty">No listings found in MLS API for "' + esc(query) + '"';
+      // If we searched by ID, suggest trying as address and vice versa
+      if (!cmaIsAddress(query)) {
+        noResultHtml += '<br><span class="cma-search-hint">Tip: Try searching by address instead (e.g. "123 Main St, Franklin")</span>';
+      }
+      noResultHtml += '</div>';
+      results.innerHTML = noResultHtml;
       return;
     }
     // Show results from API
@@ -2000,7 +2020,7 @@ async function cmaMLSLookup(query) {
       html += '</div></div>';
     });
     results.innerHTML = html;
-    toast('Found ' + resp.found + ' listing(s) from MLS API', 'success');
+    toast('Found ' + resp.found + ' listing(s) from MLS API and saved to database', 'success');
   } catch(e) {
     results.innerHTML = '<div class="cma-search-empty">MLS API lookup failed</div>';
     console.error('[CMA] MLS lookup error:', e);
