@@ -1296,7 +1296,7 @@ async function loadListings() {
       var from = 0;
       var pageSize = 1000;
       while (true) {
-        var resp = await _sb.from('mls_listings').select('*').range(from, from + pageSize - 1);
+        var resp = await _sb.from('mls_listings').select('listing_key,listing_id,full_address,city,county_or_parish,property_type,property_sub_type,standard_status,list_price,close_price,close_date,living_area,living_area_range,lot_size_acres,bedrooms_total,bathrooms_total_integer,year_built,garage_spaces,stories,days_on_market,list_agent_full_name,list_agent_email,list_office_name,feed_type,mlg_can_view,latitude,longitude,public_remarks,private_remarks,showing_instructions,directions,photo_urls,modification_timestamp').range(from, from + pageSize - 1);
         if (resp.error) throw resp.error;
         if (!resp.data || !resp.data.length) break;
         data = data.concat(resp.data);
@@ -1626,10 +1626,8 @@ function renderListingDetail(l) {
   html += ldField('Lng', l.longitude);
   html += '</div></div>';
 
-  // Section 10: Raw Data (collapsible)
-  if (l.raw_data) {
-    html += '<div class="ld-section"><details class="ld-raw"><summary class="ld-section-title" style="cursor:pointer">Raw MLS Data ▸</summary><pre class="ld-raw-json">' + esc(JSON.stringify(l.raw_data, null, 2)) + '</pre></details></div>';
-  }
+  // Section 10: Raw Data (collapsible, loaded on demand)
+  html += '<div class="ld-section"><details class="ld-raw" ontoggle="if(this.open)loadListingRawData(\'' + esc(l.listing_key) + '\',this)"><summary class="ld-section-title" style="cursor:pointer">Raw MLS Data ▸</summary><pre class="ld-raw-json" id="ldRaw_' + esc(l.listing_key) + '">Loading...</pre></details></div>';
 
   html += '</div>'; // end right
   html += '</div>'; // end grid
@@ -1654,6 +1652,19 @@ function arrayOrStr(val) {
   if (!val) return '';
   if (Array.isArray(val)) return val.join(', ');
   return String(val);
+}
+
+async function loadListingRawData(listingKey, detailsEl) {
+  var pre = document.getElementById('ldRaw_' + listingKey);
+  if (!pre || pre.dataset.loaded) return;
+  pre.dataset.loaded = '1';
+  try {
+    var resp = await _sb.from('mls_listings').select('raw_data').eq('listing_key', listingKey).single();
+    if (resp.error) throw resp.error;
+    pre.textContent = JSON.stringify(resp.data.raw_data, null, 2);
+  } catch(e) {
+    pre.textContent = 'Failed to load: ' + (e.message || 'Unknown error');
+  }
 }
 
 async function loadListingPhotos(listingKey) {
@@ -1974,6 +1985,7 @@ function cmaRenderStep1() {
   html += cmaFactsRow('Lot Size (acres)', 'cmaManLot', 'number', '1.5', false, '0.01');
   html += cmaFactsRow('Garage Spaces', 'cmaManGarage', 'number', '0', false);
   html += cmaFactsRow('Year Built', 'cmaManYear', 'number', '2005', false);
+  html += cmaFactsSelectRow('Condition', 'cmaManCondition', [['0','Unknown'],['1','1 - Tear Down / Major Reno'],['2','2 - Below Average'],['3','3 - Fair for Age'],['4','4 - Above Average'],['5','5 - Pristine']], false);
   html += cmaFactsRow('List/Ask Price', 'cmaManPrice', 'number', '350000', false, '1000');
   html += '</tbody></table></div>';
 
@@ -2127,6 +2139,10 @@ function cmaSubmitManual() {
   var constructionVal = document.getElementById('cmaManConstruction').value;
   if (constructionVal && constructionVal !== 'auto') {
     features.construction_type = constructionVal;
+  }
+  var conditionVal = parseInt(document.getElementById('cmaManCondition').value) || 0;
+  if (conditionVal > 0) {
+    features.condition_rating = conditionVal;
   }
   _cmaState.subject = { listing: listing, features: features };
   window._cmaPrefilledKey = null;
@@ -2414,6 +2430,12 @@ function cmaShowEditableSubject(data, tags, source) {
     constructionType === 'mobile_home' ? 'Mobile Home' :
     constructionType === 'log' ? 'Log' : constructionType);
   setVal('cmaManConstruction', constructionType === 'unknown' ? 'auto' : constructionType);
+
+  // Condition rating from feature tags
+  var conditionRating = (tags && tags.condition_rating) ? tags.condition_rating : 0;
+  var condLabels = { 1: '1 - Tear Down', 2: '2 - Below Average', 3: '3 - Fair', 4: '4 - Above Average', 5: '5 - Pristine' };
+  setRecord('cmaManCondition', conditionRating > 0 ? condLabels[conditionRating] || conditionRating + '/5' : 'Unknown');
+  setVal('cmaManCondition', String(conditionRating || 0));
 
   // Show source badge
   var sourceEl = document.getElementById('cmaManSource');

@@ -84,15 +84,23 @@ async function navicaFetch(url: string): Promise<any> {
   return resp.json();
 }
 
-// Parse CSAR LivingAreaRange (e.g. "2000-3000") to midpoint number
-// CSAR doesn't require exact sqft; they allow a range. Use midpoint as best estimate.
+// Parse CSAR LivingAreaRange or NAV27_SqFt_Rng to a number.
+// Formats: "2001-2200" (midpoint), "< 800" (use 700), "4000+" (use 4200), "1500" (exact)
 function parseLivingAreaRange(range: string | null | undefined): number | null {
   if (!range || typeof range !== "string") return null;
-  const parts = range.split("-").map((s) => parseFloat(s.trim()));
+  const trimmed = range.trim();
+  // "< 800" format — use value minus 100 as estimate
+  const ltMatch = trimmed.match(/^<\s*(\d+)/);
+  if (ltMatch) return Math.max(Math.round(parseFloat(ltMatch[1]) - 100), 200);
+  // "4000+" format — use value plus 200 as estimate
+  const gtMatch = trimmed.match(/^(\d+)\s*\+/);
+  if (gtMatch) return Math.round(parseFloat(gtMatch[1]) + 200);
+  // "2001-2200" range — midpoint
+  const parts = trimmed.split("-").map((s) => parseFloat(s.trim()));
   if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
     return Math.round((parts[0] + parts[1]) / 2);
   }
-  // Single number in the range field
+  // Single number
   if (parts.length === 1 && !isNaN(parts[0])) return parts[0];
   return null;
 }
@@ -251,8 +259,8 @@ async function syncProperties(
         bedrooms_total: record.BedroomsTotal || 0,
         bathrooms_total_integer: record.BathroomsTotalInteger || 0,
         bathrooms_half: record.BathroomsHalf || 0,
-        living_area: record.LivingArea || parseLivingAreaRange(record.LivingAreaRange) || null,
-        living_area_range: record.LivingAreaRange || "",
+        living_area: record.LivingArea || parseLivingAreaRange(record.LivingAreaRange) || parseLivingAreaRange(record.NAV27_SqFt_Rng) || record.NAV27_Htd_SqFt || record.AboveGradeFinishedArea || record.BuildingAreaTotal || null,
+        living_area_range: record.LivingAreaRange || record.NAV27_SqFt_Rng || "",
         living_area_units: record.LivingAreaUnits || "Square Feet",
         lot_size_acres: record.LotSizeAcres || (record.LotSizeUnits === "Acres" && record.LotSizeArea ? record.LotSizeArea : null) || (record.LotSizeSquareFeet ? record.LotSizeSquareFeet / 43560 : null),
         lot_size_square_feet: record.LotSizeSquareFeet || (record.LotSizeUnits === "Acres" && record.LotSizeArea ? record.LotSizeArea * 43560 : null),
@@ -906,8 +914,8 @@ Deno.serve(async (req) => {
             bedrooms_total: record.BedroomsTotal || 0,
             bathrooms_total_integer: record.BathroomsTotalInteger || 0,
             bathrooms_half: record.BathroomsHalf || 0,
-            living_area: record.LivingArea || parseLivingAreaRange(record.LivingAreaRange) || null,
-            living_area_range: record.LivingAreaRange || "",
+            living_area: record.LivingArea || parseLivingAreaRange(record.LivingAreaRange) || parseLivingAreaRange(record.NAV27_SqFt_Rng) || record.NAV27_Htd_SqFt || record.AboveGradeFinishedArea || record.BuildingAreaTotal || null,
+            living_area_range: record.LivingAreaRange || record.NAV27_SqFt_Rng || "",
             living_area_units: record.LivingAreaUnits || "Square Feet",
             lot_size_acres: record.LotSizeAcres || (record.LotSizeUnits === "Acres" && record.LotSizeArea ? record.LotSizeArea : null) || (record.LotSizeSquareFeet ? record.LotSizeSquareFeet / 43560 : null),
             lot_size_square_feet: record.LotSizeSquareFeet || (record.LotSizeUnits === "Acres" && record.LotSizeArea ? record.LotSizeArea * 43560 : null),
