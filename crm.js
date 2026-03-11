@@ -4162,7 +4162,7 @@ async function cmaGeneratePDF() {
     if (s.listing_key && (!subjectWithPhotos.listing || !subjectWithPhotos.listing.photos || !subjectWithPhotos.listing.photos.length)) {
       try {
         var photoResp = await _sb.from('mls_media').select('media_url, local_url')
-          .eq('listing_key', s.listing_key).order('order', { ascending: true }).limit(7);
+          .eq('listing_key', s.listing_key).order('order', { ascending: true }).limit(13);
         if (photoResp.data && photoResp.data.length) {
           subjectWithPhotos = Object.assign({}, subjectWithPhotos, {
             listing: Object.assign({}, subjectWithPhotos.listing, {
@@ -4172,6 +4172,9 @@ async function cmaGeneratePDF() {
         }
       } catch(photoErr) { console.warn('[CMA PDF] photo fetch failed:', photoErr); }
     }
+    // Get agent recommended price and notes from Step 4 form
+    var recPrice = parseInt(document.getElementById('cmaRecPrice') ? document.getElementById('cmaRecPrice').value : '') || null;
+    var agentNotes = document.getElementById('cmaAgentNotes') ? document.getElementById('cmaAgentNotes').value : '';
     payload.report_data = {
       subject: subjectWithPhotos,
       comps: comps.map(function(c, i) {
@@ -4185,7 +4188,9 @@ async function cmaGeneratePDF() {
       valuation: { suggested_low: v.suggested_low || 0, suggested_high: v.suggested_high || 0, suggested_price: v.suggested_price || 0 },
       ai_summary: ai.summary || '',
       ai_considerations: ai.considerations || [],
-      comp_reasoning: ai.comp_reasoning || {}
+      comp_reasoning: ai.comp_reasoning || {},
+      agent_recommended_price: recPrice || undefined,
+      agent_notes: agentNotes || undefined
     };
   }
 

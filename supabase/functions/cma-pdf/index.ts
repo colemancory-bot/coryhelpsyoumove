@@ -57,6 +57,19 @@ interface CompData {
   adjustments: Record<string, unknown>;
 }
 
+interface MarketStats {
+  active_count: number;
+  sold_6mo_count: number;
+  sold_prior_6mo_count: number;
+  median_sold_price: number;
+  median_sold_price_prior: number;
+  median_dom: number;
+  avg_ppsf: number;
+  months_of_inventory: number;
+  county: string;
+  property_type: string;
+}
+
 interface ReportInput {
   subject: {
     listing: Record<string, unknown>;
@@ -73,16 +86,24 @@ interface ReportInput {
   comp_reasoning?: Record<string, string>;
   report_date?: string;
   methodology_note?: string;
+  agent_recommended_price?: number;
+  agent_notes?: string;
+  market_stats?: MarketStats;
+}
+
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 function generateCMAHtml(data: ReportInput): string {
   const sub = data.subject.listing;
+  const subFeats = data.subject.features || {};
   const comps = data.comps;
   const val = data.valuation;
   const reportDate = data.report_date || new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
   const isLand = (sub.property_type as string || "").toLowerCase() === "land";
   const numComps = comps.length;
-  const colSpan = numComps + 2; // Feature col + Subject col + comp cols
+  const colSpan = numComps + 2;
 
   // Build comp header cells
   const compHeaders = comps.map((c, i) => {
@@ -90,19 +111,23 @@ function generateCMAHtml(data: ReportInput): string {
     return `<th class="comp-col">Comp ${i + 1}<br><span style="font-size:0.45rem;font-weight:400;">${addr}</span></th>`;
   }).join("\n        ");
 
-  // Helper to build a data row
   function dataRow(label: string, subjectVal: string, compVals: string[]): string {
     const tds = compVals.map(v => `<td>${v}</td>`).join("");
     return `<tr><td>${label}</td><td class="subject-val">${subjectVal}</td>${tds}</tr>`;
   }
 
-  // Helper to build an adjustment row
   function adjRow(label: string, adjKey: string): string {
     const tds = comps.map(c => {
       const v = (c.adjustments as Record<string, number>)[adjKey] || 0;
       return `<td class="${adjClass(v)}">${adjVal(v)}</td>`;
     }).join("");
     return `<tr><td style="padding-left:0.8rem;color:var(--text-secondary);font-size:0.55rem;">${label}</td><td class="subject-val"></td>${tds}</tr>`;
+  }
+
+  // Helper for feature rating display
+  function ratingStr(val: unknown): string {
+    if (val == null || val === 0 || val === "0") return "\u2014";
+    return `${val}/5`;
   }
 
   // Build CMA grid rows
@@ -128,7 +153,6 @@ function generateCMAHtml(data: ReportInput): string {
   gridRows += adjRow("Lot Size Adj (tiered)", "adj_lot_size");
 
   // Restriction status
-  const subFeats = data.subject.features || {};
   const subRestrStr = subFeats.restriction_status === "unrestricted" ? "Unrestricted" : subFeats.restriction_status === "restricted" ? "Restricted" : "\u2014";
   gridRows += dataRow("Restrictions", subRestrStr, comps.map(c => {
     const rs = c.features?.restriction_status;
@@ -331,6 +355,29 @@ function generateCMAHtml(data: ReportInput): string {
   .comp-highlight { background: var(--bg-subtle); padding: 0.5rem 0.7rem; border-left: 3px solid var(--gold); margin-bottom: 0.4rem; }
   .comp-highlight-title { font-weight: 600; font-size: 0.72rem; margin-bottom: 0.15rem; }
   .comp-highlight-text { font-size: 0.65rem; color: var(--text-secondary); line-height: 1.6; }
+  /* Market overview stat cards */
+  .stat-card { flex: 1; background: var(--bg-subtle); border: 1px solid var(--border); border-radius: 6px; padding: 0.6rem 0.8rem; text-align: center; }
+  .stat-label { font-size: 0.55rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.2rem; }
+  .stat-value { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.1rem; font-weight: 700; color: var(--text); }
+  /* Comp detail cards */
+  .comp-detail-card { margin-bottom: 0.6rem; border: 1px solid var(--border); border-radius: 6px; padding: 0.6rem 0.7rem; }
+  .comp-detail-card-second { margin-top: 0.8rem; }
+  .comp-detail-header { margin-bottom: 0.4rem; }
+  .comp-detail-num { font-size: 0.55rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold); }
+  .comp-detail-addr { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1rem; font-weight: 600; }
+  .comp-detail-body { display: flex; gap: 0.6rem; }
+  .comp-detail-photo { width: 2.4in; flex-shrink: 0; }
+  .comp-detail-photo img { width: 100%; height: 1.6in; object-fit: cover; border-radius: 4px; display: block; }
+  .comp-detail-facts { flex: 1; }
+  .comp-detail-price { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.15rem; font-weight: 700; color: var(--green); }
+  .comp-detail-meta { font-size: 0.62rem; color: var(--text-secondary); margin-bottom: 0.3rem; }
+  .comp-detail-specs { display: flex; flex-wrap: wrap; gap: 0.2rem 0.6rem; font-size: 0.65rem; color: var(--text); margin-bottom: 0.3rem; }
+  .comp-detail-features { display: flex; flex-wrap: wrap; gap: 0.2rem; }
+  .pdf-chip { font-size: 0.52rem; padding: 0.1rem 0.35rem; background: var(--bg-subtle); border: 1px solid var(--border); border-radius: 3px; color: var(--text-secondary); }
+  .pdf-chip-good { background: rgba(46, 125, 50, 0.08); border-color: rgba(46, 125, 50, 0.2); color: var(--green); }
+  .pdf-chip-warn { background: rgba(230, 167, 0, 0.08); border-color: rgba(230, 167, 0, 0.2); color: #8B6914; }
+  .comp-detail-remarks { font-size: 0.62rem; color: var(--text-secondary); line-height: 1.5; margin-top: 0.3rem; font-style: italic; }
+  .comp-detail-adjustment { font-size: 0.65rem; margin-top: 0.3rem; padding-top: 0.3rem; border-top: 1px dotted var(--border); }
   @media print {
     body { background: white; margin: 0; padding: 0; }
     .page { width: auto; min-height: auto; margin: 0; padding: 0.5in 0.6in; box-shadow: none; border: none; }
@@ -361,7 +408,7 @@ function generateCMAHtml(data: ReportInput): string {
   </div>
 </div>
 
-<!-- PAGE 2: SUBJECT PROPERTY -->
+<!-- PAGE 2: SUBJECT PROPERTY DETAILS (EXPANDED) -->
 <div class="page">
   <div class="subject-header">
     <div class="section-label">Subject Property</div>
@@ -369,6 +416,8 @@ function generateCMAHtml(data: ReportInput): string {
     <div class="subject-city">${sub.city || ""}, NC ${sub.postal_code || ""} &nbsp;&bull;&nbsp; ${sub.county_or_parish || ""} County</div>
   </div>
   <hr class="gold-rule-wide">
+
+  <div class="subsection-title" style="margin-top:0.6rem;">Property Facts</div>
   <div class="facts-grid">
     <div class="facts-col" style="border-right: 1px solid var(--border);">
       ${!isLand ? `<div class="fact-row"><span class="fact-label">Bedrooms</span><span class="fact-value">${sub.bedrooms_total || "\u2014"}</span></div>
@@ -376,42 +425,220 @@ function generateCMAHtml(data: ReportInput): string {
       <div class="fact-row"><span class="fact-label">Living Area</span><span class="fact-value">${fmtNum(sub.living_area as number)} sqft</span></div>` : ""}
       <div class="fact-row"><span class="fact-label">Lot Size</span><span class="fact-value">${sub.lot_size_acres || "\u2014"} acres</span></div>
       ${!isLand ? `<div class="fact-row"><span class="fact-label">Year Built</span><span class="fact-value">${sub.year_built || "\u2014"}</span></div>
-      <div class="fact-row"><span class="fact-label">Garage</span><span class="fact-value">${(sub.garage_spaces as number) || 0} spaces</span></div>` : ""}
+      <div class="fact-row"><span class="fact-label">Garage</span><span class="fact-value">${(sub.garage_spaces as number) || 0} spaces</span></div>
+      ${sub.stories ? `<div class="fact-row"><span class="fact-label">Stories</span><span class="fact-value">${sub.stories}</span></div>` : ""}` : ""}
     </div>
     <div class="facts-col">
       <div class="fact-row"><span class="fact-label">Property Type</span><span class="fact-value">${sub.property_type || ""}</span></div>
-      <div class="fact-row"><span class="fact-label">Subtype</span><span class="fact-value">${sub.property_sub_type || "\u2014"}</span></div>
-      ${subFeats.construction_type && subFeats.construction_type !== "unknown" && subFeats.construction_type !== "site_built" ? `<div class="fact-row"><span class="fact-label">Construction</span><span class="fact-value" style="text-transform:capitalize">${(subFeats.construction_type as string || "").replace(/_/g, " ")}</span></div>` : ""}
+      <div class="fact-row"><span class="fact-label">Construction</span><span class="fact-value" style="text-transform:capitalize">${(() => {
+        const ct = subFeats.construction_type as string || "unknown";
+        if (ct === "unknown") return "Site-Built";
+        return ct.replace(/_/g, " ");
+      })()}</span></div>
+      <div class="fact-row"><span class="fact-label">Restrictions</span><span class="fact-value">${subFeats.restriction_status === "unrestricted" ? "Unrestricted" : subFeats.restriction_status === "restricted" ? "Restricted" : "\u2014"}</span></div>
       <div class="fact-row"><span class="fact-label">County</span><span class="fact-value">${sub.county_or_parish || ""}</span></div>
+      ${subFeats.elevation_ft ? `<div class="fact-row"><span class="fact-label">Elevation</span><span class="fact-value">${fmtNum(subFeats.elevation_ft as number)} ft</span></div>` : ""}
+      ${sub.close_price ? `<div class="fact-row"><span class="fact-label">Last Sale</span><span class="fact-value">${fmt(sub.close_price as number)} (${sub.close_date || ""})</span></div>` : ""}
       ${sub.list_price ? `<div class="fact-row"><span class="fact-label">List Price</span><span class="fact-value">${fmt(sub.list_price as number)}</span></div>` : ""}
     </div>
   </div>
+
+  <div class="subsection-title" style="margin-top:0.8rem;">Mountain &amp; Site Features</div>
+  <div class="facts-grid">
+    <div class="facts-col" style="border-right: 1px solid var(--border);">
+      <div class="fact-row"><span class="fact-label">View Quality</span><span class="fact-value">${ratingStr(subFeats.view_quality)}${subFeats.view_type && (subFeats.view_type as string[]).length ? ` (${(subFeats.view_type as string[]).join(", ")})` : ""}</span></div>
+      <div class="fact-row"><span class="fact-label">Water Features</span><span class="fact-value">${ratingStr(subFeats.water_quality)}${subFeats.water_features && (subFeats.water_features as string[]).length ? ` (${(subFeats.water_features as string[]).join(", ")})` : ""}</span></div>
+      <div class="fact-row"><span class="fact-label">Land Usability</span><span class="fact-value">${ratingStr(subFeats.land_usability)}${subFeats.land_character && (subFeats.land_character as string[]).length ? ` (${(subFeats.land_character as string[]).join(", ")})` : ""}</span></div>
+    </div>
+    <div class="facts-col">
+      <div class="fact-row"><span class="fact-label">Road Noise</span><span class="fact-value">${ratingStr(subFeats.road_noise)}</span></div>
+      <div class="fact-row"><span class="fact-label">Privacy</span><span class="fact-value">${ratingStr(subFeats.privacy_rating)}</span></div>
+      <div class="fact-row"><span class="fact-label">Condition</span><span class="fact-value">${ratingStr(subFeats.condition_rating)}</span></div>
+    </div>
+  </div>
+
+  ${!isLand && (subFeats.has_pool || (subFeats.basement_type && subFeats.basement_type !== "none") || subFeats.has_fireplace || ((subFeats.outbuildings as string[])?.length > 0)) ? `
+  <div class="subsection-title" style="margin-top:0.8rem;">Structural Features</div>
+  <div class="facts-grid">
+    <div class="facts-col" style="border-right: 1px solid var(--border);">
+      <div class="fact-row"><span class="fact-label">Pool</span><span class="fact-value">${subFeats.has_pool ? (subFeats.pool_type as string || "Yes") : "None"}</span></div>
+      <div class="fact-row"><span class="fact-label">Basement</span><span class="fact-value">${(subFeats.basement_type && subFeats.basement_type !== "none") ? (subFeats.basement_type as string) : "None"}</span></div>
+    </div>
+    <div class="facts-col">
+      <div class="fact-row"><span class="fact-label">Fireplace</span><span class="fact-value">${subFeats.has_fireplace ? `${subFeats.fireplace_count || 1}x ${subFeats.fireplace_type || ""}`.trim() : "None"}</span></div>
+      <div class="fact-row"><span class="fact-label">Outbuildings</span><span class="fact-value">${((subFeats.outbuildings as string[]) || []).length > 0 ? (subFeats.outbuildings as string[]).join(", ") : "None"}</span></div>
+    </div>
+  </div>` : ""}
+
   ${aiSection}
 </div>
 
-<!-- PAGE 3: PROPERTY PHOTOS (only if photos available) -->
+<!-- PAGES 3-4: PROPERTY PHOTOS (up to 2 pages) -->
 ${(() => {
   const photos = (sub.photos as string[]) || [];
   const photoUrl = sub.photo_url as string || "";
   const allPhotos = photos.length ? photos : (photoUrl ? [photoUrl] : []);
   if (allPhotos.length === 0) return "";
   const heroPhoto = allPhotos[0];
-  const smallPhotos = allPhotos.slice(1, 7);
-  return `<div class="page">
+  const page1Photos = allPhotos.slice(1, 7);
+  const page2Photos = allPhotos.slice(7, 13);
+  let html = `<div class="page">
   <div class="subject-header">
     <div class="section-label">Property Photos</div>
     <h2 style="font-size: 1.2rem; margin-top: 0.2rem;">${sub.full_address || ""}</h2>
   </div>
   <hr class="gold-rule-wide">
   <div class="photo-grid">
-    <div class="hero"><img src="${heroPhoto}" alt="Primary property photo"></div>
-    ${smallPhotos.map((p: string) => `<div class="small"><img src="${p}" alt="Property photo"></div>`).join("\n    ")}
+    <div class="hero"><img src="${heroPhoto}" alt="Primary property photo" onerror="this.style.display='none'"></div>
+    ${page1Photos.map((p: string) => `<div class="small"><img src="${p}" alt="Property photo" onerror="this.parentElement.style.display='none'"></div>`).join("\n    ")}
   </div>
   <div class="photo-note">Photos from MLS listing. Contact agent for current property photos.</div>
 </div>`;
+  if (page2Photos.length > 0) {
+    html += `\n<div class="page">
+  <div class="subject-header">
+    <div class="section-label">Property Photos (continued)</div>
+    <h2 style="font-size: 1.2rem; margin-top: 0.2rem;">${sub.full_address || ""}</h2>
+  </div>
+  <hr class="gold-rule-wide">
+  <div class="photo-grid">
+    ${page2Photos.map((p: string) => `<div class="small"><img src="${p}" alt="Property photo" onerror="this.parentElement.style.display='none'"></div>`).join("\n    ")}
+  </div>
+</div>`;
+  }
+  return html;
 })()}
 
-<!-- PAGE 4: COMPARABLE SALES ACTIVITY -->
+<!-- PAGE: MARKET OVERVIEW (conditional) -->
+${(() => {
+  const ms = data.market_stats;
+  if (!ms || (!ms.sold_6mo_count && !ms.active_count)) return "";
+  const priceTrendPct = ms.median_sold_price_prior > 0
+    ? ((ms.median_sold_price - ms.median_sold_price_prior) / ms.median_sold_price_prior * 100).toFixed(1)
+    : null;
+  const priceTrendDir = priceTrendPct ? (parseFloat(priceTrendPct) >= 0 ? "up" : "down") : null;
+  const marketType = ms.months_of_inventory <= 4 ? "Seller's Market" : ms.months_of_inventory >= 7 ? "Buyer's Market" : "Balanced Market";
+  const marketColor = ms.months_of_inventory <= 4 ? "var(--green)" : ms.months_of_inventory >= 7 ? "var(--red)" : "var(--gold)";
+  return `<div class="page">
+  <div class="subject-header">
+    <div class="section-label">Market Overview</div>
+    <h2 style="font-size: 1.2rem; margin-top: 0.2rem;">${esc(ms.county)} County &nbsp;&bull;&nbsp; ${esc(ms.property_type)}</h2>
+    <div class="subject-city">As of ${reportDate}</div>
+  </div>
+  <hr class="gold-rule-wide">
+
+  <div style="display:flex; gap:0.5rem; margin:1rem 0;">
+    <div class="stat-card">
+      <div class="stat-label">Active Listings</div>
+      <div class="stat-value">${ms.active_count}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Sold (6 months)</div>
+      <div class="stat-value">${ms.sold_6mo_count}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Median DOM</div>
+      <div class="stat-value">${ms.median_dom ? Math.round(ms.median_dom) + " days" : "\u2014"}</div>
+    </div>
+  </div>
+  <div style="display:flex; gap:0.5rem; margin:0 0 1rem;">
+    <div class="stat-card">
+      <div class="stat-label">Median Sale Price</div>
+      <div class="stat-value">${ms.median_sold_price ? fmt(ms.median_sold_price) : "\u2014"}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Avg Price/SqFt</div>
+      <div class="stat-value">${ms.avg_ppsf ? "$" + Math.round(ms.avg_ppsf) : "\u2014"}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Months of Inventory</div>
+      <div class="stat-value">${ms.months_of_inventory ? ms.months_of_inventory.toFixed(1) : "\u2014"}</div>
+    </div>
+  </div>
+
+  <div style="background:var(--bg-subtle); padding:0.8rem 1rem; border-radius:6px; margin-bottom:1rem;">
+    <div style="font-size:0.7rem; font-weight:600; color:${marketColor}; margin-bottom:0.3rem;">${marketType}</div>
+    <div style="font-size:0.7rem; color:var(--text-secondary); line-height:1.6;">
+      ${ms.months_of_inventory ? `With ${ms.months_of_inventory.toFixed(1)} months of inventory, the ${esc(ms.county)} County ${ms.property_type.toLowerCase()} market is currently a <strong style="color:${marketColor}">${marketType.toLowerCase()}</strong>.` : ""}
+      ${priceTrendPct ? ` Median sale price is <strong>${priceTrendDir} ${Math.abs(parseFloat(priceTrendPct))}%</strong> compared to the prior 6-month period.` : ""}
+      ${ms.sold_6mo_count > 0 ? ` There have been ${ms.sold_6mo_count} closed sales in the past 6 months${ms.median_dom ? ` with a median of ${Math.round(ms.median_dom)} days on market` : ""}.` : ""}
+    </div>
+  </div>
+
+  <div class="methodology" style="margin-top:1.5rem;">
+    <p>Market data sourced from MLS listings in ${esc(ms.county)} County for ${ms.property_type.toLowerCase()} properties. Statistics reflect recent closed sales and active listings as of the report date.</p>
+  </div>
+</div>`;
+})()}
+
+<!-- COMP DETAIL PAGES (2 comps per page) -->
+${(() => {
+  let html = "";
+  for (let pageStart = 0; pageStart < comps.length; pageStart += 2) {
+    const pageComps = comps.slice(pageStart, pageStart + 2);
+    html += `<div class="page">
+  <div class="subject-header">
+    <div class="section-label">Comparable Properties</div>
+    <h2 style="font-size: 1.2rem; margin-top: 0.2rem;">Property Details</h2>
+  </div>
+  <hr class="gold-rule-wide">
+`;
+    pageComps.forEach((c, pi) => {
+      const i = pageStart + pi;
+      const cl = c.listing;
+      const cf = c.features || {};
+      const adj = c.adjustments as Record<string, number>;
+      const addr = (cl.full_address as string || "Unknown").replace(/,.*/, "");
+      const city = cl.city as string || "";
+      const photoUrl = cl.photo_url as string || "";
+      const remarks = (cl.public_remarks as string || "").slice(0, 400);
+      const mlsId = cl.listing_id as string || "";
+      const dist = cl.distance as number || null;
+
+      html += `  <div class="comp-detail-card${pi > 0 ? " comp-detail-card-second" : ""}">
+    <div class="comp-detail-header">
+      <div class="comp-detail-num">Comp ${i + 1}</div>
+      <div class="comp-detail-addr">${esc(addr)}, ${esc(city)}</div>
+    </div>
+    <div class="comp-detail-body">
+      ${photoUrl ? `<div class="comp-detail-photo"><img src="${photoUrl}" alt="Comp ${i + 1} photo" onerror="this.parentElement.style.display='none'"></div>` : ""}
+      <div class="comp-detail-facts">
+        <div class="comp-detail-price">${fmt(cl.close_price as number)}</div>
+        <div class="comp-detail-meta">Sold ${cl.close_date || "\u2014"}${mlsId ? ` &nbsp;|&nbsp; MLS #${esc(mlsId)}` : ""}${dist ? ` &nbsp;|&nbsp; ${dist} mi from subject` : ""}</div>
+        <div class="comp-detail-specs">
+          ${!isLand ? `<span>${cl.bedrooms_total || "?"} bed / ${cl.bathrooms_total_integer || "?"} bath</span><span>${fmtNum(cl.living_area as number)} sqft</span>` : ""}
+          <span>${cl.lot_size_acres || "\u2014"} acres</span>
+          ${!isLand ? `<span>Built ${cl.year_built || "\u2014"}</span><span>${(cl.garage_spaces as number) || 0} garage</span>` : ""}
+        </div>
+        <div class="comp-detail-features">
+          ${cf.view_quality ? `<span class="pdf-chip">View ${cf.view_quality}/5</span>` : ""}
+          ${cf.water_quality ? `<span class="pdf-chip">Water ${cf.water_quality}/5</span>` : ""}
+          ${cf.land_usability ? `<span class="pdf-chip">Land ${cf.land_usability}/5</span>` : ""}
+          ${cf.privacy_rating ? `<span class="pdf-chip">Privacy ${cf.privacy_rating}/5</span>` : ""}
+          ${cf.condition_rating ? `<span class="pdf-chip">Cond ${cf.condition_rating}/5</span>` : ""}
+          ${cf.restriction_status === "unrestricted" ? `<span class="pdf-chip pdf-chip-good">Unrestricted</span>` : cf.restriction_status === "restricted" ? `<span class="pdf-chip pdf-chip-warn">Restricted</span>` : ""}
+          ${(() => {
+            const ct = cf.construction_type as string || "";
+            if (ct && ct !== "site_built" && ct !== "unknown") return `<span class="pdf-chip pdf-chip-warn">${ct.replace(/_/g, " ")}</span>`;
+            return "";
+          })()}
+        </div>
+      </div>
+    </div>
+    ${remarks ? `<div class="comp-detail-remarks">${esc(remarks)}${remarks.length >= 400 ? "..." : ""}</div>` : ""}
+    <div class="comp-detail-adjustment">
+      <span>Net Adjustment: <strong class="${adjClass(adj.total_adjustment || 0)}">${adjVal(adj.total_adjustment)}</strong></span>
+      <span style="margin-left:1rem;">Adjusted Price: <strong style="color:var(--green)">${fmt(adj.adjusted_price)}</strong></span>
+    </div>
+  </div>
+`;
+    });
+    html += `</div>\n`;
+  }
+  return html;
+})()}
+
+<!-- COMPARABLE SALES ACTIVITY -->
 <div class="page">
   <div class="subject-header">
     <div class="section-label">Comparable Sales Activity</div>
@@ -539,7 +766,56 @@ ${(() => {
     <p class="eho">Equal Housing Opportunity</p>
     <p>This CMA is not an appraisal and should not be considered as one. It is an estimate of market value based on comparable sales data and the agent's knowledge of local market conditions.</p>
     <p>Information is believed to be accurate but is not guaranteed. Buyers and sellers should verify all information independently.</p>
-    <p style="margin-top: 0.3rem;">Prepared by ${AGENT.name}, ${AGENT.title} | ${AGENT.company} | ${AGENT.phone}</p>
+  </div>
+</div>
+
+<!-- PRICING STRATEGY PAGE -->
+<div class="page">
+  <div class="subject-header">
+    <div class="section-label">Pricing Strategy</div>
+    <h2 style="font-size: 1.4rem; margin-top: 0.2rem;">${sub.full_address || ""}</h2>
+    <div class="subject-city">${sub.city || ""}, NC &nbsp;&bull;&nbsp; ${sub.county_or_parish || ""} County</div>
+  </div>
+  <hr class="gold-rule-wide">
+
+  <div class="valuation-box" style="margin-top:1.5rem; padding:1.2rem 2rem;">
+    <div class="valuation-label">CMA Estimated Market Value</div>
+    <div class="valuation-price" style="font-size:2rem;">${fmt(val.suggested_price)}</div>
+    <div class="valuation-range" style="font-size:0.85rem;">${fmt(val.suggested_low)} &ndash; ${fmt(val.suggested_high)}</div>
+  </div>
+
+  <div class="subsection-title" style="margin-top:1.5rem;">CMA Summary</div>
+  <div class="facts-grid" style="margin-bottom:1rem;">
+    <div class="facts-col" style="border-right: 1px solid var(--border);">
+      <div class="fact-row"><span class="fact-label">Number of Comps</span><span class="fact-value">${numComps}</span></div>
+      <div class="fact-row"><span class="fact-label">Average Comp Sale Price</span><span class="fact-value">${fmt(comps.reduce((s, c) => s + ((c.listing.close_price as number) || 0), 0) / numComps)}</span></div>
+      <div class="fact-row"><span class="fact-label">Average Net Adjustment</span><span class="fact-value">${adjVal(comps.reduce((s, c) => s + ((c.adjustments as Record<string, number>).total_adjustment || 0), 0) / numComps)}</span></div>
+    </div>
+    <div class="facts-col">
+      <div class="fact-row"><span class="fact-label">Average Adjusted Price</span><span class="fact-value">${fmt(comps.reduce((s, c) => s + ((c.adjustments as Record<string, number>).adjusted_price || 0), 0) / numComps)}</span></div>
+      ${!isLand && sub.living_area ? `<div class="fact-row"><span class="fact-label">Estimated $/sqft</span><span class="fact-value">$${Math.round(val.suggested_price / (sub.living_area as number))}</span></div>` : ""}
+      ${sub.lot_size_acres ? `<div class="fact-row"><span class="fact-label">Estimated $/acre</span><span class="fact-value">${fmt(val.suggested_price / (sub.lot_size_acres as number))}</span></div>` : ""}
+    </div>
+  </div>
+
+  ${data.agent_recommended_price ? `
+  <div style="background:var(--gold-light); border:1px solid var(--gold-border); padding:0.8rem 1.2rem; margin:1rem 0;">
+    <div style="font-size:0.6rem; font-weight:600; letter-spacing:0.15em; text-transform:uppercase; color:var(--gold); margin-bottom:0.2rem;">Agent's Recommended Price</div>
+    <div style="font-family:'Cormorant Garamond',Georgia,serif; font-size:1.5rem; font-weight:700; color:var(--gold);">${fmt(data.agent_recommended_price)}</div>
+  </div>` : ""}
+
+  ${data.agent_notes ? `
+  <div class="subsection-title" style="margin-top:1rem;">Agent Notes</div>
+  <div class="market-narrative"><p>${esc(data.agent_notes)}</p></div>` : ""}
+
+  <div class="methodology" style="margin-top:1.5rem;">
+    <p><strong>Methodology:</strong> ${methodNote}</p>
+  </div>
+
+  <div class="disclaimers" style="margin-top:auto; position:absolute; bottom:0.6in; left:0.65in; right:0.65in;">
+    <p class="eho">Equal Housing Opportunity</p>
+    <p>This CMA is not an appraisal and should not be considered as one. It is an estimate of market value based on comparable sales data and the agent's knowledge of local market conditions. Information is believed to be accurate but is not guaranteed.</p>
+    <p style="margin-top:0.4rem;">Prepared by ${AGENT.name}, ${AGENT.title} | ${AGENT.company}<br>${AGENT.phone} | ${AGENT.email} | ${AGENT.website}</p>
   </div>
 </div>
 
@@ -592,7 +868,7 @@ Deno.serve(async (req: Request) => {
             .select("media_url, local_url")
             .eq("listing_key", subjectKey)
             .order("order", { ascending: true })
-            .limit(7);
+            .limit(13);
           if (photoRows?.length) {
             subjectPhotos = photoRows.map((p: Record<string, unknown>) =>
               (p.local_url as string) || (p.media_url as string)
@@ -616,6 +892,112 @@ Deno.serve(async (req: Request) => {
           });
         }
 
+        // Fetch primary photo for each comp
+        const compPhotoMap: Map<string, string> = new Map();
+        if (compKeys.length) {
+          const { data: compPhotoRows } = await sb
+            .from("mls_media")
+            .select("listing_key, media_url, local_url")
+            .in("listing_key", compKeys)
+            .eq("order", 1);
+          (compPhotoRows || []).forEach((p: Record<string, unknown>) => {
+            const url = (p.local_url as string) || (p.media_url as string);
+            if (url) compPhotoMap.set(p.listing_key as string, url);
+          });
+        }
+
+        // Fetch public_remarks for comps that don't have it in comp_data
+        const compRemarksMap: Map<string, string> = new Map();
+        const remarksNeeded = compKeys.filter(k => {
+          const adj = (adjustments || []).find((a: Record<string, unknown>) => a.comp_listing_key === k);
+          const cd = (adj?.comp_data as Record<string, unknown>) || {};
+          return !cd.public_remarks;
+        });
+        if (remarksNeeded.length) {
+          const { data: remarkRows } = await sb
+            .from("mls_listings")
+            .select("listing_key, public_remarks")
+            .in("listing_key", remarksNeeded);
+          (remarkRows || []).forEach((r: Record<string, unknown>) => {
+            if (r.public_remarks) compRemarksMap.set(r.listing_key as string, r.public_remarks as string);
+          });
+        }
+
+        // Fetch market stats for context page
+        let marketStats: MarketStats | undefined;
+        const subjectCounty = (report.subject_data as Record<string, unknown>)?.county_or_parish as string;
+        const subjectPropType = (report.subject_data as Record<string, unknown>)?.property_type as string;
+        if (subjectCounty && subjectPropType) {
+          try {
+            const sixMonthsAgo = new Date(Date.now() - 180 * 86400000).toISOString().split("T")[0];
+            const twelveMonthsAgo = new Date(Date.now() - 365 * 86400000).toISOString().split("T")[0];
+
+            // Active listings count
+            const { count: activeCount } = await sb
+              .from("mls_listings")
+              .select("*", { count: "exact", head: true })
+              .eq("county_or_parish", subjectCounty)
+              .eq("property_type", subjectPropType)
+              .eq("standard_status", "Active");
+
+            // Sold in last 6 months
+            const { data: sold6mo } = await sb
+              .from("mls_listings")
+              .select("close_price, days_on_market, living_area")
+              .eq("county_or_parish", subjectCounty)
+              .eq("property_type", subjectPropType)
+              .eq("standard_status", "Closed")
+              .gte("close_date", sixMonthsAgo)
+              .not("close_price", "is", null)
+              .order("close_price", { ascending: true });
+
+            // Sold in prior 6 months
+            const { data: soldPrior } = await sb
+              .from("mls_listings")
+              .select("close_price")
+              .eq("county_or_parish", subjectCounty)
+              .eq("property_type", subjectPropType)
+              .eq("standard_status", "Closed")
+              .gte("close_date", twelveMonthsAgo)
+              .lt("close_date", sixMonthsAgo)
+              .not("close_price", "is", null)
+              .order("close_price", { ascending: true });
+
+            if (sold6mo && sold6mo.length > 0) {
+              const prices = sold6mo.map((r: Record<string, unknown>) => r.close_price as number).filter(Boolean);
+              const doms = sold6mo.map((r: Record<string, unknown>) => r.days_on_market as number).filter((d): d is number => d != null);
+              const ppsfs = sold6mo
+                .filter((r: Record<string, unknown>) => (r.living_area as number) > 0 && (r.close_price as number) > 0)
+                .map((r: Record<string, unknown>) => (r.close_price as number) / (r.living_area as number));
+
+              const medianPrice = prices[Math.floor(prices.length / 2)] || 0;
+              const medianDom = doms.length ? doms[Math.floor(doms.length / 2)] : 0;
+              const avgPpsf = ppsfs.length ? ppsfs.reduce((a, b) => a + b, 0) / ppsfs.length : 0;
+
+              const priorPrices = (soldPrior || []).map((r: Record<string, unknown>) => r.close_price as number).filter(Boolean);
+              const medianPriorPrice = priorPrices.length ? priorPrices[Math.floor(priorPrices.length / 2)] : 0;
+
+              const monthlySales = sold6mo.length / 6;
+              const monthsInv = (activeCount || 0) > 0 && monthlySales > 0 ? (activeCount || 0) / monthlySales : 0;
+
+              marketStats = {
+                active_count: activeCount || 0,
+                sold_6mo_count: sold6mo.length,
+                sold_prior_6mo_count: (soldPrior || []).length,
+                median_sold_price: medianPrice,
+                median_sold_price_prior: medianPriorPrice,
+                median_dom: medianDom,
+                avg_ppsf: avgPpsf,
+                months_of_inventory: monthsInv,
+                county: subjectCounty,
+                property_type: subjectPropType,
+              };
+            }
+          } catch (e) {
+            console.error("Market stats query failed:", e);
+          }
+        }
+
         // Build report data from DB records
         const subjectListing = { ...(report.subject_data || {} as Record<string, unknown>) } as Record<string, unknown>;
         if (subjectPhotos.length) {
@@ -627,12 +1009,20 @@ Deno.serve(async (req: Request) => {
             features: report.subject_features || null,
           },
           comps: (adjustments || []).map((adj: Record<string, unknown>) => {
-            // Use saved comp_features, fall back to cma_feature_tags from DB
             const savedFeats = adj.comp_features as Record<string, unknown> | null;
             const hasFeats = savedFeats && Object.keys(savedFeats).length > 0;
             const feats = hasFeats ? savedFeats : (compTagMap.get(adj.comp_listing_key as string) || null);
+            const compListing = { ...((adj.comp_data as Record<string, unknown>) || {}) };
+            // Add photo URL and public_remarks
+            const ck = adj.comp_listing_key as string;
+            if (ck && compPhotoMap.has(ck)) {
+              compListing.photo_url = compPhotoMap.get(ck);
+            }
+            if (ck && !compListing.public_remarks && compRemarksMap.has(ck)) {
+              compListing.public_remarks = compRemarksMap.get(ck);
+            }
             return {
-              listing: (adj.comp_data as Record<string, unknown>) || {},
+              listing: compListing,
               features: feats,
               adjustments: {
                 adj_living_area: adj.adj_living_area,
@@ -661,9 +1051,10 @@ Deno.serve(async (req: Request) => {
             suggested_price: report.suggested_price || 0,
           },
           ai_summary: report.ai_summary || "",
+          agent_recommended_price: report.agent_recommended_price || undefined,
+          agent_notes: report.agent_notes || undefined,
+          market_stats: marketStats,
           comp_reasoning: (() => {
-            // Build comp reasoning from per-adjustment ai_reasoning
-            // ai_reasoning can be a string (direct paragraph) or object with .summary
             const reasons: Record<string, string> = {};
             (adjustments || []).forEach((adj: Record<string, unknown>) => {
               const key = adj.comp_listing_key as string;
