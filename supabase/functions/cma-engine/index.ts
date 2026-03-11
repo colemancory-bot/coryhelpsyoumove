@@ -828,7 +828,8 @@ async function getAIAdvice(
     listing: ListingData;
     features: FeatureTags | null;
     adjustments: AdjustmentResult;
-  }>
+  }>,
+  valuation?: { suggested_low?: number; suggested_high?: number; suggested_price?: number }
 ): Promise<{
   considerations: Array<{
     category: string;
@@ -850,10 +851,45 @@ async function getAIAdvice(
       ? `Baths: ${subject.bathrooms_total_integer}`
       : "",
     subject.year_built ? `Year Built: ${subject.year_built}` : "",
-    subject.list_price ? `List Price: $${subject.list_price.toLocaleString()}` : "",
+    subject.list_price ? `Current List Price: $${subject.list_price.toLocaleString()}` : "",
   ]
     .filter(Boolean)
     .join(" | ");
+
+  // Build appreciation context if prior sale history exists
+  const marketAnnualRate = WNC_DEFAULTS.monthly_appreciation_pct * 12; // 3.6%
+  let appreciationContext = "";
+  if (subject.close_price && subject.close_date) {
+    const purchaseDate = new Date(subject.close_date + "T00:00:00");
+    const yearsSince = (Date.now() - purchaseDate.getTime()) / (365.25 * 86400000);
+    const suggestedPrice = valuation?.suggested_price || 0;
+
+    const lines: string[] = [
+      `Last Sale: $${subject.close_price.toLocaleString()} on ${subject.close_date} (${yearsSince.toFixed(1)} years ago)`,
+    ];
+
+    if (suggestedPrice > 0) {
+      lines.push(`CMA Suggested Value: $${suggestedPrice.toLocaleString()}`);
+      const totalAppreciation = ((suggestedPrice - subject.close_price) / subject.close_price) * 100;
+      const annualRate = yearsSince > 0.25 ? totalAppreciation / yearsSince : null;
+      if (annualRate !== null) {
+        lines.push(`Implied Annual Appreciation: ${annualRate.toFixed(1)}%`);
+      }
+      lines.push(`Market Baseline (${subject.city || "WNC"}): ~${marketAnnualRate.toFixed(1)}% annually`);
+      if (annualRate !== null) {
+        if (annualRate > marketAnnualRate + 1.5) {
+          lines.push("This property has appreciated ABOVE the general market rate, which may indicate strong demand for its features or a risk of overvaluation.");
+        } else if (annualRate < marketAnnualRate - 1.5) {
+          lines.push("This property has appreciated BELOW the general market rate, which may indicate deferred maintenance, unfavorable location factors, or a buying opportunity.");
+        } else {
+          lines.push("This property has tracked with the general market appreciation rate.");
+        }
+      }
+    }
+    appreciationContext = "\n\nAPPRECIATION CONTEXT:\n  " + lines.join("\n  ");
+  } else if (valuation?.suggested_price) {
+    appreciationContext = `\n\nCMA VALUATION:\n  Suggested Value: $${valuation.suggested_price.toLocaleString()} (Range: $${(valuation.suggested_low || 0).toLocaleString()} - $${(valuation.suggested_high || 0).toLocaleString()})`;
+  }
 
   const featureDesc = subjectFeatures
     ? [
@@ -948,6 +984,8 @@ Analyze the subject property and its comparable sales. Provide:
 
 Focus on mountain-specific factors that RPR and other tools miss. Flag any comps that may not be truly comparable despite surface similarity. Consider seasonal access, road quality, view permanence (tree growth), and flood/slide risk.
 
+If appreciation context is provided, comment on whether the property's value trajectory is healthy relative to market norms. Flag any cases where implied appreciation seems unusually high (may indicate overvaluation) or unusually low (may indicate opportunity or deferred maintenance).
+
 CRITICAL: The mountain feature ratings were AI-extracted from MLS listing remarks and may be INACCURATE. The agent may have overridden them via sliders. If the "AGENT CORRECTIONS" section is present, those corrections take priority over the AI-extracted ratings. Base your analysis on the ACTUAL ADJUSTMENT VALUES, not the AI-extracted feature ratings. If adj_view is $0 for all comps, the subject does NOT have premium views regardless of what the AI-extracted rating says.
 
 Return valid JSON with this structure:
@@ -959,6 +997,7 @@ Return valid JSON with this structure:
 
   const userMessage = `SUBJECT PROPERTY:
 ${subjectDesc}
+${appreciationContext}
 
 SUBJECT MOUNTAIN FEATURES (AI-extracted from MLS remarks):
 ${featureDesc}
@@ -2278,6 +2317,11 @@ Return JSON:
         features: FeatureTags | null;
         adjustments: AdjustmentResult;
       }>;
+      const valuationData = body.valuation as {
+        suggested_low?: number;
+        suggested_high?: number;
+        suggested_price?: number;
+      } | null;
 
       if (!subjectData || !compsData) {
         return jsonResp(
@@ -2289,7 +2333,8 @@ Return JSON:
       const advice = await getAIAdvice(
         subjectData.listing,
         subjectData.features,
-        compsData
+        compsData,
+        valuationData || undefined
       );
 
       return jsonResp({

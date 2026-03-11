@@ -1887,6 +1887,7 @@ async function cmaQuickCMA() {
   renderProgress(2);
   var adviceResult = await cmaFetch('ai-advise', {
     subject: _cmaState.subject,
+    valuation: _cmaState.valuation || {},
     comps: _cmaState.selectedComps.map(function(c, i) {
       return { listing: c.listing, features: c.features, adjustments: _cmaState.adjustments[i] };
     })
@@ -1934,6 +1935,11 @@ async function cmaOpenReport(reportId) {
       gross_adjustment_pct: adj.gross_adjustment_pct, net_adjustment_pct: adj.net_adjustment_pct,
       warnings: [], ai_suggested: adj.ai_suggested_adjustments || {}
     };
+  });
+  // Restore comp condition ratings from saved report
+  _cmaState.compConditions = {};
+  (result.adjustments || []).forEach(function(adj, i) {
+    if (adj.comp_condition_rating != null) _cmaState.compConditions[i] = adj.comp_condition_rating;
   });
   _cmaState.step = 4;
   cmaRenderStep4();
@@ -2743,6 +2749,7 @@ function cmaRenderStep2() {
     var scoreColor = score >= 70 ? 'var(--crm-green)' : score >= 50 ? 'var(--crm-amber)' : 'var(--crm-red)';
     html += '<div class="cma-comp-card' + (c.selected ? ' selected' : '') + '" onclick="cmaToggleComp(' + i + ')">';
     html += '<div class="cma-comp-check">' + (c.selected ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>' : '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>') + '</div>';
+    html += '<div class="cma-comp-thumb" id="cmaCompThumb_' + i + '" onclick="event.stopPropagation()"><div class="cma-comp-thumb-empty">Loading...</div></div>';
     html += '<div class="cma-comp-info">';
     html += '<div class="cma-comp-addr">' + esc(l.full_address || '') + ', ' + esc(l.city || '');
     if (c.is_price_outlier) html += ' <span class="cma-outlier-badge" title="Sale price is significantly different from other comps in this group">&#9888; Price Outlier</span>';
@@ -2773,6 +2780,135 @@ function cmaRenderStep2() {
   html += '</div>';
   html += '</div></div>';
   main.innerHTML = html;
+  cmaLoadStep2Thumbs();
+}
+
+// Load thumbnails for Step 2 comp cards
+async function cmaLoadStep2Thumbs() {
+  var comps = _cmaState.comps || [];
+  comps.forEach(function(c, i) {
+    if (c.listing && c.listing.listing_key) {
+      cmaLoadCompThumb(c.listing.listing_key, i, c.listing);
+    }
+  });
+}
+
+async function cmaLoadCompThumb(listingKey, compIdx, listing) {
+  var el = document.getElementById('cmaCompThumb_' + compIdx);
+  if (!el) return;
+  try {
+    var resp = await _sb.from('mls_media').select('local_url,media_url').eq('listing_key', listingKey).order('order', { ascending: true }).limit(30);
+    var photos = (resp.data || []).map(function(p) { return p.local_url || p.media_url; }).filter(Boolean);
+    if (photos.length) {
+      el.innerHTML = '<img src="' + esc(photos[0]) + '" alt="Property photo" class="cma-comp-thumb-img" />';
+      el.dataset.photos = JSON.stringify(photos);
+      el.dataset.listingKey = listingKey;
+      el.dataset.compIdx = compIdx;
+      el.addEventListener('click', function(e) {
+        e.stopPropagation();
+        cmaOpenCompDetail(listingKey, JSON.parse(el.dataset.photos), listing);
+      });
+    } else {
+      el.innerHTML = '<div class="cma-comp-thumb-empty">No photo</div>';
+    }
+  } catch(e) {
+    el.innerHTML = '<div class="cma-comp-thumb-empty">No photo</div>';
+  }
+}
+
+// Property detail overlay with gallery + description
+function cmaOpenCompDetail(listingKey, photos, listing) {
+  var idx = 0;
+  var overlay = document.createElement('div');
+  overlay.className = 'crm-modal-overlay cma-detail-overlay';
+  overlay.style.zIndex = '500';
+
+  // Fetch public remarks if not on listing object (might be truncated)
+  var remarks = listing.public_remarks || '';
+
+  function render() {
+    var l = listing;
+    var html = '<div class="cma-detail-modal">';
+    html += '<button class="cma-detail-close" onclick="this.closest(\'.cma-detail-overlay\').remove()">&times;</button>';
+
+    // Photo gallery section
+    if (photos.length) {
+      html += '<div class="cma-detail-gallery">';
+      html += '<div class="cma-detail-stage">';
+      if (photos.length > 1) html += '<button class="cma-photo-nav cma-photo-prev">&lsaquo;</button>';
+      html += '<img src="' + esc(photos[idx]) + '" class="cma-detail-main-img" />';
+      if (photos.length > 1) html += '<button class="cma-photo-nav cma-photo-next">&rsaquo;</button>';
+      html += '</div>';
+      html += '<div class="cma-detail-counter">' + (idx + 1) + ' / ' + photos.length + '</div>';
+      if (photos.length > 1) {
+        html += '<div class="cma-photo-strip">';
+        photos.forEach(function(p, i) {
+          html += '<img src="' + esc(p) + '" class="cma-photo-thumb' + (i === idx ? ' active' : '') + '" data-idx="' + i + '" />';
+        });
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+
+    // Property info section
+    html += '<div class="cma-detail-info">';
+    html += '<h3 class="cma-detail-addr">' + esc(l.full_address || 'Unknown') + ', ' + esc(l.city || '') + '</h3>';
+    html += '<div class="cma-detail-facts">';
+    html += '<span class="cma-detail-price">$' + (l.close_price ? l.close_price.toLocaleString() : '--') + '</span>';
+    html += '<span>Sold ' + (l.close_date || '--') + '</span>';
+    html += '<span>' + (l.living_area ? l.living_area.toLocaleString() + ' sqft' : '--') + '</span>';
+    html += '<span>' + (l.lot_size_acres || '--') + ' ac</span>';
+    html += '<span>' + (l.bedrooms_total || '?') + 'bd / ' + (l.bathrooms_total_integer || '?') + 'ba</span>';
+    html += '<span>Built ' + (l.year_built || '--') + '</span>';
+    if (l.garage_spaces) html += '<span>' + l.garage_spaces + ' garage</span>';
+    html += '</div>';
+
+    // Description
+    if (remarks) {
+      html += '<div class="cma-detail-remarks">';
+      html += '<h4>Property Description</h4>';
+      html += '<p>' + esc(remarks) + '</p>';
+      html += '</div>';
+    }
+
+    html += '</div></div>';
+    overlay.innerHTML = html;
+
+    // Bind nav
+    var prev = overlay.querySelector('.cma-photo-prev');
+    var next = overlay.querySelector('.cma-photo-next');
+    if (prev) prev.addEventListener('click', function(e) { e.stopPropagation(); idx = (idx - 1 + photos.length) % photos.length; render(); });
+    if (next) next.addEventListener('click', function(e) { e.stopPropagation(); idx = (idx + 1) % photos.length; render(); });
+    overlay.querySelectorAll('.cma-photo-thumb').forEach(function(t) {
+      t.addEventListener('click', function(e) { e.stopPropagation(); idx = parseInt(t.dataset.idx); render(); });
+    });
+  }
+
+  render();
+
+  // If no remarks on listing object, try fetching from DB
+  if (!remarks && listingKey) {
+    _sb.from('mls_listings').select('public_remarks').eq('listing_key', listingKey).maybeSingle().then(function(resp) {
+      if (resp.data && resp.data.public_remarks) {
+        remarks = resp.data.public_remarks;
+        listing.public_remarks = remarks; // cache it
+        render();
+      }
+    });
+  }
+
+  // Close on backdrop click
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+  // Close on Escape
+  var escHandler = function(e) { if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', escHandler); } };
+  var keyHandler = function(e) {
+    if (!document.body.contains(overlay)) { document.removeEventListener('keydown', keyHandler); return; }
+    if (e.key === 'ArrowLeft') { idx = (idx - 1 + photos.length) % photos.length; render(); }
+    if (e.key === 'ArrowRight') { idx = (idx + 1) % photos.length; render(); }
+  };
+  document.addEventListener('keydown', escHandler);
+  document.addEventListener('keydown', keyHandler);
+  document.body.appendChild(overlay);
 }
 
 function cmaApplyFilters() {
@@ -2816,6 +2952,12 @@ async function cmaGoStep3() {
   if (calcResult.error) { toast('Adjustment calculation error: ' + calcResult.error, 'error'); return; }
   _cmaState.adjustments = calcResult.adjustments || [];
   _cmaState.valuation = calcResult.valuation || {};
+  // Initialize comp condition ratings from AI-extracted features
+  _cmaState.compConditions = {};
+  _cmaState.selectedComps.forEach(function(c, i) {
+    var cf = c.features || {};
+    _cmaState.compConditions[i] = cf.condition_rating || 3; // Default to 3 (Fair for Age)
+  });
   cmaRenderStep3();
 }
 
@@ -2838,7 +2980,9 @@ function cmaRenderStep3() {
   // Header row with photo thumbnails
   html += '<thead><tr><th class="cma-grid-label">Feature</th><th class="cma-grid-subject"><div class="cma-grid-comp-photo" id="cmaSubjectPhoto"></div>Subject</th>';
   comps.forEach(function(c, i) {
-    html += '<th class="cma-grid-comp"><div class="cma-grid-comp-photo" id="cmaCompPhoto_' + i + '"></div>Comp ' + (i+1) + '<br><span class="cma-grid-comp-addr">' + esc((c.listing.full_address || '').split(' ').slice(0,3).join(' ')) + '</span></th>';
+    html += '<th class="cma-grid-comp"><div class="cma-grid-comp-photo" id="cmaCompPhoto_' + i + '"></div>Comp ' + (i+1) + '<br><span class="cma-grid-comp-addr">' + esc((c.listing.full_address || '').split(' ').slice(0,3).join(' ')) + '</span>';
+    html += '<button class="cma-replace-comp-btn" onclick="cmaOpenCompSearch(' + i + ')" title="Replace this comp">&#8635; Replace</button>';
+    html += '</th>';
   });
   html += '</tr></thead><tbody>';
 
@@ -2929,7 +3073,6 @@ function cmaRenderStep3() {
     { key: 'adj_land_character', label: 'Land Character', subVal: sf.land_usability ? sf.land_usability + '/5' : '--', compFeatKey: 'land_usability' },
     { key: 'adj_road_noise', label: 'Road Noise', subVal: sf.road_noise ? sf.road_noise + '/5' : '--', compFeatKey: 'road_noise' },
     { key: 'adj_privacy', label: 'Privacy', subVal: sf.privacy_rating ? sf.privacy_rating + '/5' : '--', compFeatKey: 'privacy_rating' },
-    { key: 'adj_condition', label: 'Condition', subVal: sf.condition_rating ? sf.condition_rating + '/5' : '--', compFeatKey: 'condition_rating' },
     { key: 'adj_elevation', label: 'Elevation', subVal: sf.elevation_ft ? sf.elevation_ft + ' ft' : '--', compFeatKey: 'elevation_ft' },
   ];
 
@@ -2948,6 +3091,29 @@ function cmaRenderStep3() {
     });
     html += '</tr>';
   });
+
+  // Condition row with explicit 1-5 dropdown per comp
+  var subCond = sf.condition_rating || 0;
+  var condLabels = { 0: 'Unknown', 1: '1 - Tear Down', 2: '2 - Below Avg', 3: '3 - Fair', 4: '4 - Above Avg', 5: '5 - Pristine' };
+  html += '<tr><td>Condition</td><td class="cma-grid-subject-val">' + (subCond > 0 ? condLabels[subCond] || subCond + '/5' : '--') + '</td>';
+  adjs.forEach(function(a, ci) {
+    var cf = comps[ci].features || {};
+    var compCond = (_cmaState.compConditions && _cmaState.compConditions[ci] != null) ? _cmaState.compConditions[ci] : (cf.condition_rating || 3);
+    if (!_cmaState.compConditions) _cmaState.compConditions = {};
+    if (_cmaState.compConditions[ci] == null) _cmaState.compConditions[ci] = compCond;
+    var adjVal = a.adjustments.adj_condition || 0;
+    html += '<td class="cma-grid-adj-cell">';
+    html += '<div class="cma-condition-row">';
+    html += '<select class="cma-condition-select" data-comp="' + ci + '">';
+    for (var cv = 0; cv <= 5; cv++) {
+      html += '<option value="' + cv + '"' + (cv === compCond ? ' selected' : '') + '>' + condLabels[cv] + '</option>';
+    }
+    html += '</select>';
+    html += cmaAdjInput(ci, 'adj_condition', adjVal);
+    html += '</div>';
+    html += '</td>';
+  });
+  html += '</tr>';
 
   // Market adjustments
   html += '<tr class="cma-grid-section"><td colspan="' + (comps.length + 2) + '">Market Adjustments</td></tr>';
@@ -3026,6 +3192,101 @@ function cmaRenderStep3() {
   main.innerHTML = html;
   cmaBindAdjustmentEvents();
   cmaLoadGridPhotos();
+  cmaCheckReplacementSuggestions();
+}
+
+// Check for threshold violations and suggest replacements (async, non-blocking)
+async function cmaCheckReplacementSuggestions() {
+  if (!_cmaState.adjustments || !_cmaState.adjustments.length) return;
+  if (!_cmaState.replacementDismissed) _cmaState.replacementDismissed = {};
+  if (!_cmaState.replacementSuggestions) _cmaState.replacementSuggestions = {};
+
+  // Find flagged comps (gross > 25% or net > 15%)
+  var flagged = [];
+  _cmaState.adjustments.forEach(function(adj, i) {
+    if (_cmaState.replacementDismissed[i]) return;
+    if (adj.gross_adjustment_pct > 25 || adj.net_adjustment_pct > 15) {
+      flagged.push(i);
+    }
+  });
+
+  if (flagged.length === 0) return;
+
+  // Fetch available comps if not cached
+  if (!_cmaSearchCache) {
+    var sub = _cmaState.subject.listing;
+    var isManual = (sub.listing_key || '').startsWith('manual_');
+    var payload = {
+      filters: Object.assign({
+        county: sub.county_or_parish || null,
+        property_type: sub.property_type || null,
+        max_distance_miles: 15,
+        limit: 20
+      }, _cmaState.filters || {})
+    };
+    if (isManual) { payload.listing_key = null; payload.manual_subject = sub; }
+    else { payload.listing_key = sub.listing_key; }
+    if (_cmaState.subject.features && Object.keys(_cmaState.subject.features).length > 0) {
+      payload.feature_overrides = _cmaState.subject.features;
+    }
+    var result = await cmaFetch('find-comps', payload);
+    if (result.error) return;
+    _cmaSearchCache = result.comps || [];
+  }
+
+  // For each flagged comp, find the best alternative
+  var selectedKeys = _cmaState.selectedComps.map(function(c) { return c.listing.listing_key; });
+  var available = _cmaSearchCache.filter(function(c) {
+    return selectedKeys.indexOf(c.listing.listing_key) === -1;
+  });
+
+  if (available.length === 0) return;
+
+  flagged.forEach(function(compIdx) {
+    var bestAlt = available[0]; // Already sorted by score from find-comps
+    if (!bestAlt) return;
+
+    _cmaState.replacementSuggestions[compIdx] = bestAlt;
+
+    // Render the alert bar below the comp header
+    var compHeader = document.querySelector('.cma-grid-comp:nth-child(' + (compIdx + 3) + ')'); // +3 because th[0]=Feature, th[1]=Subject
+    if (!compHeader) return;
+    // Check if alert already exists
+    if (compHeader.querySelector('.cma-replacement-alert')) return;
+
+    var adj = _cmaState.adjustments[compIdx];
+    var pct = adj.gross_adjustment_pct > 25 ? adj.gross_adjustment_pct + '% gross' : adj.net_adjustment_pct + '% net';
+    var alt = bestAlt.listing;
+    var scoreStr = bestAlt.score ? Math.round(bestAlt.score * 100) + '%' : '--';
+
+    var alertHtml = '<div class="cma-replacement-alert">';
+    alertHtml += '<div class="cma-replacement-alert-text">&#9888; ' + pct + ' adjustments</div>';
+    alertHtml += '<div class="cma-replacement-alert-comp">' + esc((alt.full_address || '').split(',')[0]) + ' (' + scoreStr + ' match, $' + (alt.close_price || 0).toLocaleString() + ')</div>';
+    alertHtml += '<div class="cma-replacement-alert-actions">';
+    alertHtml += '<button class="cma-btn-accept" onclick="cmaAcceptSuggestion(' + compIdx + ')">Use This</button>';
+    alertHtml += '<button onclick="cmaOpenCompSearch(' + compIdx + ')">Pick My Own</button>';
+    alertHtml += '<button onclick="cmaDismissSuggestion(' + compIdx + ')">Keep</button>';
+    alertHtml += '</div></div>';
+
+    compHeader.insertAdjacentHTML('beforeend', alertHtml);
+  });
+}
+
+function cmaAcceptSuggestion(compIdx) {
+  var suggestion = _cmaState.replacementSuggestions ? _cmaState.replacementSuggestions[compIdx] : null;
+  if (!suggestion) { toast('No suggestion found', 'error'); return; }
+  cmaReplaceComp(compIdx, suggestion.listing.listing_key);
+}
+
+function cmaDismissSuggestion(compIdx) {
+  if (!_cmaState.replacementDismissed) _cmaState.replacementDismissed = {};
+  _cmaState.replacementDismissed[compIdx] = true;
+  // Remove the alert bar
+  var compHeader = document.querySelector('.cma-grid-comp:nth-child(' + (compIdx + 3) + ')');
+  if (compHeader) {
+    var alert = compHeader.querySelector('.cma-replacement-alert');
+    if (alert) alert.remove();
+  }
 }
 
 // Load comp and subject photos into the grid header
@@ -3191,9 +3452,31 @@ function cmaBindAdjustmentEvents() {
       cmaUpdateTotalsDisplay();
     }
   });
-  // Number input change
+  // Change events: condition dropdown + number inputs
   grid.addEventListener('change', function(e) {
     var el = e.target;
+    // Condition dropdown
+    if (el.classList.contains('cma-condition-select')) {
+      var compIdx = parseInt(el.dataset.comp);
+      var compCond = parseInt(el.value) || 0;
+      if (!_cmaState.compConditions) _cmaState.compConditions = {};
+      _cmaState.compConditions[compIdx] = compCond;
+      var subCond = (_cmaState.subject.features || {}).condition_rating || 0;
+      var newAdj = (subCond > 0 && compCond > 0) ? (subCond - compCond) * 20000 : 0;
+      cmaUpdateAdj(compIdx, 'adj_condition', newAdj);
+      // Sync the number input
+      var cell = el.closest('.cma-grid-adj-cell');
+      if (cell) {
+        var numInput = cell.querySelector('.cma-adj-input[data-key="adj_condition"]');
+        if (numInput) {
+          numInput.value = newAdj;
+          numInput.className = 'cma-adj-input' + (newAdj > 0 ? ' cma-adj-pos' : newAdj < 0 ? ' cma-adj-neg' : '');
+        }
+      }
+      cmaUpdateTotalsDisplay();
+      return;
+    }
+    // Number input change
     if (el.classList.contains('cma-adj-input')) {
       var compIdx = parseInt(el.dataset.comp);
       var adjKey = el.dataset.key;
@@ -3278,6 +3561,207 @@ function cmaRecalculate() {
   toast('Adjustments recalculated', 'success');
 }
 
+// ── Comp Search/Replace Modal ──
+var _cmaSearchCache = null; // Cache find-comps results for the session
+
+async function cmaOpenCompSearch(compIdx, preloadedComps) {
+  // Create modal overlay
+  var overlay = document.createElement('div');
+  overlay.className = 'cma-comp-search-overlay';
+  overlay.innerHTML = '<div class="cma-comp-search-modal">' +
+    '<div class="cma-comp-search-header">' +
+    '<h3>Replace Comp ' + (compIdx + 1) + '</h3>' +
+    '<button class="cma-comp-search-close" onclick="this.closest(\'.cma-comp-search-overlay\').remove()">&times;</button>' +
+    '</div>' +
+    '<div class="cma-comp-search-body">' +
+    '<div class="cma-comp-search-bar">' +
+    '<input type="text" class="crm-input cma-comp-search-input" id="cmaCompSearchInput" placeholder="Filter by address or listing ID..." />' +
+    '</div>' +
+    '<div class="cma-comp-search-results" id="cmaCompSearchResults">' +
+    '<div class="crm-loading"><div class="crm-spinner"></div><p>Loading comparable sales...</p></div>' +
+    '</div>' +
+    '</div></div>';
+
+  document.body.appendChild(overlay);
+
+  // Close on backdrop click
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+  // Close on Escape
+  var escHandler = function(e) { if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', escHandler); } };
+  document.addEventListener('keydown', escHandler);
+
+  // Get comps (use preloaded or fetch)
+  var allComps = preloadedComps || _cmaSearchCache;
+  if (!allComps) {
+    var sub = _cmaState.subject.listing;
+    var isManual = (sub.listing_key || '').startsWith('manual_');
+    var payload = {
+      filters: Object.assign({
+        county: sub.county_or_parish || null,
+        property_type: sub.property_type || null,
+        max_distance_miles: 15,
+        limit: 20
+      }, _cmaState.filters || {})
+    };
+    if (isManual) {
+      payload.listing_key = null;
+      payload.manual_subject = sub;
+    } else {
+      payload.listing_key = sub.listing_key;
+    }
+    if (_cmaState.subject.features && Object.keys(_cmaState.subject.features).length > 0) {
+      payload.feature_overrides = _cmaState.subject.features;
+    }
+    var result = await cmaFetch('find-comps', payload);
+    if (result.error) {
+      var resultsEl = document.getElementById('cmaCompSearchResults');
+      if (resultsEl) resultsEl.innerHTML = '<p class="cma-comp-search-error">Error loading comps: ' + esc(result.error) + '</p>';
+      return;
+    }
+    allComps = result.comps || [];
+    _cmaSearchCache = allComps;
+  }
+
+  // Filter out already-selected comps
+  var selectedKeys = _cmaState.selectedComps.map(function(c) { return c.listing.listing_key; });
+  var availableComps = allComps.filter(function(c) {
+    return selectedKeys.indexOf(c.listing.listing_key) === -1;
+  });
+
+  function renderResults(filter) {
+    var resultsEl = document.getElementById('cmaCompSearchResults');
+    if (!resultsEl) return;
+    var filtered = filter
+      ? availableComps.filter(function(c) {
+          var addr = (c.listing.full_address || '').toLowerCase();
+          var id = (c.listing.listing_key || '').toLowerCase();
+          var q = filter.toLowerCase();
+          return addr.indexOf(q) !== -1 || id.indexOf(q) !== -1;
+        })
+      : availableComps;
+
+    if (filtered.length === 0) {
+      resultsEl.innerHTML = '<p class="cma-comp-search-empty">No matching comps found.</p>';
+      return;
+    }
+
+    var html = '';
+    filtered.forEach(function(c) {
+      var l = c.listing;
+      var scoreStr = c.score ? Math.round(c.score * 100) + '%' : '--';
+      var distStr = c.distance_miles ? c.distance_miles.toFixed(1) + ' mi' : '--';
+      html += '<div class="cma-comp-search-card" data-key="' + esc(l.listing_key) + '">';
+      html += '<div class="cma-comp-search-card-top">';
+      html += '<div class="cma-comp-search-addr">' + esc(l.full_address || 'Unknown') + '</div>';
+      html += '<div class="cma-comp-search-score">' + scoreStr + ' match</div>';
+      html += '</div>';
+      html += '<div class="cma-comp-search-meta">';
+      html += '<span>$' + (l.close_price || 0).toLocaleString() + '</span>';
+      html += '<span>' + (l.close_date || '--') + '</span>';
+      html += '<span>' + (l.living_area ? l.living_area.toLocaleString() + ' sqft' : '--') + '</span>';
+      html += '<span>' + (l.lot_size_acres || '--') + ' ac</span>';
+      html += '<span>' + (l.bedrooms_total || '--') + 'bd/' + (l.bathrooms_total_integer || '--') + 'ba</span>';
+      html += '<span>' + distStr + '</span>';
+      html += '</div>';
+      html += '<button class="crm-btn crm-btn-primary cma-comp-search-select" onclick="cmaReplaceComp(' + compIdx + ', \'' + esc(l.listing_key) + '\')">Select</button>';
+      html += '</div>';
+    });
+    resultsEl.innerHTML = html;
+  }
+
+  renderResults('');
+
+  // Wire up search filter
+  var searchInput = document.getElementById('cmaCompSearchInput');
+  if (searchInput) {
+    searchInput.addEventListener('input', function() { renderResults(this.value); });
+    searchInput.focus();
+  }
+}
+
+async function cmaReplaceComp(compIdx, newCompKey) {
+  // Find the comp in the search cache
+  var allComps = _cmaSearchCache || [];
+  var newComp = null;
+  for (var i = 0; i < allComps.length; i++) {
+    if (allComps[i].listing.listing_key === newCompKey) {
+      newComp = allComps[i];
+      break;
+    }
+  }
+  if (!newComp) { toast('Comp not found', 'error'); return; }
+
+  // Close the modal
+  var overlay = document.querySelector('.cma-comp-search-overlay');
+  if (overlay) overlay.remove();
+
+  toast('Recalculating adjustments...', 'info');
+
+  // Save current slider overrides for other comps
+  var savedOverrides = {};
+  _cmaState.adjustments.forEach(function(adj, idx) {
+    if (idx !== compIdx) savedOverrides[idx] = Object.assign({}, adj.adjustments);
+  });
+
+  // Replace the comp in selectedComps
+  _cmaState.selectedComps[compIdx] = { listing: newComp.listing, features: newComp.features || {} };
+
+  // Also update the comps list
+  var compInList = _cmaState.comps.find(function(c) { return c.listing.listing_key === newCompKey; });
+  if (compInList) compInList.selected = true;
+  // Mark old comp as deselected
+  var oldKey = _cmaState.adjustments[compIdx] ? _cmaState.adjustments[compIdx].comp_listing_key : null;
+  if (oldKey) {
+    var oldInList = _cmaState.comps.find(function(c) { return c.listing.listing_key === oldKey; });
+    if (oldInList) oldInList.selected = false;
+  }
+
+  // Calculate adjustments for all comps (engine calculates fresh)
+  var calcResult = await cmaFetch('calculate-adjustments', {
+    subject: _cmaState.subject,
+    comps: _cmaState.selectedComps.map(function(c) { return { listing: c.listing, features: c.features }; })
+  });
+
+  if (calcResult.error) { toast('Recalculation error: ' + calcResult.error, 'error'); return; }
+
+  // Merge: use new adjustments for replaced comp, restore overrides for others
+  _cmaState.adjustments = (calcResult.adjustments || []).map(function(newAdj, idx) {
+    if (idx !== compIdx && savedOverrides[idx]) {
+      // Restore the user's slider overrides for unchanged comps
+      newAdj.adjustments = savedOverrides[idx];
+      // Recalculate totals with restored overrides
+      var total = 0, gross = 0;
+      for (var key in newAdj.adjustments) {
+        var v = newAdj.adjustments[key] || 0;
+        total += v;
+        gross += Math.abs(v);
+      }
+      newAdj.total_adjustment = total;
+      newAdj.adjusted_price = newAdj.sale_price + total;
+      newAdj.gross_adjustment_pct = newAdj.sale_price > 0 ? Math.round((gross / newAdj.sale_price) * 1000) / 10 : 0;
+      newAdj.net_adjustment_pct = newAdj.sale_price > 0 ? Math.round((Math.abs(total) / newAdj.sale_price) * 1000) / 10 : 0;
+    }
+    return newAdj;
+  });
+  _cmaState.valuation = calcResult.valuation || {};
+
+  // Update comp condition for the replaced comp
+  if (_cmaState.compConditions) {
+    var cf = newComp.features || {};
+    _cmaState.compConditions[compIdx] = cf.condition_rating || 3;
+  }
+
+  // Clear AI advice cache (needs recalculation with new comp)
+  _cmaState.aiAdvice = null;
+
+  // Clear replacement state for this comp
+  if (_cmaState.replacementSuggestions) delete _cmaState.replacementSuggestions[compIdx];
+  if (_cmaState.replacementDismissed) delete _cmaState.replacementDismissed[compIdx];
+
+  toast('Comp ' + (compIdx + 1) + ' replaced!', 'success');
+  cmaRenderStep3();
+}
+
 // ── Step 4: Review & Export ──
 async function cmaGoStep4() {
   _cmaState.step = 4;
@@ -3287,6 +3771,7 @@ async function cmaGoStep4() {
   // Get AI advice
   var adviceResult = await cmaFetch('ai-advise', {
     subject: _cmaState.subject,
+    valuation: _cmaState.valuation || {},
     comps: _cmaState.selectedComps.map(function(c, i) {
       return { listing: c.listing, features: c.features, adjustments: _cmaState.adjustments[i] };
     })
@@ -3525,6 +4010,7 @@ async function cmaSaveReport(status) {
         adjusted_price: a.adjusted_price,
         gross_adjustment_pct: a.gross_adjustment_pct,
         net_adjustment_pct: a.net_adjustment_pct,
+        comp_condition_rating: (_cmaState.compConditions && _cmaState.compConditions[i] != null) ? _cmaState.compConditions[i] : null,
         slider_states: {},
         ai_suggested_adjustments: a.ai_suggested || {},
         ai_reasoning: _cmaState.aiAdvice && _cmaState.aiAdvice.comp_reasoning ? _cmaState.aiAdvice.comp_reasoning[a.comp_listing_key] || {} : {}
