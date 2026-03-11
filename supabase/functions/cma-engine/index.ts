@@ -1114,27 +1114,13 @@ Deno.serve(async (req: Request) => {
       const navicaDataset = Deno.env.get("NAVICA_DATASET_ID") || "nav27";
       if (navicaToken) {
         try {
-          let filter = "PropertyType ne 'Residential Lease'";
-          if (searchId) {
-            filter += ` and ListingId eq '${searchId}'`;
-          } else if (addrStreetName) {
-            // Address-based search for Navica (use eq, not contains, for reliability)
-            if (addrStreetNumber) {
-              filter += ` and StreetNumber eq '${addrStreetNumber}'`;
-            }
-            // Try exact StreetName match first
-            filter += ` and StreetName eq '${titleCase(addrStreetName).replace(/'/g, "''")}'`;
-            if (addrCity) {
-              filter += ` and City eq '${addrCity.replace(/'/g, "''")}'`;
-            }
-          }
-          console.log("[lookup] Navica filter:", filter);
           const navicaBase = `https://navapi.navicamls.net/api/v2/OData/${navicaDataset}`;
           const navOrderBy = searchAddress ? "&$orderby=CloseDate desc" : "";
 
           // Helper to fetch from Navica with a given filter
-          async function navicaQuery(f: string): Promise<any[]> {
-            const u = `${navicaBase}/Property?$filter=${f}&$top=5${navOrderBy}&access_token=${navicaToken}`;
+          async function navicaQuery(f: string, top = 10): Promise<any[]> {
+            const u = `${navicaBase}/Property?$filter=${f}&$top=${top}${navOrderBy}&access_token=${navicaToken}`;
+            console.log("[lookup] Navica query:", u.replace(navicaToken, "***"));
             const r = await fetch(u, { headers: { Accept: "application/json" } });
             if (!r.ok) {
               const body = await r.text().catch(() => "");
@@ -1145,39 +1131,63 @@ Deno.serve(async (req: Request) => {
             return d.value || [];
           }
 
-          // Navica supports more filter fields than MLS Grid. Try exact StreetName first,
-          // then fall back to StreetNumber-only with local filtering.
+          // Build filter based on search type
           let navRecords: any[] = [];
-          try {
-            navRecords = await navicaQuery(filter);
-            // If exact StreetName match returned 0 results, try broader search
-            if (navRecords.length === 0 && addrStreetNumber && addrStreetName) {
-              console.log("[lookup] Navica exact name returned 0, retrying with StreetNumber only");
-              let broadFilter = `PropertyType ne 'Residential Lease' and StreetNumber eq '${addrStreetNumber}'`;
-              if (addrCity) broadFilter += ` and City eq '${addrCity.replace(/'/g, "''")}'`;
-              navRecords = await navicaQuery(broadFilter);
-              const nameLower = addrStreetName.toLowerCase();
-              navRecords = navRecords.filter((r: any) =>
-                (r.StreetName || "").toLowerCase().includes(nameLower)
-              );
+          if (searchId) {
+            const idFilter = `PropertyType ne 'Residential Lease' and ListingId eq '${searchId}'`;
+            console.log("[lookup] Navica filter (ID):", idFilter);
+            navRecords = await navicaQuery(idFilter);
+          } else if (addrStreetName) {
+            // Strategy: try multiple approaches to find the listing
+            // 1. Exact match with city (most precise)
+            // 2. contains() on StreetName with StreetNumber (works without city)
+            // 3. StreetNumber only, filter locally (broadest)
+            const nameTitled = titleCase(addrStreetName).replace(/'/g, "''");
+            const nameLower = addrStreetName.toLowerCase();
+
+            // Approach 1: Exact StreetName + City (if city provided)
+            if (addrCity) {
+              const exactFilter = `PropertyType ne 'Residential Lease' and StreetNumber eq '${addrStreetNumber}' and StreetName eq '${nameTitled}' and City eq '${addrCity.replace(/'/g, "''")}'`;
+              console.log("[lookup] Navica filter (exact+city):", exactFilter);
+              try { navRecords = await navicaQuery(exactFilter); } catch (e) { console.log("[lookup] Navica exact+city failed:", e); }
             }
-          } catch (e: any) {
-            // If exact name filter fails (400 error), retry with just StreetNumber
-            if (addrStreetNumber && addrStreetName) {
-              console.log("[lookup] Navica exact name failed (" + e.message + "), retrying with StreetNumber only");
+
+            // Approach 2: contains() on StreetName with StreetNumber (no city needed)
+            if (navRecords.length === 0 && addrStreetNumber) {
+              // Use first word of street name for contains() to handle multi-word names
+              const nameWords = addrStreetName.trim().split(/\s+/);
+              const containsWord = titleCase(nameWords[0]).replace(/'/g, "''");
+              const containsFilter = `PropertyType ne 'Residential Lease' and StreetNumber eq '${addrStreetNumber}' and contains(StreetName,'${containsWord}')`;
+              console.log("[lookup] Navica filter (contains):", containsFilter);
+              try {
+                const containsResults = await navicaQuery(containsFilter, 20);
+                // Local filter to verify full street name match
+                navRecords = containsResults.filter((r: any) =>
+                  (r.StreetName || "").toLowerCase().includes(nameLower)
+                );
+                if (navRecords.length === 0 && containsResults.length > 0) {
+                  // contains() found results but none matched the full name - show what we got
+                  navRecords = containsResults;
+                }
+              } catch (e) {
+                console.log("[lookup] Navica contains() failed:", e);
+              }
+            }
+
+            // Approach 3: StreetNumber only, broader search with local filtering
+            if (navRecords.length === 0 && addrStreetNumber) {
+              console.log("[lookup] Navica fallback: StreetNumber only");
               let broadFilter = `PropertyType ne 'Residential Lease' and StreetNumber eq '${addrStreetNumber}'`;
               if (addrCity) broadFilter += ` and City eq '${addrCity.replace(/'/g, "''")}'`;
               try {
-                navRecords = await navicaQuery(broadFilter);
-                const nameLower = addrStreetName.toLowerCase();
-                navRecords = navRecords.filter((r: any) =>
+                const broadResults = await navicaQuery(broadFilter, 20);
+                navRecords = broadResults.filter((r: any) =>
                   (r.StreetName || "").toLowerCase().includes(nameLower)
                 );
-              } catch (retryErr: any) {
-                errors.push(`Navica: ${retryErr.message}`);
+              } catch (e) {
+                console.log("[lookup] Navica broad search failed:", e);
+                errors.push(`Navica: ${e instanceof Error ? e.message : String(e)}`);
               }
-            } else {
-              errors.push(`Navica: ${e.message}`);
             }
           }
           for (const r of navRecords) {
