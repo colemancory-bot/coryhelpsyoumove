@@ -1011,7 +1011,7 @@ Deno.serve(async (req: Request) => {
                 standard_status: r.StandardStatus || "Closed",
                 mlg_can_view: r.MlgCanView !== false,
                 feed_type: "IDX",
-                full_address: fullAddr,
+                // Note: full_address is a GENERATED column, do NOT include it
                 list_price: r.ListPrice || null,
                 close_price: r.ClosePrice || null,
                 original_list_price: r.OriginalListPrice || null,
@@ -1207,7 +1207,7 @@ Deno.serve(async (req: Request) => {
                 standard_status: r.StandardStatus || "Closed",
                 mlg_can_view: true,
                 feed_type: "IDX",
-                full_address: navFullAddr,
+                // Note: full_address is a GENERATED column, do NOT include it
                 list_price: r.ListPrice || null,
                 close_price: r.ClosePrice || null,
                 original_list_price: r.OriginalListPrice || null,
@@ -1255,7 +1255,11 @@ Deno.serve(async (req: Request) => {
                 updated_at: new Date().toISOString(),
               };
 
-              await sb.from("mls_listings").upsert(listing, { onConflict: "listing_key" });
+              const { error: upsertErr } = await sb.from("mls_listings").upsert(listing, { onConflict: "listing_key" });
+              if (upsertErr) {
+                console.error("[lookup] Navica upsert error:", upsertErr.message, upsertErr.details);
+                errors.push(`DB save: ${upsertErr.message}`);
+              }
 
             results.push({
               listing_key: listingKey,
