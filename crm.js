@@ -2341,36 +2341,167 @@ function cmaShowEditableSubject(data, tags, source) {
   toast('Loaded from ' + source + '. Review the facts and make any changes.', 'info');
 }
 
-function cmaSubjectCard(subject) {
+function cmaSubjectCard(subject, opts) {
+  opts = opts || {};
   var l = subject.listing;
-  var f = subject.features;
-  var html = '<div class="cma-subject-card">';
-  html += '<div class="cma-subject-header"><h4>' + esc(l.full_address || '') + '</h4><span class="cma-subject-city">' + esc((l.city || '') + ', ' + (l.county_or_parish || '')) + '</span></div>';
-  html += '<div class="cma-subject-details">';
-  var ctLabel = f && f.construction_type && f.construction_type !== 'site_built' && f.construction_type !== 'unknown' ?
-    (f.construction_type === 'manufactured' ? ' (Manufactured)' : f.construction_type === 'modular' ? ' (Modular)' : f.construction_type === 'mobile_home' ? ' (Mobile Home)' : f.construction_type === 'log' ? ' (Log)' : '') : '';
-  html += '<div class="cma-detail-row"><span>Type</span><span>' + esc(l.property_type || '') + ctLabel + '</span></div>';
-  html += '<div class="cma-detail-row"><span>Sqft</span><span>' + (l.living_area ? l.living_area.toLocaleString() : '--') + '</span></div>';
-  html += '<div class="cma-detail-row"><span>Lot</span><span>' + (l.lot_size_acres ? l.lot_size_acres + ' ac' : '--') + '</span></div>';
-  html += '<div class="cma-detail-row"><span>Bed/Bath</span><span>' + (l.bedrooms_total || '?') + '/' + (l.bathrooms_total_integer || '?') + '</span></div>';
-  html += '<div class="cma-detail-row"><span>Year Built</span><span>' + (l.year_built || '--') + '</span></div>';
-  html += '<div class="cma-detail-row"><span>List Price</span><span>$' + (l.list_price ? l.list_price.toLocaleString() : '--') + '</span></div>';
+  var f = subject.features || {};
+  var editable = !opts.readonly;
+  var html = '<div class="cma-subject-card" id="cmaSubjectCardEl">';
+
+  // Header: address + edit button
+  html += '<div class="cma-subject-header"><div><h4>' + esc(l.full_address || '') + '</h4><span class="cma-subject-city">' + esc((l.city || '') + ', ' + (l.county_or_parish || '')) + '</span></div>';
+  if (editable) html += '<button class="cma-subject-edit-btn" onclick="cmaEditSubject()" title="Edit address, type, and construction details"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit All</button>';
   html += '</div>';
-  if (f && f.view_quality) {
+
+  // Type row (static display, use Edit All for changes)
+  var ctLabel = f.construction_type && f.construction_type !== 'site_built' && f.construction_type !== 'unknown' ?
+    ({ manufactured: ' (Manufactured)', modular: ' (Modular)', mobile_home: ' (Mobile Home)', log: ' (Log)' }[f.construction_type] || '') : '';
+  html += '<div class="cma-subject-details">';
+  html += '<div class="cma-detail-row"><span>Type</span><span>' + esc(l.property_type || '') + ctLabel + '</span></div>';
+
+  // Editable detail rows
+  if (editable) {
+    html += cmaInlineDetail('Sqft', l.living_area, 'living_area', 'number', '', function(v) { return v ? Number(v).toLocaleString() : '--'; });
+    html += cmaInlineDetail('Lot (acres)', l.lot_size_acres, 'lot_size_acres', 'number', '0.01', function(v) { return v ? v + ' ac' : '--'; });
+    html += cmaInlineDetail('Beds', l.bedrooms_total, 'bedrooms_total', 'number', '1', function(v) { return v || '--'; });
+    html += cmaInlineDetail('Baths', l.bathrooms_total_integer, 'bathrooms_total_integer', 'number', '0.5', function(v) { return v || '--'; });
+    html += cmaInlineDetail('Year Built', l.year_built, 'year_built', 'number', '1', function(v) { return v || '--'; });
+    html += cmaInlineDetail('List Price', l.list_price, 'list_price', 'number', '1000', function(v) { return v ? '$' + Number(v).toLocaleString() : '--'; });
+  } else {
+    html += '<div class="cma-detail-row"><span>Sqft</span><span>' + (l.living_area ? l.living_area.toLocaleString() : '--') + '</span></div>';
+    html += '<div class="cma-detail-row"><span>Lot</span><span>' + (l.lot_size_acres ? l.lot_size_acres + ' ac' : '--') + '</span></div>';
+    html += '<div class="cma-detail-row"><span>Bed/Bath</span><span>' + (l.bedrooms_total || '?') + '/' + (l.bathrooms_total_integer || '?') + '</span></div>';
+    html += '<div class="cma-detail-row"><span>Year Built</span><span>' + (l.year_built || '--') + '</span></div>';
+    html += '<div class="cma-detail-row"><span>List Price</span><span>$' + (l.list_price ? l.list_price.toLocaleString() : '--') + '</span></div>';
+  }
+  html += '</div>';
+
+  // Mountain features: sliders if editable, static bars if readonly
+  var hasFeatures = f.view_quality || f.water_quality || f.land_usability || f.road_noise || f.privacy_rating || f.condition_rating;
+  if (editable || hasFeatures) {
     html += '<div class="cma-subject-features"><div class="cma-features-title">Mountain Features</div>';
     html += '<div class="cma-feature-ratings">';
-    html += cmaFeatureBar('View', f.view_quality);
-    html += cmaFeatureBar('Water', f.water_quality);
-    html += cmaFeatureBar('Land', f.land_usability);
-    html += cmaFeatureBar('Quiet', f.road_noise);
-    html += cmaFeatureBar('Privacy', f.privacy_rating);
-    html += cmaFeatureBar('Condition', f.condition_rating);
+    if (editable) {
+      html += cmaFeatureSlider('View', 'view_quality', f.view_quality || 0);
+      html += cmaFeatureSlider('Water', 'water_quality', f.water_quality || 0);
+      html += cmaFeatureSlider('Land', 'land_usability', f.land_usability || 0);
+      html += cmaFeatureSlider('Quiet', 'road_noise', f.road_noise || 0);
+      html += cmaFeatureSlider('Privacy', 'privacy_rating', f.privacy_rating || 0);
+      html += cmaFeatureSlider('Condition', 'condition_rating', f.condition_rating || 0);
+    } else {
+      html += cmaFeatureBar('View', f.view_quality);
+      html += cmaFeatureBar('Water', f.water_quality);
+      html += cmaFeatureBar('Land', f.land_usability);
+      html += cmaFeatureBar('Quiet', f.road_noise);
+      html += cmaFeatureBar('Privacy', f.privacy_rating);
+      html += cmaFeatureBar('Condition', f.condition_rating);
+    }
     html += '</div>';
     if (f.elevation_ft) html += '<div class="cma-feature-elev">Elevation: ' + f.elevation_ft.toLocaleString() + ' ft</div>';
     html += '</div>';
   }
   html += '</div>';
   return html;
+}
+
+// Inline-editable detail row: shows formatted value, click to edit
+function cmaInlineDetail(label, value, field, type, step, formatFn) {
+  var raw = (value != null && value !== '') ? value : '';
+  var display = formatFn ? formatFn(raw) : (raw || '--');
+  return '<div class="cma-detail-row cma-detail-editable" data-field="' + field + '">' +
+    '<span>' + label + '</span>' +
+    '<span class="cma-inline-display" onclick="cmaInlineClick(this)"' +
+    ' data-field="' + field + '" data-type="' + (type || 'text') + '"' +
+    ' data-step="' + (step || '') + '" data-raw="' + esc(String(raw)) + '">' + display + '</span>' +
+    '</div>';
+}
+
+function cmaInlineClick(el) {
+  if (el.querySelector('input')) return;
+  var field = el.dataset.field;
+  var type = el.dataset.type;
+  var step = el.dataset.step;
+  var raw = el.dataset.raw;
+  var origText = el.textContent;
+
+  var input = document.createElement('input');
+  input.className = 'cma-inline-input';
+  input.type = type;
+  input.value = raw;
+  if (step) input.step = step;
+  el.textContent = '';
+  el.appendChild(input);
+  input.focus();
+  input.select();
+
+  var save = function() {
+    var newVal = type === 'number' ? (parseFloat(input.value) || null) : (input.value || null);
+    if (_cmaState.subject && _cmaState.subject.listing) {
+      _cmaState.subject.listing[field] = newVal;
+    }
+    el.dataset.raw = newVal != null ? String(newVal) : '';
+    // Re-format display
+    var formatFns = {
+      living_area: function(v) { return v ? Number(v).toLocaleString() : '--'; },
+      lot_size_acres: function(v) { return v ? v + ' ac' : '--'; },
+      list_price: function(v) { return v ? '$' + Number(v).toLocaleString() : '--'; },
+      bedrooms_total: function(v) { return v || '--'; },
+      bathrooms_total_integer: function(v) { return v || '--'; },
+      year_built: function(v) { return v || '--'; }
+    };
+    var fn = formatFns[field];
+    el.textContent = fn ? fn(newVal) : (newVal || '--');
+  };
+
+  input.addEventListener('blur', save);
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { el.textContent = origText; }
+  });
+}
+
+// Feature slider for editable mountain features
+function cmaFeatureSlider(label, field, val) {
+  val = parseInt(val) || 0;
+  var color = val >= 4 ? 'var(--crm-green)' : val >= 3 ? 'var(--crm-amber)' : val >= 1 ? 'var(--crm-red)' : 'var(--crm-border)';
+  var pct = (val / 5) * 100;
+  return '<div class="cma-feat-bar">' +
+    '<span class="cma-feat-label">' + label + '</span>' +
+    '<input type="range" class="cma-feat-slider" min="0" max="5" step="1" value="' + val + '"' +
+    ' data-field="' + field + '" oninput="cmaSliderChange(this)"' +
+    ' style="--sl-pct:' + pct + '%;--sl-color:' + color + '" />' +
+    '<span class="cma-feat-val" id="cmaFeatVal_' + field + '">' + (val > 0 ? val + '/5' : '--') + '</span>' +
+    '</div>';
+}
+
+function cmaSliderChange(slider) {
+  var field = slider.dataset.field;
+  var val = parseInt(slider.value) || 0;
+  var color = val >= 4 ? 'var(--crm-green)' : val >= 3 ? 'var(--crm-amber)' : val >= 1 ? 'var(--crm-red)' : 'var(--crm-border)';
+  slider.style.setProperty('--sl-pct', ((val / 5) * 100) + '%');
+  slider.style.setProperty('--sl-color', color);
+  var valEl = document.getElementById('cmaFeatVal_' + field);
+  if (valEl) valEl.textContent = val > 0 ? val + '/5' : '--';
+  // Save to state
+  if (_cmaState.subject) {
+    if (!_cmaState.subject.features) _cmaState.subject.features = {};
+    _cmaState.subject.features[field] = val > 0 ? val : null;
+  }
+}
+
+// Open full facts form for complex edits (address, type, construction)
+function cmaEditSubject() {
+  if (!_cmaState.subject) return;
+  var l = _cmaState.subject.listing;
+  var f = _cmaState.subject.features || {};
+  cmaShowEditableSubject(l, f, 'Editing');
+  // Hide the card and its action buttons while editing
+  var card = document.getElementById('cmaSubjectCardEl');
+  if (card) {
+    card.style.display = 'none';
+    var next = card.nextElementSibling;
+    if (next && next.classList.contains('cma-step-actions')) next.style.display = 'none';
+  }
 }
 
 function cmaFeatureBar(label, val) {
