@@ -2137,6 +2137,10 @@ async function cmaSearchSubject(query) {
         if (statusLower === 'closed' && l.close_date) html += ' | ' + l.close_date;
         html += '</div></div>';
       });
+      // Always show MLS API search option below local results
+      html += '<div class="cma-search-footer">';
+      html += '<button class="crm-btn crm-btn-sm cma-mls-lookup-btn" onclick="cmaMLSLookup(\'' + esc(query).replace(/'/g, "\\'") + '\')">Not seeing it? Search MLS API</button>';
+      html += '</div>';
     } else {
       html += '<div class="cma-search-empty">No listings found locally for "' + esc(query) + '"';
       html += '<br><button class="crm-btn crm-btn-sm cma-mls-lookup-btn" onclick="cmaMLSLookup(\'' + esc(query).replace(/'/g, "\\'") + '\')">Search MLS API' + (cmaIsAddress(query) ? ' by Address' : '') + '</button>';

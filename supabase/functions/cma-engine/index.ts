@@ -996,12 +996,18 @@ Deno.serve(async (req: Request) => {
           const orderBy = searchAddress ? "&$orderby=CloseDate desc,ModificationTimestamp desc" : "";
 
           // Helper to fetch from MLS Grid with a given filter
+          // NOTE: Do NOT encodeURIComponent the filter - MLS Grid expects raw OData syntax
+          // (same as mls-sync function which works without encoding)
           async function mlsGridQuery(f: string): Promise<any[]> {
-            const u = `https://api.mlsgrid.com/v2/Property?$filter=${encodeURIComponent(f)}&$expand=Media&$top=5${orderBy}`;
+            const u = `https://api.mlsgrid.com/v2/Property?$filter=${f}&$expand=Media&$top=5${orderBy}`;
             const r = await fetch(u, {
               headers: { Authorization: `Bearer ${mlsGridToken}`, Accept: "application/json" },
             });
-            if (!r.ok) throw new Error(`${r.status}`);
+            if (!r.ok) {
+              const body = await r.text().catch(() => "");
+              console.log("[lookup] MLS Grid error:", r.status, body.slice(0, 200));
+              throw new Error(`${r.status}`);
+            }
             const d = await r.json();
             return d.value || [];
           }
@@ -1166,9 +1172,13 @@ Deno.serve(async (req: Request) => {
 
           // Helper to fetch from Navica with a given filter
           async function navicaQuery(f: string): Promise<any[]> {
-            const u = `${navicaBase}/Property?$filter=${encodeURIComponent(f)}&$top=5${navOrderBy}&access_token=${navicaToken}`;
+            const u = `${navicaBase}/Property?$filter=${f}&$top=5${navOrderBy}&access_token=${navicaToken}`;
             const r = await fetch(u, { headers: { Accept: "application/json" } });
-            if (!r.ok) throw new Error(`${r.status}`);
+            if (!r.ok) {
+              const body = await r.text().catch(() => "");
+              console.log("[lookup] Navica error:", r.status, body.slice(0, 200));
+              throw new Error(`${r.status}`);
+            }
             const d = await r.json();
             return d.value || [];
           }
