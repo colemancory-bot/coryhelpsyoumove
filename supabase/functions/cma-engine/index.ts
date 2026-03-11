@@ -988,7 +988,7 @@ Deno.serve(async (req: Request) => {
           // Order by most recent close date so we get the latest listing first
           console.log("[lookup] MLS Grid filter:", filter);
           const orderBy = searchAddress ? "&$orderby=CloseDate desc,ModificationTimestamp desc" : "";
-          const url = `https://api.mlsgrid.com/v2/Property?$filter=${filter}&$expand=Media&$top=5${orderBy}`;
+          const url = `https://api.mlsgrid.com/v2/Property?$filter=${encodeURIComponent(filter)}&$expand=Media&$top=5${orderBy}`;
           const resp = await fetch(url, {
             headers: {
               Authorization: `Bearer ${mlsGridToken}`,
@@ -1132,7 +1132,7 @@ Deno.serve(async (req: Request) => {
           console.log("[lookup] Navica filter:", filter);
           const navicaBase = `https://navapi.navicamls.net/api/v2/OData/${navicaDataset}`;
           const orderBy = searchAddress ? "&$orderby=CloseDate desc" : "";
-          const url = `${navicaBase}/Property?$filter=${filter}&$top=5${orderBy}&access_token=${navicaToken}`;
+          const url = `${navicaBase}/Property?$filter=${encodeURIComponent(filter)}&$top=5${orderBy}&access_token=${navicaToken}`;
           const resp = await fetch(url, {
             headers: { Accept: "application/json" },
           });
