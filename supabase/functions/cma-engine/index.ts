@@ -763,6 +763,35 @@ async function getAIAdvice(
         .join(" | ")
     : "No feature tags available";
 
+  // Check if agent overrode any adjustments (slider changes show the agent disagrees with AI-extracted features)
+  // Compare actual adj values to what the formula would have produced
+  const overrideNotes: string[] = [];
+  if (comps.length > 0) {
+    const a0 = comps[0].adjustments;
+    const cf0 = comps[0].features;
+    if (subjectFeatures && cf0) {
+      // If view adjustment is $0 or negative but subject view_quality is high, agent likely overrode it
+      const viewDiff = (subjectFeatures.view_quality || 0) - (cf0.view_quality || 0);
+      const expectedViewDir = viewDiff > 0 ? "positive" : viewDiff < 0 ? "negative" : "zero";
+      const actualViewAdj = a0.adjustments.adj_view || 0;
+      if (viewDiff > 1 && actualViewAdj <= 0) {
+        overrideNotes.push("AGENT OVERRIDE: View adjustment was reduced/zeroed despite AI rating subject view at " + (subjectFeatures.view_quality || "?") + "/5. The agent has determined the AI-extracted view quality is inaccurate. Do NOT reference the subject having good views.");
+      } else if (viewDiff < -1 && actualViewAdj >= 0) {
+        overrideNotes.push("AGENT OVERRIDE: View adjustment was increased despite AI rating subject view lower than comp. The agent has determined the subject has better views than the AI detected.");
+      }
+      // Check privacy
+      const privDiff = (subjectFeatures.privacy_rating || 0) - (cf0.privacy_rating || 0);
+      if (privDiff > 1 && (a0.adjustments.adj_privacy || 0) <= 0) {
+        overrideNotes.push("AGENT OVERRIDE: Privacy adjustment was reduced/zeroed despite AI rating subject privacy at " + (subjectFeatures.privacy_rating || "?") + "/5. Do NOT reference the subject having excellent privacy.");
+      }
+      // Check water
+      const waterDiff = (subjectFeatures.water_quality || 0) - (cf0.water_quality || 0);
+      if (waterDiff > 1 && (a0.adjustments.adj_water_features || 0) <= 0) {
+        overrideNotes.push("AGENT OVERRIDE: Water features adjustment was reduced/zeroed. Do NOT reference the subject having premium water features.");
+      }
+    }
+  }
+
   const compsDesc = comps
     .map((c, i) => {
       const l = c.listing;
@@ -776,6 +805,7 @@ async function getAIAdvice(
         f
           ? `  Features: View ${f.view_quality || "?"}/5, Water ${f.water_quality || "?"}/5, Land ${f.land_usability || "?"}/5, Road Noise ${f.road_noise || "?"}/5, Privacy ${f.privacy_rating || "?"}/5, Condition ${f.condition_rating || "?"}/5${f.elevation_ft ? ", Elev " + f.elevation_ft + "ft" : ""}`
           : "  Features: Not tagged",
+        `  Adj Breakdown: ${Object.entries(a.adjustments).filter(([, v]) => v !== 0).map(([k, v]) => `${k.replace("adj_", "")}: $${(v as number).toLocaleString()}`).join(", ") || "none"}`,
         `  Adjustments: Total $${a.total_adjustment.toLocaleString()} | Adjusted Price: $${a.adjusted_price.toLocaleString()}`,
         `  Gross Adj: ${a.gross_adjustment_pct}% | Net Adj: ${a.net_adjustment_pct}%`,
         a.warnings.length
@@ -810,6 +840,8 @@ Analyze the subject property and its comparable sales. Provide:
 
 Focus on mountain-specific factors that RPR and other tools miss. Flag any comps that may not be truly comparable despite surface similarity. Consider seasonal access, road quality, view permanence (tree growth), and flood/slide risk.
 
+CRITICAL: The mountain feature ratings were AI-extracted from MLS listing remarks and may be INACCURATE. The agent may have overridden them via sliders. If the "AGENT CORRECTIONS" section is present, those corrections take priority over the AI-extracted ratings. Base your analysis on the ACTUAL ADJUSTMENT VALUES, not the AI-extracted feature ratings. If adj_view is $0 for all comps, the subject does NOT have premium views regardless of what the AI-extracted rating says.
+
 Return valid JSON with this structure:
 {
   "considerations": [...],
@@ -820,8 +852,9 @@ Return valid JSON with this structure:
   const userMessage = `SUBJECT PROPERTY:
 ${subjectDesc}
 
-SUBJECT MOUNTAIN FEATURES:
+SUBJECT MOUNTAIN FEATURES (AI-extracted from MLS remarks):
 ${featureDesc}
+${overrideNotes.length > 0 ? "\nIMPORTANT - AGENT CORRECTIONS TO AI-EXTRACTED FEATURES:\n" + overrideNotes.join("\n") + "\nThe agent has local knowledge and has manually corrected these ratings via sliders. Trust the agent's corrections over the AI-extracted values. Do NOT reference features the agent has overridden." : ""}
 
 COMPARABLE SALES:
 ${compsDesc}
