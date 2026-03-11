@@ -2778,6 +2778,10 @@ function cmaRenderStep2() {
       if (f.elevation_ft) html += '<span class="cma-feat-chip">' + f.elevation_ft + ' ft</span>';
       if (f.restriction_status === 'unrestricted') html += '<span class="cma-feat-chip cma-chip-good">Unrestricted</span>';
       else if (f.restriction_status === 'restricted') html += '<span class="cma-feat-chip cma-chip-neutral">Restricted</span>';
+      if (f.construction_type && f.construction_type !== 'site_built' && f.construction_type !== 'unknown') {
+        var ctLabels = { manufactured: 'Manufactured', modular: 'Modular', mobile_home: 'Mobile Home', log: 'Log' };
+        html += '<span class="cma-feat-chip cma-chip-neutral">' + (ctLabels[f.construction_type] || f.construction_type) + '</span>';
+      }
       if (f.has_pool) html += '<span class="cma-feat-chip">Pool</span>';
       if (f.basement_type && f.basement_type !== 'none') html += '<span class="cma-feat-chip">Basement</span>';
       if (f.has_fireplace) html += '<span class="cma-feat-chip">Fireplace</span>';
