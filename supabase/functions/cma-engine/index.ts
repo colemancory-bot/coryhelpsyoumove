@@ -986,6 +986,7 @@ Deno.serve(async (req: Request) => {
             }
           }
           // Order by most recent close date so we get the latest listing first
+          console.log("[lookup] MLS Grid filter:", filter);
           const orderBy = searchAddress ? "&$orderby=CloseDate desc,ModificationTimestamp desc" : "";
           const url = `https://api.mlsgrid.com/v2/Property?$filter=${filter}&$expand=Media&$top=5${orderBy}`;
           const resp = await fetch(url, {
@@ -1128,6 +1129,7 @@ Deno.serve(async (req: Request) => {
               filter += ` and City eq '${addrCity.replace(/'/g, "''")}'`;
             }
           }
+          console.log("[lookup] Navica filter:", filter);
           const navicaBase = `https://navapi.navicamls.net/api/v2/OData/${navicaDataset}`;
           const orderBy = searchAddress ? "&$orderby=CloseDate desc" : "";
           const url = `${navicaBase}/Property?$filter=${filter}&$top=5${orderBy}&access_token=${navicaToken}`;
@@ -1234,6 +1236,11 @@ Deno.serve(async (req: Request) => {
         results,
         found: results.length,
         errors: errors.length > 0 ? errors : undefined,
+        apis_queried: {
+          mls_grid: mlsGridToken && mlsGridSystem ? "queried" : "skipped (no token)",
+          navica: navicaToken ? "queried" : "skipped (no token)",
+        },
+        parsed_address: searchAddress ? { street_number: addrStreetNumber, street_name: addrStreetName, city: addrCity || "(none)" } : undefined,
         message: results.length > 0
           ? `Found ${results.length} listing(s) from MLS API and saved to database`
           : searchId ? "No listings found matching that ID" : "No listings found matching that address",

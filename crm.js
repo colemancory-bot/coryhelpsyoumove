@@ -2016,7 +2016,7 @@ function cmaFactsSelectRow(label, id, options, starred) {
     '<td class="cma-facts-change"><select class="cma-facts-select" id="' + id + '">' + optHtml + '</select></td></tr>';
 }
 
-function cmaShowManualEntry() {
+function cmaShowManualEntry(prefillAddress) {
   var form = document.getElementById('cmaFactsForm');
   if (form) form.style.display = 'block';
   // Clear search results dropdown
@@ -2025,6 +2025,14 @@ function cmaShowManualEntry() {
   // Update title for manual entry
   var title = document.getElementById('cmaFactsTitle');
   if (title) title.textContent = 'Enter Property Details';
+  // Pre-fill address if provided (from failed MLS search)
+  if (prefillAddress) {
+    var addrField = document.getElementById('cmaManAddr');
+    if (addrField && !addrField.value) addrField.value = prefillAddress;
+    // Also fill the county lookup field so they can try that
+    var lookupField = document.getElementById('cmaLookupAddr');
+    if (lookupField && !lookupField.value) lookupField.value = prefillAddress;
+  }
 }
 
 function cmaHideManualEntry() {
@@ -2163,10 +2171,29 @@ async function cmaMLSLookup(query) {
     }
     if (resp.found === 0) {
       var noResultHtml = '<div class="cma-search-empty">No listings found in MLS API for "' + esc(query) + '"';
-      // If we searched by ID, suggest trying as address and vice versa
+      // Show API diagnostics so we can see what happened
+      if (resp.errors && resp.errors.length) {
+        noResultHtml += '<br><span class="cma-search-hint" style="color:var(--danger,#e53935);">API errors: ' + resp.errors.map(esc).join(', ') + '</span>';
+      }
+      if (resp.apis_queried) {
+        var skipped = [];
+        if (resp.apis_queried.mls_grid && resp.apis_queried.mls_grid !== 'queried') skipped.push('MLS Grid');
+        if (resp.apis_queried.navica && resp.apis_queried.navica !== 'queried') skipped.push('Navica');
+        if (skipped.length) {
+          noResultHtml += '<br><span class="cma-search-hint" style="color:var(--danger,#e53935);">APIs not queried: ' + esc(skipped.join(', ')) + '</span>';
+        }
+      }
+      if (resp.parsed_address) {
+        noResultHtml += '<br><span class="cma-search-hint">Parsed as: #' + esc(resp.parsed_address.street_number) + ' "' + esc(resp.parsed_address.street_name) + '" city: ' + esc(resp.parsed_address.city) + '</span>';
+      }
+      // Tips for improving the search
       if (!cmaIsAddress(query)) {
         noResultHtml += '<br><span class="cma-search-hint">Tip: Try searching by address instead (e.g. "123 Main St, Franklin")</span>';
+      } else if (query.indexOf(',') === -1) {
+        noResultHtml += '<br><span class="cma-search-hint">Tip: Try adding the city (e.g. "' + esc(query.trim()) + ', Sylva")</span>';
       }
+      // Manual entry button
+      noResultHtml += '<br><button class="crm-btn crm-btn-sm" style="margin-top:8px;" onclick="cmaShowManualEntry(\'' + esc(query).replace(/'/g, "\\'") + '\')">Enter Property Details Manually</button>';
       noResultHtml += '</div>';
       results.innerHTML = noResultHtml;
       return;
