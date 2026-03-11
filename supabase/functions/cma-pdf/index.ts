@@ -127,6 +127,8 @@ function generateCMAHtml(data: ReportInput): string {
   gridRows += dataRow("Lot Size (acres)", String(sub.lot_size_acres || "\u2014"), comps.map(c => String(c.listing.lot_size_acres || "\u2014")));
   gridRows += adjRow(isLand ? "Adj @ $20K/ac" : "Adj @ $15K/ac", "adj_lot_size");
 
+  const subFeats = data.subject.features || {};
+
   if (!isLand) {
     // Age & Condition section
     gridRows += `<tr class="section-row"><td colspan="${colSpan}">Age &amp; Condition</td></tr>\n`;
@@ -134,13 +136,12 @@ function generateCMAHtml(data: ReportInput): string {
     gridRows += adjRow("Adj @ $500/yr", "adj_year_built");
     gridRows += dataRow("Garage Spaces", String((sub.garage_spaces as number) || 0), comps.map(c => String((c.listing.garage_spaces as number) || 0)));
     gridRows += adjRow("Adj @ $8K/space", "adj_garage");
+    gridRows += dataRow("Condition", `${subFeats.condition_rating || "?"}/5`, comps.map(c => `${c.features?.condition_rating || "?"}/5`));
+    gridRows += adjRow("Adj @ $20K/pt", "adj_condition");
   }
 
   // Mountain Features section
   gridRows += `<tr class="section-row"><td colspan="${colSpan}">Mountain Features</td></tr>\n`;
-
-  // View
-  const subFeats = data.subject.features || {};
   gridRows += dataRow("View Quality", `${subFeats.view_quality || "?"}/5`, comps.map(c => `${c.features?.view_quality || "?"}/5`));
   gridRows += adjRow(isLand ? "Adj @ $20K/pt" : "Adj @ $15K/pt", "adj_view");
 
@@ -375,6 +376,7 @@ ${(() => {
     <thead>
       <tr>
         <th>Address</th>
+        <th>Status</th>
         <th>Price</th>
         ${!isLand ? "<th>Beds/Baths</th><th>SqFt</th>" : ""}
         <th>Acres</th>
@@ -385,6 +387,7 @@ ${(() => {
     <tbody>
       <tr style="background: var(--gold-light);">
         <td style="font-weight: 600;">${((sub.full_address as string) || "").replace(/,.*/, "")}<br><span style="font-size:0.55rem;color:var(--gold);font-weight:600;">SUBJECT</span></td>
+        <td><span style="font-size:0.55rem;font-weight:600;color:var(--gold);">${(sub.standard_status as string) || "SUBJECT"}</span></td>
         <td>${sub.list_price ? fmt(sub.list_price as number) : "\u2014"}</td>
         ${!isLand ? `<td>${sub.bedrooms_total || "?"} / ${sub.bathrooms_total_integer || "?"}</td><td>${fmtNum(sub.living_area as number)}</td>` : ""}
         <td>${sub.lot_size_acres || "\u2014"}</td>
@@ -393,8 +396,12 @@ ${(() => {
       </tr>
       ${comps.map((c, i) => {
         const cl = c.listing;
+        const mlsId = cl.listing_id ? `MLS #${cl.listing_id}` : "";
+        const dist = cl.distance ? `${cl.distance} mi` : "";
+        const meta = [mlsId, dist].filter(Boolean).join(" \u2022 ");
         return `<tr>
-        <td>${((cl.full_address as string) || "").replace(/,.*/, "")}<br><span style="font-size:0.55rem;color:var(--text-muted);">Comp ${i + 1}${cl.distance ? " \u2022 " + cl.distance + " mi" : ""}</span></td>
+        <td>${((cl.full_address as string) || "").replace(/,.*/, "")}<br><span style="font-size:0.55rem;color:var(--text-muted);">Comp ${i + 1}${meta ? " \u2022 " + meta : ""}</span></td>
+        <td><span class="status-sold">SOLD</span></td>
         <td style="font-weight:600;">${fmt(cl.close_price as number)}</td>
         ${!isLand ? `<td>${cl.bedrooms_total || "?"} / ${cl.bathrooms_total_integer || "?"}</td><td>${fmtNum(cl.living_area as number)}</td>` : ""}
         <td>${cl.lot_size_acres || "\u2014"}</td>
@@ -453,6 +460,31 @@ ${(() => {
 
   <div class="methodology">
     <p><strong>Methodology:</strong> ${methodNote}</p>
+${(() => {
+  // Detect comps with large gross adjustments (>25% of sale price)
+  const largeAdjComps: string[] = [];
+  comps.forEach(c => {
+    const price = c.listing.close_price as number || 0;
+    const totalAdj = Math.abs((c.adjustments as Record<string, number>).total_adjustment || 0);
+    if (price > 0 && totalAdj / price > 0.25) {
+      largeAdjComps.push(c.listing.full_address as string || "Unknown");
+    }
+  });
+  let notes = "";
+  if (largeAdjComps.length > 0) {
+    notes += `<p><strong>Note:</strong> ${largeAdjComps.length === 1 ? "One comparable" : largeAdjComps.length + " comparables"} required adjustments exceeding 25% of sale price, which may reduce reliability. These comps were included due to limited comparable inventory in this market area.</p>`;
+  }
+  // Show weighted average context
+  if (val.suggested_price && numComps > 1) {
+    const adjPrices = comps.map(c => (c.adjustments as Record<string, number>).adjusted_price || 0);
+    const minAdj = Math.min(...adjPrices);
+    const maxAdj = Math.max(...adjPrices);
+    if (maxAdj - minAdj > 50000) {
+      notes += `<p><strong>Price Spread:</strong> Adjusted comp prices range from ${fmt(minAdj)} to ${fmt(maxAdj)}. The wider spread reflects differences in property characteristics and mountain features among available comparables.</p>`;
+    }
+  }
+  return notes;
+})()}
   </div>
 
   <div class="disclaimers">
@@ -503,34 +535,77 @@ Deno.serve(async (req: Request) => {
           .eq("report_id", body.report_id)
           .order("comp_order", { ascending: true });
 
+        // Fetch subject photos from mls_media (prefer local_url from R2, fall back to media_url)
+        const subjectKey = (report.subject_data as Record<string, unknown>)?.listing_key as string;
+        let subjectPhotos: string[] = [];
+        if (subjectKey) {
+          const { data: photoRows } = await sb
+            .from("mls_media")
+            .select("media_url, local_url")
+            .eq("listing_key", subjectKey)
+            .order("order", { ascending: true })
+            .limit(7);
+          if (photoRows?.length) {
+            subjectPhotos = photoRows.map((p: Record<string, unknown>) =>
+              (p.local_url as string) || (p.media_url as string)
+            ).filter(Boolean);
+          }
+        }
+
+        // Fetch comp feature tags as fallback if comp_features is empty in DB
+        const compKeys = (adjustments || [])
+          .map((adj: Record<string, unknown>) => adj.comp_listing_key as string)
+          .filter(Boolean);
+        let compTagMap: Map<string, Record<string, unknown>> = new Map();
+        if (compKeys.length) {
+          const { data: compTags } = await sb
+            .from("cma_feature_tags")
+            .select("*")
+            .in("listing_key", compKeys)
+            .is("agent_id", null);
+          (compTags || []).forEach((t: Record<string, unknown>) => {
+            compTagMap.set(t.listing_key as string, t);
+          });
+        }
+
         // Build report data from DB records
+        const subjectListing = { ...(report.subject_data || {} as Record<string, unknown>) } as Record<string, unknown>;
+        if (subjectPhotos.length) {
+          subjectListing.photos = subjectPhotos;
+        }
         reportData = {
           subject: {
-            listing: report.subject_data || {},
+            listing: subjectListing,
             features: report.subject_features || null,
           },
-          comps: (adjustments || []).map((adj: Record<string, unknown>) => ({
-            listing: (adj.comp_data as Record<string, unknown>) || {},
-            features: (adj.comp_features as Record<string, unknown>) || null,
-            adjustments: {
-              adj_living_area: adj.adj_living_area,
-              adj_lot_size: adj.adj_lot_size,
-              adj_bedrooms: adj.adj_bedrooms,
-              adj_bathrooms: adj.adj_bathrooms,
-              adj_garage: adj.adj_garage,
-              adj_year_built: adj.adj_year_built,
-              adj_view: adj.adj_view,
-              adj_water_features: adj.adj_water_features,
-              adj_land_character: adj.adj_land_character,
-              adj_road_noise: adj.adj_road_noise,
-              adj_privacy: adj.adj_privacy,
-              adj_elevation: adj.adj_elevation,
-              adj_condition: adj.adj_condition,
-              adj_time: adj.adj_time,
-              total_adjustment: adj.total_adjustment,
-              adjusted_price: adj.adjusted_price,
-            },
-          })),
+          comps: (adjustments || []).map((adj: Record<string, unknown>) => {
+            // Use saved comp_features, fall back to cma_feature_tags from DB
+            const savedFeats = adj.comp_features as Record<string, unknown> | null;
+            const hasFeats = savedFeats && Object.keys(savedFeats).length > 0;
+            const feats = hasFeats ? savedFeats : (compTagMap.get(adj.comp_listing_key as string) || null);
+            return {
+              listing: (adj.comp_data as Record<string, unknown>) || {},
+              features: feats,
+              adjustments: {
+                adj_living_area: adj.adj_living_area,
+                adj_lot_size: adj.adj_lot_size,
+                adj_bedrooms: adj.adj_bedrooms,
+                adj_bathrooms: adj.adj_bathrooms,
+                adj_garage: adj.adj_garage,
+                adj_year_built: adj.adj_year_built,
+                adj_view: adj.adj_view,
+                adj_water_features: adj.adj_water_features,
+                adj_land_character: adj.adj_land_character,
+                adj_road_noise: adj.adj_road_noise,
+                adj_privacy: adj.adj_privacy,
+                adj_elevation: adj.adj_elevation,
+                adj_condition: adj.adj_condition,
+                adj_time: adj.adj_time,
+                total_adjustment: adj.total_adjustment,
+                adjusted_price: adj.adjusted_price,
+              },
+            };
+          }),
           valuation: {
             suggested_low: report.suggested_low || 0,
             suggested_high: report.suggested_high || 0,
@@ -539,11 +614,18 @@ Deno.serve(async (req: Request) => {
           ai_summary: report.ai_summary || "",
           comp_reasoning: (() => {
             // Build comp reasoning from per-adjustment ai_reasoning
+            // ai_reasoning can be a string (direct paragraph) or object with .summary
             const reasons: Record<string, string> = {};
             (adjustments || []).forEach((adj: Record<string, unknown>) => {
               const key = adj.comp_listing_key as string;
-              const aiR = adj.ai_reasoning as Record<string, string> | null;
-              if (key && aiR && aiR.summary) reasons[key] = aiR.summary;
+              const aiR = adj.ai_reasoning;
+              if (key && aiR) {
+                if (typeof aiR === "string" && aiR.length > 0) {
+                  reasons[key] = aiR;
+                } else if (typeof aiR === "object" && (aiR as Record<string, string>).summary) {
+                  reasons[key] = (aiR as Record<string, string>).summary;
+                }
+              }
             });
             return reasons;
           })(),

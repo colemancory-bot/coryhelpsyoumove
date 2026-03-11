@@ -3255,8 +3255,23 @@ async function cmaGeneratePDF() {
   if (_cmaState.reportId) {
     payload.report_id = _cmaState.reportId;
   } else {
+    // Fetch subject photos from mls_media for the PDF
+    var subjectWithPhotos = Object.assign({}, _cmaState.subject);
+    if (s.listing_key && (!subjectWithPhotos.listing || !subjectWithPhotos.listing.photos || !subjectWithPhotos.listing.photos.length)) {
+      try {
+        var photoResp = await _sb.from('mls_media').select('media_url, local_url')
+          .eq('listing_key', s.listing_key).order('order', { ascending: true }).limit(7);
+        if (photoResp.data && photoResp.data.length) {
+          subjectWithPhotos = Object.assign({}, subjectWithPhotos, {
+            listing: Object.assign({}, subjectWithPhotos.listing, {
+              photos: photoResp.data.map(function(p) { return p.local_url || p.media_url; }).filter(Boolean)
+            })
+          });
+        }
+      } catch(photoErr) { console.warn('[CMA PDF] photo fetch failed:', photoErr); }
+    }
     payload.report_data = {
-      subject: _cmaState.subject,
+      subject: subjectWithPhotos,
       comps: comps.map(function(c, i) {
         var adj = adjs[i] || {};
         return {
@@ -3284,7 +3299,35 @@ async function cmaGeneratePDF() {
     if (win) {
       win.document.write(html);
       win.document.close();
-      toast('CMA report opened. Use Ctrl+P to save as PDF.', 'success');
+      // Inject download toolbar (hidden in @media print)
+      var toolbar = win.document.createElement('div');
+      toolbar.id = 'cma-toolbar';
+      toolbar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#1a1815;color:#f5f0e8;display:flex;align-items:center;justify-content:space-between;padding:8px 20px;font-family:system-ui,sans-serif;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.3);';
+      var fileName = 'CMA-' + (s.full_address || 'Report').replace(/[^a-zA-Z0-9]/g, '-').slice(0, 40);
+      toolbar.innerHTML = '<span style="font-weight:600;">CMA Report Preview</span>'
+        + '<div style="display:flex;gap:10px;">'
+        + '<button onclick="window.print()" style="background:#C4B08C;color:#1a1815;border:none;padding:6px 16px;border-radius:4px;cursor:pointer;font-weight:600;font-size:13px;">Download PDF</button>'
+        + '<button id="cma-dl-html" style="background:transparent;color:#C4B08C;border:1px solid #C4B08C;padding:6px 16px;border-radius:4px;cursor:pointer;font-size:13px;">Download HTML</button>'
+        + '</div>';
+      win.document.body.prepend(toolbar);
+      // Add print CSS to hide toolbar
+      var printStyle = win.document.createElement('style');
+      printStyle.textContent = '@media print { #cma-toolbar { display: none !important; } body { padding-top: 0 !important; } }';
+      win.document.head.appendChild(printStyle);
+      // Add body padding so content isn't hidden behind fixed toolbar
+      win.document.body.style.paddingTop = '50px';
+      // Wire up HTML download button
+      var dlBtn = win.document.getElementById('cma-dl-html');
+      if (dlBtn) {
+        dlBtn.onclick = function() {
+          var b = new Blob([html], { type: 'text/html' });
+          var u = URL.createObjectURL(b);
+          var a = win.document.createElement('a');
+          a.href = u; a.download = fileName + '.html'; a.click();
+          URL.revokeObjectURL(u);
+        };
+      }
+      toast('CMA report opened with download toolbar.', 'success');
     } else {
       // Fallback: download as HTML file
       var blob = new Blob([html], { type: 'text/html' });
