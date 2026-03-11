@@ -965,6 +965,11 @@ Deno.serve(async (req: Request) => {
       const results: Record<string, unknown>[] = [];
       const errors: string[] = [];
 
+      // Helper: title-case a string for StreetName matching
+      function titleCase(s: string): string {
+        return s.replace(/\w\S*/g, (t) => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase());
+      }
+
       // ── Try MLS Grid (Canopy MLS) ──
       const mlsGridToken = Deno.env.get("MLS_GRID_TOKEN") || "";
       const mlsGridSystem = Deno.env.get("MLS_GRID_ORIGINATING_SYSTEM") || "";
@@ -976,11 +981,12 @@ Deno.serve(async (req: Request) => {
           if (prefixedId) {
             filter += ` and ListingId eq '${prefixedId}'`;
           } else if (addrStreetName) {
-            // Address-based search: match street number exactly + street name contains
+            // Address-based search using only eq operators (MLS Grid doesn't support contains())
             if (addrStreetNumber) {
               filter += ` and StreetNumber eq '${addrStreetNumber}'`;
             }
-            filter += ` and contains(StreetName,'${addrStreetName.replace(/'/g, "''")}')`;
+            // Try exact match on StreetName (title-cased). If no results, we retry without it below.
+            filter += ` and StreetName eq '${titleCase(addrStreetName).replace(/'/g, "''")}'`;
             if (addrCity) {
               filter += ` and City eq '${addrCity.replace(/'/g, "''")}'`;
             }
@@ -988,22 +994,49 @@ Deno.serve(async (req: Request) => {
           // Order by most recent close date so we get the latest listing first
           console.log("[lookup] MLS Grid filter:", filter);
           const orderBy = searchAddress ? "&$orderby=CloseDate desc,ModificationTimestamp desc" : "";
-          const url = `https://api.mlsgrid.com/v2/Property?$filter=${encodeURIComponent(filter)}&$expand=Media&$top=5${orderBy}`;
-          const resp = await fetch(url, {
-            headers: {
-              Authorization: `Bearer ${mlsGridToken}`,
-              Accept: "application/json",
-            },
-          });
-          if (resp.ok) {
-            const data = await resp.json();
-            const records = data.value || [];
-            for (const r of records) {
-              // Store to our DB for future use
-              const listingKey = r.ListingKey || "";
-              const listingId = mlsLocalPrefix && r.ListingId?.startsWith(mlsLocalPrefix)
-                ? r.ListingId.slice(mlsLocalPrefix.length)
-                : (r.ListingId || "");
+
+          // Helper to fetch from MLS Grid with a given filter
+          async function mlsGridQuery(f: string): Promise<any[]> {
+            const u = `https://api.mlsgrid.com/v2/Property?$filter=${encodeURIComponent(f)}&$expand=Media&$top=5${orderBy}`;
+            const r = await fetch(u, {
+              headers: { Authorization: `Bearer ${mlsGridToken}`, Accept: "application/json" },
+            });
+            if (!r.ok) throw new Error(`${r.status}`);
+            const d = await r.json();
+            return d.value || [];
+          }
+
+          let records: any[] = [];
+          try {
+            records = await mlsGridQuery(filter);
+          } catch (e: any) {
+            // If exact StreetName match fails and we have a street name, retry with StreetNumber only
+            if (addrStreetNumber && addrStreetName) {
+              console.log("[lookup] MLS Grid exact name failed, retrying with StreetNumber only");
+              let broadFilter = `OriginatingSystemName eq '${mlsGridSystem}' and StreetNumber eq '${addrStreetNumber}'`;
+              if (addrCity) broadFilter += ` and City eq '${addrCity.replace(/'/g, "''")}'`;
+              try {
+                records = await mlsGridQuery(broadFilter);
+                // Filter results locally by street name
+                if (addrStreetName) {
+                  const nameLower = addrStreetName.toLowerCase();
+                  records = records.filter((r: any) =>
+                    (r.StreetName || "").toLowerCase().includes(nameLower)
+                  );
+                }
+              } catch (retryErr: any) {
+                errors.push(`MLS Grid: ${retryErr.message}`);
+              }
+            } else {
+              errors.push(`MLS Grid: ${e.message}`);
+            }
+          }
+          for (const r of records) {
+            // Store to our DB for future use
+            const listingKey = r.ListingKey || "";
+            const listingId = mlsLocalPrefix && r.ListingId?.startsWith(mlsLocalPrefix)
+              ? r.ListingId.slice(mlsLocalPrefix.length)
+              : (r.ListingId || "");
 
               const fullAddr = `${r.StreetNumber || ""} ${r.StreetName || ""} ${r.StreetSuffix || ""}`.trim();
 
@@ -1086,25 +1119,22 @@ Deno.serve(async (req: Request) => {
                 await sb.from("mls_media").insert(mediaRows);
               }
 
-              results.push({
-                listing_key: listingKey,
-                listing_id: listingId,
-                source: "Canopy MLS",
-                full_address: fullAddr,
-                city: r.City || "",
-                standard_status: r.StandardStatus || "",
-                close_price: r.ClosePrice || null,
-                close_date: r.CloseDate || null,
-                list_price: r.ListPrice || null,
-                living_area: r.LivingArea || null,
-                bedrooms_total: r.BedroomsTotal || 0,
-                bathrooms_total_integer: r.BathroomsTotalInteger || 0,
-                year_built: r.YearBuilt || null,
-                photo_count: media.length,
-              });
-            }
-          } else {
-            errors.push(`MLS Grid: ${resp.status}`);
+            results.push({
+              listing_key: listingKey,
+              listing_id: listingId,
+              source: "Canopy MLS",
+              full_address: fullAddr,
+              city: r.City || "",
+              standard_status: r.StandardStatus || "",
+              close_price: r.ClosePrice || null,
+              close_date: r.CloseDate || null,
+              list_price: r.ListPrice || null,
+              living_area: r.LivingArea || null,
+              bedrooms_total: r.BedroomsTotal || 0,
+              bathrooms_total_integer: r.BathroomsTotalInteger || 0,
+              year_built: r.YearBuilt || null,
+              photo_count: media.length,
+            });
           }
         } catch (err) {
           errors.push(`MLS Grid: ${err instanceof Error ? err.message : String(err)}`);
@@ -1120,26 +1150,53 @@ Deno.serve(async (req: Request) => {
           if (searchId) {
             filter += ` and ListingId eq '${searchId}'`;
           } else if (addrStreetName) {
-            // Address-based search for Navica
+            // Address-based search for Navica (use eq, not contains, for reliability)
             if (addrStreetNumber) {
               filter += ` and StreetNumber eq '${addrStreetNumber}'`;
             }
-            filter += ` and contains(StreetName,'${addrStreetName.replace(/'/g, "''")}')`;
+            // Try exact StreetName match first
+            filter += ` and StreetName eq '${titleCase(addrStreetName).replace(/'/g, "''")}'`;
             if (addrCity) {
               filter += ` and City eq '${addrCity.replace(/'/g, "''")}'`;
             }
           }
           console.log("[lookup] Navica filter:", filter);
           const navicaBase = `https://navapi.navicamls.net/api/v2/OData/${navicaDataset}`;
-          const orderBy = searchAddress ? "&$orderby=CloseDate desc" : "";
-          const url = `${navicaBase}/Property?$filter=${encodeURIComponent(filter)}&$top=5${orderBy}&access_token=${navicaToken}`;
-          const resp = await fetch(url, {
-            headers: { Accept: "application/json" },
-          });
-          if (resp.ok) {
-            const data = await resp.json();
-            const records = data.value || [];
-            for (const r of records) {
+          const navOrderBy = searchAddress ? "&$orderby=CloseDate desc" : "";
+
+          // Helper to fetch from Navica with a given filter
+          async function navicaQuery(f: string): Promise<any[]> {
+            const u = `${navicaBase}/Property?$filter=${encodeURIComponent(f)}&$top=5${navOrderBy}&access_token=${navicaToken}`;
+            const r = await fetch(u, { headers: { Accept: "application/json" } });
+            if (!r.ok) throw new Error(`${r.status}`);
+            const d = await r.json();
+            return d.value || [];
+          }
+
+          let navRecords: any[] = [];
+          try {
+            navRecords = await navicaQuery(filter);
+          } catch (e: any) {
+            // If exact name match fails, retry with just StreetNumber
+            if (addrStreetNumber && addrStreetName) {
+              console.log("[lookup] Navica exact name failed, retrying with StreetNumber only");
+              let broadFilter = `PropertyType ne 'Residential Lease' and StreetNumber eq '${addrStreetNumber}'`;
+              if (addrCity) broadFilter += ` and City eq '${addrCity.replace(/'/g, "''")}'`;
+              try {
+                navRecords = await navicaQuery(broadFilter);
+                // Filter locally by street name
+                const nameLower = addrStreetName.toLowerCase();
+                navRecords = navRecords.filter((r: any) =>
+                  (r.StreetName || "").toLowerCase().includes(nameLower)
+                );
+              } catch (retryErr: any) {
+                errors.push(`Navica: ${retryErr.message}`);
+              }
+            } else {
+              errors.push(`Navica: ${e.message}`);
+            }
+          }
+          for (const r of navRecords) {
               const listingKey = r.ListingKey || "";
               const listingId = r.ListingId || r.ListingKey || "";
 
@@ -1206,25 +1263,22 @@ Deno.serve(async (req: Request) => {
 
               await sb.from("mls_listings").upsert(listing, { onConflict: "listing_key" });
 
-              results.push({
-                listing_key: listingKey,
-                listing_id: listingId,
-                source: "CSAR",
-                full_address: navFullAddr,
-                city: r.City || "",
-                standard_status: r.StandardStatus || "",
-                close_price: r.ClosePrice || null,
-                close_date: r.CloseDate || null,
-                list_price: r.ListPrice || null,
-                living_area: r.LivingArea || null,
-                bedrooms_total: r.BedroomsTotal || 0,
-                bathrooms_total_integer: r.BathroomsTotalInteger || 0,
-                year_built: r.YearBuilt || null,
-                photo_count: 0,
-              });
-            }
-          } else {
-            errors.push(`Navica: ${resp.status}`);
+            results.push({
+              listing_key: listingKey,
+              listing_id: listingId,
+              source: "CSAR",
+              full_address: navFullAddr,
+              city: r.City || "",
+              standard_status: r.StandardStatus || "",
+              close_price: r.ClosePrice || null,
+              close_date: r.CloseDate || null,
+              list_price: r.ListPrice || null,
+              living_area: r.LivingArea || null,
+              bedrooms_total: r.BedroomsTotal || 0,
+              bathrooms_total_integer: r.BathroomsTotalInteger || 0,
+              year_built: r.YearBuilt || null,
+              photo_count: 0,
+            });
           }
         } catch (err) {
           errors.push(`Navica: ${err instanceof Error ? err.message : String(err)}`);
