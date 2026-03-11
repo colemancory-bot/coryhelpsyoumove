@@ -1114,8 +1114,8 @@ a:hover { color: var(--crm-accent-light); }
 .cma-feat-val { font-size: 0.72rem; font-weight: 600; min-width: 24px; text-align: right; }
 .cma-feature-elev { font-size: 0.78rem; color: var(--crm-text-secondary); margin-top: 0.5rem; }
 
-/* Feature range sliders (editable) */
-.cma-feat-slider { -webkit-appearance: none; appearance: none; flex: 1; height: 6px; border-radius: 3px; outline: none; cursor: pointer; background: linear-gradient(to right, var(--sl-color, var(--crm-border)) var(--sl-pct, 0%), var(--crm-border) var(--sl-pct, 0%)); }
+/* Feature range sliders (editable) — background set inline for cross-browser reliability */
+.cma-feat-slider { -webkit-appearance: none; appearance: none; flex: 1; height: 6px; border-radius: 3px; outline: none; cursor: pointer; }
 .cma-feat-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--sl-color, var(--crm-accent)); cursor: pointer; border: 2px solid var(--crm-bg-surface); box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
 .cma-feat-slider::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--sl-color, var(--crm-accent)); cursor: pointer; border: 2px solid var(--crm-bg-surface); box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
 .cma-feat-slider::-moz-range-track { height: 6px; border-radius: 3px; background: transparent; }

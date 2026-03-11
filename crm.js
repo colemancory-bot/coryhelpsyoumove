@@ -2461,15 +2461,23 @@ function cmaInlineClick(el) {
 }
 
 // Feature slider for editable mountain features
+function _cmaSliderColor(val) {
+  return val >= 4 ? 'var(--crm-green)' : val >= 3 ? 'var(--crm-amber)' : val >= 1 ? 'var(--crm-red)' : 'var(--crm-border)';
+}
+
+function _cmaSliderBg(val) {
+  var pct = (val / 5) * 100;
+  var color = _cmaSliderColor(val);
+  return '--sl-color:' + color + ';background:linear-gradient(to right,' + color + ' ' + pct + '%,var(--crm-border) ' + pct + '%)';
+}
+
 function cmaFeatureSlider(label, field, val) {
   val = parseInt(val) || 0;
-  var color = val >= 4 ? 'var(--crm-green)' : val >= 3 ? 'var(--crm-amber)' : val >= 1 ? 'var(--crm-red)' : 'var(--crm-border)';
-  var pct = (val / 5) * 100;
   return '<div class="cma-feat-bar">' +
     '<span class="cma-feat-label">' + label + '</span>' +
     '<input type="range" class="cma-feat-slider" min="0" max="5" step="1" value="' + val + '"' +
     ' data-field="' + field + '" oninput="cmaSliderChange(this)"' +
-    ' style="--sl-pct:' + pct + '%;--sl-color:' + color + '" />' +
+    ' style="' + _cmaSliderBg(val) + '" />' +
     '<span class="cma-feat-val" id="cmaFeatVal_' + field + '">' + (val > 0 ? val + '/5' : '--') + '</span>' +
     '</div>';
 }
@@ -2477,9 +2485,10 @@ function cmaFeatureSlider(label, field, val) {
 function cmaSliderChange(slider) {
   var field = slider.dataset.field;
   var val = parseInt(slider.value) || 0;
-  var color = val >= 4 ? 'var(--crm-green)' : val >= 3 ? 'var(--crm-amber)' : val >= 1 ? 'var(--crm-red)' : 'var(--crm-border)';
-  slider.style.setProperty('--sl-pct', ((val / 5) * 100) + '%');
-  slider.style.setProperty('--sl-color', color);
+  var pct = (val / 5) * 100;
+  var color = _cmaSliderColor(val);
+  // Set background directly (CSS custom property approach unreliable across browsers)
+  slider.style.cssText = '--sl-color:' + color + ';background:linear-gradient(to right,' + color + ' ' + pct + '%,var(--crm-border) ' + pct + '%)';
   var valEl = document.getElementById('cmaFeatVal_' + field);
   if (valEl) valEl.textContent = val > 0 ? val + '/5' : '--';
   // Save to state
