@@ -1992,6 +1992,9 @@ function cmaRenderStep1() {
     debounce = setTimeout(function() { cmaSearchSubject(searchInput.value.trim()); }, 300);
   });
   searchInput.focus();
+
+  // Bind slider + inline-edit events after DOM is ready
+  cmaBindCardEvents();
 }
 
 // RPR-style facts table row builders
@@ -2461,14 +2464,24 @@ function cmaInlineClick(el) {
 }
 
 // Feature slider for editable mountain features
-function _cmaSliderColor(val) {
-  return val >= 4 ? 'var(--crm-green)' : val >= 3 ? 'var(--crm-amber)' : val >= 1 ? 'var(--crm-red)' : 'var(--crm-border)';
+// Hardcoded hex colors for slider gradients (CSS vars don't reliably work in inline backgrounds)
+function _getSliderColors() {
+  var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  return isDark ?
+    { green: '#66BB6A', amber: '#FFD54F', red: '#EF5350', track: 'rgba(230,237,243,0.1)' } :
+    { green: '#43A047', amber: '#F9A825', red: '#E53935', track: '#E2E6EC' };
 }
 
-function _cmaSliderBg(val) {
+function _cmaSliderHex(val) {
+  var c = _getSliderColors();
+  return val >= 4 ? c.green : val >= 3 ? c.amber : val >= 1 ? c.red : c.track;
+}
+
+function _cmaSliderBgStyle(val) {
   var pct = (val / 5) * 100;
-  var color = _cmaSliderColor(val);
-  return '--sl-color:' + color + ';background:linear-gradient(to right,' + color + ' ' + pct + '%,var(--crm-border) ' + pct + '%)';
+  var color = _cmaSliderHex(val);
+  var c = _getSliderColors();
+  return 'background:linear-gradient(to right,' + color + ' ' + pct + '%,' + c.track + ' ' + pct + '%);--sl-color:' + color;
 }
 
 function cmaFeatureSlider(label, field, val) {
@@ -2476,26 +2489,33 @@ function cmaFeatureSlider(label, field, val) {
   return '<div class="cma-feat-bar">' +
     '<span class="cma-feat-label">' + label + '</span>' +
     '<input type="range" class="cma-feat-slider" min="0" max="5" step="1" value="' + val + '"' +
-    ' data-field="' + field + '" oninput="cmaSliderChange(this)"' +
-    ' style="' + _cmaSliderBg(val) + '" />' +
+    ' data-field="' + field + '"' +
+    ' style="' + _cmaSliderBgStyle(val) + '" />' +
     '<span class="cma-feat-val" id="cmaFeatVal_' + field + '">' + (val > 0 ? val + '/5' : '--') + '</span>' +
     '</div>';
 }
 
-function cmaSliderChange(slider) {
-  var field = slider.dataset.field;
-  var val = parseInt(slider.value) || 0;
-  var pct = (val / 5) * 100;
-  var color = _cmaSliderColor(val);
-  // Set background directly (CSS custom property approach unreliable across browsers)
-  slider.style.cssText = '--sl-color:' + color + ';background:linear-gradient(to right,' + color + ' ' + pct + '%,var(--crm-border) ' + pct + '%)';
-  var valEl = document.getElementById('cmaFeatVal_' + field);
-  if (valEl) valEl.textContent = val > 0 ? val + '/5' : '--';
-  // Save to state
-  if (_cmaState.subject) {
-    if (!_cmaState.subject.features) _cmaState.subject.features = {};
-    _cmaState.subject.features[field] = val > 0 ? val : null;
-  }
+// Bind slider and inline-edit events via addEventListener (more reliable than inline handlers)
+function cmaBindCardEvents() {
+  var card = document.getElementById('cmaSubjectCardEl');
+  if (!card) return;
+  card.querySelectorAll('.cma-feat-slider').forEach(function(slider) {
+    slider.addEventListener('input', function() {
+      var field = slider.dataset.field;
+      var val = parseInt(slider.value) || 0;
+      var pct = (val / 5) * 100;
+      var color = _cmaSliderHex(val);
+      var c = _getSliderColors();
+      slider.style.background = 'linear-gradient(to right,' + color + ' ' + pct + '%,' + c.track + ' ' + pct + '%)';
+      slider.style.setProperty('--sl-color', color);
+      var valEl = document.getElementById('cmaFeatVal_' + field);
+      if (valEl) valEl.textContent = val > 0 ? val + '/5' : '--';
+      if (_cmaState.subject) {
+        if (!_cmaState.subject.features) _cmaState.subject.features = {};
+        _cmaState.subject.features[field] = val > 0 ? val : null;
+      }
+    });
+  });
 }
 
 // Open full facts form for complex edits (address, type, construction)
