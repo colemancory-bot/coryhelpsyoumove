@@ -1908,7 +1908,8 @@ async function cmaOpenReport(reportId) {
     return {
       comp_listing_key: adj.comp_listing_key, comp_order: adj.comp_order, sale_price: adj.comp_data ? adj.comp_data.close_price || 0 : 0,
       adjustments: {
-        adj_living_area: adj.adj_living_area, adj_lot_size: adj.adj_lot_size, adj_bedrooms: adj.adj_bedrooms, adj_bathrooms: adj.adj_bathrooms,
+        adj_living_area: adj.adj_living_area, adj_lot_size: adj.adj_lot_size, adj_restrictions: adj.adj_restrictions,
+        adj_bedrooms: adj.adj_bedrooms, adj_bathrooms: adj.adj_bathrooms,
         adj_garage: adj.adj_garage, adj_year_built: adj.adj_year_built, adj_condition: adj.adj_condition, adj_view: adj.adj_view,
         adj_water_features: adj.adj_water_features, adj_land_character: adj.adj_land_character, adj_road_noise: adj.adj_road_noise,
         adj_privacy: adj.adj_privacy, adj_elevation: adj.adj_elevation, adj_time: adj.adj_time, adj_concessions: adj.adj_concessions
@@ -2238,6 +2239,14 @@ async function cmaMLSLookup(query) {
       // Show API diagnostics so we can see what happened
       if (resp.errors && resp.errors.length) {
         noResultHtml += '<br><span class="cma-search-hint" style="color:var(--danger,#e53935);">API errors: ' + resp.errors.map(esc).join(', ') + '</span>';
+      }
+      if (resp.apis_queried) {
+        var skipped = Object.entries(resp.apis_queried)
+          .filter(function(e) { return e[1] !== 'queried'; })
+          .map(function(e) { return e[0] + ': ' + e[1]; });
+        if (skipped.length) {
+          noResultHtml += '<br><span class="cma-search-hint">APIs not queried: ' + skipped.map(esc).join(', ') + '</span>';
+        }
       }
       // Tips for improving the search
       if (cmaIsAddress(query)) {
@@ -2799,9 +2808,14 @@ function cmaRenderStep3() {
   html += '</tr>';
 
   // Standard adjustment rows
+  // Determine subject restriction status for display
+  var subRestrictionStatus = (sf.restriction_status || 'unknown');
+  var subRestrictionLabel = subRestrictionStatus === 'unrestricted' ? 'Unrestricted' : subRestrictionStatus === 'restricted' ? 'Restricted' : '--';
+
   var stdRows = [
     { key: 'adj_living_area', label: 'Living Area', subVal: s.living_area ? s.living_area.toLocaleString() + ' sqft' : '--', compKey: 'living_area', unit: ' sqft' },
     { key: 'adj_lot_size', label: 'Lot Size', subVal: s.lot_size_acres ? s.lot_size_acres + ' ac' : '--', compKey: 'lot_size_acres', unit: ' ac' },
+    { key: 'adj_restrictions', label: 'Restrictions', subVal: subRestrictionLabel, compFeatKey: 'restriction_status', unit: '', isRestriction: true },
     { key: 'adj_bedrooms', label: 'Bedrooms', subVal: s.bedrooms_total || '--', compKey: 'bedrooms_total', unit: '' },
     { key: 'adj_bathrooms', label: 'Bathrooms', subVal: s.bathrooms_total_integer || '--', compKey: 'bathrooms_total_integer', unit: '' },
     { key: 'adj_garage', label: 'Garage', subVal: s.garage_spaces || '0', compKey: 'garage_spaces', unit: '' },
@@ -2812,10 +2826,19 @@ function cmaRenderStep3() {
   stdRows.forEach(function(row) {
     html += '<tr><td>' + row.label + '</td><td class="cma-grid-subject-val">' + row.subVal + '</td>';
     adjs.forEach(function(a, ci) {
-      var compVal = comps[ci].listing[row.compKey];
+      var compVal;
+      if (row.isRestriction) {
+        // Restriction uses feature tags, not listing fields
+        var cf = comps[ci].features || {};
+        var rs = cf.restriction_status || 'unknown';
+        compVal = rs === 'unrestricted' ? 'Unrestricted' : rs === 'restricted' ? 'Restricted' : '--';
+      } else {
+        compVal = comps[ci].listing[row.compKey];
+        compVal = compVal != null ? compVal + row.unit : '--';
+      }
       var adjVal = a.adjustments[row.key] || 0;
       html += '<td class="cma-grid-adj-cell">';
-      html += '<div class="cma-grid-comp-val">' + (compVal != null ? compVal + row.unit : '--') + '</div>';
+      html += '<div class="cma-grid-comp-val">' + compVal + '</div>';
       html += cmaAdjInput(ci, row.key, adjVal);
       html += '</td>';
     });
@@ -3238,6 +3261,7 @@ async function cmaSaveReport(status) {
         comp_features: comp ? comp.features : {},
         adj_living_area: a.adjustments.adj_living_area || 0,
         adj_lot_size: a.adjustments.adj_lot_size || 0,
+        adj_restrictions: a.adjustments.adj_restrictions || 0,
         adj_bedrooms: a.adjustments.adj_bedrooms || 0,
         adj_bathrooms: a.adjustments.adj_bathrooms || 0,
         adj_garage: a.adjustments.adj_garage || 0,

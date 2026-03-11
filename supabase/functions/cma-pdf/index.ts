@@ -125,9 +125,16 @@ function generateCMAHtml(data: ReportInput): string {
   // Land & Site section
   gridRows += `<tr class="section-row"><td colspan="${colSpan}">Land &amp; Site</td></tr>\n`;
   gridRows += dataRow("Lot Size (acres)", String(sub.lot_size_acres || "\u2014"), comps.map(c => String(c.listing.lot_size_acres || "\u2014")));
-  gridRows += adjRow(isLand ? "Adj @ $20K/ac" : "Adj @ $15K/ac", "adj_lot_size");
+  gridRows += adjRow("Lot Size Adj (tiered)", "adj_lot_size");
 
+  // Restriction status
   const subFeats = data.subject.features || {};
+  const subRestrStr = subFeats.restriction_status === "unrestricted" ? "Unrestricted" : subFeats.restriction_status === "restricted" ? "Restricted" : "\u2014";
+  gridRows += dataRow("Restrictions", subRestrStr, comps.map(c => {
+    const rs = c.features?.restriction_status;
+    return rs === "unrestricted" ? "Unrestricted" : rs === "restricted" ? "Restricted" : "\u2014";
+  }));
+  gridRows += adjRow("Restriction Adj", "adj_restrictions");
 
   if (!isLand) {
     // Age & Condition section
@@ -589,6 +596,7 @@ Deno.serve(async (req: Request) => {
               adjustments: {
                 adj_living_area: adj.adj_living_area,
                 adj_lot_size: adj.adj_lot_size,
+                adj_restrictions: adj.adj_restrictions,
                 adj_bedrooms: adj.adj_bedrooms,
                 adj_bathrooms: adj.adj_bathrooms,
                 adj_garage: adj.adj_garage,

@@ -84,6 +84,8 @@ interface FeatureTags {
   special_features?: string[];
   winter_access?: string;
   condition_notes?: string;
+  restriction_status?: string; // "unrestricted" | "restricted" | "unknown"
+  restrictions_summary?: string;
   [key: string]: unknown;
 }
 
@@ -318,8 +320,20 @@ const WNC_DEFAULTS = {
   privacy_per_point: 6000,
   elevation_per_100ft: 2000,
 
-  // Lot size
-  per_acre: 15000,
+  // Lot size: tiered marginal value (larger parcels = lower per-acre rate)
+  // These define the marginal value of each acre within that tier
+  lot_tiers: [
+    { upTo: 2, perAcre: 25000 },   // First 2 acres: homesite premium
+    { upTo: 5, perAcre: 15000 },   // 2-5 acres: usable yard/garden
+    { upTo: 10, perAcre: 8000 },   // 5-10 acres: privacy buffer
+    { upTo: 25, perAcre: 4000 },   // 10-25 acres: wooded/pasture
+    { upTo: 50, perAcre: 2500 },   // 25-50 acres: large tract
+    { upTo: Infinity, perAcre: 1500 }, // 50+ acres: bulk land
+  ],
+
+  // Restriction adjustment: % of lot value applied when restriction status differs
+  // Unrestricted land commands a premium in WNC (flexibility, no HOA, can subdivide/farm/etc.)
+  unrestricted_premium_pct: 0.10, // 10% of lot value for residential
 
   // Market
   monthly_appreciation_pct: 0.3, // 0.3% per month (approx 3.6% annually)
@@ -327,8 +341,15 @@ const WNC_DEFAULTS = {
 
 // Land CMA uses different weights: lot/views/water/access matter more, structure doesn't apply
 const WNC_LAND_DEFAULTS = {
-  // Primary land value drivers
-  per_acre: 20000, // Higher weight for land CMAs (primary value driver)
+  // Primary land value drivers - higher tiers since land value IS the value
+  lot_tiers: [
+    { upTo: 2, perAcre: 35000 },   // First 2 acres: buildable homesite
+    { upTo: 5, perAcre: 20000 },   // 2-5 acres: primary use area
+    { upTo: 10, perAcre: 15000 },  // 5-10 acres: extended use
+    { upTo: 25, perAcre: 6000 },   // 10-25 acres: wooded/pasture
+    { upTo: 50, perAcre: 3500 },   // 25-50 acres: large tract
+    { upTo: Infinity, perAcre: 2000 }, // 50+ acres: bulk land
+  ],
 
   // Mountain adjustments per rating point (land values views/water more)
   view_per_point: 20000, // Views matter MORE for land (buyer choosing build site)
@@ -337,6 +358,9 @@ const WNC_LAND_DEFAULTS = {
   road_noise_per_point: 10000, // Road access quality matters more for raw land
   privacy_per_point: 8000,
   elevation_per_100ft: 2000,
+
+  // Restriction adjustment: higher for land since restrictions directly limit land use
+  unrestricted_premium_pct: 0.15, // 15% of lot value for land CMAs
 
   // Structure-related: N/A for land
   price_per_sqft: 0,
@@ -348,6 +372,67 @@ const WNC_LAND_DEFAULTS = {
   // Market
   monthly_appreciation_pct: 0.3,
 };
+
+// Calculate cumulative lot value using tiered marginal rates
+// Each tier defines the per-acre rate for acres within that range.
+// Example: 12 acres with tiers [2@$25K, 5@$15K, 10@$8K, 25@$4K]
+//   = 2×$25K + 3×$15K + 5×$8K + 2×$4K = $50K + $45K + $40K + $8K = $143K
+function tieredLotValue(acres: number, tiers: Array<{upTo: number; perAcre: number}>): number {
+  let total = 0;
+  let prevCap = 0;
+  for (const tier of tiers) {
+    if (acres <= prevCap) break;
+    const acresInTier = Math.min(acres, tier.upTo) - prevCap;
+    total += acresInTier * tier.perAcre;
+    prevCap = tier.upTo;
+  }
+  return total;
+}
+
+// Detect whether a property is restricted or unrestricted from MLS data + AI features
+// In WNC, "unrestricted" is a major selling point (no HOA, no covenants, can farm/subdivide)
+function getRestrictionStatus(
+  listing: ListingData,
+  features: FeatureTags | null
+): "unrestricted" | "restricted" | "unknown" {
+  const restrictions = (listing.restrictions as string[]) || [];
+  const summary = (features?.restrictions_summary as string) || "";
+  const remarks = ((listing.public_remarks as string) || "").toLowerCase();
+
+  // Check feature tags first (AI-extracted restriction_status)
+  if (features?.restriction_status === "unrestricted") return "unrestricted";
+  if (features?.restriction_status === "restricted") return "restricted";
+
+  // Check MLS restrictions field
+  const restrictionStr = restrictions.join(" ").toLowerCase();
+
+  // Explicit "none" or unrestricted indicators
+  if (
+    restrictions.some((r) => /^none$/i.test(r.trim())) ||
+    /\bunrestrict/i.test(summary) ||
+    /\bno\s+restrict/i.test(summary) ||
+    /\bunrestrict/i.test(remarks) ||
+    /\bno\s+(deed\s+)?restrict/i.test(remarks)
+  ) {
+    return "unrestricted";
+  }
+
+  // Deed restrictions, HOA, covenants, subdivision restrictions
+  if (
+    /deed\s*restrict|covenant|hoa|association|subdivision\s*restrict/i.test(restrictionStr) ||
+    /deed\s*restrict|covenant|hoa\b|association\s+(fee|due)/i.test(summary) ||
+    (listing.association_fee && Number(listing.association_fee) > 0)
+  ) {
+    return "restricted";
+  }
+
+  // If restrictions array has entries but none matched "None"
+  if (restrictions.length > 0 && !restrictions.some((r) => /^none$/i.test(r.trim()))) {
+    return "restricted";
+  }
+
+  return "unknown";
+}
 
 interface AdjustmentResult {
   comp_listing_key: string;
@@ -391,13 +476,32 @@ function calculateCompAdjustments(
     );
   }
 
-  // Lot size
+  // Lot size (tiered marginal value: larger parcels have lower per-acre rates)
   const subLot = subject.lot_size_acres || 0;
   const compLot = comp.lot_size_acres || 0;
   if (subLot > 0 && compLot > 0) {
     adjustments.adj_lot_size = Math.round(
-      (subLot - compLot) * rates.per_acre
+      tieredLotValue(subLot, rates.lot_tiers) - tieredLotValue(compLot, rates.lot_tiers)
     );
+  }
+
+  // Restriction status (unrestricted vs restricted land)
+  // Unrestricted land commands a premium in WNC: no HOA/covenants, can subdivide, farm, etc.
+  // Adjustment = % of the SUBJECT's lot value (unrestricted subject vs restricted comp = positive)
+  const subRestriction = getRestrictionStatus(subject, subjectFeatures);
+  const compRestriction = getRestrictionStatus(comp, compFeatures);
+  if (
+    subRestriction !== "unknown" &&
+    compRestriction !== "unknown" &&
+    subRestriction !== compRestriction
+  ) {
+    // Use the average lot value as the basis for the percentage adjustment
+    const avgLotAcres = (subLot + compLot) / 2 || 1;
+    const avgLotValue = tieredLotValue(avgLotAcres, rates.lot_tiers);
+    const premium = Math.round(avgLotValue * rates.unrestricted_premium_pct);
+    // Positive if subject is unrestricted (worth more), negative if subject is restricted
+    adjustments.adj_restrictions =
+      subRestriction === "unrestricted" ? premium : -premium;
   }
 
   // Bedrooms
@@ -2040,6 +2144,7 @@ Return JSON:
             comp_features: adj.comp_features || {},
             adj_living_area: adj.adj_living_area || 0,
             adj_lot_size: adj.adj_lot_size || 0,
+            adj_restrictions: adj.adj_restrictions || 0,
             adj_bedrooms: adj.adj_bedrooms || 0,
             adj_bathrooms: adj.adj_bathrooms || 0,
             adj_garage: adj.adj_garage || 0,

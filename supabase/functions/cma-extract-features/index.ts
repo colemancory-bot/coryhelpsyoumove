@@ -104,6 +104,11 @@ winter_access values: year_round_paved, year_round_gravel, seasonal_difficulty, 
 perc_status values: approved, failed, not_tested, unknown
 timber_quality values: mature_hardwood, young_growth, mixed, cleared, unknown
 
+restriction_status: Determines if the property has deed restrictions/covenants/HOA or is unrestricted.
+- "unrestricted" = No deed restrictions, no HOA, no covenants. Look for: "unrestricted" in remarks, Restrictions field = "None", no HOA fees. In WNC unrestricted is a major selling point.
+- "restricted" = Has deed restrictions, HOA, covenants, subdivision rules. Look for: Restrictions field has entries (other than "None"), HOA/association fees present, remarks mention covenants or restrictions.
+- "unknown" = Cannot determine from available data.
+
 NC-SPECIFIC NOTES:
 - Construction type: WNC has many manufactured and modular homes. Look for clues in Construction Type, Body Type, Structure Type fields, and in remarks. Important distinctions:
   * "mobile_home" = pre-June 1976 (before HUD code). These are unfinanceable and a separate market. Use if year_built < 1976 AND indicators show factory-built, OR if remarks say "mobile home" and it's clearly old.
@@ -142,6 +147,7 @@ Return a JSON object with exactly these fields (no additional text, just valid J
   "road_frontage_ft": <int or null>,
   "subdivision_potential": <boolean or null>,
   "construction_type": "<site_built|manufactured|modular|mobile_home|log|unknown>",
+  "restriction_status": "<unrestricted|restricted|unknown>",
   "restrictions_summary": "<brief summary of restrictions or empty string>",
   "confidence": <0.0-1.0 how confident you are in these ratings>
 }
@@ -325,6 +331,7 @@ function buildTagRecord(
     road_frontage_ft: features.road_frontage_ft ?? null,
     subdivision_potential: features.subdivision_potential ?? null,
     construction_type: features.construction_type || "unknown",
+    restriction_status: features.restriction_status || "unknown",
     restrictions_summary: features.restrictions_summary || "",
     elevation_ft: elevation,
     extraction_model: EXTRACTION_MODEL,
