@@ -2158,6 +2158,11 @@ function cmaIsAddress(query) {
 }
 
 async function cmaMLSLookup(query) {
+  // Always read current input value so we search what the user actually typed
+  var searchInput = document.getElementById('cmaSubjectSearch');
+  if (searchInput && searchInput.value.trim().length > 1) {
+    query = searchInput.value.trim();
+  }
   var results = document.getElementById('cmaSubjectResults');
   results.innerHTML = '<div class="cma-search-empty">Searching MLS API...</div>';
   try {
