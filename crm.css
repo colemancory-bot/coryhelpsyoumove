@@ -1247,14 +1247,19 @@ a:hover { color: var(--crm-accent-light); }
 .cma-comp-search-empty, .cma-comp-search-error { text-align: center; color: var(--crm-text-muted); font-size: 0.82rem; padding: 2rem 0; }
 .cma-comp-search-error { color: var(--crm-red); }
 
-/* Replacement suggestion alert */
-.cma-replacement-alert { margin: 0.4rem 0; padding: 0.4rem 0.5rem; background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 5px; font-size: 0.7rem; }
-.cma-replacement-alert-text { color: var(--crm-text-secondary); margin-bottom: 0.3rem; }
-.cma-replacement-alert-comp { font-weight: 600; color: var(--crm-text); }
-.cma-replacement-alert-actions { display: flex; gap: 0.3rem; margin-top: 0.3rem; }
-.cma-replacement-alert-actions button { padding: 0.15rem 0.4rem; font-size: 0.65rem; border-radius: 3px; cursor: pointer; border: 1px solid var(--crm-border); background: var(--crm-bg-card); color: var(--crm-text); }
-.cma-replacement-alert-actions button.cma-btn-accept { background: var(--crm-accent); color: #fff; border-color: var(--crm-accent); }
-.cma-replacement-alert-actions button:hover { opacity: 0.85; }
+/* Replacement suggestion banner (sits above the grid) */
+.cma-replacement-banner { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.75rem; }
+.cma-replacement-card { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; padding: 0.6rem 0.75rem; background: rgba(255, 193, 7, 0.08); border: 1px solid rgba(255, 193, 7, 0.25); border-radius: 6px; font-size: 0.8rem; }
+.cma-replacement-card-header { flex: 1 1 100%; color: var(--crm-text); }
+.cma-replacement-warn { color: #e6a700; margin-right: 0.25rem; }
+.cma-replacement-card-suggestion { flex: 1 1 auto; color: var(--crm-text-secondary); }
+.cma-replacement-score { display: inline-block; background: var(--crm-accent); color: #fff; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.7rem; font-weight: 600; }
+.cma-replacement-card-actions { display: flex; gap: 0.4rem; flex-shrink: 0; }
+.cma-replacement-card-actions button { padding: 0.25rem 0.6rem; font-size: 0.75rem; border-radius: 4px; cursor: pointer; border: 1px solid var(--crm-border); font-weight: 500; }
+.cma-replacement-card-actions .cma-btn-accept { background: var(--crm-accent); color: #fff; border-color: var(--crm-accent); }
+.cma-replacement-card-actions .cma-btn-secondary { background: var(--crm-bg-card); color: var(--crm-text); }
+.cma-replacement-card-actions .cma-btn-dismiss { background: transparent; color: var(--crm-text-secondary); border-color: transparent; }
+.cma-replacement-card-actions button:hover { opacity: 0.85; }
 
 /* Warnings */
 .cma-warnings { margin-top: 1rem; padding: 0.75rem; background: var(--crm-red-bg); border: 1px solid rgba(229,57,53,0.2); border-radius: 6px; }

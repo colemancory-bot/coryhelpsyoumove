@@ -3007,7 +3007,7 @@ function cmaRenderStep3() {
   // Header row with photo thumbnails
   html += '<thead><tr><th class="cma-grid-label">Feature</th><th class="cma-grid-subject"><div class="cma-grid-comp-photo" id="cmaSubjectPhoto"></div>Subject</th>';
   comps.forEach(function(c, i) {
-    html += '<th class="cma-grid-comp"><div class="cma-grid-comp-photo" id="cmaCompPhoto_' + i + '"></div>Comp ' + (i+1) + '<br><span class="cma-grid-comp-addr">' + esc((c.listing.full_address || '').split(' ').slice(0,3).join(' ')) + '</span>';
+    html += '<th class="cma-grid-comp"><div class="cma-grid-comp-photo" id="cmaCompPhoto_' + i + '"></div>Comp ' + (i+1) + '<br><span class="cma-grid-comp-addr">' + esc((c.listing.full_address || '').split(',')[0]) + '</span>';
     html += '<button class="cma-replace-comp-btn" onclick="cmaOpenCompSearch(' + i + ')" title="Replace this comp">&#8635; Replace</button>';
     html += '</th>';
   });
@@ -3261,7 +3261,7 @@ async function cmaCheckReplacementSuggestions() {
     _cmaSearchCache = result.comps || [];
   }
 
-  // For each flagged comp, find the best alternative
+  // For each flagged comp, find a unique best alternative
   var selectedKeys = _cmaState.selectedComps.map(function(c) { return c.listing.listing_key; });
   var available = _cmaSearchCache.filter(function(c) {
     return selectedKeys.indexOf(c.listing.listing_key) === -1;
@@ -3269,34 +3269,64 @@ async function cmaCheckReplacementSuggestions() {
 
   if (available.length === 0) return;
 
-  flagged.forEach(function(compIdx) {
-    var bestAlt = available[0]; // Already sorted by score from find-comps
-    if (!bestAlt) return;
+  // Track which alternatives have been assigned so each flagged comp gets a different one
+  var usedKeys = {};
 
+  // Remove any existing alert banner
+  var oldBanner = document.getElementById('cmaReplacementBanner');
+  if (oldBanner) oldBanner.remove();
+
+  // Build a banner that sits above the grid
+  var bannerHtml = '<div id="cmaReplacementBanner" class="cma-replacement-banner">';
+
+  flagged.forEach(function(compIdx) {
+    // Pick best available that hasn't been assigned to another flagged comp
+    var bestAlt = null;
+    for (var a = 0; a < available.length; a++) {
+      if (!usedKeys[available[a].listing.listing_key]) {
+        bestAlt = available[a];
+        break;
+      }
+    }
+    if (!bestAlt) return;
+    usedKeys[bestAlt.listing.listing_key] = true;
     _cmaState.replacementSuggestions[compIdx] = bestAlt;
 
-    // Render the alert bar below the comp header
-    var compHeader = document.querySelector('.cma-grid-comp:nth-child(' + (compIdx + 3) + ')'); // +3 because th[0]=Feature, th[1]=Subject
-    if (!compHeader) return;
-    // Check if alert already exists
-    if (compHeader.querySelector('.cma-replacement-alert')) return;
-
     var adj = _cmaState.adjustments[compIdx];
-    var pct = adj.gross_adjustment_pct > 25 ? adj.gross_adjustment_pct + '% gross' : adj.net_adjustment_pct + '% net';
+    var pctVal = adj.gross_adjustment_pct > 25 ? adj.gross_adjustment_pct.toFixed(1) : adj.net_adjustment_pct.toFixed(1);
+    var pctType = adj.gross_adjustment_pct > 25 ? 'gross' : 'net';
     var alt = bestAlt.listing;
-    var scoreStr = bestAlt.score ? Math.round(bestAlt.score * 100) + '%' : '--';
+    var scoreStr = bestAlt.similarity && bestAlt.similarity.total ? Math.round(bestAlt.similarity.total * 100) + '%' : '';
+    var compName = (_cmaState.selectedComps[compIdx].listing.full_address || '').split(',')[0];
+    var altName = (alt.full_address || '').split(',')[0];
 
-    var alertHtml = '<div class="cma-replacement-alert">';
-    alertHtml += '<div class="cma-replacement-alert-text">&#9888; ' + pct + ' adjustments</div>';
-    alertHtml += '<div class="cma-replacement-alert-comp">' + esc((alt.full_address || '').split(',')[0]) + ' (' + scoreStr + ' match, $' + (alt.close_price || 0).toLocaleString() + ')</div>';
-    alertHtml += '<div class="cma-replacement-alert-actions">';
-    alertHtml += '<button class="cma-btn-accept" onclick="cmaAcceptSuggestion(' + compIdx + ')">Use This</button>';
-    alertHtml += '<button onclick="cmaOpenCompSearch(' + compIdx + ')">Pick My Own</button>';
-    alertHtml += '<button onclick="cmaDismissSuggestion(' + compIdx + ')">Keep</button>';
-    alertHtml += '</div></div>';
-
-    compHeader.insertAdjacentHTML('beforeend', alertHtml);
+    bannerHtml += '<div class="cma-replacement-card">';
+    bannerHtml += '<div class="cma-replacement-card-header">';
+    bannerHtml += '<span class="cma-replacement-warn">&#9888;</span>';
+    bannerHtml += '<strong>Comp ' + (compIdx + 1) + '</strong> (' + esc(compName) + ') has <strong>' + pctVal + '% ' + pctType + '</strong> adjustments';
+    bannerHtml += '</div>';
+    bannerHtml += '<div class="cma-replacement-card-suggestion">';
+    bannerHtml += 'Try: <strong>' + esc(altName) + '</strong>';
+    if (scoreStr) bannerHtml += ' <span class="cma-replacement-score">' + scoreStr + ' match</span>';
+    bannerHtml += ' &middot; $' + (alt.close_price || 0).toLocaleString();
+    if (alt.living_area) bannerHtml += ' &middot; ' + alt.living_area.toLocaleString() + ' sqft';
+    if (alt.lot_size_acres) bannerHtml += ' &middot; ' + alt.lot_size_acres + ' ac';
+    bannerHtml += '</div>';
+    bannerHtml += '<div class="cma-replacement-card-actions">';
+    bannerHtml += '<button class="cma-btn-accept" onclick="cmaAcceptSuggestion(' + compIdx + ')">Use This</button>';
+    bannerHtml += '<button class="cma-btn-secondary" onclick="cmaOpenCompSearch(' + compIdx + ')">Pick My Own</button>';
+    bannerHtml += '<button class="cma-btn-dismiss" onclick="cmaDismissSuggestion(' + compIdx + ')">Keep Current</button>';
+    bannerHtml += '</div>';
+    bannerHtml += '</div>';
   });
+
+  bannerHtml += '</div>';
+
+  // Insert banner above the grid scroll container
+  var gridScroll = document.getElementById('cmaAdjGrid');
+  if (gridScroll) {
+    gridScroll.insertAdjacentHTML('beforebegin', bannerHtml);
+  }
 }
 
 function cmaAcceptSuggestion(compIdx) {
@@ -3308,11 +3338,19 @@ function cmaAcceptSuggestion(compIdx) {
 function cmaDismissSuggestion(compIdx) {
   if (!_cmaState.replacementDismissed) _cmaState.replacementDismissed = {};
   _cmaState.replacementDismissed[compIdx] = true;
-  // Remove the alert bar
-  var compHeader = document.querySelector('.cma-grid-comp:nth-child(' + (compIdx + 3) + ')');
-  if (compHeader) {
-    var alert = compHeader.querySelector('.cma-replacement-alert');
-    if (alert) alert.remove();
+  // Remove just this card from the banner, or the whole banner if no more cards
+  var banner = document.getElementById('cmaReplacementBanner');
+  if (banner) {
+    var cards = banner.querySelectorAll('.cma-replacement-card');
+    // Find the card for this comp by checking button onclick
+    cards.forEach(function(card) {
+      var btn = card.querySelector('.cma-btn-dismiss');
+      if (btn && btn.getAttribute('onclick').indexOf('(' + compIdx + ')') !== -1) {
+        card.remove();
+      }
+    });
+    // If no cards left, remove the whole banner
+    if (!banner.querySelector('.cma-replacement-card')) banner.remove();
   }
 }
 
@@ -3339,7 +3377,7 @@ async function cmaLoadOnePhoto(listingKey, containerId) {
     var resp = await _sb.from('mls_media').select('local_url,media_url').eq('listing_key', listingKey).order('order', { ascending: true }).limit(30);
     var photos = (resp.data || []).map(function(p) { return p.local_url || p.media_url; }).filter(Boolean);
     if (photos.length) {
-      el.innerHTML = '<img src="' + esc(photos[0]) + '" alt="Property photo" class="cma-grid-photo-img" style="cursor:pointer" />';
+      el.innerHTML = '<img src="' + esc(photos[0]) + '" alt="Property photo" class="cma-grid-photo-img" style="cursor:pointer" onerror="this.onerror=null;this.style.display=\'none\';this.parentElement.innerHTML=\'<div class=cma-grid-photo-empty>Photo unavailable</div>\'" />';
       el.dataset.photos = JSON.stringify(photos);
       el.dataset.listingKey = listingKey;
       el.addEventListener('click', function() {
@@ -3367,7 +3405,7 @@ function cmaOpenPhotoGallery(photos, listingKey) {
       '<div class="cma-photo-counter">' + (idx + 1) + ' / ' + photos.length + '</div>' +
       '<div class="cma-photo-stage">' +
         (photos.length > 1 ? '<button class="cma-photo-nav cma-photo-prev">&lsaquo;</button>' : '') +
-        '<img src="' + esc(photos[idx]) + '" class="cma-photo-main" />' +
+        '<img src="' + esc(photos[idx]) + '" class="cma-photo-main" onerror="this.onerror=null;this.alt=\'Photo unavailable\';this.style.background=\'#333\';this.style.minHeight=\'300px\'" />' +
         (photos.length > 1 ? '<button class="cma-photo-nav cma-photo-next">&rsaquo;</button>' : '') +
       '</div>' +
       (photos.length > 1 ? '<div class="cma-photo-strip">' + photos.map(function(p, i) {
