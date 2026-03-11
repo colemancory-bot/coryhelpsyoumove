@@ -1138,9 +1138,12 @@ a:hover { color: var(--crm-accent-light); }
 .cma-comp-thumb-empty { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 0.55rem; color: var(--crm-text-muted); }
 .cma-comp-info { flex: 1; min-width: 0; }
 .cma-comp-addr { font-weight: 500; font-size: 0.88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cma-comp-meta { font-size: 0.75rem; color: var(--crm-text-secondary); margin-top: 0.15rem; }
-.cma-comp-features-mini { display: flex; gap: 0.3rem; flex-wrap: wrap; margin-top: 0.3rem; }
+.cma-comp-meta { display: flex; flex-wrap: wrap; gap: 0.15rem 0.5rem; font-size: 0.75rem; color: var(--crm-text-secondary); margin-top: 0.15rem; }
+.cma-meta-price { font-weight: 600; color: var(--crm-text); }
+.cma-comp-features-mini { display: flex; gap: 0.3rem; flex-wrap: wrap; margin-top: 0.3rem; min-height: 0; }
 .cma-feat-chip { font-size: 0.6rem; padding: 0.1rem 0.4rem; background: var(--crm-bg-card); border: 1px solid var(--crm-border); border-radius: 10px; color: var(--crm-text-secondary); }
+.cma-chip-good { background: rgba(67,160,71,0.1); border-color: rgba(67,160,71,0.3); color: var(--crm-green); }
+.cma-chip-neutral { background: rgba(255,193,7,0.08); border-color: rgba(255,193,7,0.25); color: var(--crm-amber); }
 .cma-comp-score { text-align: center; font-size: 1.1rem; font-weight: 700; flex-shrink: 0; min-width: 50px; }
 .cma-score-label { display: block; font-size: 0.55rem; font-weight: 400; color: var(--crm-text-muted); text-transform: uppercase; }
 .cma-outlier-badge { display: inline-block; font-size: 0.65rem; font-weight: 600; padding: 0.1rem 0.45rem; background: #fff3cd; color: #856404; border: 1px solid #ffc107; border-radius: 10px; margin-left: 0.4rem; vertical-align: middle; cursor: help; }

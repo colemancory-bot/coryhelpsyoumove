@@ -2751,23 +2751,39 @@ function cmaRenderStep2() {
     html += '<div class="cma-comp-check">' + (c.selected ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>' : '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>') + '</div>';
     html += '<div class="cma-comp-thumb" id="cmaCompThumb_' + i + '" onclick="event.stopPropagation()"><div class="cma-comp-thumb-empty">Loading...</div></div>';
     html += '<div class="cma-comp-info">';
+    // Row 1: Address + price
     html += '<div class="cma-comp-addr">' + esc(l.full_address || '') + ', ' + esc(l.city || '');
     if (c.is_price_outlier) html += ' <span class="cma-outlier-badge" title="Sale price is significantly different from other comps in this group">&#9888; Price Outlier</span>';
     html += '</div>';
+    // Row 2: Key listing facts
     html += '<div class="cma-comp-meta">';
-    html += '$' + (l.close_price ? l.close_price.toLocaleString() : '--') + ' | ' + (l.close_date || '--') + ' | ';
-    html += (l.living_area ? l.living_area.toLocaleString() + ' sqft' : '--') + ' | ' + (l.lot_size_acres || '--') + ' ac | ';
-    html += (l.bedrooms_total || '?') + 'bd/' + (l.bathrooms_total_integer || '?') + 'ba';
-    if (c.distance != null) html += ' | ' + c.distance + ' mi';
+    html += '<span class="cma-meta-price">$' + (l.close_price ? l.close_price.toLocaleString() : '--') + '</span>';
+    html += '<span>' + (l.close_date || '--') + '</span>';
+    html += '<span>' + (l.living_area ? l.living_area.toLocaleString() + ' sqft' : '--') + '</span>';
+    html += '<span>' + (l.lot_size_acres || '--') + ' ac</span>';
+    html += '<span>' + (l.bedrooms_total || '?') + 'bd/' + (l.bathrooms_total_integer || '?') + 'ba</span>';
+    html += '<span>Built ' + (l.year_built || '--') + '</span>';
+    html += '<span>' + (l.garage_spaces || 0) + ' gar</span>';
+    if (c.distance != null) html += '<span>' + c.distance + ' mi</span>';
     html += '</div>';
+    // Row 3: Mountain features + structural
+    html += '<div class="cma-comp-features-mini">';
     if (f) {
-      html += '<div class="cma-comp-features-mini">';
       if (f.view_quality) html += '<span class="cma-feat-chip">View ' + f.view_quality + '/5</span>';
       if (f.water_quality) html += '<span class="cma-feat-chip">Water ' + f.water_quality + '/5</span>';
       if (f.land_usability) html += '<span class="cma-feat-chip">Land ' + f.land_usability + '/5</span>';
       if (f.road_noise) html += '<span class="cma-feat-chip">Quiet ' + f.road_noise + '/5</span>';
-      html += '</div>';
+      if (f.privacy_rating) html += '<span class="cma-feat-chip">Privacy ' + f.privacy_rating + '/5</span>';
+      if (f.condition_rating) html += '<span class="cma-feat-chip">Cond ' + f.condition_rating + '/5</span>';
+      if (f.elevation_ft) html += '<span class="cma-feat-chip">' + f.elevation_ft + ' ft</span>';
+      if (f.restriction_status === 'unrestricted') html += '<span class="cma-feat-chip cma-chip-good">Unrestricted</span>';
+      else if (f.restriction_status === 'restricted') html += '<span class="cma-feat-chip cma-chip-neutral">Restricted</span>';
+      if (f.has_pool) html += '<span class="cma-feat-chip">Pool</span>';
+      if (f.basement_type && f.basement_type !== 'none') html += '<span class="cma-feat-chip">Basement</span>';
+      if (f.has_fireplace) html += '<span class="cma-feat-chip">Fireplace</span>';
+      if (f.outbuilding_value_tier && f.outbuilding_value_tier > 0) html += '<span class="cma-feat-chip">Outbuildings</span>';
     }
+    html += '</div>';
     html += '</div>';
     html += '<div class="cma-comp-score" style="color:' + scoreColor + '">' + score + '%<span class="cma-score-label">match</span></div>';
     html += '</div>';
