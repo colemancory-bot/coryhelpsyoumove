@@ -268,26 +268,40 @@ function scoreComp(
   );
   scores.bedbath_match = Math.max(0, 1 - (bedDiff + bathDiff) / 6);
 
+  // Price similarity (weight: 0.10)
+  // Prevents wildly different-priced comps from ranking high
+  // A $2.6M comp should not score well against a $500K subject
+  const subPrice = ((subject.close_price || subject.list_price || 0) as number);
+  const compPrice = ((comp.close_price || 0) as number);
+  if (subPrice > 0 && compPrice > 0) {
+    const priceRatio = Math.min(subPrice, compPrice) / Math.max(subPrice, compPrice);
+    scores.price_sim = priceRatio; // 1.0 = same price, 0.5 = one is 2x the other
+  } else {
+    scores.price_sim = 0.5; // No price data = neutral
+  }
+
   // Weighted total (land CMAs weight lot size and features higher, sqft/beds don't apply)
   const isLand = (subject.property_type || "").toLowerCase() === "land";
   const weights = isLand
     ? {
-        proximity: 0.25,
+        proximity: 0.20,
         type_match: 0.10,
         sqft_sim: 0.0, // N/A for land
         lot_sim: 0.25, // Primary driver for land
         feature_sim: 0.25, // Views, water, usability matter most
         recency: 0.10,
         bedbath_match: 0.0, // N/A for land
+        price_sim: 0.10,
       }
     : {
-        proximity: 0.25,
+        proximity: 0.20,
         type_match: 0.15,
-        sqft_sim: 0.2,
-        lot_sim: 0.1,
+        sqft_sim: 0.15,
+        lot_sim: 0.10,
         feature_sim: 0.15,
-        recency: 0.1,
+        recency: 0.10,
         bedbath_match: 0.05,
+        price_sim: 0.10,
       };
 
   let total = 0;
@@ -296,6 +310,32 @@ function scoreComp(
   }
 
   return { total, breakdown: scores };
+}
+
+// Detect price outliers within a comp group using median-based rule.
+// A comp is an outlier if its sale price is >2x or <0.5x the group median.
+// This catches cases like a $2.6M luxury condo among $500K-$900K homes.
+// Returns a Set of listing_keys that are outliers.
+function detectPriceOutliers(
+  comps: Array<{ listing: ListingData; [key: string]: unknown }>
+): Set<string> {
+  const prices = comps
+    .map((c) => (c.listing.close_price || 0) as number)
+    .filter((p) => p > 0);
+  if (prices.length < 4) return new Set(); // Need enough data for meaningful detection
+
+  prices.sort((a, b) => a - b);
+  const median = prices[Math.floor(prices.length / 2)];
+
+  const outlierKeys = new Set<string>();
+  for (const c of comps) {
+    const price = (c.listing.close_price || 0) as number;
+    if (price <= 0) continue;
+    if (price > median * 2 || price < median * 0.5) {
+      outlierKeys.add(c.listing.listing_key);
+    }
+  }
+  return outlierKeys;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1668,6 +1708,17 @@ Deno.serve(async (req: Request) => {
 
       // Return top N (default 8)
       const topN = Math.min(filters.limit || 8, scored.length);
+      const topComps = scored.slice(0, topN);
+
+      // Detect price outliers within the selected group
+      const outlierKeys = detectPriceOutliers(topComps);
+      if (outlierKeys.size > 0) {
+        console.log("[find-comps] Price outliers detected:", [...outlierKeys]);
+      }
+      const compsWithFlags = topComps.map((c) => ({
+        ...c,
+        is_price_outlier: outlierKeys.has(c.listing.listing_key),
+      }));
 
       return jsonResp({
         ok: true,
@@ -1675,8 +1726,9 @@ Deno.serve(async (req: Request) => {
           listing: subject,
           features: subjectTags,
         },
-        comps: scored.slice(0, topN),
+        comps: compsWithFlags,
         total_candidates: filteredComps.length,
+        outliers_detected: outlierKeys.size,
       });
     }
 
@@ -1789,7 +1841,27 @@ Deno.serve(async (req: Request) => {
         };
       });
       scored.sort((a, b) => b.similarity.total - a.similarity.total);
-      const top10 = scored.slice(0, 10);
+
+      // Detect and remove price outliers before AI selection
+      // Outliers indicate a different market segment and skew the analysis
+      const outlierKeys = detectPriceOutliers(scored.slice(0, 10));
+      const excludedOutliers: Array<{ listing_key: string; price: number; reason: string }> = [];
+      let cleanScored = scored;
+      if (outlierKeys.size > 0) {
+        console.log("[auto-select] Removing price outliers:", [...outlierKeys]);
+        for (const c of scored) {
+          if (outlierKeys.has(c.listing.listing_key)) {
+            excludedOutliers.push({
+              listing_key: c.listing.listing_key,
+              price: (c.listing.close_price || 0) as number,
+              reason: "Price outlier: significantly different from comp group median",
+            });
+          }
+        }
+        cleanScored = scored.filter((c) => !outlierKeys.has(c.listing.listing_key));
+      }
+
+      const top10 = cleanScored.slice(0, 10);
 
       if (top10.length <= targetCount) {
         // Not enough to be selective, return all
@@ -1797,6 +1869,7 @@ Deno.serve(async (req: Request) => {
           ok: true,
           subject: { listing: subject, features: subjectTags },
           selected: top10,
+          excluded_outliers: excludedOutliers.length > 0 ? excludedOutliers : undefined,
           ai_reasoning: "Not enough candidates to be selective. All available comps included.",
           total_candidates: filteredComps.length,
         });
@@ -1874,6 +1947,8 @@ Select the best ${targetCount} comps for this CMA. Consider:
   * For site-built homes as the SUBJECT: strongly prefer site-built or modular comps. Only use manufactured comps as a last resort, and note the value should be adjusted upward.
   * This is the most common CMA error in WNC where manufactured/mobile homes are prevalent.
 - Prefer comps that bracket the subject's likely value (some above, some below)
+- NEVER select a comp whose sale price is wildly different from the group. If most comps are $400K-$900K and one is $2M+, the expensive comp is from a different market segment (luxury community, different property class) and must be excluded. Same applies to comps far below the group.
+- The comp set must be internally consistent in price range BEFORE adjustments.${excludedOutliers.length > 0 ? `\n\nNOTE: ${excludedOutliers.length} price outlier(s) were already removed from the candidate pool: ${excludedOutliers.map(o => `$${o.price.toLocaleString()} (${o.listing_key})`).join(", ")}` : ""}
 
 Return JSON:
 {
@@ -1940,6 +2015,7 @@ Return JSON:
           subject: { listing: subject, features: subjectTags },
           selected: selectedComps,
           remaining: remainingComps,
+          excluded_outliers: excludedOutliers.length > 0 ? excludedOutliers : undefined,
           ai_selection: aiSelection,
           total_candidates: filteredComps.length,
         });
@@ -1949,6 +2025,7 @@ Return JSON:
           ok: true,
           subject: { listing: subject, features: subjectTags },
           selected: top10.slice(0, targetCount),
+          excluded_outliers: excludedOutliers.length > 0 ? excludedOutliers : undefined,
           ai_reasoning: "AI selection error, returning top scored comps.",
           total_candidates: filteredComps.length,
         });

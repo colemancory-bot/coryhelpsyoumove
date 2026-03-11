@@ -2661,10 +2661,21 @@ async function cmaGoStep2() {
   if (result.error) { toast('Error finding comps: ' + result.error, 'error'); return; }
 
   _cmaState.comps = (result.comps || []).map(function(c) {
-    c.selected = true;
+    // Deselect price outliers by default
+    c.selected = !c.is_price_outlier;
     return c;
   });
-  _cmaState.comps.forEach(function(c, i) { c.selected = i < 6; });
+  // Limit to first 6 non-outlier comps selected
+  var selCount = 0;
+  _cmaState.comps.forEach(function(c) {
+    if (c.selected) {
+      if (selCount >= 6) c.selected = false;
+      else selCount++;
+    }
+  });
+  if (result.outliers_detected) {
+    toast(result.outliers_detected + ' price outlier(s) detected and deselected', 'info');
+  }
   cmaRenderStep2();
 }
 
@@ -2706,7 +2717,9 @@ function cmaRenderStep2() {
     html += '<div class="cma-comp-card' + (c.selected ? ' selected' : '') + '" onclick="cmaToggleComp(' + i + ')">';
     html += '<div class="cma-comp-check">' + (c.selected ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>' : '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>') + '</div>';
     html += '<div class="cma-comp-info">';
-    html += '<div class="cma-comp-addr">' + esc(l.full_address || '') + ', ' + esc(l.city || '') + '</div>';
+    html += '<div class="cma-comp-addr">' + esc(l.full_address || '') + ', ' + esc(l.city || '');
+    if (c.is_price_outlier) html += ' <span class="cma-outlier-badge" title="Sale price is significantly different from other comps in this group">&#9888; Price Outlier</span>';
+    html += '</div>';
     html += '<div class="cma-comp-meta">';
     html += '$' + (l.close_price ? l.close_price.toLocaleString() : '--') + ' | ' + (l.close_date || '--') + ' | ';
     html += (l.living_area ? l.living_area.toLocaleString() + ' sqft' : '--') + ' | ' + (l.lot_size_acres || '--') + ' ac | ';
