@@ -1611,10 +1611,14 @@ Select the best ${targetCount} comps for this CMA. Consider:
 - Recency of sale
 - ${isLand ? "Land characteristics match (usability, access, views, water)" : "Similar structure and lot"}
 - Avoid comps with very different property subtypes (e.g., condo vs single family)
-- CRITICAL: Construction type matters, with nuance:
-  * Pre-1976 "mobile homes" are UNFINANCEABLE (no FHA/VA/USDA/conventional) and are essentially a separate market. Never use as comps for site-built or modern manufactured homes.
-  * Post-1976 manufactured homes (HUD code) should be compared to other manufactured homes, not site-built. They appreciate similarly on owned land but are a different construction class.
-  * Modular homes are built to the SAME building codes as site-built homes and can be reasonable comps for site-built properties (mild penalty, not a dealbreaker).
+- CRITICAL: Construction type matching (follow this priority order):
+  * Pre-1976 "mobile homes" are UNFINANCEABLE and a separate market. NEVER use as comps for site-built, manufactured, or modular homes. NEVER use site-built as comps for pre-1976 mobile homes.
+  * Modular homes follow the SAME building codes as site-built. These are interchangeable as comps with only a mild note needed.
+  * For manufactured homes (post-1976 HUD code) as the SUBJECT:
+    1. BEST: Select other manufactured home sales. Fill as many comp slots as possible with manufactured homes.
+    2. FALLBACK: If fewer than ${targetCount} manufactured comps are available in the top 10, you MAY use site-built comps to fill remaining slots. When doing so, note in your reasoning that the comp is site-built and the value estimate should be adjusted downward to account for the construction type difference.
+    3. Never leave comp slots empty just because no manufactured comps exist. A site-built comp with a noted adjustment is better than no comp.
+  * For site-built homes as the SUBJECT: strongly prefer site-built or modular comps. Only use manufactured comps as a last resort, and note the value should be adjusted upward.
   * This is the most common CMA error in WNC where manufactured/mobile homes are prevalent.
 - Prefer comps that bracket the subject's likely value (some above, some below)
 
