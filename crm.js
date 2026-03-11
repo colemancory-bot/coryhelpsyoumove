@@ -1915,6 +1915,8 @@ async function cmaOpenReport(reportId) {
   _cmaState.selectedComps = (result.adjustments || []).map(function(adj) {
     return { listing: adj.comp_data || {}, features: adj.comp_features || {} };
   });
+  // Also populate comps list so Step 2 has data when navigating back
+  _cmaState.comps = _cmaState.selectedComps.map(function(c) { return Object.assign({}, c, { selected: true }); });
   _cmaState.adjustments = (result.adjustments || []).map(function(adj) {
     return {
       comp_listing_key: adj.comp_listing_key, comp_order: adj.comp_order, sale_price: adj.comp_data ? adj.comp_data.close_price || 0 : 0,
@@ -3016,7 +3018,7 @@ function cmaRenderStep3() {
 
   // Actions
   html += '<div class="cma-step-actions">';
-  html += '<button class="crm-btn crm-btn-secondary" onclick="cmaRenderStep2()">Back</button>';
+  html += '<button class="crm-btn crm-btn-secondary" onclick="cmaGoToStep(2)">Back</button>';
   html += '<button class="crm-btn crm-btn-secondary" onclick="cmaRecalculate()">Recalculate</button>';
   html += '<button class="crm-btn crm-btn-primary" onclick="cmaGoStep4()">Get AI Advice & Review</button>';
   html += '</div>';
@@ -3572,8 +3574,9 @@ function cmaStepIndicator(current) {
 function cmaGoToStep(step) {
   if (step === 1) { cmaRenderStep1(); }
   else if (step === 2) {
-    if (_cmaState.subject) { _cmaState.step = 2; cmaRenderStep2(); }
-    else { toast('Select a subject property first', 'error'); }
+    if (!_cmaState.subject) { toast('Select a subject property first', 'error'); }
+    else if (_cmaState.comps.length > 0) { _cmaState.step = 2; cmaRenderStep2(); }
+    else { cmaGoStep2(); }
   }
   else if (step === 3) {
     if (_cmaState.adjustments && _cmaState.adjustments.length) { _cmaState.step = 3; cmaRenderStep3(); }
