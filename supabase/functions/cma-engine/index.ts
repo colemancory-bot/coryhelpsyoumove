@@ -974,69 +974,26 @@ Deno.serve(async (req: Request) => {
       const mlsGridToken = Deno.env.get("MLS_GRID_TOKEN") || "";
       const mlsGridSystem = Deno.env.get("MLS_GRID_ORIGINATING_SYSTEM") || "";
       if (mlsGridToken && mlsGridSystem) {
+        // MLS Grid only supports filtering on: OriginatingSystemName, ModificationTimestamp,
+        // StandardStatus, PropertyType, ListingId, MlgCanView, ListOfficeMlsId.
+        // StreetName/StreetNumber/City are NOT filterable. Address search must use Navica or local DB.
+        if (searchId) {
         try {
           const mlsLocalPrefix = Deno.env.get("MLS_LOCAL_PREFIX") || "";
-          const prefixedId = searchId && mlsLocalPrefix ? `${mlsLocalPrefix}${searchId}` : searchId;
-          let filter = `OriginatingSystemName eq '${mlsGridSystem}'`;
-          if (prefixedId) {
-            filter += ` and ListingId eq '${prefixedId}'`;
-          } else if (addrStreetName) {
-            // Address-based search using only eq operators (MLS Grid doesn't support contains())
-            if (addrStreetNumber) {
-              filter += ` and StreetNumber eq '${addrStreetNumber}'`;
-            }
-            // Try exact match on StreetName (title-cased). If no results, we retry without it below.
-            filter += ` and StreetName eq '${titleCase(addrStreetName).replace(/'/g, "''")}'`;
-            if (addrCity) {
-              filter += ` and City eq '${addrCity.replace(/'/g, "''")}'`;
-            }
-          }
-          // Order by most recent close date so we get the latest listing first
+          const prefixedId = mlsLocalPrefix ? `${mlsLocalPrefix}${searchId}` : searchId;
+          const filter = `OriginatingSystemName eq '${mlsGridSystem}' and ListingId eq '${prefixedId}'`;
           console.log("[lookup] MLS Grid filter:", filter);
-          const orderBy = searchAddress ? "&$orderby=CloseDate desc,ModificationTimestamp desc" : "";
-
-          // Helper to fetch from MLS Grid with a given filter
-          // NOTE: Do NOT encodeURIComponent the filter - MLS Grid expects raw OData syntax
-          // (same as mls-sync function which works without encoding)
-          async function mlsGridQuery(f: string): Promise<any[]> {
-            const u = `https://api.mlsgrid.com/v2/Property?$filter=${f}&$expand=Media&$top=5${orderBy}`;
-            const r = await fetch(u, {
-              headers: { Authorization: `Bearer ${mlsGridToken}`, Accept: "application/json" },
-            });
-            if (!r.ok) {
-              const body = await r.text().catch(() => "");
-              console.log("[lookup] MLS Grid error:", r.status, body.slice(0, 200));
-              throw new Error(`${r.status}`);
-            }
-            const d = await r.json();
-            return d.value || [];
-          }
-
-          let records: any[] = [];
-          try {
-            records = await mlsGridQuery(filter);
-          } catch (e: any) {
-            // If exact StreetName match fails and we have a street name, retry with StreetNumber only
-            if (addrStreetNumber && addrStreetName) {
-              console.log("[lookup] MLS Grid exact name failed, retrying with StreetNumber only");
-              let broadFilter = `OriginatingSystemName eq '${mlsGridSystem}' and StreetNumber eq '${addrStreetNumber}'`;
-              if (addrCity) broadFilter += ` and City eq '${addrCity.replace(/'/g, "''")}'`;
-              try {
-                records = await mlsGridQuery(broadFilter);
-                // Filter results locally by street name
-                if (addrStreetName) {
-                  const nameLower = addrStreetName.toLowerCase();
-                  records = records.filter((r: any) =>
-                    (r.StreetName || "").toLowerCase().includes(nameLower)
-                  );
-                }
-              } catch (retryErr: any) {
-                errors.push(`MLS Grid: ${retryErr.message}`);
-              }
-            } else {
-              errors.push(`MLS Grid: ${e.message}`);
-            }
-          }
+          const url = `https://api.mlsgrid.com/v2/Property?$filter=${filter}&$expand=Media&$top=5`;
+          const resp = await fetch(url, {
+            headers: { Authorization: `Bearer ${mlsGridToken}`, Accept: "application/json" },
+          });
+          if (!resp.ok) {
+            const body = await resp.text().catch(() => "");
+            console.log("[lookup] MLS Grid error:", resp.status, body.slice(0, 200));
+            errors.push(`MLS Grid: ${resp.status}`);
+          } else {
+          const data = await resp.json();
+          const records = data.value || [];
           for (const r of records) {
             // Store to our DB for future use
             const listingKey = r.ListingKey || "";
@@ -1142,8 +1099,13 @@ Deno.serve(async (req: Request) => {
               photo_count: media.length,
             });
           }
+          } // close else (resp.ok)
         } catch (err) {
           errors.push(`MLS Grid: ${err instanceof Error ? err.message : String(err)}`);
+        }
+        } else {
+          // Address-based search: MLS Grid doesn't support StreetName/StreetNumber filtering
+          console.log("[lookup] MLS Grid skipped for address search (only supports ListingId filter)");
         }
       }
 
@@ -1183,18 +1145,30 @@ Deno.serve(async (req: Request) => {
             return d.value || [];
           }
 
+          // Navica supports more filter fields than MLS Grid. Try exact StreetName first,
+          // then fall back to StreetNumber-only with local filtering.
           let navRecords: any[] = [];
           try {
             navRecords = await navicaQuery(filter);
+            // If exact StreetName match returned 0 results, try broader search
+            if (navRecords.length === 0 && addrStreetNumber && addrStreetName) {
+              console.log("[lookup] Navica exact name returned 0, retrying with StreetNumber only");
+              let broadFilter = `PropertyType ne 'Residential Lease' and StreetNumber eq '${addrStreetNumber}'`;
+              if (addrCity) broadFilter += ` and City eq '${addrCity.replace(/'/g, "''")}'`;
+              navRecords = await navicaQuery(broadFilter);
+              const nameLower = addrStreetName.toLowerCase();
+              navRecords = navRecords.filter((r: any) =>
+                (r.StreetName || "").toLowerCase().includes(nameLower)
+              );
+            }
           } catch (e: any) {
-            // If exact name match fails, retry with just StreetNumber
+            // If exact name filter fails (400 error), retry with just StreetNumber
             if (addrStreetNumber && addrStreetName) {
-              console.log("[lookup] Navica exact name failed, retrying with StreetNumber only");
+              console.log("[lookup] Navica exact name failed (" + e.message + "), retrying with StreetNumber only");
               let broadFilter = `PropertyType ne 'Residential Lease' and StreetNumber eq '${addrStreetNumber}'`;
               if (addrCity) broadFilter += ` and City eq '${addrCity.replace(/'/g, "''")}'`;
               try {
                 navRecords = await navicaQuery(broadFilter);
-                // Filter locally by street name
                 const nameLower = addrStreetName.toLowerCase();
                 navRecords = navRecords.filter((r: any) =>
                   (r.StreetName || "").toLowerCase().includes(nameLower)
@@ -1301,7 +1275,7 @@ Deno.serve(async (req: Request) => {
         found: results.length,
         errors: errors.length > 0 ? errors : undefined,
         apis_queried: {
-          mls_grid: mlsGridToken && mlsGridSystem ? "queried" : "skipped (no token)",
+          mls_grid: !mlsGridToken || !mlsGridSystem ? "skipped (no token)" : searchAddress ? "skipped (address search not supported)" : "queried",
           navica: navicaToken ? "queried" : "skipped (no token)",
         },
         parsed_address: searchAddress ? { street_number: addrStreetNumber, street_name: addrStreetName, city: addrCity || "(none)" } : undefined,
