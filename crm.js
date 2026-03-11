@@ -3046,18 +3046,69 @@ async function cmaLoadOnePhoto(listingKey, containerId) {
   var el = document.getElementById(containerId);
   if (!el) return;
   try {
-    var resp = await _sb.from('mls_media').select('local_url,media_url').eq('listing_key', listingKey).order('order', { ascending: true }).limit(1);
-    if (resp.data && resp.data.length) {
-      var src = resp.data[0].local_url || resp.data[0].media_url;
-      if (src) {
-        el.innerHTML = '<img src="' + esc(src) + '" alt="Property photo" class="cma-grid-photo-img" />';
-        return;
-      }
+    var resp = await _sb.from('mls_media').select('local_url,media_url').eq('listing_key', listingKey).order('order', { ascending: true }).limit(30);
+    var photos = (resp.data || []).map(function(p) { return p.local_url || p.media_url; }).filter(Boolean);
+    if (photos.length) {
+      el.innerHTML = '<img src="' + esc(photos[0]) + '" alt="Property photo" class="cma-grid-photo-img" style="cursor:pointer" />';
+      el.dataset.photos = JSON.stringify(photos);
+      el.dataset.listingKey = listingKey;
+      el.addEventListener('click', function() {
+        cmaOpenPhotoGallery(JSON.parse(el.dataset.photos), el.dataset.listingKey);
+      });
+    } else {
+      el.innerHTML = '<div class="cma-grid-photo-empty">No photo</div>';
     }
-    el.innerHTML = '<div class="cma-grid-photo-empty">No photo</div>';
   } catch(e) {
     el.innerHTML = '<div class="cma-grid-photo-empty">No photo</div>';
   }
+}
+
+// Photo gallery lightbox
+function cmaOpenPhotoGallery(photos, listingKey) {
+  if (!photos || !photos.length) return;
+  var idx = 0;
+  var overlay = document.createElement('div');
+  overlay.className = 'crm-modal-overlay cma-photo-overlay';
+  overlay.style.zIndex = '500';
+
+  function render() {
+    overlay.innerHTML = '<div class="cma-photo-gallery">' +
+      '<button class="cma-photo-close" onclick="this.closest(\'.cma-photo-overlay\').remove()">&times;</button>' +
+      '<div class="cma-photo-counter">' + (idx + 1) + ' / ' + photos.length + '</div>' +
+      '<div class="cma-photo-stage">' +
+        (photos.length > 1 ? '<button class="cma-photo-nav cma-photo-prev">&lsaquo;</button>' : '') +
+        '<img src="' + esc(photos[idx]) + '" class="cma-photo-main" />' +
+        (photos.length > 1 ? '<button class="cma-photo-nav cma-photo-next">&rsaquo;</button>' : '') +
+      '</div>' +
+      (photos.length > 1 ? '<div class="cma-photo-strip">' + photos.map(function(p, i) {
+        return '<img src="' + esc(p) + '" class="cma-photo-thumb' + (i === idx ? ' active' : '') + '" data-idx="' + i + '" />';
+      }).join('') + '</div>' : '') +
+    '</div>';
+
+    // Bind nav
+    var prev = overlay.querySelector('.cma-photo-prev');
+    var next = overlay.querySelector('.cma-photo-next');
+    if (prev) prev.addEventListener('click', function(e) { e.stopPropagation(); idx = (idx - 1 + photos.length) % photos.length; render(); });
+    if (next) next.addEventListener('click', function(e) { e.stopPropagation(); idx = (idx + 1) % photos.length; render(); });
+    overlay.querySelectorAll('.cma-photo-thumb').forEach(function(t) {
+      t.addEventListener('click', function(e) { e.stopPropagation(); idx = parseInt(t.dataset.idx); render(); });
+    });
+  }
+
+  render();
+  // Close on backdrop click
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+  // Close on Escape
+  var escHandler = function(e) { if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', escHandler); } };
+  // Arrow key nav
+  var keyHandler = function(e) {
+    if (!document.body.contains(overlay)) { document.removeEventListener('keydown', keyHandler); return; }
+    if (e.key === 'ArrowLeft') { idx = (idx - 1 + photos.length) % photos.length; render(); }
+    if (e.key === 'ArrowRight') { idx = (idx + 1) % photos.length; render(); }
+  };
+  document.addEventListener('keydown', escHandler);
+  document.addEventListener('keydown', keyHandler);
+  document.body.appendChild(overlay);
 }
 
 function cmaAdjInput(compIdx, key, value) {
