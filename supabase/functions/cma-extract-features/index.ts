@@ -149,8 +149,28 @@ Return a JSON object with exactly these fields (no additional text, just valid J
   "construction_type": "<site_built|manufactured|modular|mobile_home|log|unknown>",
   "restriction_status": "<unrestricted|restricted|unknown>",
   "restrictions_summary": "<brief summary of restrictions or empty string>",
+  "has_pool": <boolean>,
+  "pool_type": "<in_ground|above_ground|indoor|none>",
+  "basement_type": "<finished|partial|unfinished|crawl_space|none>",
+  "basement_sqft": <int or null>,
+  "has_fireplace": <boolean>,
+  "fireplace_count": <int>,
+  "fireplace_type": "<stone|brick|gas|wood_burning|electric|multiple|none>",
+  "covered_outdoor_sqft": <int or null>,
+  "garage_type": "<attached|detached|carport|none>",
+  "garage_sqft": <int or null>,
+  "outbuilding_count": <int>,
+  "outbuilding_value_tier": <0-3>,
   "confidence": <0.0-1.0 how confident you are in these ratings>
 }
+
+STRUCTURAL FEATURE NOTES:
+- Pool: In WNC mountains, pools are uncommon. Check PoolFeatures, PoolPrivateYN fields AND remarks. "in_ground" for permanent pools, "above_ground" for removable ones.
+- Basement: Very common in WNC mountain homes due to sloped terrain. "finished" = full living space with heating, "partial" = some rooms finished, "unfinished" = storage/utility only, "crawl_space" = access-only. Check Basement, BasementYN, BelowGradeFinishedArea, NAV27_BasementHeatedSqFt fields.
+- Fireplace: Stone/masonry fireplaces are premium WNC features. Count total fireplaces. Check FireplaceYN, FireplacesTotal, FireplaceFeatures fields.
+- Covered outdoor space: Estimate total sqft of covered porches, screened porches, covered decks combined. Mountain homes often have substantial covered porch space. Check PatioAndPorchFeatures and remarks. Only count COVERED areas, not open decks.
+- Garage: Check GarageYN, GarageSpaces, AttachedGarageYN, CAR_SqFtGarage for type and size. A standard single-car space is ~400 sqft. An oversized/shop garage may be 800-1200+ sqft.
+- Outbuilding value tier: 0=none, 1=small (shed, basic carport, value $2-5K), 2=medium (workshop, multi-car detached garage, value $10-20K), 3=large (barn, guest house, large commercial structure, value $25K+). Count separate structures only, not attached garages.
 
 If a feature cannot be determined from the listing data, use your best judgment based on context clues. Set confidence lower (0.3-0.5) when guessing. If you have strong evidence from the remarks, set confidence higher (0.7-0.9).
 
@@ -187,6 +207,16 @@ async function extractFeatures(
   const sqftBasement = rawData.CAR_SqFtUnheatedBasement as string | null;
   const basementYN = rawData.BasementYN as boolean | null;
   const elevation = rawData.Elevation as number | null;
+
+  // Pool, fireplace, porch features from MLS
+  const poolFeatures = (rawData.PoolFeatures as string[]) || [];
+  const poolPrivateYN = rawData.PoolPrivateYN as boolean | null;
+  const fireplaceYN = rawData.FireplaceYN as boolean | null;
+  const fireplaceFeatures = (rawData.FireplaceFeatures as string[]) || [];
+  const fireplaceTotal = rawData.FireplacesTotal as number | null;
+  const patioAndPorch = (rawData.PatioAndPorchFeatures as string[]) || [];
+  const attachedGarageYN = rawData.AttachedGarageYN as boolean | null;
+  const garageSqft = rawData.CAR_SqFtGarage as string | null;
 
   // Navica-specific fields
   const navBasementHtdSqft = rawData.NAV27_BasementHeatedSqFt as string | null;
@@ -242,6 +272,16 @@ async function extractFeatures(
     bodyType?.length ? `Body Type: ${bodyType.join(", ")}` : "",
     structureType?.length ? `Structure Type: ${structureType.join(", ")}` : "",
     architecturalStyle?.length ? `Architectural Style: ${architecturalStyle.join(", ")}` : "",
+    poolFeatures.length ? `Pool Features: ${poolFeatures.join(", ")}` : "",
+    poolPrivateYN != null ? `Private Pool: ${poolPrivateYN ? "Yes" : "No"}` : "",
+    fireplaceYN != null ? `Has Fireplace: ${fireplaceYN ? "Yes" : "No"}` : "",
+    fireplaceFeatures.length ? `Fireplace Features: ${fireplaceFeatures.join(", ")}` : "",
+    fireplaceTotal != null ? `Total Fireplaces: ${fireplaceTotal}` : "",
+    patioAndPorch.length ? `Patio/Porch Features: ${patioAndPorch.join(", ")}` : "",
+    attachedGarageYN != null ? `Attached Garage: ${attachedGarageYN ? "Yes" : "No"}` : "",
+    garageSqft ? `Garage Sqft: ${garageSqft}` : "",
+    navBasementHtdSqft ? `Basement Heated Sqft: ${navBasementHtdSqft}` : "",
+    sqftBasement ? `Unheated Basement Sqft: ${sqftBasement}` : "",
     elevation ? `Elevation: ${elevation} ft` : "",
     remarks ? `\nPublic Remarks:\n${remarks}` : "",
     privateRemarks ? `\nPrivate/Agent Remarks:\n${privateRemarks}` : "",
@@ -333,6 +373,18 @@ function buildTagRecord(
     construction_type: features.construction_type || "unknown",
     restriction_status: features.restriction_status || "unknown",
     restrictions_summary: features.restrictions_summary || "",
+    has_pool: features.has_pool ?? false,
+    pool_type: features.pool_type || "none",
+    basement_type: features.basement_type || "none",
+    basement_sqft: features.basement_sqft ?? null,
+    has_fireplace: features.has_fireplace ?? false,
+    fireplace_count: features.fireplace_count || 0,
+    fireplace_type: features.fireplace_type || "",
+    covered_outdoor_sqft: features.covered_outdoor_sqft ?? null,
+    garage_type: features.garage_type || "",
+    garage_sqft: features.garage_sqft ?? null,
+    outbuilding_count: features.outbuilding_count || 0,
+    outbuilding_value_tier: features.outbuilding_value_tier || 0,
     elevation_ft: elevation,
     extraction_model: EXTRACTION_MODEL,
     extraction_confidence: features.confidence || 0.5,

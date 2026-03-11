@@ -282,6 +282,16 @@ function scoreComp(
 
   // Weighted total (land CMAs weight lot size and features higher, sqft/beds don't apply)
   const isLand = (subject.property_type || "").toLowerCase() === "land";
+
+  // Dynamic lot weight: boost for large-acreage subjects (10+ ac) to avoid
+  // selecting tiny-lot comps that need unreliable $100K+ lot adjustments.
+  // At 10ac, lot_sim stays 0.10. At 25ac, it's 0.20. At 50+ac, it's 0.25.
+  const baseLotWeight = 0.10;
+  const lotBoost = isLand ? 0 : Math.min(0.15, Math.max(0, (subLot - 10) / 40) * 0.15);
+  const adjLotWeight = baseLotWeight + lotBoost;
+  // Take the boost equally from proximity (which over-favors nearby but dissimilar properties)
+  const adjProxWeight = 0.20 - lotBoost;
+
   const weights = isLand
     ? {
         proximity: 0.20,
@@ -294,10 +304,10 @@ function scoreComp(
         price_sim: 0.10,
       }
     : {
-        proximity: 0.20,
+        proximity: adjProxWeight,
         type_match: 0.15,
         sqft_sim: 0.15,
-        lot_sim: 0.10,
+        lot_sim: adjLotWeight,
         feature_sim: 0.15,
         recency: 0.10,
         bedbath_match: 0.05,
@@ -349,7 +359,7 @@ const WNC_DEFAULTS = {
   price_per_sqft: 175, // $/sqft for living area adjustment
   per_bedroom: 12000,
   per_bathroom: 10000,
-  per_garage_space: 8000,
+  per_garage_space: 15000,
   per_year_age: 500, // depreciation per year difference
 
   // Mountain adjustments per rating point difference (1-5 scale)
@@ -374,6 +384,18 @@ const WNC_DEFAULTS = {
   // Restriction adjustment: % of lot value applied when restriction status differs
   // Unrestricted land commands a premium in WNC (flexibility, no HOA, can subdivide/farm/etc.)
   unrestricted_premium_pct: 0.10, // 10% of lot value for residential
+
+  // Structural feature adjustments
+  pool_inground: 0,            // WNC: pools don't reliably add value (short season, maintenance)
+  pool_above_ground: -3000,    // Slight negative for removal/maintenance liability
+  basement_finished_per_sqft: 60,  // Finished basement $/sqft (less than above-grade)
+  basement_partial: 20000,     // Flat value for partially finished basement
+  basement_unfinished: 10000,  // Flat value for unfinished basement (storage value)
+  fireplace_value: 8000,       // Per fireplace
+  fireplace_stone_premium: 5000, // Additional for stone/masonry
+  covered_outdoor_per_sqft: 30, // Covered porch/deck $/sqft
+  outbuilding_tier_values: [0, 5000, 15000, 30000] as number[], // Per tier 0-3
+  garage_oversize_per_sqft: 25, // Extra $/sqft above standard (400 sqft/space)
 
   // Market
   monthly_appreciation_pct: 0.3, // 0.3% per month (approx 3.6% annually)
@@ -514,6 +536,10 @@ function calculateCompAdjustments(
     adjustments.adj_living_area = Math.round(
       (subSqft - compSqft) * rates.price_per_sqft
     );
+  } else if (subSqft === 0 && compSqft > 0) {
+    warnings.push("MISSING DATA: Subject living area is unknown. Square footage adjustment is $0 but should not be. Enter the subject's sqft manually.");
+  } else if (compSqft === 0 && subSqft > 0) {
+    warnings.push(`MISSING DATA: Comp ${compOrder + 1} has no living area data. Square footage adjustment is $0 and may be unreliable.`);
   }
 
   // Lot size (tiered marginal value: larger parcels have lower per-acre rates)
@@ -523,6 +549,10 @@ function calculateCompAdjustments(
     adjustments.adj_lot_size = Math.round(
       tieredLotValue(subLot, rates.lot_tiers) - tieredLotValue(compLot, rates.lot_tiers)
     );
+  } else if (subLot === 0 && compLot > 0) {
+    warnings.push("MISSING DATA: Subject lot size is unknown. Lot size adjustment is $0 but should not be. Enter the subject's acreage manually.");
+  } else if (compLot === 0 && subLot > 0) {
+    warnings.push(`MISSING DATA: Comp ${compOrder + 1} has no lot size data. Lot size adjustment is $0 and may be unreliable.`);
   }
 
   // Restriction status (unrestricted vs restricted land)
@@ -558,10 +588,88 @@ function calculateCompAdjustments(
     adjustments.adj_bathrooms = (subBaths - compBaths) * rates.per_bathroom;
   }
 
-  // Garage
+  // Garage (enhanced: base rate per space + oversize premium)
   const subGarage = (subject.garage_spaces as number) || 0;
   const compGarage = (comp.garage_spaces as number) || 0;
-  adjustments.adj_garage = (subGarage - compGarage) * rates.per_garage_space;
+  {
+    const baseGarageAdj = (subGarage - compGarage) * rates.per_garage_space;
+    // Size premium for oversized garages (workshops, etc.)
+    const subGarageSqft = (subjectFeatures?.garage_sqft as number) || (subGarage * 400);
+    const compGarageSqft = (compFeatures?.garage_sqft as number) || (compGarage * 400);
+    const standardSqft = Math.max(subGarage, compGarage, 1) * 400;
+    const extraSubSqft = Math.max(0, subGarageSqft - standardSqft);
+    const extraCompSqft = Math.max(0, compGarageSqft - standardSqft);
+    const sizeAdj = Math.round((extraSubSqft - extraCompSqft) * rates.garage_oversize_per_sqft);
+    adjustments.adj_garage = baseGarageAdj + sizeAdj;
+  }
+
+  // ── Structural Feature Adjustments ──
+
+  if (subjectFeatures && compFeatures) {
+    // Pool (WNC: neutral to slightly negative due to short season, maintenance)
+    const subPool = subjectFeatures.has_pool as boolean || false;
+    const compPool = compFeatures.has_pool as boolean || false;
+    if (subPool !== compPool) {
+      const poolValue = (type: string): number => {
+        if (type === "in_ground" || type === "indoor") return rates.pool_inground;
+        if (type === "above_ground") return rates.pool_above_ground;
+        return 0;
+      };
+      const subPoolType = (subjectFeatures.pool_type as string) || "none";
+      const compPoolType = (compFeatures.pool_type as string) || "none";
+      adjustments.adj_pool = poolValue(subPool ? subPoolType : "none") - poolValue(compPool ? compPoolType : "none");
+    }
+
+    // Basement
+    const subBasement = (subjectFeatures.basement_type as string) || "none";
+    const compBasement = (compFeatures.basement_type as string) || "none";
+    if (subBasement !== compBasement) {
+      const basementValue = (type: string, sqft: number | null): number => {
+        switch (type) {
+          case "finished": return (sqft || 800) * rates.basement_finished_per_sqft;
+          case "partial": return rates.basement_partial;
+          case "unfinished": return rates.basement_unfinished;
+          case "crawl_space": return 0;
+          case "none": return 0;
+          default: return 0;
+        }
+      };
+      adjustments.adj_basement = Math.round(
+        basementValue(subBasement, subjectFeatures.basement_sqft as number | null) -
+        basementValue(compBasement, compFeatures.basement_sqft as number | null)
+      );
+    }
+
+    // Fireplace
+    const subFP = (subjectFeatures.has_fireplace as boolean) ? ((subjectFeatures.fireplace_count as number) || 1) : 0;
+    const compFP = (compFeatures.has_fireplace as boolean) ? ((compFeatures.fireplace_count as number) || 1) : 0;
+    if (subFP !== compFP) {
+      let fpAdj = (subFP - compFP) * rates.fireplace_value;
+      // Stone/masonry premium
+      const subStone = ((subjectFeatures.fireplace_type as string) || "").includes("stone");
+      const compStone = ((compFeatures.fireplace_type as string) || "").includes("stone");
+      if (subStone && !compStone && subFP > 0) fpAdj += rates.fireplace_stone_premium;
+      if (compStone && !subStone && compFP > 0) fpAdj -= rates.fireplace_stone_premium;
+      adjustments.adj_fireplace = fpAdj;
+    }
+
+    // Covered outdoor space (porches, screened porches, covered decks)
+    const subOutdoor = (subjectFeatures.covered_outdoor_sqft as number) || 0;
+    const compOutdoor = (compFeatures.covered_outdoor_sqft as number) || 0;
+    if (subOutdoor > 0 || compOutdoor > 0) {
+      adjustments.adj_covered_outdoor = Math.round(
+        (subOutdoor - compOutdoor) * rates.covered_outdoor_per_sqft
+      );
+    }
+
+    // Outbuildings (tier-based)
+    const subOutbldg = (subjectFeatures.outbuilding_value_tier as number) || 0;
+    const compOutbldg = (compFeatures.outbuilding_value_tier as number) || 0;
+    if (subOutbldg !== compOutbldg) {
+      adjustments.adj_outbuildings =
+        (rates.outbuilding_tier_values[subOutbldg] || 0) - (rates.outbuilding_tier_values[compOutbldg] || 0);
+    }
+  }
 
   // Year built (age difference)
   const subYear = subject.year_built || 0;
@@ -2266,6 +2374,10 @@ Return JSON:
             adj_road_noise: adj.adj_road_noise || 0,
             adj_privacy: adj.adj_privacy || 0,
             adj_elevation: adj.adj_elevation || 0,
+            adj_pool: adj.adj_pool || 0,
+            adj_basement: adj.adj_basement || 0,
+            adj_fireplace: adj.adj_fireplace || 0,
+            adj_covered_outdoor: adj.adj_covered_outdoor || 0,
             adj_outbuildings: adj.adj_outbuildings || 0,
             adj_special_features: adj.adj_special_features || 0,
             adj_time: adj.adj_time || 0,

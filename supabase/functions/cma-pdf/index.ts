@@ -142,9 +142,46 @@ function generateCMAHtml(data: ReportInput): string {
     gridRows += dataRow("Year Built", String(sub.year_built || "\u2014"), comps.map(c => String(c.listing.year_built || "\u2014")));
     gridRows += adjRow("Adj @ $500/yr", "adj_year_built");
     gridRows += dataRow("Garage Spaces", String((sub.garage_spaces as number) || 0), comps.map(c => String((c.listing.garage_spaces as number) || 0)));
-    gridRows += adjRow("Adj @ $8K/space", "adj_garage");
+    gridRows += adjRow("Adj @ $15K/space", "adj_garage");
     gridRows += dataRow("Condition", `${subFeats.condition_rating || "?"}/5`, comps.map(c => `${c.features?.condition_rating || "?"}/5`));
     gridRows += adjRow("Adj @ $20K/pt", "adj_condition");
+  }
+
+  // Structural Features section
+  if (!isLand) {
+    gridRows += `<tr class="section-row"><td colspan="${colSpan}">Structural Features</td></tr>\n`;
+
+    // Pool
+    const subPoolStr = subFeats.has_pool ? (subFeats.pool_type as string || "Yes") : "None";
+    gridRows += dataRow("Pool", subPoolStr, comps.map(c => c.features?.has_pool ? (c.features.pool_type as string || "Yes") : "None"));
+    gridRows += adjRow("Pool Adj", "adj_pool");
+
+    // Basement
+    const subBasementStr = (subFeats.basement_type as string) && subFeats.basement_type !== "none" ? (subFeats.basement_type as string) : "None";
+    gridRows += dataRow("Basement", subBasementStr, comps.map(c => {
+      const bt = c.features?.basement_type as string;
+      return bt && bt !== "none" ? bt : "None";
+    }));
+    gridRows += adjRow("Basement Adj", "adj_basement");
+
+    // Fireplace
+    const subFPStr = subFeats.has_fireplace ? `${subFeats.fireplace_count || 1}x ${subFeats.fireplace_type || ""}`.trim() : "None";
+    gridRows += dataRow("Fireplace", subFPStr, comps.map(c => c.features?.has_fireplace ? `${c.features.fireplace_count || 1}x` : "None"));
+    gridRows += adjRow("Fireplace Adj", "adj_fireplace");
+
+    // Covered Outdoor
+    gridRows += dataRow("Covered Outdoor", subFeats.covered_outdoor_sqft ? `${fmtNum(subFeats.covered_outdoor_sqft as number)} sqft` : "\u2014",
+      comps.map(c => c.features?.covered_outdoor_sqft ? `${fmtNum(c.features.covered_outdoor_sqft as number)} sqft` : "\u2014"));
+    gridRows += adjRow("Covered Outdoor Adj", "adj_covered_outdoor");
+
+    // Outbuildings
+    const subOutbldg = (subFeats.outbuildings as string[]) || [];
+    gridRows += dataRow("Outbuildings", subOutbldg.length > 0 ? subOutbldg.join(", ") : "None",
+      comps.map(c => {
+        const o = (c.features?.outbuildings as string[]) || [];
+        return o.length > 0 ? o.join(", ") : "None";
+      }));
+    gridRows += adjRow("Outbuilding Adj", "adj_outbuildings");
   }
 
   // Mountain Features section
@@ -233,6 +270,7 @@ function generateCMAHtml(data: ReportInput): string {
   .cover-value-box { background: var(--gold-light); border: 1px solid var(--gold-border); padding: 1rem 2.5rem; margin-bottom: 0.6rem; }
   .cover-value-label { font-size: 0.55rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--gold); margin-bottom: 0.25rem; }
   .cover-value { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.8rem; font-weight: 700; color: var(--green); }
+  .cover-value-range { font-family: 'Outfit', sans-serif; font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.2rem; }
   .cover-date { font-size: 0.7rem; color: var(--text-muted); margin-bottom: 3rem; }
   .cover-divider { width: 40px; height: 1px; background: var(--border); margin-bottom: 2rem; }
   .cover-agent-name { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.15rem; font-weight: 600; color: var(--text); margin-bottom: 0.15rem; }
@@ -270,7 +308,8 @@ function generateCMAHtml(data: ReportInput): string {
   .adj-zero { color: var(--text-muted) !important; }
   .valuation-box { background: var(--green-light); border: 1px solid rgba(46, 125, 50, 0.2); padding: 1rem 1.5rem; text-align: center; margin: 1rem 0; }
   .valuation-label { font-size: 0.6rem; font-weight: 600; letter-spacing: 0.15em; text-transform: uppercase; color: var(--green); margin-bottom: 0.25rem; }
-  .valuation-range { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.6rem; font-weight: 700; color: var(--green); margin-bottom: 0.15rem; }
+  .valuation-price { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.6rem; font-weight: 700; color: var(--green); margin-bottom: 0.1rem; }
+  .valuation-range { font-family: 'Outfit', sans-serif; font-size: 0.8rem; font-weight: 500; color: var(--text-secondary); margin-bottom: 0.15rem; }
   .valuation-note { font-size: 0.65rem; color: var(--text-secondary); }
   .methodology { font-size: 0.65rem; color: var(--text-muted); line-height: 1.6; margin-top: 0.6rem; }
   .methodology p { margin-bottom: 0.3rem; }
@@ -310,7 +349,8 @@ function generateCMAHtml(data: ReportInput): string {
     <div class="cover-city">${sub.city || ""}, NC ${sub.postal_code || ""} &nbsp;|&nbsp; ${sub.county_or_parish || ""} County</div>
     <div class="cover-value-box">
       <div class="cover-value-label">Estimated Market Value</div>
-      <div class="cover-value">${fmt(val.suggested_low)} &ndash; ${fmt(val.suggested_high)}</div>
+      <div class="cover-value">${fmt(val.suggested_price)}</div>
+      <div class="cover-value-range">${fmt(val.suggested_low)} &ndash; ${fmt(val.suggested_high)}</div>
     </div>
     <div class="cover-date">Prepared ${reportDate}</div>
     <div class="cover-divider"></div>
@@ -461,6 +501,7 @@ ${(() => {
 
   <div class="valuation-box">
     <div class="valuation-label">Estimated Market Value</div>
+    <div class="valuation-price">${fmt(val.suggested_price)}</div>
     <div class="valuation-range">${fmt(val.suggested_low)} &ndash; ${fmt(val.suggested_high)}</div>
     <div class="valuation-note">Based on ${numComps} comparable ${isLand ? "land" : ""} sales analysis</div>
   </div>

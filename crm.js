@@ -1912,7 +1912,10 @@ async function cmaOpenReport(reportId) {
         adj_bedrooms: adj.adj_bedrooms, adj_bathrooms: adj.adj_bathrooms,
         adj_garage: adj.adj_garage, adj_year_built: adj.adj_year_built, adj_condition: adj.adj_condition, adj_view: adj.adj_view,
         adj_water_features: adj.adj_water_features, adj_land_character: adj.adj_land_character, adj_road_noise: adj.adj_road_noise,
-        adj_privacy: adj.adj_privacy, adj_elevation: adj.adj_elevation, adj_time: adj.adj_time, adj_concessions: adj.adj_concessions
+        adj_privacy: adj.adj_privacy, adj_elevation: adj.adj_elevation,
+        adj_pool: adj.adj_pool || 0, adj_basement: adj.adj_basement || 0, adj_fireplace: adj.adj_fireplace || 0,
+        adj_covered_outdoor: adj.adj_covered_outdoor || 0, adj_outbuildings: adj.adj_outbuildings || 0,
+        adj_time: adj.adj_time, adj_concessions: adj.adj_concessions
       },
       total_adjustment: adj.total_adjustment, adjusted_price: adj.adjusted_price,
       gross_adjustment_pct: adj.gross_adjustment_pct, net_adjustment_pct: adj.net_adjustment_pct,
@@ -2858,6 +2861,43 @@ function cmaRenderStep3() {
     html += '</tr>';
   });
 
+  // Structural feature rows
+  var structRows = [
+    { key: 'adj_pool', label: 'Pool', subVal: sf.has_pool ? (sf.pool_type || 'Yes') : 'None', compFeatKey: 'has_pool', isPool: true },
+    { key: 'adj_basement', label: 'Basement', subVal: sf.basement_type && sf.basement_type !== 'none' ? sf.basement_type : 'None', compFeatKey: 'basement_type', isBasement: true },
+    { key: 'adj_fireplace', label: 'Fireplace', subVal: sf.has_fireplace ? (sf.fireplace_count || 1) + 'x ' + (sf.fireplace_type || '') : 'None', compFeatKey: 'has_fireplace', isFireplace: true },
+    { key: 'adj_covered_outdoor', label: 'Covered Outdoor', subVal: sf.covered_outdoor_sqft ? sf.covered_outdoor_sqft + ' sqft' : '--', compFeatKey: 'covered_outdoor_sqft', isSqft: true },
+    { key: 'adj_outbuildings', label: 'Outbuildings', subVal: sf.outbuilding_value_tier ? 'Tier ' + sf.outbuilding_value_tier : 'None', compFeatKey: 'outbuilding_value_tier', isTier: true },
+  ];
+
+  html += '<tr class="cma-grid-section"><td colspan="' + (comps.length + 2) + '">Structural Features</td></tr>';
+  structRows.forEach(function(row) {
+    html += '<tr><td>' + row.label + '</td><td class="cma-grid-subject-val">' + row.subVal + '</td>';
+    adjs.forEach(function(a, ci) {
+      var cf = comps[ci].features || {};
+      var compVal;
+      if (row.isPool) {
+        compVal = cf.has_pool ? (cf.pool_type || 'Yes') : 'None';
+      } else if (row.isBasement) {
+        compVal = cf.basement_type && cf.basement_type !== 'none' ? cf.basement_type : 'None';
+      } else if (row.isFireplace) {
+        compVal = cf.has_fireplace ? (cf.fireplace_count || 1) + 'x' : 'None';
+      } else if (row.isSqft) {
+        compVal = cf[row.compFeatKey] ? cf[row.compFeatKey] + ' sqft' : '--';
+      } else if (row.isTier) {
+        compVal = cf[row.compFeatKey] ? 'Tier ' + cf[row.compFeatKey] : 'None';
+      } else {
+        compVal = cf[row.compFeatKey] != null ? cf[row.compFeatKey] : '--';
+      }
+      var adjVal = a.adjustments[row.key] || 0;
+      html += '<td class="cma-grid-adj-cell">';
+      html += '<div class="cma-grid-comp-val">' + compVal + '</div>';
+      html += cmaAdjInput(ci, row.key, adjVal);
+      html += '</td>';
+    });
+    html += '</tr>';
+  });
+
   // Mountain adjustment rows
   var mtnRows = [
     { key: 'adj_view', label: 'View Quality', subVal: sf.view_quality ? sf.view_quality + '/5' : '--', compFeatKey: 'view_quality' },
@@ -3286,6 +3326,11 @@ async function cmaSaveReport(status) {
         adj_road_noise: a.adjustments.adj_road_noise || 0,
         adj_privacy: a.adjustments.adj_privacy || 0,
         adj_elevation: a.adjustments.adj_elevation || 0,
+        adj_pool: a.adjustments.adj_pool || 0,
+        adj_basement: a.adjustments.adj_basement || 0,
+        adj_fireplace: a.adjustments.adj_fireplace || 0,
+        adj_covered_outdoor: a.adjustments.adj_covered_outdoor || 0,
+        adj_outbuildings: a.adjustments.adj_outbuildings || 0,
         adj_time: a.adjustments.adj_time || 0,
         adj_concessions: a.adjustments.adj_concessions || 0,
         total_adjustment: a.total_adjustment,

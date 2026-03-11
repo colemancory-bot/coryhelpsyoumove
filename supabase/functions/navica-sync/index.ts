@@ -84,6 +84,19 @@ async function navicaFetch(url: string): Promise<any> {
   return resp.json();
 }
 
+// Parse CSAR LivingAreaRange (e.g. "2000-3000") to midpoint number
+// CSAR doesn't require exact sqft; they allow a range. Use midpoint as best estimate.
+function parseLivingAreaRange(range: string | null | undefined): number | null {
+  if (!range || typeof range !== "string") return null;
+  const parts = range.split("-").map((s) => parseFloat(s.trim()));
+  if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+    return Math.round((parts[0] + parts[1]) / 2);
+  }
+  // Single number in the range field
+  if (parts.length === 1 && !isNaN(parts[0])) return parts[0];
+  return null;
+}
+
 // Download image and upload to Cloudflare R2 via Worker proxy
 async function uploadMediaToR2(
   mediaUrl: string,
@@ -238,7 +251,7 @@ async function syncProperties(
         bedrooms_total: record.BedroomsTotal || 0,
         bathrooms_total_integer: record.BathroomsTotalInteger || 0,
         bathrooms_half: record.BathroomsHalf || 0,
-        living_area: record.LivingArea || null,
+        living_area: record.LivingArea || parseLivingAreaRange(record.LivingAreaRange) || null,
         living_area_range: record.LivingAreaRange || "",
         living_area_units: record.LivingAreaUnits || "Square Feet",
         lot_size_acres: record.LotSizeAcres || (record.LotSizeUnits === "Acres" && record.LotSizeArea ? record.LotSizeArea : null) || (record.LotSizeSquareFeet ? record.LotSizeSquareFeet / 43560 : null),
@@ -893,11 +906,11 @@ Deno.serve(async (req) => {
             bedrooms_total: record.BedroomsTotal || 0,
             bathrooms_total_integer: record.BathroomsTotalInteger || 0,
             bathrooms_half: record.BathroomsHalf || 0,
-            living_area: record.LivingArea || null,
+            living_area: record.LivingArea || parseLivingAreaRange(record.LivingAreaRange) || null,
             living_area_range: record.LivingAreaRange || "",
             living_area_units: record.LivingAreaUnits || "Square Feet",
-            lot_size_acres: record.LotSizeAcres || null,
-            lot_size_square_feet: record.LotSizeSquareFeet || null,
+            lot_size_acres: record.LotSizeAcres || (record.LotSizeUnits === "Acres" && record.LotSizeArea ? record.LotSizeArea : null) || (record.LotSizeSquareFeet ? record.LotSizeSquareFeet / 43560 : null),
+            lot_size_square_feet: record.LotSizeSquareFeet || (record.LotSizeUnits === "Acres" && record.LotSizeArea ? record.LotSizeArea * 43560 : null),
             year_built: record.YearBuilt || null,
             stories: record.Stories || null,
             garage_spaces: record.GarageSpaces || 0,
