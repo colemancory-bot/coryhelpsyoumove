@@ -2196,10 +2196,10 @@ async function cmaMLSLookup(query) {
         noResultHtml += '<br><span class="cma-search-hint">Parsed as: #' + esc(resp.parsed_address.street_number) + ' "' + esc(resp.parsed_address.street_name) + '" city: ' + esc(resp.parsed_address.city) + '</span>';
       }
       // Tips for improving the search
-      if (!cmaIsAddress(query)) {
-        noResultHtml += '<br><span class="cma-search-hint">Tip: Try searching by address instead (e.g. "123 Main St, Franklin")</span>';
-      } else if (query.indexOf(',') === -1) {
-        noResultHtml += '<br><span class="cma-search-hint">Tip: Try adding the city (e.g. "' + esc(query.trim()) + ', Sylva")</span>';
+      if (cmaIsAddress(query)) {
+        noResultHtml += '<br><span class="cma-search-hint">Tip: Try the MLS # instead (e.g. "R26030605C") or add the city (e.g. "' + esc(query.trim()) + ', Sylva")</span>';
+      } else {
+        noResultHtml += '<br><span class="cma-search-hint">Tip: Try searching by address (e.g. "123 Main St, Franklin") or by MLS # (e.g. "R26030605C")</span>';
       }
       // Manual entry button
       noResultHtml += '<br><button class="crm-btn crm-btn-sm" style="margin-top:8px;" onclick="cmaShowManualEntry(\'' + esc(query).replace(/'/g, "\\'") + '\')">Enter Property Details Manually</button>';

@@ -921,6 +921,9 @@ Deno.serve(async (req) => {
     // IMPORTANT: Keep batch sizes small (limit 200) to stay under MLS Grid
     // daily request caps (40K warning, 60K suspension). Run once per hour max.
     if (action === "backfill-closed") {
+      // Allow custom cutoff (default 36 months) and reset to re-run a completed backfill
+      const cutoffMonths = body.cutoffMonths || 36;
+      const forceReset = body.reset === true;
       let resumeTs = body.lastTimestamp || null;
       if (!resumeTs) {
         const { data: cursorRow } = await supabase
@@ -929,22 +932,29 @@ Deno.serve(async (req) => {
           .eq("key", "backfill-closed")
           .single();
         const cursorVal = cursorRow?.value || "";
-        if (cursorVal === "DONE") {
-          console.log("[Backfill Closed] Already complete (cursor=DONE), skipping");
+        if (cursorVal === "DONE" && !forceReset) {
+          console.log("[Backfill Closed] Already complete (cursor=DONE), skipping. Pass reset:true to re-run.");
           return new Response(JSON.stringify({
             ok: true, action: "backfill-closed", synced: 0,
-            status: "complete", hasMore: false
+            status: "complete", hasMore: false,
+            hint: "Pass reset:true to re-run with extended cutoff"
           }), {
             headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
           });
         }
-        resumeTs = cursorVal || null;
+        if (forceReset) {
+          console.log("[Backfill Closed] Resetting cursor for re-run");
+          resumeTs = null;
+        } else {
+          resumeTs = cursorVal || null;
+        }
       }
 
-      // Only pull listings closed within the last 12 months
+      // Only pull listings closed within the cutoff window (default 36 months)
       const cutoffDate = new Date();
-      cutoffDate.setMonth(cutoffDate.getMonth() - 12);
+      cutoffDate.setMonth(cutoffDate.getMonth() - cutoffMonths);
       const cutoffStr = cutoffDate.toISOString().split("T")[0];
+      console.log(`[Backfill Closed] Cutoff: ${cutoffMonths} months (${cutoffStr}), reset: ${forceReset}`);
 
       // Use smaller page size for backfill to avoid MLS Grid rate limit issues
       const bfPageSize = 100;
