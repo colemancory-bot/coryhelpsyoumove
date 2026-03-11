@@ -2778,15 +2778,22 @@ function cmaRenderStep2() {
       if (f.elevation_ft) html += '<span class="cma-feat-chip">' + f.elevation_ft + ' ft</span>';
       if (f.restriction_status === 'unrestricted') html += '<span class="cma-feat-chip cma-chip-good">Unrestricted</span>';
       else if (f.restriction_status === 'restricted') html += '<span class="cma-feat-chip cma-chip-neutral">Restricted</span>';
-      if (f.construction_type && f.construction_type !== 'site_built' && f.construction_type !== 'unknown') {
-        var ctLabels = { manufactured: 'Manufactured', modular: 'Modular', mobile_home: 'Mobile Home', log: 'Log' };
-        html += '<span class="cma-feat-chip cma-chip-neutral">' + (ctLabels[f.construction_type] || f.construction_type) + '</span>';
-      }
       if (f.has_pool) html += '<span class="cma-feat-chip">Pool</span>';
       if (f.basement_type && f.basement_type !== 'none') html += '<span class="cma-feat-chip">Basement</span>';
       if (f.has_fireplace) html += '<span class="cma-feat-chip">Fireplace</span>';
       if (f.outbuilding_value_tier && f.outbuilding_value_tier > 0) html += '<span class="cma-feat-chip">Outbuildings</span>';
     }
+    // Construction type - always show, infer from features or listing property_sub_type
+    var compCT = (f && f.construction_type && f.construction_type !== 'unknown') ? f.construction_type : null;
+    if (!compCT) {
+      var pst = ((l.property_sub_type || '') + '').toLowerCase();
+      if (pst.includes('manufactured') || pst.includes('mobile')) compCT = 'manufactured';
+      else if (pst.includes('modular')) compCT = 'modular';
+      else compCT = 'site_built';
+    }
+    var ctAllLabels = { site_built: 'Site-Built', manufactured: 'Manufactured', modular: 'Modular', mobile_home: 'Mobile Home', log: 'Log' };
+    var ctClass = (compCT === 'site_built') ? '' : ' cma-chip-neutral';
+    html += '<span class="cma-feat-chip' + ctClass + '">' + (ctAllLabels[compCT] || compCT) + '</span>';
     html += '</div>';
     html += '</div>';
     html += '<div class="cma-comp-score" style="color:' + scoreColor + '">' + score + '%<span class="cma-score-label">match</span></div>';
@@ -2820,7 +2827,7 @@ async function cmaLoadCompThumb(listingKey, compIdx, listing) {
     var resp = await _sb.from('mls_media').select('local_url,media_url').eq('listing_key', listingKey).order('order', { ascending: true }).limit(30);
     var photos = (resp.data || []).map(function(p) { return p.local_url || p.media_url; }).filter(Boolean);
     if (photos.length) {
-      el.innerHTML = '<img src="' + esc(photos[0]) + '" alt="Property photo" class="cma-comp-thumb-img" />';
+      el.innerHTML = '<img src="' + esc(photos[0]) + '" alt="Property photo" class="cma-comp-thumb-img" onerror="this.onerror=null;this.style.display=\'none\';this.parentElement.innerHTML=\'<div class=cma-comp-thumb-empty>Photo expired</div>\'" />';
       el.dataset.photos = JSON.stringify(photos);
       el.dataset.listingKey = listingKey;
       el.dataset.compIdx = compIdx;
@@ -2856,14 +2863,14 @@ function cmaOpenCompDetail(listingKey, photos, listing) {
       html += '<div class="cma-detail-gallery">';
       html += '<div class="cma-detail-stage">';
       if (photos.length > 1) html += '<button class="cma-photo-nav cma-photo-prev">&lsaquo;</button>';
-      html += '<img src="' + esc(photos[idx]) + '" class="cma-detail-main-img" />';
+      html += '<img src="' + esc(photos[idx]) + '" class="cma-detail-main-img" onerror="this.onerror=null;this.src=\'\';this.alt=\'Photo unavailable\';this.style.background=\'#333\';this.style.minHeight=\'200px\'" />';
       if (photos.length > 1) html += '<button class="cma-photo-nav cma-photo-next">&rsaquo;</button>';
       html += '</div>';
       html += '<div class="cma-detail-counter">' + (idx + 1) + ' / ' + photos.length + '</div>';
       if (photos.length > 1) {
         html += '<div class="cma-photo-strip">';
         photos.forEach(function(p, i) {
-          html += '<img src="' + esc(p) + '" class="cma-photo-thumb' + (i === idx ? ' active' : '') + '" data-idx="' + i + '" />';
+          html += '<img src="' + esc(p) + '" class="cma-photo-thumb' + (i === idx ? ' active' : '') + '" data-idx="' + i + '" onerror="this.onerror=null;this.style.background=\'#555\';this.alt=\'N/A\'" />';
         });
         html += '</div>';
       }
