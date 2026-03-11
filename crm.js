@@ -2016,6 +2016,30 @@ function cmaFactsSelectRow(label, id, options, starred) {
     '<td class="cma-facts-change"><select class="cma-facts-select" id="' + id + '">' + optHtml + '</select></td></tr>';
 }
 
+// Use county GIS record as subject - pre-fills the manual entry form with county data
+function cmaUseCountyRecord() {
+  var cr = window._cmaCountyRecord;
+  if (!cr) { toast('No county record available', 'error'); return; }
+  // Map county record fields to the format cmaShowEditableSubject expects
+  var data = {
+    full_address: cr.full_address || '',
+    city: '', // County records often don't have city, extract from address
+    county_or_parish: cr.county_or_parish || '',
+    living_area: cr.living_area || null,
+    bedrooms_total: cr.bedrooms_total || null,
+    bathrooms_total_integer: cr.bathrooms_total_integer || null,
+    lot_size_acres: cr.lot_size_acres || null,
+    year_built: cr.year_built || null,
+    garage_spaces: null,
+    list_price: cr.last_sale_price || null,
+    close_price: cr.last_sale_price || null,
+    property_type: 'Residential',
+  };
+  var source = window._cmaCountySource || 'County Records';
+  cmaShowEditableSubject(data, null, source);
+  toast('Property loaded from ' + source + '. Review and fill in any missing details.', 'info');
+}
+
 function cmaShowManualEntry(prefillAddress) {
   var form = document.getElementById('cmaFactsForm');
   if (form) form.style.display = 'block';
@@ -2179,21 +2203,41 @@ async function cmaMLSLookup(query) {
       return;
     }
     if (resp.found === 0) {
-      var noResultHtml = '<div class="cma-search-empty">No listings found in MLS API for "' + esc(query) + '"';
+      // Check if county records found the property
+      if (resp.county_record) {
+        var cr = resp.county_record;
+        var countyHtml = '<div class="cma-search-empty">';
+        countyHtml += 'Not found in MLS, but found in <strong>' + esc(resp.county_source || 'county records') + '</strong>:';
+        countyHtml += '<div class="cma-search-item" style="margin:8px 0;cursor:pointer;" onclick="cmaUseCountyRecord()">';
+        countyHtml += '<div class="cma-search-item-main"><strong>' + esc(cr.full_address || query) + '</strong>';
+        if (cr.county_or_parish) countyHtml += ', ' + esc(cr.county_or_parish) + ' County';
+        countyHtml += '</div>';
+        countyHtml += '<div class="cma-search-item-meta">';
+        var details = [];
+        if (cr.living_area) details.push(Number(cr.living_area).toLocaleString() + ' sqft');
+        if (cr.bedrooms_total) details.push(cr.bedrooms_total + 'bd');
+        if (cr.bathrooms_total_integer) details.push(cr.bathrooms_total_integer + 'ba');
+        if (cr.year_built) details.push('Built ' + cr.year_built);
+        if (cr.lot_size_acres) details.push(parseFloat(cr.lot_size_acres).toFixed(2) + ' acres');
+        if (details.length) countyHtml += details.join(' | ');
+        if (cr.last_sale_price) countyHtml += ' | Last Sale: $' + Number(cr.last_sale_price).toLocaleString();
+        if (cr.assessed_value) countyHtml += ' | Assessed: $' + Number(cr.assessed_value).toLocaleString();
+        countyHtml += '</div></div>';
+        countyHtml += '<button class="crm-btn crm-btn-sm" style="margin-top:4px;" onclick="cmaUseCountyRecord()">Use County Data as Subject</button>';
+        countyHtml += ' <button class="crm-btn crm-btn-sm crm-btn-outline" style="margin-top:4px;" onclick="cmaShowManualEntry(\'' + esc(query).replace(/'/g, "\\'") + '\')">Enter Manually Instead</button>';
+        countyHtml += '<br><span class="cma-search-hint" style="margin-top:8px;display:inline-block;">Tip: If you have the MLS #, search that instead for full listing data</span>';
+        countyHtml += '</div>';
+        // Store county record for use by cmaUseCountyRecord
+        window._cmaCountyRecord = cr;
+        window._cmaCountySource = resp.county_source;
+        results.innerHTML = countyHtml;
+        return;
+      }
+
+      var noResultHtml = '<div class="cma-search-empty">No listings found for "' + esc(query) + '"';
       // Show API diagnostics so we can see what happened
       if (resp.errors && resp.errors.length) {
         noResultHtml += '<br><span class="cma-search-hint" style="color:var(--danger,#e53935);">API errors: ' + resp.errors.map(esc).join(', ') + '</span>';
-      }
-      if (resp.apis_queried) {
-        var skipped = [];
-        if (resp.apis_queried.mls_grid && resp.apis_queried.mls_grid !== 'queried') skipped.push('MLS Grid');
-        if (resp.apis_queried.navica && resp.apis_queried.navica !== 'queried') skipped.push('Navica');
-        if (skipped.length) {
-          noResultHtml += '<br><span class="cma-search-hint" style="color:var(--danger,#e53935);">APIs not queried: ' + esc(skipped.join(', ')) + '</span>';
-        }
-      }
-      if (resp.parsed_address) {
-        noResultHtml += '<br><span class="cma-search-hint">Parsed as: #' + esc(resp.parsed_address.street_number) + ' "' + esc(resp.parsed_address.street_name) + '" city: ' + esc(resp.parsed_address.city) + '</span>';
       }
       // Tips for improving the search
       if (cmaIsAddress(query)) {

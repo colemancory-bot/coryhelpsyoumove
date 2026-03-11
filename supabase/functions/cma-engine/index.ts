@@ -1269,6 +1269,92 @@ Deno.serve(async (req: Request) => {
         }
       }
 
+      // If address search returned 0 MLS results, try county GIS as a fallback
+      // County records have property details (beds, baths, sqft, sale info) searchable by address
+      let countyFallback: Record<string, unknown> | null = null;
+      let countyFallbackSource = "";
+      if (results.length === 0 && searchAddress && addrStreetNumber) {
+        try {
+          const addrUpper = searchAddress.toUpperCase();
+          // Try NC OneMap statewide parcels (covers all counties)
+          const oneMapUrl = `https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/FeatureServer/1/query?where=siteadd+LIKE+'%25${encodeURIComponent(addrUpper)}%25'&outFields=parno,siteadd,ownname,gisacres,parval,landval,improvval,structyear,parusedesc,cntyname&f=json&resultRecordCount=5`;
+          console.log("[lookup] County GIS fallback query:", oneMapUrl);
+          const ncResp = await fetch(oneMapUrl);
+          const ncData = await ncResp.json();
+          if (ncData.features && ncData.features.length > 0) {
+            const parcel = ncData.features[0].attributes;
+            countyFallback = {
+              full_address: parcel.siteadd || searchAddress,
+              county_or_parish: parcel.cntyname || "",
+              lot_size_acres: parcel.gisacres || null,
+              assessed_value: parcel.parval || null,
+              land_value: parcel.landval || null,
+              building_value: parcel.improvval || null,
+              year_built: parcel.structyear || null,
+              owner: parcel.ownname || null,
+              pin: parcel.parno || null,
+              land_use: parcel.parusedesc || null,
+            };
+            countyFallbackSource = "NC OneMap";
+            console.log("[lookup] County GIS found:", parcel.siteadd, parcel.cntyname);
+
+            // Try county-specific GIS for more details (beds, baths, sqft)
+            const cnty = (parcel.cntyname || "").toLowerCase();
+            if (cnty === "jackson") {
+              const jUrl = `https://gis.jacksonnc.org/jcgis/rest/services/Tax_Admin/Parcels/MapServer/0/query?where=PropAddr+LIKE+'%25${encodeURIComponent(addrUpper)}%25'&outFields=PIN,PropAddr,AssessedAcres,TotBldgValue,TotLandValue,TaxableValue,SalePrice,SaleDate,CurrentOwner1&f=json&resultRecordCount=1`;
+              const jRes = await fetch(jUrl);
+              const jData = await jRes.json();
+              if (jData.features && jData.features.length > 0) {
+                const jp = jData.features[0].attributes;
+                countyFallback.last_sale_price = jp.SalePrice || null;
+                countyFallback.last_sale_date = jp.SaleDate || null;
+                countyFallbackSource = "Jackson County GIS";
+                // Get building details
+                if (jp.PIN) {
+                  const bUrl = `https://gis.jacksonnc.org/jcgis/rest/services/Tax_Admin/Appraisal/MapServer/1/query?where=PIN='${jp.PIN}'&outFields=SqFt,NbrBdrms,FullBath,HalfBath,NbrStories,YrBuilt,YrRemodeled,Style,Grade,Cond&f=json`;
+                  const bRes = await fetch(bUrl);
+                  const bData = await bRes.json();
+                  if (bData.features && bData.features.length > 0) {
+                    const bldg = bData.features[0].attributes;
+                    countyFallback.living_area = bldg.SqFt || null;
+                    countyFallback.bedrooms_total = bldg.NbrBdrms || null;
+                    countyFallback.bathrooms_total_integer = bldg.FullBath || null;
+                    countyFallback.half_baths = bldg.HalfBath || null;
+                    countyFallback.year_built = parseInt(bldg.YrBuilt) || countyFallback.year_built;
+                    countyFallback.stories = parseInt(bldg.NbrStories) || null;
+                    countyFallback.condition = bldg.Cond || null;
+                  }
+                }
+              }
+            } else if (cnty === "haywood") {
+              const hUrl = `https://maps.haywoodcountync.gov/arcgis/rest/services/Land_Records/Open_Data/MapServer/3/query?where=Prop_Addr+LIKE+'%25${encodeURIComponent(addrUpper)}%25'&outFields=Prop_Addr,Calc_Acres,Heated_Area,Yr_Built,Land_Value,Bldg_Value,Assd_Value,Sale_Price,Sale_Date,Owner_1&f=json&resultRecordCount=1`;
+              const hRes = await fetch(hUrl);
+              const hData = await hRes.json();
+              if (hData.features && hData.features.length > 0) {
+                const hp = hData.features[0].attributes;
+                countyFallback.living_area = hp.Heated_Area || null;
+                countyFallback.year_built = hp.Yr_Built || countyFallback.year_built;
+                countyFallback.last_sale_price = hp.Sale_Price || null;
+                countyFallback.last_sale_date = hp.Sale_Date || null;
+                countyFallbackSource = "Haywood County GIS";
+              }
+            } else if (cnty === "swain") {
+              const sUrl = `https://maps.swaincountync.gov/server/rest/services/ParcelsForDownload/FeatureServer/0/query?where=ParcelAddr+LIKE+'%25${encodeURIComponent(addrUpper)}%25'&outFields=PIN,ParcelAddr,DEED_ACRE,TotalAssessedValue,ParcelBuildingValue,ParcelLandValue,Name1&f=json&resultRecordCount=1`;
+              const sRes = await fetch(sUrl);
+              const sData = await sRes.json();
+              if (sData.features && sData.features.length > 0) {
+                const sp = sData.features[0].attributes;
+                countyFallback.lot_size_acres = parseFloat(sp.DEED_ACRE) || countyFallback.lot_size_acres;
+                countyFallbackSource = "Swain County GIS";
+              }
+            }
+          }
+        } catch (countyErr) {
+          console.error("[lookup] County GIS fallback error:", countyErr);
+          // Non-fatal, continue with MLS-only response
+        }
+      }
+
       return jsonResp({
         ok: true,
         results,
@@ -1279,9 +1365,13 @@ Deno.serve(async (req: Request) => {
           navica: navicaToken ? "queried" : "skipped (no token)",
         },
         parsed_address: searchAddress ? { street_number: addrStreetNumber, street_name: addrStreetName, city: addrCity || "(none)" } : undefined,
+        county_record: countyFallback,
+        county_source: countyFallbackSource,
         message: results.length > 0
           ? `Found ${results.length} listing(s) from MLS API and saved to database`
-          : searchId ? "No listings found matching that ID" : "No listings found matching that address",
+          : countyFallback
+            ? "No MLS listings found, but property found in county records"
+            : searchId ? "No listings found matching that ID" : "No listings found matching that address",
       });
     }
 

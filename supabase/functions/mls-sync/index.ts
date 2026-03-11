@@ -72,19 +72,26 @@ function stripPrefix(value: string | null | undefined): string {
     : value;
 }
 
-async function mlsGridFetch(url: string): Promise<any> {
-  const resp = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${MLS_GRID_TOKEN}`,
-      "Accept-Encoding": "gzip,deflate",
-      Accept: "application/json",
-    },
-  });
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`MLS Grid API ${resp.status}: ${text}`);
+async function mlsGridFetch(url: string, timeoutMs = 25000): Promise<any> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const resp = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${MLS_GRID_TOKEN}`,
+        "Accept-Encoding": "gzip,deflate",
+        Accept: "application/json",
+      },
+      signal: controller.signal,
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`MLS Grid API ${resp.status}: ${text}`);
+    }
+    return resp.json();
+  } finally {
+    clearTimeout(timer);
   }
-  return resp.json();
 }
 
 // Download image and upload to Cloudflare R2 via Worker proxy
@@ -694,6 +701,171 @@ Deno.serve(async (req) => {
       `[MLS Grid] Starting ${action} for resource: ${resource} (limit: ${maxRecords})`
     );
 
+    // Quick health check: test MLS Grid API connectivity
+    if (action === "health") {
+      try {
+        const testFilter = body.filter || `ListingId eq 'HEALTHCHECK'`;
+        const testTop = body.top || 1;
+        const expand = body.expand ? `&$expand=${body.expand}` : "";
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15000);
+        const testUrl = `${MLS_GRID_API}/Property?$filter=${testFilter}&$top=${testTop}${expand}`;
+        console.log("[health] Testing URL:", testUrl);
+        const resp = await fetch(testUrl, {
+          headers: { Authorization: `Bearer ${MLS_GRID_TOKEN}`, "Accept-Encoding": "gzip,deflate", Accept: "application/json" },
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+        const text = await resp.text();
+        return new Response(JSON.stringify({
+          ok: true, action: "health",
+          mls_grid_status: resp.status,
+          mls_grid_response: text.slice(0, 500),
+          response_length: text.length,
+          token_present: !!MLS_GRID_TOKEN,
+          system: ORIGINATING_SYSTEM_NAME,
+          url: testUrl,
+        }), {
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      } catch (e: any) {
+        return new Response(JSON.stringify({
+          ok: false, action: "health",
+          error: e.message,
+          token_present: !!MLS_GRID_TOKEN,
+        }), {
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+    }
+
+    // Mini backfill: fetch one page of closed listings and upsert WNC ones
+    if (action === "mini-backfill") {
+      const steps: string[] = [];
+      try {
+        const cutoffMonths = body.cutoffMonths || 36;
+        const cutoffDate = new Date();
+        cutoffDate.setMonth(cutoffDate.getMonth() - cutoffMonths);
+        const cutoffStr = cutoffDate.toISOString().split("T")[0];
+        const resumeTs = body.lastTimestamp || "";
+        const bfPageSize = body.pageSize || 200;
+        steps.push("config: cutoff=" + cutoffStr + " resume=" + (resumeTs || "none") + " pageSize=" + bfPageSize);
+
+        const baseFilter = `OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and StandardStatus eq 'Closed'`;
+        const tsFilter = resumeTs ? ` and ModificationTimestamp gt ${normalizeTimestamp(resumeTs)}` : "";
+        const bfUrl = `${MLS_GRID_API}/Property?$filter=${baseFilter}${tsFilter}&$top=${bfPageSize}&$orderby=ModificationTimestamp asc`;
+        steps.push("fetching...");
+
+        const data = await mlsGridFetch(bfUrl, 20000);
+        const records = data.value || [];
+        steps.push("fetched: " + records.length + " records");
+
+        let synced = 0;
+        let skippedCounty = 0;
+        let skippedOld = 0;
+        let skippedExisting = 0;
+        let greatestTs = resumeTs;
+
+        for (const record of records) {
+          const listingKey = record.ListingKey || "";
+          const modTs = record.ModificationTimestamp || "";
+          if (modTs > greatestTs) greatestTs = modTs;
+
+          const county = record.CountyOrParish || "";
+          if (!county || !WNC_COUNTIES.has(county)) { skippedCounty++; continue; }
+          if ((record.PropertyType || "") === "Residential Lease") continue;
+          const closeDate = record.CloseDate || "";
+          if (closeDate && closeDate < cutoffStr) { skippedOld++; continue; }
+
+          const { data: existing } = await supabase
+            .from("mls_listings")
+            .select("listing_key")
+            .eq("listing_key", listingKey)
+            .maybeSingle();
+          if (existing) { skippedExisting++; continue; }
+
+          const listingId = stripPrefix(record.ListingId || "");
+          const fullAddr = `${record.StreetNumber || ""} ${record.StreetName || ""} ${record.StreetSuffix || ""}`.trim();
+          await supabase.from("mls_listings").upsert({
+            listing_id: listingId,
+            listing_key: listingKey,
+            originating_system_name: ORIGINATING_SYSTEM_NAME,
+            modification_timestamp: modTs,
+            standard_status: record.StandardStatus || "Closed",
+            mlg_can_view: record.MlgCanView !== false,
+            feed_type: "IDX",
+            list_price: record.ListPrice || null,
+            close_price: record.ClosePrice || null,
+            original_list_price: record.OriginalListPrice || null,
+            street_number: record.StreetNumber || "",
+            street_name: record.StreetName || "",
+            street_suffix: record.StreetSuffix || "",
+            unit_number: record.UnitNumber || "",
+            city: record.City || "",
+            state_or_province: record.StateOrProvince || "NC",
+            postal_code: record.PostalCode || "",
+            county_or_parish: record.CountyOrParish || "",
+            property_type: record.PropertyType || "",
+            property_sub_type: record.PropertySubType || "",
+            bedrooms_total: record.BedroomsTotal || 0,
+            bathrooms_total_integer: record.BathroomsTotalInteger || 0,
+            bathrooms_half: record.BathroomsHalf || 0,
+            living_area: record.LivingArea || null,
+            lot_size_acres: record.LotSizeAcres || null,
+            lot_size_square_feet: record.LotSizeSquareFeet || null,
+            year_built: record.YearBuilt || null,
+            stories: record.Stories || null,
+            garage_spaces: record.GarageSpaces || 0,
+            public_remarks: record.PublicRemarks || "",
+            list_agent_full_name: record.ListAgentFullName || "",
+            list_office_name: record.ListOfficeName || "",
+            buyer_agent_full_name: record.BuyerAgentFullName || "",
+            buyer_office_name: record.BuyerOfficeName || "",
+            list_date: record.ListingContractDate || null,
+            close_date: record.CloseDate || null,
+            days_on_market: record.DaysOnMarket || 0,
+            latitude: record.Latitude || null,
+            longitude: record.Longitude || null,
+            tax_annual_amount: record.TaxAnnualAmount || null,
+            raw_data: record,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: "listing_key" });
+
+          if (record.ClosePrice) {
+            await supabase.from("price_history").insert({
+              listing_key: listingKey,
+              price: record.ClosePrice,
+              event_type: "SOLD",
+              source: "MLS",
+              previous_price: record.ListPrice || null,
+            }).then(() => {}).catch(() => {}); // ignore dups
+          }
+          synced++;
+        }
+
+        const nextLink = data["@odata.nextLink"] || "";
+        // Save cursor
+        await supabase.from("sync_cursors")
+          .upsert({ key: "backfill-closed", value: greatestTs || "", updated_at: new Date().toISOString() });
+
+        steps.push("synced=" + synced + " skippedCounty=" + skippedCounty + " skippedOld=" + skippedOld + " skippedExisting=" + skippedExisting);
+        steps.push("greatestTs=" + greatestTs);
+        steps.push("hasMore=" + !!nextLink);
+
+        return new Response(JSON.stringify({
+          ok: true, action: "mini-backfill", steps, synced, skippedCounty, skippedOld, skippedExisting,
+          lastTimestamp: greatestTs, hasMore: !!nextLink
+        }), {
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      } catch (e: any) {
+        steps.push("error: " + e.message);
+        return new Response(JSON.stringify({ ok: false, action: "mini-backfill", steps, error: e.message }), {
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+    }
+
     // ── Media refresh: re-fetch fresh signed URLs for all Canopy media ──
     // MLS Grid media URLs expire in ~24 hours. This action pages through
     // all Active Canopy properties, fetches fresh media URLs via $expand=Media,
@@ -956,17 +1128,38 @@ Deno.serve(async (req) => {
       const cutoffStr = cutoffDate.toISOString().split("T")[0];
       console.log(`[Backfill Closed] Cutoff: ${cutoffMonths} months (${cutoffStr}), reset: ${forceReset}`);
 
-      // Use smaller page size for backfill to avoid MLS Grid rate limit issues
-      const bfPageSize = 100;
+      // Skip $expand=Media for backfill (photos not needed for CMA comps, saves huge payload).
+      // Use large page size to move quickly through non-WNC records (only WNC counties are kept).
+      const bfPageSize = body.pageSize || 200;
+      const includeMedia = body.includeMedia === true;
       const baseFilter = `OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and StandardStatus eq 'Closed'`;
       const tsFilter = resumeTs ? ` and ModificationTimestamp gt ${normalizeTimestamp(resumeTs)}` : "";
-      let bfUrl = `${MLS_GRID_API}/Property?$filter=${baseFilter}${tsFilter}&$expand=Media&$top=${bfPageSize}&$orderby=ModificationTimestamp asc`;
+      const expandClause = includeMedia ? "&$expand=Media" : "";
+      let bfUrl = `${MLS_GRID_API}/Property?$filter=${baseFilter}${tsFilter}${expandClause}&$top=${bfPageSize}&$orderby=ModificationTimestamp asc`;
       let totalSynced = 0;
       let greatestTs = resumeTs || "";
       let skippedOld = 0;
 
       while (bfUrl && totalSynced < maxRecords) {
-        const data = await mlsGridFetch(bfUrl);
+        let data: any;
+        try {
+          data = await mlsGridFetch(bfUrl, 30000);
+        } catch (fetchErr: any) {
+          console.error(`[Backfill Closed] MLS Grid fetch error: ${fetchErr.message}`);
+          // Save progress and return partial results
+          if (greatestTs) {
+            await supabase.from("sync_cursors")
+              .upsert({ key: "backfill-closed", value: greatestTs, updated_at: new Date().toISOString() });
+          }
+          return new Response(JSON.stringify({
+            ok: false, action: "backfill-closed",
+            error: fetchErr.message,
+            synced: totalSynced, skippedOld,
+            lastTimestamp: greatestTs, hasMore: true
+          }), {
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          });
+        }
         const records = data.value || [];
         console.log(`[Backfill Closed] Page: ${records.length} records`);
 
@@ -1098,32 +1291,33 @@ Deno.serve(async (req) => {
             });
           }
 
-          // Store media metadata only (skip R2 download to minimize API calls)
-          // CMA is admin-only; photos served from MLS Grid URLs or omitted
-          const media = record.Media || [];
-          if (media.length > 0) {
-            const mediaRows = media.map((m: any, i: number) => ({
-              listing_key: listingKey,
-              media_key: m.MediaKey || `${listingKey}-${i}`,
-              media_url: m.MediaURL || "",
-              local_url: "", // Skip R2 for backfilled closed listings
-              media_type: m.MimeType || "image/jpeg",
-              media_category: m.MediaCategory || "Photo",
-              short_description: m.ShortDescription || "",
-              order: m.Order || i,
-              image_width: m.ImageWidth || null,
-              image_height: m.ImageHeight || null,
-              modification_timestamp: m.ModificationTimestamp || modTs,
-            }));
-            await supabase.from("mls_media").insert(mediaRows);
+          // Store media metadata only if $expand=Media was used
+          if (includeMedia) {
+            const media = record.Media || [];
+            if (media.length > 0) {
+              const mediaRows = media.map((m: any, i: number) => ({
+                listing_key: listingKey,
+                media_key: m.MediaKey || `${listingKey}-${i}`,
+                media_url: m.MediaURL || "",
+                local_url: "", // Skip R2 for backfilled closed listings
+                media_type: m.MimeType || "image/jpeg",
+                media_category: m.MediaCategory || "Photo",
+                short_description: m.ShortDescription || "",
+                order: m.Order || i,
+                image_width: m.ImageWidth || null,
+                image_height: m.ImageHeight || null,
+                modification_timestamp: m.ModificationTimestamp || modTs,
+              }));
+              await supabase.from("mls_media").insert(mediaRows);
+            }
           }
 
           totalSynced++;
         }
 
         bfUrl = data["@odata.nextLink"] || "";
-        // Use longer delay for backfill to stay well under MLS Grid rate limits
-        if (bfUrl && totalSynced < maxRecords) await sleep(2000);
+        // Brief delay between pages to respect MLS Grid rate limits
+        if (bfUrl && totalSynced < maxRecords) await sleep(500);
       }
 
       const hasMore = !!bfUrl && totalSynced >= maxRecords;
