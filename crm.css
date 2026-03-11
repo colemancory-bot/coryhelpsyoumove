@@ -1158,6 +1158,9 @@ a:hover { color: var(--crm-accent-light); }
 .cma-grid-adjusted td { background: var(--crm-green-bg) !important; }
 .cma-grid-pct td { font-size: 0.75rem; color: var(--crm-text-secondary); }
 .cma-grid-comp-val { font-size: 0.7rem; color: var(--crm-text-muted); margin-bottom: 0.2rem; }
+.cma-grid-comp-photo { width: 100%; height: 60px; margin-bottom: 0.3rem; border-radius: 4px; overflow: hidden; background: var(--crm-bg-surface); }
+.cma-grid-photo-img { width: 100%; height: 60px; object-fit: cover; border-radius: 4px; }
+.cma-grid-photo-empty { width: 100%; height: 60px; display: flex; align-items: center; justify-content: center; font-size: 0.55rem; color: var(--crm-text-muted); }
 .cma-grid-adj-cell { vertical-align: middle; }
 
 /* Adjustment inputs */

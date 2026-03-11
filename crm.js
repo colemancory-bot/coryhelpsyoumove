@@ -2831,12 +2831,12 @@ function cmaRenderStep3() {
   html += '<p class="cma-step-desc">Review and adjust values using sliders. AI-calculated defaults shown.</p>';
 
   // Adjustment grid table
-  html += '<div class="cma-grid-scroll"><table class="cma-grid">';
+  html += '<div class="cma-grid-scroll" id="cmaAdjGrid"><table class="cma-grid">';
 
-  // Header row
-  html += '<thead><tr><th class="cma-grid-label">Feature</th><th class="cma-grid-subject">Subject</th>';
+  // Header row with photo thumbnails
+  html += '<thead><tr><th class="cma-grid-label">Feature</th><th class="cma-grid-subject"><div class="cma-grid-comp-photo" id="cmaSubjectPhoto"></div>Subject</th>';
   comps.forEach(function(c, i) {
-    html += '<th class="cma-grid-comp">Comp ' + (i+1) + '<br><span class="cma-grid-comp-addr">' + esc((c.listing.full_address || '').split(' ').slice(0,3).join(' ')) + '</span></th>';
+    html += '<th class="cma-grid-comp"><div class="cma-grid-comp-photo" id="cmaCompPhoto_' + i + '"></div>Comp ' + (i+1) + '<br><span class="cma-grid-comp-addr">' + esc((c.listing.full_address || '').split(' ').slice(0,3).join(' ')) + '</span></th>';
   });
   html += '</tr></thead><tbody>';
 
@@ -2962,15 +2962,16 @@ function cmaRenderStep3() {
 
   // Totals
   html += '<tr class="cma-grid-total"><td>Total Adjustment</td><td></td>';
-  adjs.forEach(function(a) {
+  adjs.forEach(function(a, i) {
     var cls = a.total_adjustment >= 0 ? 'cma-adj-pos' : 'cma-adj-neg';
-    html += '<td class="' + cls + '">$' + a.total_adjustment.toLocaleString() + '</td>';
+    html += '<td class="' + cls + '" id="cmaCompNet_' + i + '">' + (a.total_adjustment >= 0 ? '+' : '') + '$' + a.total_adjustment.toLocaleString() + ' (' + a.net_adjustment_pct + '% net)</td>';
   });
   html += '</tr>';
 
   html += '<tr class="cma-grid-total cma-grid-adjusted"><td>Adjusted Price</td><td></td>';
-  adjs.forEach(function(a) {
-    html += '<td>$' + a.adjusted_price.toLocaleString() + '</td>';
+  adjs.forEach(function(a, i) {
+    var cls = a.total_adjustment > 0 ? ' cma-adj-pos' : a.total_adjustment < 0 ? ' cma-adj-neg' : '';
+    html += '<td id="cmaCompTotal_' + i + '" class="cma-comp-adjusted-val' + cls + '">$' + a.adjusted_price.toLocaleString() + '</td>';
   });
   html += '</tr>';
 
@@ -3008,8 +3009,8 @@ function cmaRenderStep3() {
     var v = _cmaState.valuation;
     html += '<div class="cma-valuation-preview">';
     html += '<div class="cma-val-label">Suggested Range</div>';
-    html += '<div class="cma-val-range">$' + (v.suggested_low || 0).toLocaleString() + ' - $' + (v.suggested_high || 0).toLocaleString() + '</div>';
-    html += '<div class="cma-val-center">Center: $' + v.suggested_price.toLocaleString() + '</div>';
+    html += '<div class="cma-val-range" id="cmaValuationRange">$' + (v.suggested_low || 0).toLocaleString() + ' - $' + (v.suggested_high || 0).toLocaleString() + '</div>';
+    html += '<div class="cma-val-center">Center: <span id="cmaValuationSuggested">$' + v.suggested_price.toLocaleString() + '</span></div>';
     html += '</div>';
   }
 
@@ -3021,30 +3022,69 @@ function cmaRenderStep3() {
   html += '</div>';
   html += '</div></div>';
   main.innerHTML = html;
+  cmaBindAdjustmentEvents();
+  cmaLoadGridPhotos();
+}
+
+// Load comp and subject photos into the grid header
+async function cmaLoadGridPhotos() {
+  var comps = _cmaState.selectedComps || [];
+  var sub = _cmaState.subject ? _cmaState.subject.listing : null;
+  // Load subject photo
+  if (sub && sub.listing_key) {
+    cmaLoadOnePhoto(sub.listing_key, 'cmaSubjectPhoto');
+  }
+  // Load comp photos
+  comps.forEach(function(c, i) {
+    if (c.listing && c.listing.listing_key) {
+      cmaLoadOnePhoto(c.listing.listing_key, 'cmaCompPhoto_' + i);
+    }
+  });
+}
+
+async function cmaLoadOnePhoto(listingKey, containerId) {
+  var el = document.getElementById(containerId);
+  if (!el) return;
+  try {
+    var resp = await _sb.from('mls_media').select('local_url,media_url').eq('listing_key', listingKey).order('order', { ascending: true }).limit(1);
+    if (resp.data && resp.data.length) {
+      var src = resp.data[0].local_url || resp.data[0].media_url;
+      if (src) {
+        el.innerHTML = '<img src="' + esc(src) + '" alt="Property photo" class="cma-grid-photo-img" />';
+        return;
+      }
+    }
+    el.innerHTML = '<div class="cma-grid-photo-empty">No photo</div>';
+  } catch(e) {
+    el.innerHTML = '<div class="cma-grid-photo-empty">No photo</div>';
+  }
 }
 
 function cmaAdjInput(compIdx, key, value) {
   var cls = value > 0 ? 'cma-adj-pos' : value < 0 ? 'cma-adj-neg' : '';
-  return '<div class="cma-adj-input-wrap"><input type="number" class="cma-adj-input ' + cls + '" value="' + value + '" onchange="cmaUpdateAdj(' + compIdx + ',\'' + key + '\',this.value)" step="500" /></div>';
+  return '<div class="cma-adj-input-wrap"><input type="number" class="cma-adj-input ' + cls + '" value="' + value + '" data-comp="' + compIdx + '" data-key="' + key + '" step="500" /></div>';
 }
 
 function cmaSlider(compIdx, adjKey, adjVal, featKey, subjectFeats, compFeats) {
-  var sf = subjectFeats[featKey] || 0;
-  var cf = compFeats[featKey] || 0;
-  var diff = sf - cf;
-  // Map diff to slider position: -2=much worse, -1=worse, 0=same, 1=better, 2=much better
-  var sliderVal = Math.max(-2, Math.min(2, diff));
+  // Derive slider position from current dollar value, not raw feature diff
+  var multipliers = {
+    adj_view: 15000, adj_water_features: 12000, adj_land_character: 8000,
+    adj_road_noise: 7000, adj_privacy: 6000, adj_condition: 20000, adj_elevation: 2000
+  };
+  var mult = multipliers[adjKey] || 10000;
+  var sliderVal = mult > 0 ? Math.round(adjVal / mult) : 0;
+  sliderVal = Math.max(-2, Math.min(2, sliderVal));
   var labels = ['MW', 'W', 'S', 'B', 'MB'];
   var cls = adjVal > 0 ? 'cma-adj-pos' : adjVal < 0 ? 'cma-adj-neg' : '';
 
   var html = '<div class="cma-slider-wrap">';
-  html += '<input type="range" class="cma-slider" min="-2" max="2" step="1" value="' + sliderVal + '" oninput="cmaSliderChange(' + compIdx + ',\'' + adjKey + '\',this.value)" />';
+  html += '<input type="range" class="cma-slider" min="-2" max="2" step="1" value="' + sliderVal + '" data-comp="' + compIdx + '" data-key="' + adjKey + '" />';
   html += '<div class="cma-slider-labels">';
   for (var i = 0; i < labels.length; i++) {
     html += '<span class="cma-slider-tick' + (i - 2 === sliderVal ? ' active' : '') + '">' + labels[i] + '</span>';
   }
   html += '</div>';
-  html += '<input type="number" class="cma-adj-input ' + cls + '" value="' + adjVal + '" onchange="cmaUpdateAdj(' + compIdx + ',\'' + adjKey + '\',this.value)" step="1000" />';
+  html += '<input type="number" class="cma-adj-input ' + cls + '" value="' + adjVal + '" data-comp="' + compIdx + '" data-key="' + adjKey + '" step="1000" />';
   html += '</div>';
   return html;
 }
@@ -3057,7 +3097,6 @@ function cmaUpdateAdj(compIdx, key, value) {
 }
 
 function cmaSliderChange(compIdx, adjKey, sliderVal) {
-  // Map slider position to dollar adjustment based on the key
   var multipliers = {
     adj_view: 15000, adj_water_features: 12000, adj_land_character: 8000,
     adj_road_noise: 7000, adj_privacy: 6000, adj_condition: 20000, adj_elevation: 2000
@@ -3068,10 +3107,84 @@ function cmaSliderChange(compIdx, adjKey, sliderVal) {
   if (!adj) return;
   adj.adjustments[adjKey] = newVal;
   cmaRecalcTotals(compIdx);
-  // Update the adjacent input
-  var inputs = document.querySelectorAll('.cma-adj-input');
-  // Re-render to keep everything synced
-  cmaRenderStep3();
+}
+
+// Bind slider and input events via delegation after Step 3 renders
+function cmaBindAdjustmentEvents() {
+  var grid = document.getElementById('cmaAdjGrid');
+  if (!grid) return;
+  // Slider drag
+  grid.addEventListener('input', function(e) {
+    var el = e.target;
+    if (el.classList.contains('cma-slider')) {
+      var compIdx = parseInt(el.dataset.comp);
+      var adjKey = el.dataset.key;
+      cmaSliderChange(compIdx, adjKey, el.value);
+      // Sync the adjacent number input without re-rendering
+      var wrap = el.closest('.cma-slider-wrap');
+      if (wrap) {
+        var numInput = wrap.querySelector('.cma-adj-input');
+        var adj = _cmaState.adjustments[compIdx];
+        if (numInput && adj) {
+          var val = adj.adjustments[adjKey] || 0;
+          numInput.value = val;
+          numInput.className = 'cma-adj-input' + (val > 0 ? ' cma-adj-pos' : val < 0 ? ' cma-adj-neg' : '');
+        }
+        // Update tick labels
+        var ticks = wrap.querySelectorAll('.cma-slider-tick');
+        var sv = parseInt(el.value);
+        ticks.forEach(function(t, i) { t.classList.toggle('active', i - 2 === sv); });
+      }
+      cmaUpdateTotalsDisplay();
+    }
+  });
+  // Number input change
+  grid.addEventListener('change', function(e) {
+    var el = e.target;
+    if (el.classList.contains('cma-adj-input')) {
+      var compIdx = parseInt(el.dataset.comp);
+      var adjKey = el.dataset.key;
+      cmaUpdateAdj(compIdx, adjKey, el.value);
+      var val = parseInt(el.value) || 0;
+      el.className = 'cma-adj-input' + (val > 0 ? ' cma-adj-pos' : val < 0 ? ' cma-adj-neg' : '');
+      // Sync slider position
+      var wrap = el.closest('.cma-slider-wrap');
+      if (wrap) {
+        var slider = wrap.querySelector('.cma-slider');
+        if (slider) {
+          var multipliers = { adj_view: 15000, adj_water_features: 12000, adj_land_character: 8000, adj_road_noise: 7000, adj_privacy: 6000, adj_condition: 20000, adj_elevation: 2000 };
+          var mult = multipliers[adjKey] || 10000;
+          var sv = Math.max(-2, Math.min(2, Math.round(val / mult)));
+          slider.value = sv;
+          var ticks = wrap.querySelectorAll('.cma-slider-tick');
+          ticks.forEach(function(t, i) { t.classList.toggle('active', i - 2 === sv); });
+        }
+      }
+      cmaUpdateTotalsDisplay();
+    }
+  });
+}
+
+// Update totals/valuation display without full re-render
+function cmaUpdateTotalsDisplay() {
+  _cmaState.adjustments.forEach(function(adj, i) {
+    var totalEl = document.getElementById('cmaCompTotal_' + i);
+    if (totalEl) {
+      totalEl.textContent = '$' + adj.adjusted_price.toLocaleString();
+      totalEl.className = 'cma-comp-adjusted-val' + (adj.total_adjustment > 0 ? ' cma-adj-pos' : adj.total_adjustment < 0 ? ' cma-adj-neg' : '');
+    }
+    var netEl = document.getElementById('cmaCompNet_' + i);
+    if (netEl) netEl.textContent = (adj.total_adjustment >= 0 ? '+' : '') + '$' + adj.total_adjustment.toLocaleString() + ' (' + adj.net_adjustment_pct + '% net)';
+  });
+  // Update valuation display
+  var valEl = document.getElementById('cmaValuationRange');
+  if (valEl && _cmaState.valuation) {
+    valEl.textContent = '$' + (_cmaState.valuation.suggested_low || 0).toLocaleString() + ' - $' + (_cmaState.valuation.suggested_high || 0).toLocaleString();
+  }
+  var sugEl = document.getElementById('cmaValuationSuggested');
+  if (sugEl && _cmaState.valuation) {
+    sugEl.textContent = '$' + (_cmaState.valuation.suggested_price || 0).toLocaleString();
+  }
 }
 
 function cmaRecalcTotals(compIdx) {
