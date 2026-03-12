@@ -2281,16 +2281,28 @@ Return JSON:
 
       if (validPrices.length > 0) {
         validPrices.sort((a, b) => a - b);
-        // Trim extremes if we have 4+ comps
-        const trimmed =
+        // Range: trim extremes if we have 4+ comps
+        const rangeSet =
           validPrices.length >= 4
             ? validPrices.slice(1, -1)
             : validPrices;
-        suggestedLow = trimmed[0];
-        suggestedHigh = trimmed[trimmed.length - 1];
-        suggestedPrice = Math.round(
-          trimmed.reduce((s, v) => s + v, 0) / trimmed.length
-        );
+        suggestedLow = rangeSet[0];
+        suggestedHigh = rangeSet[rangeSet.length - 1];
+
+        // Weighted mean: comps with fewer gross adjustments weigh more
+        // Weight = 1 / (1 + gross_adj_pct/100)
+        let totalWeight = 0;
+        let weightedSum = 0;
+        for (const r of results) {
+          if (r.adjusted_price > 0) {
+            const w = 1 / (1 + (r.gross_adjustment_pct || 0) / 100);
+            totalWeight += w;
+            weightedSum += r.adjusted_price * w;
+          }
+        }
+        suggestedPrice = totalWeight > 0
+          ? Math.round(weightedSum / totalWeight)
+          : Math.round(rangeSet.reduce((s, v) => s + v, 0) / rangeSet.length);
       }
 
       return jsonResp({

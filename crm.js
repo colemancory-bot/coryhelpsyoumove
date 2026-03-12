@@ -4045,15 +4045,25 @@ function cmaRecalcTotals(compIdx) {
   adj.warnings = [];
   if (adj.gross_adjustment_pct > 25) adj.warnings.push('Gross adjustments (' + adj.gross_adjustment_pct + '%) exceed 25%.');
   if (adj.net_adjustment_pct > 15) adj.warnings.push('Net adjustments (' + adj.net_adjustment_pct + '%) exceed 15%.');
-  // Recalc valuation
-  var prices = _cmaState.adjustments.map(function(a) { return a.adjusted_price; }).filter(function(p) { return p > 0; });
-  prices.sort(function(a,b) { return a-b; });
-  var trimmed = prices.length >= 4 ? prices.slice(1, -1) : prices;
-  if (trimmed.length) {
+  // Recalc valuation using inverse-gross-adjustment weighting
+  // Comps with fewer adjustments are more reliable indicators of value
+  var validAdjs = _cmaState.adjustments.filter(function(a) { return a.adjusted_price > 0; });
+  if (validAdjs.length) {
+    var allPrices = validAdjs.map(function(a) { return a.adjusted_price; }).sort(function(a,b) { return a-b; });
+    // Weighted mean: weight = 1 / (1 + gross_adj_pct/100)
+    var totalWeight = 0, weightedSum = 0;
+    validAdjs.forEach(function(a) {
+      var w = 1 / (1 + (a.gross_adjustment_pct || 0) / 100);
+      totalWeight += w;
+      weightedSum += a.adjusted_price * w;
+    });
+    var weightedPrice = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : allPrices[Math.floor(allPrices.length / 2)];
+    // Range: use lowest and highest adjusted prices (trimmed if 4+)
+    var rangeSet = allPrices.length >= 4 ? allPrices.slice(1, -1) : allPrices;
     _cmaState.valuation = {
-      suggested_low: trimmed[0],
-      suggested_high: trimmed[trimmed.length - 1],
-      suggested_price: Math.round(trimmed.reduce(function(s,v){return s+v;},0) / trimmed.length)
+      suggested_low: rangeSet[0],
+      suggested_high: rangeSet[rangeSet.length - 1],
+      suggested_price: weightedPrice
     };
   }
 }
