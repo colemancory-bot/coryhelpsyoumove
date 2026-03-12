@@ -359,12 +359,12 @@ const WNC_DEFAULTS = {
   price_per_sqft: 175, // $/sqft for living area adjustment
   per_bedroom: 12000,
   per_bathroom: 10000,
-  per_garage_space: 15000,
+  per_garage_space: 8000,
   per_year_age: 500, // depreciation per year difference
 
   // Mountain adjustments per rating point difference (1-5 scale)
-  view_per_point: 15000,
-  water_per_point: 12000,
+  view_per_point: 25000,
+  water_per_point: 20000,
   land_per_point: 8000,
   road_noise_per_point: 7000,
   privacy_per_point: 6000,

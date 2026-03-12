@@ -1731,10 +1731,10 @@ var CMA_RATES = {
   price_per_sqft: 175,
   per_bedroom: 12000,
   per_bathroom: 10000,
-  per_garage_space: 15000,
+  per_garage_space: 8000,
   per_year_age: 500,
-  view_per_point: 15000,
-  water_per_point: 12000,
+  view_per_point: 25000,
+  water_per_point: 20000,
   land_per_point: 8000,
   road_noise_per_point: 7000,
   privacy_per_point: 6000,
@@ -3822,7 +3822,7 @@ function cmaAdjInput(compIdx, key, value) {
 function cmaSlider(compIdx, adjKey, adjVal, featKey, subjectFeats, compFeats) {
   // Derive slider position from current dollar value, not raw feature diff
   var multipliers = {
-    adj_view: 15000, adj_water_features: 12000, adj_land_character: 8000,
+    adj_view: 25000, adj_water_features: 20000, adj_land_character: 8000,
     adj_road_noise: 7000, adj_privacy: 6000, adj_condition: 20000, adj_elevation: 2000
   };
   var mult = multipliers[adjKey] || 10000;
@@ -3852,7 +3852,7 @@ function cmaUpdateAdj(compIdx, key, value) {
 
 function cmaSliderChange(compIdx, adjKey, sliderVal) {
   var multipliers = {
-    adj_view: 15000, adj_water_features: 12000, adj_land_character: 8000,
+    adj_view: 25000, adj_water_features: 20000, adj_land_character: 8000,
     adj_road_noise: 7000, adj_privacy: 6000, adj_condition: 20000, adj_elevation: 2000
   };
   var mult = multipliers[adjKey] || 10000;
@@ -3921,7 +3921,7 @@ function cmaBindAdjustmentEvents() {
         // If there's a slider, sync it too
         var slider = cell.querySelector('.cma-slider[data-key="' + adjKey + '"]');
         if (slider) {
-          var multipliers = { adj_view: 15000, adj_water_features: 12000, adj_land_character: 8000, adj_road_noise: 7000, adj_privacy: 6000, adj_condition: 20000, adj_elevation: 2000 };
+          var multipliers = { adj_view: 25000, adj_water_features: 20000, adj_land_character: 8000, adj_road_noise: 7000, adj_privacy: 6000, adj_condition: 20000, adj_elevation: 2000 };
           var mult = multipliers[adjKey] || 10000;
           var sv = Math.max(-2, Math.min(2, Math.round(newAdj / mult)));
           slider.value = sv;
@@ -3994,7 +3994,7 @@ function cmaBindAdjustmentEvents() {
       if (wrap) {
         var slider = wrap.querySelector('.cma-slider');
         if (slider) {
-          var multipliers = { adj_view: 15000, adj_water_features: 12000, adj_land_character: 8000, adj_road_noise: 7000, adj_privacy: 6000, adj_condition: 20000, adj_elevation: 2000 };
+          var multipliers = { adj_view: 25000, adj_water_features: 20000, adj_land_character: 8000, adj_road_noise: 7000, adj_privacy: 6000, adj_condition: 20000, adj_elevation: 2000 };
           var mult = multipliers[adjKey] || 10000;
           var sv = Math.max(-2, Math.min(2, Math.round(val / mult)));
           slider.value = sv;
