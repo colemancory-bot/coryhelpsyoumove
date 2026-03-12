@@ -360,7 +360,7 @@ function generateCMAHtml(data: ReportInput): string {
   .stat-label { font-size: 0.55rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.2rem; }
   .stat-value { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.1rem; font-weight: 700; color: var(--text); }
   /* Comp detail cards */
-  .comp-detail-card { margin-bottom: 0.6rem; border: 1px solid var(--border); border-radius: 6px; padding: 0.6rem 0.7rem; }
+  .comp-detail-card { margin-bottom: 0.6rem; border: 1px solid var(--border); border-radius: 6px; padding: 0.6rem 0.7rem; break-inside: avoid; }
   .comp-detail-card-second { margin-top: 0.8rem; }
   .comp-detail-header { margin-bottom: 0.4rem; }
   .comp-detail-num { font-size: 0.55rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold); }
@@ -572,30 +572,23 @@ ${(() => {
 })()}
 
 <!-- COMP DETAIL PAGES (2 comps per page) -->
-${(() => {
-  let html = "";
-  for (let pageStart = 0; pageStart < comps.length; pageStart += 2) {
-    const pageComps = comps.slice(pageStart, pageStart + 2);
-    html += `<div class="page">
+<div class="page">
   <div class="subject-header">
     <div class="section-label">Comparable Properties</div>
     <h2 style="font-size: 1.2rem; margin-top: 0.2rem;">Property Details</h2>
   </div>
   <hr class="gold-rule-wide">
-`;
-    pageComps.forEach((c, pi) => {
-      const i = pageStart + pi;
-      const cl = c.listing;
-      const cf = c.features || {};
-      const adj = c.adjustments as Record<string, number>;
-      const addr = (cl.full_address as string || "Unknown").replace(/,.*/, "");
-      const city = cl.city as string || "";
-      const photoUrl = cl.photo_url as string || "";
-      const remarks = (cl.public_remarks as string || "").slice(0, 400);
-      const mlsId = cl.listing_id as string || "";
-      const dist = cl.distance as number || null;
-
-      html += `  <div class="comp-detail-card${pi > 0 ? " comp-detail-card-second" : ""}">
+${comps.map((c, i) => {
+  const cl = c.listing;
+  const cf = c.features || {};
+  const adj = c.adjustments as Record<string, number>;
+  const addr = (cl.full_address as string || "Unknown").replace(/,.*/, "");
+  const city = cl.city as string || "";
+  const photoUrl = cl.photo_url as string || "";
+  const remarks = (cl.public_remarks as string || "").slice(0, 400);
+  const mlsId = cl.listing_id as string || "";
+  const dist = cl.distance as number || null;
+  return `  <div class="comp-detail-card${i > 0 ? " comp-detail-card-second" : ""}">
     <div class="comp-detail-header">
       <div class="comp-detail-num">Comp ${i + 1}</div>
       <div class="comp-detail-addr">${esc(addr)}, ${esc(city)}</div>
@@ -630,13 +623,9 @@ ${(() => {
       <span>Net Adjustment: <strong class="${adjClass(adj.total_adjustment || 0)}">${adjVal(adj.total_adjustment)}</strong></span>
       <span style="margin-left:1rem;">Adjusted Price: <strong style="color:var(--green)">${fmt(adj.adjusted_price)}</strong></span>
     </div>
-  </div>
-`;
-    });
-    html += `</div>\n`;
-  }
-  return html;
-})()}
+  </div>`;
+}).join("\n")}
+</div>
 
 <!-- COMPARABLE SALES ACTIVITY -->
 <div class="page">

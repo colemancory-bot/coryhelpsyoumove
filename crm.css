@@ -1181,6 +1181,11 @@ a:hover { color: var(--crm-accent-light); }
 .cma-photo-thumb { width: 56px; height: 40px; object-fit: cover; border-radius: 4px; cursor: pointer; opacity: 0.5; transition: opacity 0.15s; flex-shrink: 0; border: 2px solid transparent; }
 .cma-photo-thumb:hover { opacity: 0.8; }
 .cma-photo-thumb.active { opacity: 1; border-color: var(--crm-accent); }
+/* Photo gallery info bar (property description below photos) */
+.cma-photo-info { background: rgba(0,0,0,0.7); border-radius: 8px; padding: 0.6rem 0.8rem; max-width: 100%; width: 100%; }
+.cma-photo-info-addr { color: #fff; font-size: 0.88rem; font-weight: 600; margin-bottom: 0.2rem; }
+.cma-photo-info-facts { color: rgba(255,255,255,0.7); font-size: 0.75rem; margin-bottom: 0.3rem; }
+.cma-photo-info-desc { color: rgba(255,255,255,0.65); font-size: 0.72rem; line-height: 1.5; max-height: 4.5em; overflow-y: auto; }
 
 /* Property detail overlay (Step 2 click-through) */
 .cma-detail-modal { background: var(--crm-bg-card); border-radius: 12px; max-width: 700px; width: 95vw; max-height: 90vh; overflow-y: auto; position: relative; box-shadow: 0 16px 48px rgba(0,0,0,0.3); }
@@ -1221,6 +1226,15 @@ a:hover { color: var(--crm-accent-light); }
 .cma-condition-row { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; }
 .cma-condition-select { width: 100px; padding: 0.2rem 0.25rem; font-size: 0.72rem; border: 1px solid var(--crm-border); border-radius: 4px; background: var(--crm-bg-card); color: var(--crm-text); cursor: pointer; }
 .cma-condition-select:focus { border-color: var(--crm-accent); outline: none; box-shadow: var(--crm-shadow-focus); }
+
+/* Editable comp value inputs */
+.cma-comp-val-edit { width: 60px; padding: 0.15rem 0.2rem; font-size: 0.7rem; text-align: right; border: 1px solid var(--crm-border); border-radius: 3px; background: var(--crm-bg-card); color: var(--crm-text); }
+.cma-comp-val-edit:focus { border-color: var(--crm-accent); outline: none; box-shadow: var(--crm-shadow-focus); }
+.cma-comp-val-edit::-webkit-inner-spin-button { opacity: 0; width: 0; }
+.cma-comp-val-edit:hover::-webkit-inner-spin-button { opacity: 1; width: auto; }
+.cma-comp-val-unit { font-size: 0.6rem; color: var(--crm-text-muted); margin-left: 0.15rem; }
+.cma-comp-val-select { width: 100px; padding: 0.15rem 0.2rem; font-size: 0.68rem; border: 1px solid var(--crm-border); border-radius: 3px; background: var(--crm-bg-card); color: var(--crm-text); cursor: pointer; }
+.cma-comp-val-select:focus { border-color: var(--crm-accent); outline: none; box-shadow: var(--crm-shadow-focus); }
 
 /* Replace comp button */
 .cma-replace-comp-btn { display: block; margin: 0.25rem auto 0; padding: 0.15rem 0.5rem; font-size: 0.65rem; background: transparent; color: var(--crm-accent); border: 1px solid var(--crm-accent); border-radius: 3px; cursor: pointer; opacity: 0.7; transition: opacity 0.15s; }

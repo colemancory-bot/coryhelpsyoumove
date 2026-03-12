@@ -1724,6 +1724,198 @@ var CMA_FUNC_URL = SUPABASE_URL + '/functions/v1/cma-engine';
 var CMA_EXTRACT_URL = SUPABASE_URL + '/functions/v1/cma-extract-features';
 var CMA_PDF_URL = SUPABASE_URL + '/functions/v1/cma-pdf';
 
+// WNC CMA Adjustment Rates (synced with cma-engine WNC_DEFAULTS)
+// Last calibrated: 2026-Q1. Review quarterly using paired sales analysis.
+var CMA_RATES = {
+  version: '2026-Q1',
+  price_per_sqft: 175,
+  per_bedroom: 12000,
+  per_bathroom: 10000,
+  per_garage_space: 15000,
+  per_year_age: 500,
+  view_per_point: 15000,
+  water_per_point: 12000,
+  land_per_point: 8000,
+  road_noise_per_point: 7000,
+  privacy_per_point: 6000,
+  elevation_per_100ft: 2000,
+  condition_per_point: 20000,
+  lot_tiers: [
+    { upTo: 2, perAcre: 25000 },
+    { upTo: 5, perAcre: 15000 },
+    { upTo: 10, perAcre: 8000 },
+    { upTo: 25, perAcre: 4000 },
+    { upTo: 50, perAcre: 2500 },
+    { upTo: Infinity, perAcre: 1500 }
+  ],
+  unrestricted_premium_pct: 0.10,
+  pool_inground: 0,
+  pool_above_ground: -3000,
+  basement_finished_per_sqft: 60,
+  basement_partial: 20000,
+  basement_unfinished: 10000,
+  fireplace_value: 8000,
+  fireplace_stone_premium: 5000,
+  covered_outdoor_per_sqft: 30,
+  outbuilding_tier_values: [0, 5000, 15000, 30000],
+  construction_values: { site_built: 0, manufactured: -35000, modular: -10000, log: 5000, mobile_home: -45000, unknown: 0 }
+};
+
+function cmaCalcLotValue(acres) {
+  var tiers = CMA_RATES.lot_tiers;
+  var total = 0, remaining = acres, prevCap = 0;
+  for (var i = 0; i < tiers.length && remaining > 0; i++) {
+    var tierAcres = Math.min(remaining, tiers[i].upTo - prevCap);
+    total += tierAcres * tiers[i].perAcre;
+    remaining -= tierAcres;
+    prevCap = tiers[i].upTo;
+  }
+  return Math.round(total);
+}
+
+function cmaGetCompVal(ci, field) {
+  if (_cmaState.compOverrides && _cmaState.compOverrides[ci] && _cmaState.compOverrides[ci][field] != null) {
+    return _cmaState.compOverrides[ci][field];
+  }
+  var c = _cmaState.selectedComps[ci];
+  if (!c) return null;
+  // Check listing fields first, then features
+  if (c.listing && c.listing[field] != null) return c.listing[field];
+  if (c.features && c.features[field] != null) return c.features[field];
+  return null;
+}
+
+function cmaRecalcAdjFromValue(ci, adjKey) {
+  var s = _cmaState.subject.listing;
+  var sf = _cmaState.subject.features || {};
+  var r = CMA_RATES;
+  switch (adjKey) {
+    case 'adj_living_area': return Math.round(((s.living_area || 0) - (cmaGetCompVal(ci, 'living_area') || 0)) * r.price_per_sqft);
+    case 'adj_bedrooms': return Math.round(((s.bedrooms_total || 0) - (cmaGetCompVal(ci, 'bedrooms_total') || 0)) * r.per_bedroom);
+    case 'adj_bathrooms': return Math.round(((s.bathrooms_total_integer || 0) - (cmaGetCompVal(ci, 'bathrooms_total_integer') || 0)) * r.per_bathroom);
+    case 'adj_garage': return Math.round(((s.garage_spaces || 0) - (cmaGetCompVal(ci, 'garage_spaces') || 0)) * r.per_garage_space);
+    case 'adj_year_built': {
+      var sy = s.year_built || 0, cy = cmaGetCompVal(ci, 'year_built') || 0;
+      return (sy > 0 && cy > 0) ? Math.round((sy - cy) * r.per_year_age) : 0;
+    }
+    case 'adj_lot_size': return cmaCalcLotValue(s.lot_size_acres || 0) - cmaCalcLotValue(cmaGetCompVal(ci, 'lot_size_acres') || 0);
+    case 'adj_restrictions': {
+      var subR = sf.restriction_status || 'unknown';
+      var compR = cmaGetCompVal(ci, 'restriction_status') || 'unknown';
+      if (subR !== 'unknown' && compR !== 'unknown' && subR !== compR) {
+        var avgLot = ((s.lot_size_acres || 0) + (cmaGetCompVal(ci, 'lot_size_acres') || 0)) / 2 || 1;
+        var premium = Math.round(cmaCalcLotValue(avgLot) * r.unrestricted_premium_pct);
+        return subR === 'unrestricted' ? premium : -premium;
+      }
+      return 0;
+    }
+    case 'adj_construction_type': {
+      var subCT = sf.construction_type || 'site_built';
+      var compCT = cmaGetCompVal(ci, 'construction_type') || 'site_built';
+      return (r.construction_values[subCT] || 0) - (r.construction_values[compCT] || 0);
+    }
+    case 'adj_view': {
+      var sv = sf.view_quality || 0, cv = cmaGetCompVal(ci, 'view_quality') || 0;
+      return (sv > 0 && cv > 0) ? Math.round((sv - cv) * r.view_per_point) : 0;
+    }
+    case 'adj_water_features': {
+      var sv = sf.water_quality || 0, cv = cmaGetCompVal(ci, 'water_quality') || 0;
+      return (sv > 0 && cv > 0) ? Math.round((sv - cv) * r.water_per_point) : 0;
+    }
+    case 'adj_land_character': {
+      var sv = sf.land_usability || 0, cv = cmaGetCompVal(ci, 'land_usability') || 0;
+      return (sv > 0 && cv > 0) ? Math.round((sv - cv) * r.land_per_point) : 0;
+    }
+    case 'adj_road_noise': {
+      var sv = sf.road_noise || 0, cv = cmaGetCompVal(ci, 'road_noise') || 0;
+      return (sv > 0 && cv > 0) ? Math.round((sv - cv) * r.road_noise_per_point) : 0;
+    }
+    case 'adj_privacy': {
+      var sv = sf.privacy_rating || 0, cv = cmaGetCompVal(ci, 'privacy_rating') || 0;
+      return (sv > 0 && cv > 0) ? Math.round((sv - cv) * r.privacy_per_point) : 0;
+    }
+    case 'adj_elevation': {
+      var sv = sf.elevation_ft || 0, cv = cmaGetCompVal(ci, 'elevation_ft') || 0;
+      return Math.round(((sv - cv) / 100) * r.elevation_per_100ft);
+    }
+    case 'adj_fireplace': {
+      var subFP = sf.has_fireplace ? (sf.fireplace_count || 1) : 0;
+      var compFP = cmaGetCompVal(ci, 'fireplace_count') || 0;
+      return (subFP - compFP) * r.fireplace_value;
+    }
+    case 'adj_covered_outdoor': {
+      var subOD = sf.covered_outdoor_sqft || 0;
+      var compOD = cmaGetCompVal(ci, 'covered_outdoor_sqft') || 0;
+      return Math.round((subOD - compOD) * r.covered_outdoor_per_sqft);
+    }
+    default: return 0;
+  }
+}
+
+function cmaRecalcStructuralAdj(ci, adjKey) {
+  var sf = _cmaState.subject.features || {};
+  var s = _cmaState.subject.listing;
+  var r = CMA_RATES;
+  switch (adjKey) {
+    case 'adj_restrictions': return cmaRecalcAdjFromValue(ci, 'adj_restrictions');
+    case 'adj_construction_type': return cmaRecalcAdjFromValue(ci, 'adj_construction_type');
+    case 'adj_pool': {
+      var poolVal = function(type) {
+        if (type === 'in_ground' || type === 'indoor') return r.pool_inground;
+        if (type === 'above_ground') return r.pool_above_ground;
+        return 0;
+      };
+      var subPool = sf.has_pool ? (sf.pool_type || 'in_ground') : 'none';
+      var compPool = cmaGetCompVal(ci, 'pool_type') || 'none';
+      return poolVal(subPool) - poolVal(compPool);
+    }
+    case 'adj_basement': {
+      var bsmtVal = function(type) {
+        if (type === 'finished') return 800 * r.basement_finished_per_sqft;
+        if (type === 'partial') return r.basement_partial;
+        if (type === 'unfinished') return r.basement_unfinished;
+        return 0;
+      };
+      var subBsmt = sf.basement_type || 'none';
+      var compBsmt = cmaGetCompVal(ci, 'basement_type') || 'none';
+      return Math.round(bsmtVal(subBsmt) - bsmtVal(compBsmt));
+    }
+    case 'adj_fireplace': {
+      var subFP = sf.has_fireplace ? (sf.fireplace_count || 1) : 0;
+      var compFP = cmaGetCompVal(ci, 'fireplace_count') || 0;
+      return (subFP - compFP) * r.fireplace_value;
+    }
+    case 'adj_covered_outdoor': {
+      var subOD = sf.covered_outdoor_sqft || 0;
+      var compOD = cmaGetCompVal(ci, 'covered_outdoor_sqft') || 0;
+      return Math.round((subOD - compOD) * r.covered_outdoor_per_sqft);
+    }
+    case 'adj_outbuildings': {
+      var subTier = sf.outbuilding_value_tier || 0;
+      var compTier = cmaGetCompVal(ci, 'outbuilding_value_tier') || 0;
+      return (r.outbuilding_tier_values[subTier] || 0) - (r.outbuilding_tier_values[compTier] || 0);
+    }
+    default: return 0;
+  }
+}
+
+function cmaCompValInput(ci, field, adjKey, value, step, unit, attrs) {
+  return '<div class="cma-grid-comp-val">' +
+    '<input type="number" class="cma-comp-val-edit" value="' + (value != null ? value : '') + '" data-comp="' + ci + '" data-field="' + field + '" data-adj="' + adjKey + '" step="' + (step || 1) + '"' + (attrs || '') + ' />' +
+    (unit ? '<span class="cma-comp-val-unit">' + unit + '</span>' : '') +
+    '</div>';
+}
+
+function cmaCompValSelect(ci, field, adjKey, currentVal, options) {
+  var html = '<div class="cma-grid-comp-val">';
+  html += '<select class="cma-comp-val-select" data-comp="' + ci + '" data-field="' + field + '" data-adj="' + adjKey + '">';
+  options.forEach(function(opt) {
+    html += '<option value="' + opt.value + '"' + (opt.value === currentVal ? ' selected' : '') + '>' + opt.label + '</option>';
+  });
+  html += '</select></div>';
+  return html;
+}
+
 async function cmaFetch(action, data) {
   var body = Object.assign({ action: action }, data || {});
   try {
@@ -1929,6 +2121,7 @@ async function cmaOpenReport(reportId) {
         adj_privacy: adj.adj_privacy, adj_elevation: adj.adj_elevation,
         adj_pool: adj.adj_pool || 0, adj_basement: adj.adj_basement || 0, adj_fireplace: adj.adj_fireplace || 0,
         adj_covered_outdoor: adj.adj_covered_outdoor || 0, adj_outbuildings: adj.adj_outbuildings || 0,
+        adj_construction_type: adj.adj_construction_type || 0,
         adj_time: adj.adj_time, adj_concessions: adj.adj_concessions
       },
       total_adjustment: adj.total_adjustment, adjusted_price: adj.adjusted_price,
@@ -1936,10 +2129,12 @@ async function cmaOpenReport(reportId) {
       warnings: [], ai_suggested: adj.ai_suggested_adjustments || {}
     };
   });
-  // Restore comp condition ratings from saved report
+  // Restore comp condition ratings and value overrides from saved report
   _cmaState.compConditions = {};
+  _cmaState.compOverrides = {};
   (result.adjustments || []).forEach(function(adj, i) {
     if (adj.comp_condition_rating != null) _cmaState.compConditions[i] = adj.comp_condition_rating;
+    _cmaState.compOverrides[i] = adj.comp_overrides || {};
   });
   _cmaState.step = 4;
   cmaRenderStep4();
@@ -2979,11 +3174,13 @@ async function cmaGoStep3() {
   if (calcResult.error) { toast('Adjustment calculation error: ' + calcResult.error, 'error'); return; }
   _cmaState.adjustments = calcResult.adjustments || [];
   _cmaState.valuation = calcResult.valuation || {};
-  // Initialize comp condition ratings from AI-extracted features
+  // Initialize comp condition ratings and value overrides from AI-extracted features
   _cmaState.compConditions = {};
+  _cmaState.compOverrides = {};
   _cmaState.selectedComps.forEach(function(c, i) {
     var cf = c.features || {};
     _cmaState.compConditions[i] = cf.condition_rating || 3; // Default to 3 (Fair for Age)
+    _cmaState.compOverrides[i] = {};
   });
   cmaRenderStep3();
 }
@@ -3018,89 +3215,180 @@ function cmaRenderStep3() {
   adjs.forEach(function(a) { html += '<td>$' + a.sale_price.toLocaleString() + '</td>'; });
   html += '</tr>';
 
-  // Standard adjustment rows
-  // Determine subject restriction status for display
+  // Standard adjustment rows with editable comp values
   var subRestrictionStatus = (sf.restriction_status || 'unknown');
   var subRestrictionLabel = subRestrictionStatus === 'unrestricted' ? 'Unrestricted' : subRestrictionStatus === 'restricted' ? 'Restricted' : '--';
+  var restrictionOpts = [
+    { value: 'unknown', label: 'Unknown' },
+    { value: 'unrestricted', label: 'Unrestricted' },
+    { value: 'restricted', label: 'Restricted' }
+  ];
+
+  // Infer subject construction type
+  var subCT = sf.construction_type || 'unknown';
+  if (subCT === 'unknown') {
+    var pst = ((s.property_sub_type || '') + '').toLowerCase();
+    if (pst.includes('manufactured') || pst.includes('mobile')) subCT = 'manufactured';
+    else if (pst.includes('modular')) subCT = 'modular';
+    else subCT = 'site_built';
+  }
+  var ctLabels = { site_built: 'Site-Built', manufactured: 'Manufactured', modular: 'Modular', log: 'Log', mobile_home: 'Mobile Home', unknown: 'Unknown' };
+  var ctOpts = [
+    { value: 'site_built', label: 'Site-Built' },
+    { value: 'manufactured', label: 'Manufactured' },
+    { value: 'modular', label: 'Modular' },
+    { value: 'log', label: 'Log' },
+    { value: 'mobile_home', label: 'Mobile Home' }
+  ];
 
   var stdRows = [
-    { key: 'adj_living_area', label: 'Living Area', subVal: s.living_area ? s.living_area.toLocaleString() + ' sqft' : '--', compKey: 'living_area', unit: ' sqft' },
-    { key: 'adj_lot_size', label: 'Lot Size', subVal: s.lot_size_acres ? s.lot_size_acres + ' ac' : '--', compKey: 'lot_size_acres', unit: ' ac' },
-    { key: 'adj_restrictions', label: 'Restrictions', subVal: subRestrictionLabel, compFeatKey: 'restriction_status', unit: '', isRestriction: true },
-    { key: 'adj_bedrooms', label: 'Bedrooms', subVal: s.bedrooms_total || '--', compKey: 'bedrooms_total', unit: '' },
-    { key: 'adj_bathrooms', label: 'Bathrooms', subVal: s.bathrooms_total_integer || '--', compKey: 'bathrooms_total_integer', unit: '' },
-    { key: 'adj_garage', label: 'Garage', subVal: s.garage_spaces || '0', compKey: 'garage_spaces', unit: '' },
-    { key: 'adj_year_built', label: 'Year Built', subVal: s.year_built || '--', compKey: 'year_built', unit: '' },
+    { key: 'adj_living_area', label: 'Living Area', subVal: s.living_area ? s.living_area.toLocaleString() + ' sqft' : '--', field: 'living_area', unit: 'sqft', step: 10 },
+    { key: 'adj_lot_size', label: 'Lot Size', subVal: s.lot_size_acres ? s.lot_size_acres + ' ac' : '--', field: 'lot_size_acres', unit: 'ac', step: 0.1 },
+    { key: 'adj_bedrooms', label: 'Bedrooms', subVal: s.bedrooms_total || '--', field: 'bedrooms_total', unit: '', step: 1 },
+    { key: 'adj_bathrooms', label: 'Bathrooms', subVal: s.bathrooms_total_integer || '--', field: 'bathrooms_total_integer', unit: '', step: 1 },
+    { key: 'adj_garage', label: 'Garage', subVal: s.garage_spaces || '0', field: 'garage_spaces', unit: '', step: 1 },
+    { key: 'adj_year_built', label: 'Year Built', subVal: s.year_built || '--', field: 'year_built', unit: '', step: 1 },
   ];
 
   html += '<tr class="cma-grid-section"><td colspan="' + (comps.length + 2) + '">Standard Adjustments</td></tr>';
   stdRows.forEach(function(row) {
     html += '<tr><td>' + row.label + '</td><td class="cma-grid-subject-val">' + row.subVal + '</td>';
     adjs.forEach(function(a, ci) {
-      var compVal;
-      if (row.isRestriction) {
-        // Restriction uses feature tags, not listing fields
-        var cf = comps[ci].features || {};
-        var rs = cf.restriction_status || 'unknown';
-        compVal = rs === 'unrestricted' ? 'Unrestricted' : rs === 'restricted' ? 'Restricted' : '--';
-      } else {
-        compVal = comps[ci].listing[row.compKey];
-        compVal = compVal != null ? compVal + row.unit : '--';
-      }
+      var rawVal = cmaGetCompVal(ci, row.field);
       var adjVal = a.adjustments[row.key] || 0;
       html += '<td class="cma-grid-adj-cell">';
-      html += '<div class="cma-grid-comp-val">' + compVal + '</div>';
+      html += cmaCompValInput(ci, row.field, row.key, rawVal != null ? rawVal : '', row.step, row.unit);
       html += cmaAdjInput(ci, row.key, adjVal);
       html += '</td>';
     });
     html += '</tr>';
   });
 
-  // Structural feature rows
-  var structRows = [
-    { key: 'adj_pool', label: 'Pool', subVal: sf.has_pool ? (sf.pool_type || 'Yes') : 'None', compFeatKey: 'has_pool', isPool: true },
-    { key: 'adj_basement', label: 'Basement', subVal: sf.basement_type && sf.basement_type !== 'none' ? sf.basement_type : 'None', compFeatKey: 'basement_type', isBasement: true },
-    { key: 'adj_fireplace', label: 'Fireplace', subVal: sf.has_fireplace ? (sf.fireplace_count || 1) + 'x ' + (sf.fireplace_type || '') : 'None', compFeatKey: 'has_fireplace', isFireplace: true },
-    { key: 'adj_covered_outdoor', label: 'Covered Outdoor', subVal: sf.covered_outdoor_sqft ? sf.covered_outdoor_sqft + ' sqft' : '--', compFeatKey: 'covered_outdoor_sqft', isSqft: true },
-    { key: 'adj_outbuildings', label: 'Outbuildings', subVal: sf.outbuilding_value_tier ? 'Tier ' + sf.outbuilding_value_tier : 'None', compFeatKey: 'outbuilding_value_tier', isTier: true },
+  // Restriction row (dropdown)
+  html += '<tr><td>Restrictions</td><td class="cma-grid-subject-val">' + subRestrictionLabel + '</td>';
+  adjs.forEach(function(a, ci) {
+    var cf = comps[ci].features || {};
+    var compR = cmaGetCompVal(ci, 'restriction_status') || cf.restriction_status || 'unknown';
+    var adjVal = a.adjustments.adj_restrictions || 0;
+    html += '<td class="cma-grid-adj-cell">';
+    html += cmaCompValSelect(ci, 'restriction_status', 'adj_restrictions', compR, restrictionOpts);
+    html += cmaAdjInput(ci, 'adj_restrictions', adjVal);
+    html += '</td>';
+  });
+  html += '</tr>';
+
+  // Construction type row (dropdown)
+  html += '<tr><td>Construction</td><td class="cma-grid-subject-val">' + (ctLabels[subCT] || subCT) + '</td>';
+  adjs.forEach(function(a, ci) {
+    var cf = comps[ci].features || {};
+    var compCT = cmaGetCompVal(ci, 'construction_type') || cf.construction_type || 'unknown';
+    if (compCT === 'unknown') {
+      var cpst = ((comps[ci].listing.property_sub_type || '') + '').toLowerCase();
+      if (cpst.includes('manufactured') || cpst.includes('mobile')) compCT = 'manufactured';
+      else if (cpst.includes('modular')) compCT = 'modular';
+      else compCT = 'site_built';
+    }
+    var adjVal = a.adjustments.adj_construction_type || 0;
+    html += '<td class="cma-grid-adj-cell">';
+    html += cmaCompValSelect(ci, 'construction_type', 'adj_construction_type', compCT, ctOpts);
+    html += cmaAdjInput(ci, 'adj_construction_type', adjVal);
+    html += '</td>';
+  });
+  html += '</tr>';
+
+  // Structural feature rows with editable inputs
+  var basementOpts = [
+    { value: 'none', label: 'None' },
+    { value: 'crawl_space', label: 'Crawl Space' },
+    { value: 'unfinished', label: 'Unfinished' },
+    { value: 'partial', label: 'Partial' },
+    { value: 'finished', label: 'Finished' }
+  ];
+  var poolOpts = [
+    { value: 'none', label: 'None' },
+    { value: 'in_ground', label: 'In-Ground' },
+    { value: 'above_ground', label: 'Above-Ground' }
+  ];
+  var outbldgOpts = [
+    { value: '0', label: 'None' },
+    { value: '1', label: 'Tier 1 (small)' },
+    { value: '2', label: 'Tier 2 (med)' },
+    { value: '3', label: 'Tier 3 (large)' }
   ];
 
   html += '<tr class="cma-grid-section"><td colspan="' + (comps.length + 2) + '">Structural Features</td></tr>';
-  structRows.forEach(function(row) {
-    html += '<tr><td>' + row.label + '</td><td class="cma-grid-subject-val">' + row.subVal + '</td>';
-    adjs.forEach(function(a, ci) {
-      var cf = comps[ci].features || {};
-      var compVal;
-      if (row.isPool) {
-        compVal = cf.has_pool ? (cf.pool_type || 'Yes') : 'None';
-      } else if (row.isBasement) {
-        compVal = cf.basement_type && cf.basement_type !== 'none' ? cf.basement_type : 'None';
-      } else if (row.isFireplace) {
-        compVal = cf.has_fireplace ? (cf.fireplace_count || 1) + 'x' : 'None';
-      } else if (row.isSqft) {
-        compVal = cf[row.compFeatKey] ? cf[row.compFeatKey] + ' sqft' : '--';
-      } else if (row.isTier) {
-        compVal = cf[row.compFeatKey] ? 'Tier ' + cf[row.compFeatKey] : 'None';
-      } else {
-        compVal = cf[row.compFeatKey] != null ? cf[row.compFeatKey] : '--';
-      }
-      var adjVal = a.adjustments[row.key] || 0;
-      html += '<td class="cma-grid-adj-cell">';
-      html += '<div class="cma-grid-comp-val">' + compVal + '</div>';
-      html += cmaAdjInput(ci, row.key, adjVal);
-      html += '</td>';
-    });
-    html += '</tr>';
-  });
 
-  // Mountain adjustment rows
+  // Pool row
+  html += '<tr><td>Pool</td><td class="cma-grid-subject-val">' + (sf.has_pool ? (sf.pool_type || 'Yes').replace(/_/g, ' ') : 'None') + '</td>';
+  adjs.forEach(function(a, ci) {
+    var cf = comps[ci].features || {};
+    var compPool = cmaGetCompVal(ci, 'pool_type') || (cf.has_pool ? (cf.pool_type || 'in_ground') : 'none');
+    html += '<td class="cma-grid-adj-cell">';
+    html += cmaCompValSelect(ci, 'pool_type', 'adj_pool', compPool, poolOpts);
+    html += cmaAdjInput(ci, 'adj_pool', a.adjustments.adj_pool || 0);
+    html += '</td>';
+  });
+  html += '</tr>';
+
+  // Basement row
+  html += '<tr><td>Basement</td><td class="cma-grid-subject-val">' + (sf.basement_type && sf.basement_type !== 'none' ? sf.basement_type.replace(/_/g, ' ') : 'None') + '</td>';
+  adjs.forEach(function(a, ci) {
+    var cf = comps[ci].features || {};
+    var compBsmt = cmaGetCompVal(ci, 'basement_type') || cf.basement_type || 'none';
+    html += '<td class="cma-grid-adj-cell">';
+    html += cmaCompValSelect(ci, 'basement_type', 'adj_basement', compBsmt, basementOpts);
+    html += cmaAdjInput(ci, 'adj_basement', a.adjustments.adj_basement || 0);
+    html += '</td>';
+  });
+  html += '</tr>';
+
+  // Fireplace row
+  html += '<tr><td>Fireplace</td><td class="cma-grid-subject-val">' + (sf.has_fireplace ? (sf.fireplace_count || 1) + 'x' : 'None') + '</td>';
+  adjs.forEach(function(a, ci) {
+    var cf = comps[ci].features || {};
+    var compFP = cmaGetCompVal(ci, 'fireplace_count');
+    if (compFP == null) compFP = cf.has_fireplace ? (cf.fireplace_count || 1) : 0;
+    html += '<td class="cma-grid-adj-cell">';
+    html += cmaCompValInput(ci, 'fireplace_count', 'adj_fireplace', compFP, 1, 'x', ' min="0" max="5"');
+    html += cmaAdjInput(ci, 'adj_fireplace', a.adjustments.adj_fireplace || 0);
+    html += '</td>';
+  });
+  html += '</tr>';
+
+  // Covered outdoor row
+  html += '<tr><td>Covered Outdoor</td><td class="cma-grid-subject-val">' + (sf.covered_outdoor_sqft ? sf.covered_outdoor_sqft + ' sqft' : '--') + '</td>';
+  adjs.forEach(function(a, ci) {
+    var cf = comps[ci].features || {};
+    var compOD = cmaGetCompVal(ci, 'covered_outdoor_sqft');
+    if (compOD == null) compOD = cf.covered_outdoor_sqft || 0;
+    html += '<td class="cma-grid-adj-cell">';
+    html += cmaCompValInput(ci, 'covered_outdoor_sqft', 'adj_covered_outdoor', compOD, 50, 'sqft', ' min="0"');
+    html += cmaAdjInput(ci, 'adj_covered_outdoor', a.adjustments.adj_covered_outdoor || 0);
+    html += '</td>';
+  });
+  html += '</tr>';
+
+  // Outbuildings row
+  html += '<tr><td>Outbuildings</td><td class="cma-grid-subject-val">' + (sf.outbuilding_value_tier ? 'Tier ' + sf.outbuilding_value_tier : 'None') + '</td>';
+  adjs.forEach(function(a, ci) {
+    var cf = comps[ci].features || {};
+    var compOB = cmaGetCompVal(ci, 'outbuilding_value_tier');
+    if (compOB == null) compOB = cf.outbuilding_value_tier || 0;
+    html += '<td class="cma-grid-adj-cell">';
+    html += cmaCompValSelect(ci, 'outbuilding_value_tier', 'adj_outbuildings', '' + compOB, outbldgOpts);
+    html += cmaAdjInput(ci, 'adj_outbuildings', a.adjustments.adj_outbuildings || 0);
+    html += '</td>';
+  });
+  html += '</tr>';
+
+  // Mountain adjustment rows with editable comp ratings + sliders
   var mtnRows = [
-    { key: 'adj_view', label: 'View Quality', subVal: sf.view_quality ? sf.view_quality + '/5' : '--', compFeatKey: 'view_quality' },
-    { key: 'adj_water_features', label: 'Water Features', subVal: sf.water_quality ? sf.water_quality + '/5' : '--', compFeatKey: 'water_quality' },
-    { key: 'adj_land_character', label: 'Land Character', subVal: sf.land_usability ? sf.land_usability + '/5' : '--', compFeatKey: 'land_usability' },
-    { key: 'adj_road_noise', label: 'Road Noise', subVal: sf.road_noise ? sf.road_noise + '/5' : '--', compFeatKey: 'road_noise' },
-    { key: 'adj_privacy', label: 'Privacy', subVal: sf.privacy_rating ? sf.privacy_rating + '/5' : '--', compFeatKey: 'privacy_rating' },
-    { key: 'adj_elevation', label: 'Elevation', subVal: sf.elevation_ft ? sf.elevation_ft + ' ft' : '--', compFeatKey: 'elevation_ft' },
+    { key: 'adj_view', label: 'View Quality', subVal: sf.view_quality ? sf.view_quality + '/5' : '--', field: 'view_quality', isRating: true },
+    { key: 'adj_water_features', label: 'Water Features', subVal: sf.water_quality ? sf.water_quality + '/5' : '--', field: 'water_quality', isRating: true },
+    { key: 'adj_land_character', label: 'Land Character', subVal: sf.land_usability ? sf.land_usability + '/5' : '--', field: 'land_usability', isRating: true },
+    { key: 'adj_road_noise', label: 'Road Noise', subVal: sf.road_noise ? sf.road_noise + '/5' : '--', field: 'road_noise', isRating: true },
+    { key: 'adj_privacy', label: 'Privacy', subVal: sf.privacy_rating ? sf.privacy_rating + '/5' : '--', field: 'privacy_rating', isRating: true },
+    { key: 'adj_elevation', label: 'Elevation', subVal: sf.elevation_ft ? sf.elevation_ft + ' ft' : '--', field: 'elevation_ft', isRating: false },
   ];
 
   html += '<tr class="cma-grid-section"><td colspan="' + (comps.length + 2) + '">Mountain Adjustments</td></tr>';
@@ -3108,12 +3396,16 @@ function cmaRenderStep3() {
     html += '<tr><td>' + row.label + '</td><td class="cma-grid-subject-val">' + row.subVal + '</td>';
     adjs.forEach(function(a, ci) {
       var cf = comps[ci].features || {};
-      var compVal = cf[row.compFeatKey];
+      var compVal = cmaGetCompVal(ci, row.field);
+      if (compVal == null) compVal = cf[row.field] || 0;
       var adjVal = a.adjustments[row.key] || 0;
-      var displayVal = row.compFeatKey === 'elevation_ft' ? (compVal ? compVal + ' ft' : '--') : (compVal ? compVal + '/5' : '--');
       html += '<td class="cma-grid-adj-cell">';
-      html += '<div class="cma-grid-comp-val">' + displayVal + '</div>';
-      html += cmaSlider(ci, row.key, adjVal, row.compFeatKey, sf, cf);
+      if (row.isRating) {
+        html += cmaCompValInput(ci, row.field, row.key, compVal, 1, '/5', ' min="0" max="5"');
+      } else {
+        html += cmaCompValInput(ci, row.field, row.key, compVal, 100, 'ft', ' min="0"');
+      }
+      html += cmaSlider(ci, row.key, adjVal, row.field, sf, cf);
       html += '</td>';
     });
     html += '</tr>';
@@ -3362,15 +3654,15 @@ async function cmaLoadGridPhotos() {
   if (sub && sub.listing_key) {
     cmaLoadOnePhoto(sub.listing_key, 'cmaSubjectPhoto');
   }
-  // Load comp photos
+  // Load comp photos (pass listing info for description display)
   comps.forEach(function(c, i) {
     if (c.listing && c.listing.listing_key) {
-      cmaLoadOnePhoto(c.listing.listing_key, 'cmaCompPhoto_' + i);
+      cmaLoadOnePhoto(c.listing.listing_key, 'cmaCompPhoto_' + i, c.listing);
     }
   });
 }
 
-async function cmaLoadOnePhoto(listingKey, containerId) {
+async function cmaLoadOnePhoto(listingKey, containerId, listingInfo) {
   var el = document.getElementById(containerId);
   if (!el) return;
   try {
@@ -3380,8 +3672,10 @@ async function cmaLoadOnePhoto(listingKey, containerId) {
       el.innerHTML = '<img src="' + esc(photos[0]) + '" alt="Property photo" class="cma-grid-photo-img" style="cursor:pointer" onerror="this.onerror=null;this.style.display=\'none\';this.parentElement.innerHTML=\'<div class=cma-grid-photo-empty>Photo unavailable</div>\'" />';
       el.dataset.photos = JSON.stringify(photos);
       el.dataset.listingKey = listingKey;
+      if (listingInfo) el.dataset.listingInfo = JSON.stringify(listingInfo);
       el.addEventListener('click', function() {
-        cmaOpenPhotoGallery(JSON.parse(el.dataset.photos), el.dataset.listingKey);
+        var info = el.dataset.listingInfo ? JSON.parse(el.dataset.listingInfo) : null;
+        cmaOpenPhotoGallery(JSON.parse(el.dataset.photos), el.dataset.listingKey, info);
       });
     } else {
       el.innerHTML = '<div class="cma-grid-photo-empty">No photo</div>';
@@ -3391,13 +3685,33 @@ async function cmaLoadOnePhoto(listingKey, containerId) {
   }
 }
 
-// Photo gallery lightbox
-function cmaOpenPhotoGallery(photos, listingKey) {
+// Photo gallery lightbox (with optional property description)
+function cmaOpenPhotoGallery(photos, listingKey, listingInfo) {
   if (!photos || !photos.length) return;
   var idx = 0;
   var overlay = document.createElement('div');
   overlay.className = 'crm-modal-overlay cma-photo-overlay';
   overlay.style.zIndex = '500';
+
+  // Build property info bar if we have listing data
+  var infoBar = '';
+  if (listingInfo) {
+    var addr = (listingInfo.full_address || '').split(',')[0];
+    var facts = [];
+    if (listingInfo.bedrooms_total) facts.push(listingInfo.bedrooms_total + ' bed');
+    if (listingInfo.bathrooms_total_integer) facts.push(listingInfo.bathrooms_total_integer + ' bath');
+    if (listingInfo.living_area) facts.push(listingInfo.living_area.toLocaleString() + ' sqft');
+    if (listingInfo.lot_size_acres) facts.push(listingInfo.lot_size_acres + ' ac');
+    if (listingInfo.year_built) facts.push('Built ' + listingInfo.year_built);
+    var price = listingInfo.close_price || listingInfo.list_price;
+    infoBar = '<div class="cma-photo-info">';
+    if (addr) infoBar += '<div class="cma-photo-info-addr">' + esc(addr) + (price ? ' &mdash; $' + price.toLocaleString() : '') + '</div>';
+    if (facts.length) infoBar += '<div class="cma-photo-info-facts">' + facts.join(' &middot; ') + '</div>';
+    if (listingInfo.public_remarks) {
+      infoBar += '<div class="cma-photo-info-desc">' + esc(listingInfo.public_remarks) + '</div>';
+    }
+    infoBar += '</div>';
+  }
 
   function render() {
     overlay.innerHTML = '<div class="cma-photo-gallery">' +
@@ -3411,6 +3725,7 @@ function cmaOpenPhotoGallery(photos, listingKey) {
       (photos.length > 1 ? '<div class="cma-photo-strip">' + photos.map(function(p, i) {
         return '<img src="' + esc(p) + '" class="cma-photo-thumb' + (i === idx ? ' active' : '') + '" data-idx="' + i + '" />';
       }).join('') + '</div>' : '') +
+      infoBar +
     '</div>';
 
     // Bind nav
@@ -3517,9 +3832,75 @@ function cmaBindAdjustmentEvents() {
       cmaUpdateTotalsDisplay();
     }
   });
-  // Change events: condition dropdown + number inputs
+  // Change events: comp value edits, dropdowns, condition dropdown, number inputs
   grid.addEventListener('change', function(e) {
     var el = e.target;
+
+    // Editable comp value input (number fields like beds, baths, sqft, garage, etc.)
+    if (el.classList.contains('cma-comp-val-edit')) {
+      var compIdx = parseInt(el.dataset.comp);
+      var field = el.dataset.field;
+      var adjKey = el.dataset.adj;
+      var newVal = parseFloat(el.value);
+      if (isNaN(newVal)) newVal = 0;
+      // Store override
+      if (!_cmaState.compOverrides) _cmaState.compOverrides = {};
+      if (!_cmaState.compOverrides[compIdx]) _cmaState.compOverrides[compIdx] = {};
+      _cmaState.compOverrides[compIdx][field] = newVal;
+      // Recalculate adjustment from formula
+      var newAdj = cmaRecalcAdjFromValue(compIdx, adjKey);
+      cmaUpdateAdj(compIdx, adjKey, newAdj);
+      // Sync the adjustment input
+      var cell = el.closest('.cma-grid-adj-cell');
+      if (cell) {
+        var numInput = cell.querySelector('.cma-adj-input[data-key="' + adjKey + '"]');
+        if (numInput) {
+          numInput.value = newAdj;
+          numInput.className = 'cma-adj-input' + (newAdj > 0 ? ' cma-adj-pos' : newAdj < 0 ? ' cma-adj-neg' : '');
+        }
+        // If there's a slider, sync it too
+        var slider = cell.querySelector('.cma-slider[data-key="' + adjKey + '"]');
+        if (slider) {
+          var multipliers = { adj_view: 15000, adj_water_features: 12000, adj_land_character: 8000, adj_road_noise: 7000, adj_privacy: 6000, adj_condition: 20000, adj_elevation: 2000 };
+          var mult = multipliers[adjKey] || 10000;
+          var sv = Math.max(-2, Math.min(2, Math.round(newAdj / mult)));
+          slider.value = sv;
+          var ticks = cell.querySelectorAll('.cma-slider-tick');
+          ticks.forEach(function(t, i) { t.classList.toggle('active', i - 2 === sv); });
+        }
+      }
+      cmaUpdateTotalsDisplay();
+      return;
+    }
+
+    // Editable comp value select (dropdowns: restriction, construction, pool, basement, outbuildings)
+    if (el.classList.contains('cma-comp-val-select')) {
+      var compIdx = parseInt(el.dataset.comp);
+      var field = el.dataset.field;
+      var adjKey = el.dataset.adj;
+      var newVal = el.value;
+      // For outbuilding_value_tier, convert to number
+      if (field === 'outbuilding_value_tier') newVal = parseInt(newVal) || 0;
+      // Store override
+      if (!_cmaState.compOverrides) _cmaState.compOverrides = {};
+      if (!_cmaState.compOverrides[compIdx]) _cmaState.compOverrides[compIdx] = {};
+      _cmaState.compOverrides[compIdx][field] = newVal;
+      // Recalculate adjustment from formula
+      var newAdj = cmaRecalcStructuralAdj(compIdx, adjKey);
+      cmaUpdateAdj(compIdx, adjKey, newAdj);
+      // Sync the adjustment input
+      var cell = el.closest('.cma-grid-adj-cell');
+      if (cell) {
+        var numInput = cell.querySelector('.cma-adj-input[data-key="' + adjKey + '"]');
+        if (numInput) {
+          numInput.value = newAdj;
+          numInput.className = 'cma-adj-input' + (newAdj > 0 ? ' cma-adj-pos' : newAdj < 0 ? ' cma-adj-neg' : '');
+        }
+      }
+      cmaUpdateTotalsDisplay();
+      return;
+    }
+
     // Condition dropdown
     if (el.classList.contains('cma-condition-select')) {
       var compIdx = parseInt(el.dataset.comp);
@@ -3541,7 +3922,7 @@ function cmaBindAdjustmentEvents() {
       cmaUpdateTotalsDisplay();
       return;
     }
-    // Number input change
+    // Number input change (manual adjustment override)
     if (el.classList.contains('cma-adj-input')) {
       var compIdx = parseInt(el.dataset.comp);
       var adjKey = el.dataset.key;
@@ -3810,10 +4191,13 @@ async function cmaReplaceComp(compIdx, newCompKey) {
   });
   _cmaState.valuation = calcResult.valuation || {};
 
-  // Update comp condition for the replaced comp
+  // Update comp condition and clear overrides for the replaced comp
   if (_cmaState.compConditions) {
     var cf = newComp.features || {};
     _cmaState.compConditions[compIdx] = cf.condition_rating || 3;
+  }
+  if (_cmaState.compOverrides) {
+    _cmaState.compOverrides[compIdx] = {};
   }
 
   // Clear AI advice cache (needs recalculation with new comp)
@@ -4069,6 +4453,7 @@ async function cmaSaveReport(status) {
         adj_fireplace: a.adjustments.adj_fireplace || 0,
         adj_covered_outdoor: a.adjustments.adj_covered_outdoor || 0,
         adj_outbuildings: a.adjustments.adj_outbuildings || 0,
+        adj_construction_type: a.adjustments.adj_construction_type || 0,
         adj_time: a.adjustments.adj_time || 0,
         adj_concessions: a.adjustments.adj_concessions || 0,
         total_adjustment: a.total_adjustment,
@@ -4076,6 +4461,7 @@ async function cmaSaveReport(status) {
         gross_adjustment_pct: a.gross_adjustment_pct,
         net_adjustment_pct: a.net_adjustment_pct,
         comp_condition_rating: (_cmaState.compConditions && _cmaState.compConditions[i] != null) ? _cmaState.compConditions[i] : null,
+        comp_overrides: (_cmaState.compOverrides && _cmaState.compOverrides[i]) ? _cmaState.compOverrides[i] : {},
         slider_states: {},
         ai_suggested_adjustments: a.ai_suggested || {},
         ai_reasoning: _cmaState.aiAdvice && _cmaState.aiAdvice.comp_reasoning ? _cmaState.aiAdvice.comp_reasoning[a.comp_listing_key] || {} : {}
