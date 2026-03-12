@@ -1916,6 +1916,38 @@ function cmaCompValSelect(ci, field, adjKey, currentVal, options) {
   return html;
 }
 
+// Calculate initial construction type adjustments after engine returns
+// (engine doesn't have this adjustment, so we calculate client-side)
+function cmaInitConstructionAdj() {
+  var sf = _cmaState.subject.features || {};
+  var s = _cmaState.subject.listing;
+  var subCT = sf.construction_type || 'unknown';
+  if (subCT === 'unknown') {
+    var pst = ((s.property_sub_type || '') + '').toLowerCase();
+    if (pst.includes('manufactured') || pst.includes('mobile')) subCT = 'manufactured';
+    else if (pst.includes('modular')) subCT = 'modular';
+    else subCT = 'site_built';
+  }
+  var cv = CMA_RATES.construction_values;
+  _cmaState.adjustments.forEach(function(a, i) {
+    var c = _cmaState.selectedComps[i];
+    var cf = c.features || {};
+    var compCT = cf.construction_type || 'unknown';
+    if (compCT === 'unknown') {
+      var cpst = ((c.listing.property_sub_type || '') + '').toLowerCase();
+      if (cpst.includes('manufactured') || cpst.includes('mobile')) compCT = 'manufactured';
+      else if (cpst.includes('modular')) compCT = 'modular';
+      else compCT = 'site_built';
+    }
+    var adj = (cv[subCT] || 0) - (cv[compCT] || 0);
+    if (adj !== 0) {
+      a.adjustments.adj_construction_type = adj;
+      // Recalc totals to include this new adjustment
+      cmaRecalcTotals(i);
+    }
+  });
+}
+
 async function cmaFetch(action, data) {
   var body = Object.assign({ action: action }, data || {});
   try {
@@ -3182,6 +3214,8 @@ async function cmaGoStep3() {
     _cmaState.compConditions[i] = cf.condition_rating || 3; // Default to 3 (Fair for Age)
     _cmaState.compOverrides[i] = {};
   });
+  // Calculate construction type adjustment (not in engine, client-side only)
+  cmaInitConstructionAdj();
   cmaRenderStep3();
 }
 
