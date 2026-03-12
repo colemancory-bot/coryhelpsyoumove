@@ -1927,9 +1927,10 @@ function cmaCompValSelect(ci, field, adjKey, currentVal, options) {
   return html;
 }
 
-// Calculate initial construction type adjustments after engine returns
-// (engine doesn't have this adjustment, so we calculate client-side)
+// Calculate construction type adjustments (engine doesn't include this)
+// Called on every Step 3 render to ensure it's always populated
 function cmaInitConstructionAdj() {
+  if (!_cmaState.subject || !_cmaState.adjustments.length) return;
   var sf = _cmaState.subject.features || {};
   var s = _cmaState.subject.listing;
   var subCT = sf.construction_type || 'unknown';
@@ -1940,27 +1941,35 @@ function cmaInitConstructionAdj() {
     else subCT = 'site_built';
   }
   var cp = CMA_RATES.construction_pct;
+  var changed = false;
   _cmaState.adjustments.forEach(function(a, i) {
     var c = _cmaState.selectedComps[i];
+    if (!c) return;
     var cf = c.features || {};
-    var compCT = cf.construction_type || 'unknown';
+    // Check overrides first, then features, then infer from property_sub_type
+    var compCT = ((_cmaState.compOverrides || {})[i] || {}).construction_type || cf.construction_type || 'unknown';
     if (compCT === 'unknown') {
       var cpst = ((c.listing.property_sub_type || '') + '').toLowerCase();
       if (cpst.includes('manufactured') || cpst.includes('mobile')) compCT = 'manufactured';
       else if (cpst.includes('modular')) compCT = 'modular';
       else compCT = 'site_built';
     }
+    var adj = 0;
     if (subCT !== compCT) {
-      // % of improvement value (sale price minus estimated lot value)
       var compPrice = c.listing.close_price || c.listing.list_price || 0;
       var compLot = c.listing.lot_size_acres || 0;
       var lotVal = cmaCalcLotValue(compLot);
       var improvementVal = Math.max(compPrice - lotVal, compPrice * 0.3);
-      var adj = Math.round(improvementVal * ((cp[subCT] || 0) - (cp[compCT] || 0)));
+      adj = Math.round(improvementVal * ((cp[subCT] || 0) - (cp[compCT] || 0)));
+    }
+    if (a.adjustments.adj_construction_type !== adj) {
       a.adjustments.adj_construction_type = adj;
-      cmaRecalcTotals(i);
+      changed = true;
     }
   });
+  if (changed) {
+    _cmaState.adjustments.forEach(function(a, i) { cmaRecalcTotals(i); });
+  }
 }
 
 async function cmaFetch(action, data) {
@@ -3235,6 +3244,8 @@ async function cmaGoStep3() {
 }
 
 function cmaRenderStep3() {
+  // Ensure construction type adjustments are calculated (engine doesn't include them)
+  cmaInitConstructionAdj();
   var main = document.getElementById('crmMain');
   var s = _cmaState.subject.listing;
   var sf = _cmaState.subject.features || {};
