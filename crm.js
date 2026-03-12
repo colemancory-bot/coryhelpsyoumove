@@ -2616,8 +2616,15 @@ function cmaDetectConstructionType(listing) {
       remarks.indexOf('manufactured home') >= 0) {
     return (yearBuilt > 0 && yearBuilt < 1976) ? 'mobile_home' : 'manufactured';
   }
-  // Check for log
-  if (carConstruction.indexOf('log') >= 0 || archStyle.indexOf('log') >= 0 ||
+  // Check for log construction
+  // ConstructionMaterials (Canopy "Exterior Covering") and construction_materials column
+  // IMPORTANT: "Log Siding" is NOT log construction (just veneer on stick-frame)
+  var constMats = Array.isArray(raw.ConstructionMaterials) ? raw.ConstructionMaterials : [];
+  var colMats = Array.isArray(listing.construction_materials) ? listing.construction_materials : [];
+  var hasLogMaterial = constMats.concat(colMats).some(function(m) {
+    return ((m || '') + '').toLowerCase().trim() === 'log';
+  });
+  if (hasLogMaterial || carConstruction.indexOf('log') >= 0 || archStyle.indexOf('log') >= 0 ||
       structureType.indexOf('log') >= 0) {
     return 'log';
   }

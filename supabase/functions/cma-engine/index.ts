@@ -169,9 +169,24 @@ function scoreComp(
         return (yr > 0 && yr < 1976) ? "mobile_home" : "manufactured";
       }
       if (carConst.includes("modular") || bodyType.includes("modular")) return "modular";
+      // Log detection: check ConstructionMaterials (Canopy's "Exterior Covering" maps here),
+      // ArchitecturalStyle, StructureType, and CAR_ConstructionType.
+      // IMPORTANT: "Log Siding" is NOT log construction (just exterior veneer on stick-frame).
+      // Only "Log" as a standalone value indicates true log construction.
+      const constMats = Array.isArray(raw.ConstructionMaterials) ? raw.ConstructionMaterials : [];
+      const hasLogMaterial = constMats.some((m: unknown) => {
+        const ms = ((m || "") as string).toLowerCase().trim();
+        return ms === "log"; // Exact match: "Log" but NOT "Log Siding"
+      });
+      // Also check the DB column (RESO standard field)
+      const colMats = Array.isArray(listing.construction_materials) ? listing.construction_materials : [];
+      const hasLogCol = colMats.some((m: unknown) => {
+        const ms = ((m || "") as string).toLowerCase().trim();
+        return ms === "log";
+      });
       const archStyle = (Array.isArray(raw.ArchitecturalStyle) ? raw.ArchitecturalStyle.join(" ") : ((raw.ArchitecturalStyle || "") as string)).toLowerCase();
       const structType = (Array.isArray(raw.StructureType) ? raw.StructureType.join(" ") : ((raw.StructureType || "") as string)).toLowerCase();
-      if (carConst.includes("log") || bodyType.includes("log") || archStyle.includes("log") || structType.includes("log")) return "log";
+      if (hasLogMaterial || hasLogCol || carConst.includes("log") || bodyType.includes("log") || archStyle.includes("log") || structType.includes("log")) return "log";
       // Default: if subject has known type and we can't determine comp, assume site_built
       // Rationale: MLS data explicitly flags manufactured/modular; absence implies site-built
       return "site_built";
