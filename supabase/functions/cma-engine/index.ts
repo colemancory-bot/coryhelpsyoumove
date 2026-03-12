@@ -1777,6 +1777,15 @@ Deno.serve(async (req: Request) => {
         }
         subject = dbSubject;
 
+        // Apply subject overrides from client (user-edited sqft, beds, year, etc.)
+        // This ensures the engine scores comps against the user's edited values,
+        // not stale DB data (e.g., pre-renovation sqft, old construction type)
+        if (body.subject_overrides) {
+          for (const [k, v] of Object.entries(body.subject_overrides)) {
+            if (v != null) subject[k] = v;
+          }
+        }
+
         // Fetch subject feature tags
         const { data: tags } = await sb
           .from("cma_feature_tags")
@@ -1973,6 +1982,14 @@ Deno.serve(async (req: Request) => {
           return jsonResp({ error: "Subject listing not found", detail: subErr?.message }, 404);
         }
         subject = dbSubject;
+
+        // Apply subject overrides from client (user-edited sqft, beds, year, etc.)
+        if (body.subject_overrides) {
+          for (const [k, v] of Object.entries(body.subject_overrides)) {
+            if (v != null) subject[k] = v;
+          }
+        }
+
         const { data: tags } = await sb
           .from("cma_feature_tags")
           .select("*")

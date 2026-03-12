@@ -2122,7 +2122,17 @@ async function cmaQuickCMA() {
     target_count: 4
   };
   if (isManual) { compPayload.listing_key = null; compPayload.manual_subject = sub; }
-  else { compPayload.listing_key = sub.listing_key; }
+  else {
+    compPayload.listing_key = sub.listing_key;
+    // Send user-edited subject values so engine uses them instead of stale DB data
+    compPayload.subject_overrides = {
+      living_area: sub.living_area, bedrooms_total: sub.bedrooms_total,
+      bathrooms_total_integer: sub.bathrooms_total_integer, year_built: sub.year_built,
+      garage_spaces: sub.garage_spaces, lot_size_acres: sub.lot_size_acres,
+      property_type: sub.property_type, property_sub_type: sub.property_sub_type,
+      list_price: sub.list_price
+    };
+  }
   // Pass any user feature overrides (e.g. construction_type)
   if (_cmaState.subject.features && Object.keys(_cmaState.subject.features).length > 0) {
     compPayload.feature_overrides = _cmaState.subject.features;
@@ -2963,6 +2973,18 @@ async function cmaGoStep2() {
     payload.manual_subject = sub;
   } else {
     payload.listing_key = sub.listing_key;
+    // Send user-edited subject values so engine uses them instead of stale DB data
+    payload.subject_overrides = {
+      living_area: sub.living_area,
+      bedrooms_total: sub.bedrooms_total,
+      bathrooms_total_integer: sub.bathrooms_total_integer,
+      year_built: sub.year_built,
+      garage_spaces: sub.garage_spaces,
+      lot_size_acres: sub.lot_size_acres,
+      property_type: sub.property_type,
+      property_sub_type: sub.property_sub_type,
+      list_price: sub.list_price
+    };
   }
   // Pass any user feature overrides (e.g. construction_type)
   if (_cmaState.subject.features && Object.keys(_cmaState.subject.features).length > 0) {
@@ -4153,6 +4175,13 @@ async function cmaOpenCompSearch(compIdx, preloadedComps) {
       payload.manual_subject = sub;
     } else {
       payload.listing_key = sub.listing_key;
+      payload.subject_overrides = {
+        living_area: sub.living_area, bedrooms_total: sub.bedrooms_total,
+        bathrooms_total_integer: sub.bathrooms_total_integer, year_built: sub.year_built,
+        garage_spaces: sub.garage_spaces, lot_size_acres: sub.lot_size_acres,
+        property_type: sub.property_type, property_sub_type: sub.property_sub_type,
+        list_price: sub.list_price
+      };
     }
     if (_cmaState.subject.features && Object.keys(_cmaState.subject.features).length > 0) {
       payload.feature_overrides = _cmaState.subject.features;
