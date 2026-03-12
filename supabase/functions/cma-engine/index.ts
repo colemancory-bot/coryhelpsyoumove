@@ -147,6 +147,7 @@ function scoreComp(
     const isFactory = (t: string) => ["manufactured", "modular", "mobile_home"].includes(t);
     const isMobileHome = (t: string) => t === "mobile_home";
     const isModular = (t: string) => t === "modular";
+    const isLog = (t: string) => t === "log";
 
     // Resolve construction type with fallback inference from MLS data
     const resolveConstruction = (features: Record<string, unknown> | null, listing: Record<string, unknown>): string => {
@@ -168,7 +169,9 @@ function scoreComp(
         return (yr > 0 && yr < 1976) ? "mobile_home" : "manufactured";
       }
       if (carConst.includes("modular") || bodyType.includes("modular")) return "modular";
-      if (carConst.includes("log") || bodyType.includes("log")) return "log";
+      const archStyle = (Array.isArray(raw.ArchitecturalStyle) ? raw.ArchitecturalStyle.join(" ") : ((raw.ArchitecturalStyle || "") as string)).toLowerCase();
+      const structType = (Array.isArray(raw.StructureType) ? raw.StructureType.join(" ") : ((raw.StructureType || "") as string)).toLowerCase();
+      if (carConst.includes("log") || bodyType.includes("log") || archStyle.includes("log") || structType.includes("log")) return "log";
       // Default: if subject has known type and we can't determine comp, assume site_built
       // Rationale: MLS data explicitly flags manufactured/modular; absence implies site-built
       return "site_built";
@@ -185,6 +188,14 @@ function scoreComp(
       if (subConstruction === compConstruction) {
         // Exact construction type match bonus
         scores.type_match = Math.min(1.0, scores.type_match * 1.1);
+      } else if (isLog(subConstruction) || isLog(compConstruction)) {
+        // Log home vs non-log: moderate penalty (different market segment, buyers seek log specifically)
+        // Log-to-site_built is more acceptable than log-to-manufactured
+        if (isFactory(subConstruction) || isFactory(compConstruction)) {
+          scores.type_match *= 0.2; // Log vs manufactured/modular: very different markets
+        } else {
+          scores.type_match *= 0.5; // Log vs site-built: same financing, different aesthetic/premium
+        }
       } else if (isModular(subConstruction) && !isFactory(compConstruction) ||
                  isModular(compConstruction) && !isFactory(subConstruction)) {
         // Modular vs site-built: mild penalty (same building codes, same financing)
@@ -2124,6 +2135,10 @@ Select the best ${targetCount} comps for this CMA. Consider:
     1. BEST: Select other manufactured home sales. Fill as many comp slots as possible with manufactured homes.
     2. FALLBACK: If fewer than ${targetCount} manufactured comps are available in the top 10, you MAY use site-built comps to fill remaining slots. When doing so, note in your reasoning that the comp is site-built and the value estimate should be adjusted downward to account for the construction type difference.
     3. Never leave comp slots empty just because no manufactured comps exist. A site-built comp with a noted adjustment is better than no comp.
+  * For log homes/cabins as the SUBJECT:
+    1. BEST: Select other log home sales. Log buyers specifically seek log construction and pay a premium for it, so log-to-log comps are the most reliable.
+    2. FALLBACK: If fewer than ${targetCount} log comps are available, use site-built comps to fill remaining slots. Note the construction difference; the adjustment grid will apply a +10% improvement value premium.
+    3. NEVER use manufactured or mobile home comps for a log home subject.
   * For site-built homes as the SUBJECT: strongly prefer site-built or modular comps. Only use manufactured comps as a last resort, and note the value should be adjusted upward.
   * This is the most common CMA error in WNC where manufactured/mobile homes are prevalent.
 - Prefer comps that bracket the subject's likely value (some above, some below)
