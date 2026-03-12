@@ -297,13 +297,26 @@ function scoreComp(
   // Price similarity (weight: 0.10)
   // Prevents wildly different-priced comps from ranking high
   // A $2.6M comp should not score well against a $500K subject
-  const subPrice = ((subject.close_price || subject.list_price || 0) as number);
+  // Prefer list_price (current asking) over close_price (historical sale).
+  // If close_price is stale (2+ years old), ignore it for scoring since
+  // appreciation may have changed the property's value significantly.
+  let subPrice = (subject.list_price || 0) as number;
+  if (!subPrice && subject.close_price && subject.close_date) {
+    const closeDateMs = new Date(subject.close_date + "T00:00:00").getTime();
+    const yearsSinceClose = (Date.now() - closeDateMs) / (365.25 * 86400000);
+    if (yearsSinceClose < 2) {
+      subPrice = subject.close_price as number; // Recent sale, still relevant
+    }
+    // If 2+ years old, leave subPrice as 0 (neutral scoring)
+  } else if (!subPrice) {
+    subPrice = (subject.close_price || 0) as number; // No close_date, use what we have
+  }
   const compPrice = ((comp.close_price || 0) as number);
   if (subPrice > 0 && compPrice > 0) {
     const priceRatio = Math.min(subPrice, compPrice) / Math.max(subPrice, compPrice);
     scores.price_sim = priceRatio; // 1.0 = same price, 0.5 = one is 2x the other
   } else {
-    scores.price_sim = 0.5; // No price data = neutral
+    scores.price_sim = 0.5; // No price data or stale price = neutral
   }
 
   // Weighted total (land CMAs weight lot size and features higher, sqft/beds don't apply)
