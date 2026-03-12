@@ -1758,7 +1758,9 @@ var CMA_RATES = {
   fireplace_stone_premium: 5000,
   covered_outdoor_per_sqft: 30,
   outbuilding_tier_values: [0, 5000, 15000, 30000],
-  construction_values: { site_built: 0, manufactured: -35000, modular: -10000, log: 5000, mobile_home: -45000, unknown: 0 }
+  // Construction type: % of improvement value (sale price minus estimated lot value)
+  // Positive = premium over site-built, negative = discount
+  construction_pct: { site_built: 0, manufactured: -0.25, modular: -0.10, log: 0.05, mobile_home: -0.35, unknown: 0 }
 };
 
 function cmaCalcLotValue(acres) {
@@ -1812,7 +1814,16 @@ function cmaRecalcAdjFromValue(ci, adjKey) {
     case 'adj_construction_type': {
       var subCT = sf.construction_type || 'site_built';
       var compCT = cmaGetCompVal(ci, 'construction_type') || 'site_built';
-      return (r.construction_values[subCT] || 0) - (r.construction_values[compCT] || 0);
+      if (subCT === compCT) return 0;
+      // % of improvement value (sale price minus estimated lot value)
+      var c = _cmaState.selectedComps[ci];
+      var compPrice = c.listing.close_price || c.listing.list_price || 0;
+      var compLot = cmaGetCompVal(ci, 'lot_size_acres') || c.listing.lot_size_acres || 0;
+      var lotVal = cmaCalcLotValue(compLot);
+      var improvementVal = Math.max(compPrice - lotVal, compPrice * 0.3); // floor at 30% of price
+      var subPct = r.construction_pct[subCT] || 0;
+      var compPct = r.construction_pct[compCT] || 0;
+      return Math.round(improvementVal * (subPct - compPct));
     }
     case 'adj_view': {
       var sv = sf.view_quality || 0, cv = cmaGetCompVal(ci, 'view_quality') || 0;
@@ -1928,7 +1939,7 @@ function cmaInitConstructionAdj() {
     else if (pst.includes('modular')) subCT = 'modular';
     else subCT = 'site_built';
   }
-  var cv = CMA_RATES.construction_values;
+  var cp = CMA_RATES.construction_pct;
   _cmaState.adjustments.forEach(function(a, i) {
     var c = _cmaState.selectedComps[i];
     var cf = c.features || {};
@@ -1939,10 +1950,14 @@ function cmaInitConstructionAdj() {
       else if (cpst.includes('modular')) compCT = 'modular';
       else compCT = 'site_built';
     }
-    var adj = (cv[subCT] || 0) - (cv[compCT] || 0);
-    if (adj !== 0) {
+    if (subCT !== compCT) {
+      // % of improvement value (sale price minus estimated lot value)
+      var compPrice = c.listing.close_price || c.listing.list_price || 0;
+      var compLot = c.listing.lot_size_acres || 0;
+      var lotVal = cmaCalcLotValue(compLot);
+      var improvementVal = Math.max(compPrice - lotVal, compPrice * 0.3);
+      var adj = Math.round(improvementVal * ((cp[subCT] || 0) - (cp[compCT] || 0)));
       a.adjustments.adj_construction_type = adj;
-      // Recalc totals to include this new adjustment
       cmaRecalcTotals(i);
     }
   });
