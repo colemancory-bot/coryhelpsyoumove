@@ -155,7 +155,7 @@ Construction type uses a **percentage of improvement value** (not flat dollars) 
 | Type | % of Improvement Value | Direction |
 |------|----------------------|-----------|
 | Site-Built | 0% | Baseline |
-| Log | +5% | Premium |
+| Log | +10% | Premium |
 | Modular | -10% | Discount |
 | Manufactured | -25% | Discount |
 | Mobile Home | -35% | Discount |

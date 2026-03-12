@@ -1760,7 +1760,7 @@ var CMA_RATES = {
   outbuilding_tier_values: [0, 5000, 15000, 30000],
   // Construction type: % of improvement value (sale price minus estimated lot value)
   // Positive = premium over site-built, negative = discount
-  construction_pct: { site_built: 0, manufactured: -0.25, modular: -0.10, log: 0.05, mobile_home: -0.35, unknown: 0 }
+  construction_pct: { site_built: 0, manufactured: -0.25, modular: -0.10, log: 0.10, mobile_home: -0.35, unknown: 0 }
 };
 
 function cmaCalcLotValue(acres) {
@@ -1964,6 +1964,27 @@ function cmaInitConstructionAdj() {
     }
     if (a.adjustments.adj_construction_type !== adj) {
       a.adjustments.adj_construction_type = adj;
+      changed = true;
+    }
+  });
+  if (changed) {
+    _cmaState.adjustments.forEach(function(a, i) { cmaRecalcTotals(i); });
+  }
+}
+
+function cmaInitConditionAdj() {
+  if (!_cmaState.subject || !_cmaState.adjustments.length) return;
+  var sf = _cmaState.subject.features || {};
+  var subCond = sf.condition_rating || 0;
+  if (!subCond) return;
+  var r = CMA_RATES;
+  var changed = false;
+  _cmaState.adjustments.forEach(function(a, i) {
+    var compCond = (_cmaState.compConditions && _cmaState.compConditions[i] != null) ? _cmaState.compConditions[i] : 0;
+    if (!compCond) return;
+    var adj = (subCond - compCond) * r.condition_per_point;
+    if (a.adjustments.adj_condition !== adj) {
+      a.adjustments.adj_condition = adj;
       changed = true;
     }
   });
@@ -3244,8 +3265,9 @@ async function cmaGoStep3() {
 }
 
 function cmaRenderStep3() {
-  // Ensure construction type adjustments are calculated (engine doesn't include them)
+  // Ensure client-side adjustments are calculated (engine may not have features data)
   cmaInitConstructionAdj();
+  cmaInitConditionAdj();
   var main = document.getElementById('crmMain');
   var s = _cmaState.subject.listing;
   var sf = _cmaState.subject.features || {};
@@ -3968,7 +3990,7 @@ function cmaBindAdjustmentEvents() {
       if (!_cmaState.compConditions) _cmaState.compConditions = {};
       _cmaState.compConditions[compIdx] = compCond;
       var subCond = (_cmaState.subject.features || {}).condition_rating || 0;
-      var newAdj = (subCond > 0 && compCond > 0) ? (subCond - compCond) * 20000 : 0;
+      var newAdj = (subCond > 0 && compCond > 0) ? (subCond - compCond) * CMA_RATES.condition_per_point : 0;
       cmaUpdateAdj(compIdx, 'adj_condition', newAdj);
       // Sync the number input
       var cell = el.closest('.cma-grid-adj-cell');
