@@ -1339,6 +1339,41 @@ textarea.form-input{resize:vertical;min-height:100px}
 [data-theme="light"] .sr-search-area-btn{background:rgba(255,255,255,0.92);color:var(--gold-dark);border:1px solid rgba(139,119,72,0.3);box-shadow:0 4px 16px rgba(0,0,0,0.12)}
 [data-theme="light"] .sr-search-area-btn:hover{background:var(--gold);color:#fff;border-color:var(--gold)}
 
+/* Curate Collection — Admin selection mode */
+.sr-curate-btn{width:36px;height:36px;border-radius:50%;background:transparent;border:1px solid var(--border);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s}
+.sr-curate-btn svg{width:18px;height:18px;stroke:currentColor;fill:none}
+.sr-curate-btn:hover{border-color:var(--gold);color:var(--gold)}
+.sr-curate-btn.active{background:var(--gold);color:var(--bg);border-color:var(--gold)}
+[data-theme="light"] .sr-curate-btn.active{color:#fff}
+
+/* Curate checkboxes on cards */
+.sr-curate-check{position:absolute;top:0.5rem;left:0.5rem;width:26px;height:26px;border-radius:50%;border:2px solid rgba(255,255,255,0.8);background:rgba(0,0,0,0.35);display:none;align-items:center;justify-content:center;cursor:pointer;z-index:5;transition:all 0.2s}
+.sr-curate-check svg{width:14px;height:14px;stroke:#fff;fill:none;stroke-width:3;opacity:0;transition:opacity 0.15s}
+.curate-mode .sr-curate-check{display:flex}
+.sr-card.curate-selected .sr-curate-check{background:var(--gold);border-color:var(--gold)}
+.sr-card.curate-selected .sr-curate-check svg{opacity:1}
+.sr-card.curate-selected{outline:2px solid var(--gold);outline-offset:-2px}
+
+/* Floating curate action bar */
+.sr-curate-bar{display:none;position:sticky;bottom:0;left:0;right:0;z-index:10;background:var(--bg-card);border-top:1px solid var(--gold);padding:0.75rem 1rem;align-items:center;justify-content:space-between;gap:0.75rem;grid-column:1/-1;animation:fadeUp 0.25s ease}
+.sr-curate-bar.visible{display:flex}
+.sr-curate-bar-count{font-family:'Outfit',sans-serif;font-size:0.75rem;font-weight:600;color:var(--gold);letter-spacing:0.04em;white-space:nowrap}
+.sr-curate-bar-actions{display:flex;gap:0.5rem;align-items:center}
+.sr-curate-bar-btn{padding:0.5rem 1rem;font-family:'Outfit',sans-serif;font-size:0.7rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;border-radius:4px;cursor:pointer;transition:all 0.2s;white-space:nowrap}
+.sr-curate-copy{background:var(--gold);color:var(--bg);border:1px solid var(--gold)}
+.sr-curate-copy:hover{filter:brightness(1.1)}
+[data-theme="light"] .sr-curate-copy{color:#fff}
+.sr-curate-clear{background:transparent;color:var(--text-muted);border:1px solid var(--border)}
+.sr-curate-clear:hover{border-color:var(--gold);color:var(--gold)}
+
+/* Collection banner */
+.sr-collection-banner{background:rgba(196,176,140,0.08);border:1px solid rgba(196,176,140,0.25);border-radius:8px;padding:0.85rem 1rem;margin-bottom:0.75rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;grid-column:1/-1}
+.sr-collection-banner-text{font-family:'Outfit',sans-serif;font-size:0.8rem;color:var(--cream);line-height:1.5}
+.sr-collection-banner-text strong{color:var(--gold);font-weight:600}
+.sr-collection-expand{font-family:'Outfit',sans-serif;font-size:0.65rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--gold);background:transparent;border:1px solid var(--gold);padding:0.45rem 0.85rem;border-radius:4px;cursor:pointer;white-space:nowrap;transition:all 0.2s}
+.sr-collection-expand:hover{background:var(--gold);color:var(--bg)}
+[data-theme="light"] .sr-collection-expand:hover{color:#fff}
+
 /* Responsive */
 @media(max-width:900px){
   .sr-body{flex-direction:column}
@@ -1354,6 +1389,8 @@ textarea.form-input{resize:vertical;min-height:100px}
   .sr-draw-btn{width:34px;height:34px}
   .sr-draw-btn svg{width:16px;height:16px}
   .sr-search-area-btn{top:0.75rem;padding:0.5rem 1rem;font-size:0.6rem}
+  .sr-curate-bar{padding:0.65rem 0.75rem}
+  .sr-collection-banner{flex-direction:column;align-items:flex-start;gap:0.5rem}
 }
 @media(max-width:600px){
   .sr-topbar{padding:0.65rem 1rem}
@@ -1364,6 +1401,8 @@ textarea.form-input{resize:vertical;min-height:100px}
   .sr-card-body{padding:0.5rem 0.65rem}
   .sr-card-price{font-size:1.1rem}
   .sr-card-value{font-size:0.5rem}
+  .sr-curate-check{width:22px;height:22px;top:0.35rem;left:0.35rem}
+  .sr-curate-check svg{width:12px;height:12px}
 }
 
 /* ═══════════════════════════════════════════════════════

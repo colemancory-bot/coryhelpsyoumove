@@ -1,5 +1,11 @@
 var _isAdmin = false;
 var _DEBUG = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+
+// ═══ CURATED COLLECTIONS ═══
+var _srCurateMode = false;
+var _srCurateSelected = {}; // lid → listing object
+var _srCollectionMode = false;
+var _srCollectionIds = [];
 function _log(){ if(_DEBUG) console.log.apply(console, arguments); }
 function _warn(){ if(_DEBUG) console.warn.apply(console, arguments); }
 
@@ -4114,7 +4120,199 @@ function closeSearch(){
   if(!overlay || !overlay.classList.contains('active')) return;
   overlay.classList.remove('active');
   _unlockScroll();
+  // Reset curate mode on close
+  if(_srCurateMode) toggleCurateMode();
+  _srCollectionMode = false;
+  _srCollectionIds = [];
+  var banner = document.getElementById('srCollectionBanner');
+  if(banner) banner.remove();
   if(history.state && history.state.page === 'search') history.back();
+}
+
+// ═══ CURATED COLLECTIONS — Admin selects properties → shareable link ═══
+
+function toggleCurateMode(){
+  _srCurateMode = !_srCurateMode;
+  var overlay = document.getElementById('searchOverlay');
+  var btn = document.getElementById('srCurateBtn');
+  if(_srCurateMode){
+    overlay.classList.add('curate-mode');
+    btn.classList.add('active');
+    btn.title = 'Exit Curate Mode';
+    _srCurateSelected = {};
+    _srUpdateCurateBar();
+    // Re-render cards to add checkboxes
+    _srInjectCurateCheckboxes();
+  } else {
+    overlay.classList.remove('curate-mode');
+    btn.classList.remove('active');
+    btn.title = 'Curate Collection';
+    _srCurateSelected = {};
+    // Remove curate bar
+    var bar = document.getElementById('srCurateBar');
+    if(bar) bar.classList.remove('visible');
+    // Remove selection state from cards
+    document.querySelectorAll('.sr-card.curate-selected').forEach(function(c){
+      c.classList.remove('curate-selected');
+    });
+  }
+}
+
+function _srInjectCurateCheckboxes(){
+  document.querySelectorAll('.sr-card').forEach(function(card){
+    if(card.querySelector('.sr-curate-check')) return;
+    var check = document.createElement('div');
+    check.className = 'sr-curate-check';
+    check.innerHTML = '<svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>';
+    var imgWrap = card.querySelector('.sr-card-img');
+    if(imgWrap) imgWrap.appendChild(check);
+  });
+}
+
+function _srToggleCurateCard(card){
+  var lid = card.getAttribute('data-lid');
+  if(!lid) return;
+  if(_srCurateSelected[lid]){
+    delete _srCurateSelected[lid];
+    card.classList.remove('curate-selected');
+  } else {
+    // Cap at 50
+    if(Object.keys(_srCurateSelected).length >= 50){
+      _log('[Curate] Max 50 properties per collection');
+      return;
+    }
+    _srCurateSelected[lid] = _srCardLookup[lid] || true;
+    card.classList.add('curate-selected');
+  }
+  _srUpdateCurateBar();
+}
+
+function _srUpdateCurateBar(){
+  var count = Object.keys(_srCurateSelected).length;
+  var bar = document.getElementById('srCurateBar');
+  if(!bar){
+    // Create floating bar — append inside sr-list-panel after sr-cards
+    bar = document.createElement('div');
+    bar.className = 'sr-curate-bar';
+    bar.id = 'srCurateBar';
+    bar.innerHTML = '<div class="sr-curate-bar-count" id="srCurateCount"></div>' +
+      '<div class="sr-curate-bar-actions">' +
+        '<button class="sr-curate-bar-btn sr-curate-copy" onclick="curateGenerateLink()">Copy Link</button>' +
+        '<button class="sr-curate-bar-btn sr-curate-clear" onclick="curateClearSelection()">Clear</button>' +
+      '</div>';
+    var listPanel = document.querySelector('.sr-list-panel');
+    if(listPanel) listPanel.appendChild(bar);
+  }
+  var countEl = document.getElementById('srCurateCount');
+  if(countEl) countEl.textContent = count + ' propert' + (count === 1 ? 'y' : 'ies') + ' selected';
+  bar.classList.toggle('visible', count > 0);
+}
+
+function curateClearSelection(){
+  _srCurateSelected = {};
+  document.querySelectorAll('.sr-card.curate-selected').forEach(function(c){
+    c.classList.remove('curate-selected');
+  });
+  _srUpdateCurateBar();
+}
+
+function curateGenerateLink(){
+  var ids = Object.keys(_srCurateSelected);
+  if(ids.length === 0) return;
+  var url = window.location.origin + window.location.pathname + '#collection/' + ids.map(function(id){ return encodeURIComponent(id); }).join(',');
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(function(){
+      var btn = document.querySelector('.sr-curate-copy');
+      if(btn){
+        var orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(function(){ btn.textContent = orig; }, 2000);
+      }
+    });
+  } else {
+    // Fallback
+    var ta = document.createElement('textarea');
+    ta.value = url;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    var btn = document.querySelector('.sr-curate-copy');
+    if(btn){
+      var orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(function(){ btn.textContent = orig; }, 2000);
+    }
+  }
+}
+
+// ═══ COLLECTION VIEW — Open curated collection from #collection/ URL ═══
+
+function openCollection(ids){
+  _srCollectionMode = true;
+  _srCollectionIds = ids;
+  openSearchResults({});
+  // After overlay opens and filters run, inject banner
+  setTimeout(function(){
+    _srInjectCollectionBanner();
+    // Update region title
+    document.getElementById('srRegion').innerHTML = 'Curated Collection';
+  }, 200);
+}
+
+function _srInjectCollectionBanner(){
+  var existing = document.getElementById('srCollectionBanner');
+  if(existing) existing.remove();
+  var count = _srCollectionIds.length;
+  var found = 0;
+  _srCollectionIds.forEach(function(id){
+    if(_findListingById(id)) found++;
+  });
+  var banner = document.createElement('div');
+  banner.className = 'sr-collection-banner';
+  banner.id = 'srCollectionBanner';
+  var text = '<strong>' + found + ' propert' + (found === 1 ? 'y' : 'ies') + '</strong> curated by Cory Coleman.';
+  if(found < count) text += ' (' + (count - found) + ' no longer available)';
+  text += ' Adjust filters to expand your search.';
+  banner.innerHTML = '<div class="sr-collection-banner-text">' + text + '</div>' +
+    '<button class="sr-collection-expand" onclick="exitCollectionMode()">Show All Listings</button>';
+  var container = document.getElementById('srCards');
+  if(container) container.parentNode.insertBefore(banner, container);
+}
+
+function exitCollectionMode(){
+  _srCollectionMode = false;
+  _srCollectionIds = [];
+  var banner = document.getElementById('srCollectionBanner');
+  if(banner) banner.remove();
+  document.getElementById('srRegion').innerHTML = 'Western NC';
+  srApplyFilters();
+}
+
+var _collectionDeepLinkHandled = false;
+function _checkCollectionDeepLink(){
+  try {
+    var hash = window.location.hash || '';
+    if(hash.indexOf('#collection/') !== 0) return false;
+    if(_collectionDeepLinkHandled) return true; // Already opened — prevent double-fire
+    var idStr = hash.substring('#collection/'.length);
+    if(!idStr) return false;
+    var ids = idStr.split(',').map(function(s){ return decodeURIComponent(s.trim()); }).filter(Boolean);
+    if(ids.length === 0) return false;
+    _collectionDeepLinkHandled = true;
+    // Wait a beat for ALL_LISTINGS to populate, then open
+    var _tryOpen = function(attempts){
+      if(ALL_LISTINGS.length > 0 || attempts >= 20){
+        openCollection(ids);
+      } else {
+        setTimeout(function(){ _tryOpen(attempts + 1); }, 250);
+      }
+    };
+    setTimeout(function(){ _tryOpen(0); }, 300);
+    return true;
+  } catch(e){ _warn('[CollectionDeepLink] Error:', e); return false; }
 }
 
 function _srMapStyle(){
@@ -4450,6 +4648,47 @@ function srApplyFilters(){
     }
   }
 
+  // Collection mode: show only curated properties when filters are all defaults
+  if(_srCollectionMode && !type && !price && !beds && !baths && !restrict && !textQuery && selectedAreas.length === 0){
+    var collectionResults = [];
+    _srCollectionIds.forEach(function(id){
+      var match = _findListingById(id);
+      if(match) collectionResults.push(match);
+    });
+    // Skip the normal filter pipeline — jump straight to region/render
+    _srAllFilteredResults = collectionResults;
+    _srCurrentResults = collectionResults;
+    srRenderMarkers(collectionResults);
+    if(!_srSkipMapFit){
+      _srProgrammaticMove = true;
+      if(_srMap && _srMapLayersReady){
+        var withCoords = collectionResults.filter(function(l){return l.lat && l.lng});
+        if(withCoords.length > 0){
+          var bounds = new maplibregl.LngLatBounds();
+          withCoords.forEach(function(l){ bounds.extend([l.lng, l.lat]); });
+          _srMap.fitBounds(bounds, {padding:60, maxZoom:14});
+        } else { _srProgrammaticMove = false; }
+      } else { _srProgrammaticMove = false; }
+    }
+    if(window._srCardRenderRAF) cancelAnimationFrame(window._srCardRenderRAF);
+    window._srCardRenderRAF = requestAnimationFrame(function(){
+      window._srCardRenderRAF = null;
+      document.getElementById('srCount').textContent = collectionResults.length + ' propert' + (collectionResults.length!==1?'ies':'y');
+      srRenderCards(collectionResults);
+    });
+    // Don't update URL hash for collection view
+    return;
+  }
+
+  // If user changed a filter while in collection mode, exit collection
+  if(_srCollectionMode){
+    _srCollectionMode = false;
+    _srCollectionIds = [];
+    var _cBanner = document.getElementById('srCollectionBanner');
+    if(_cBanner) _cBanner.remove();
+    document.getElementById('srRegion').innerHTML = 'Western NC';
+  }
+
   // Filter — when a text query is present, skip area filter so address/MLS searches
   // always find the property regardless of which location checkboxes are active
   var skipAreaFilter = textQuery.length > 0;
@@ -4685,7 +4924,8 @@ function srRenderCards(results){
     }
 
     if(l.listingKey) card.setAttribute('data-lk', l.listingKey);
-    card.innerHTML = '<div class="sr-card-img">' + imgHtml + '<div class="' + badgeClass + '">' + l.type + '</div>' + statusTag + cardFavHtml(l.address, l.city) + '</div>' +
+    var curateCheckHtml = _srCurateMode ? '<div class="sr-curate-check"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></div>' : '';
+    card.innerHTML = '<div class="sr-card-img">' + imgHtml + '<div class="' + badgeClass + '">' + l.type + '</div>' + statusTag + curateCheckHtml + cardFavHtml(l.address, l.city) + '</div>' +
       '<div class="sr-card-body">' +
         '<div class="sr-card-price">$' + l.price.toLocaleString() + valueBadge + '</div>' +
         '<div class="sr-card-addr">' + l.address + '</div>' +
@@ -4693,6 +4933,8 @@ function srRenderCards(results){
         '<div class="sr-card-feats">' + feats + '</div>' +
         srBrokerHtml +
       '</div>';
+    // Restore curate selection state
+    if(_srCurateMode && _srCurateSelected[lid]) card.classList.add('curate-selected');
 
     frag.appendChild(card);
   });
@@ -4721,7 +4963,9 @@ function srRenderCards(results){
         var srBrokerParts=[];if(l.listAgent)srBrokerParts.push(l.listAgent);if(l.listOffice)srBrokerParts.push(l.listOffice);
         var srMlsNums = _formatMlsNums(l);
         var srBrokerHtml=srBrokerParts.length?'<div class="sr-card-office">Listed by '+srBrokerParts.join(' &bull; ')+(srMlsNums?' | '+srMlsNums:'')+'</div>':'';
-        card.innerHTML = '<div class="sr-card-img">' + imgHtml + '<div class="' + badgeClass + '">' + l.type + '</div>' + statusTag + cardFavHtml(l.address, l.city) + '</div><div class="sr-card-body"><div class="sr-card-price">$' + l.price.toLocaleString() + '</div><div class="sr-card-addr">' + l.address + '</div><div class="sr-card-city">' + l.city + ', NC</div><div class="sr-card-feats">' + feats + '</div>' + srBrokerHtml + '</div>';
+        var curateCheckHtml2 = _srCurateMode ? '<div class="sr-curate-check"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></div>' : '';
+        card.innerHTML = '<div class="sr-card-img">' + imgHtml + '<div class="' + badgeClass + '">' + l.type + '</div>' + statusTag + curateCheckHtml2 + cardFavHtml(l.address, l.city) + '</div><div class="sr-card-body"><div class="sr-card-price">$' + l.price.toLocaleString() + '</div><div class="sr-card-addr">' + l.address + '</div><div class="sr-card-city">' + l.city + ', NC</div><div class="sr-card-feats">' + feats + '</div>' + srBrokerHtml + '</div>';
+        if(_srCurateMode && _srCurateSelected[lid]) card.classList.add('curate-selected');
         frag2.appendChild(card);
       });
       container.insertBefore(frag2, more);
@@ -4805,6 +5049,11 @@ function _srBindCardDelegation(){
     var card = e.target.closest('.sr-card');
     if(!card) return;
     if(window._cardSwiped){window._cardSwiped=false;return;}
+    // Curate mode: toggle selection instead of opening property
+    if(_srCurateMode){
+      _srToggleCurateCard(card);
+      return;
+    }
     var lid = card.getAttribute('data-lid');
     var listing = _srCardLookup[lid];
     if(!listing) return;
@@ -6083,6 +6332,9 @@ function updateAcctUI() {
   // Show/hide admin dashboard link in nav
   var adminLink = document.getElementById('navAdminLink');
   if(adminLink) adminLink.style.display = _isAdmin ? '' : 'none';
+  // Show/hide curate button in search overlay
+  var curateBtn = document.getElementById('srCurateBtn');
+  if(curateBtn) curateBtn.style.display = _isAdmin ? '' : 'none';
   // Show/hide notification bell
   var notifBell = document.getElementById('navNotifBell');
   if(notifBell) notifBell.style.display = _acctLoggedIn ? '' : 'none';
@@ -8170,13 +8422,15 @@ if(MLS_GRID.enabled) {
         if(_cTownSlug && TOWN_LISTINGS[_cTownSlug]) { renderTownFeatured(_cTownSlug); townSearch(_cTownSlug); }
       }
       _log('[MLS Grid] Loaded ' + ALL_LISTINGS.length + ' cached listings (fresh fetch in background)');
+      // Check collection deep link immediately with cached data
+      if(!_checkCollectionDeepLink()) _checkPropDeepLink();
     }
   } catch(e) { _warn('[MLS Grid] Cache restore failed:', e.message); }
 
   // Fetch fresh data from Supabase (overwrites cache when done)
   MLS_GRID.init().then(function(){
     if(typeof updateAcctUI === 'function') updateAcctUI();
-    _checkPropDeepLink();
+    if(!_checkCollectionDeepLink()) _checkPropDeepLink();
     // Re-render town page listings now that live data is loaded
     if(_isTownPage) {
       var pathMatch = window.location.pathname.match(/\/towns\/([a-z-]+)\.html/i);
@@ -8207,7 +8461,7 @@ if(MLS_GRID.enabled) {
     SIMPLYRETS.init().then(function(){
       if(typeof updateAcctUI === 'function') updateAcctUI();
       // Check for deep link after listings load
-      _checkPropDeepLink();
+      if(!_checkCollectionDeepLink()) _checkPropDeepLink();
     });
     // Initialize community events calendar
     EVENTS.init();
@@ -8287,7 +8541,7 @@ function _checkPropDeepLink(){
   } catch(e){ _warn('[DeepLink] Error:', e); }
 }
 // Also check on page load in case SimplyRETS is disabled
-if(!SIMPLYRETS.enabled) _checkPropDeepLink();
+if(!SIMPLYRETS.enabled && !_checkCollectionDeepLink()) _checkPropDeepLink();
 
 // ═══════════════════════════════════════════════════
 // NEW FEATURES: 12 Account Features + Admin Dashboard
