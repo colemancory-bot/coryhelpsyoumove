@@ -1347,7 +1347,8 @@ textarea.form-input{resize:vertical;min-height:100px}
 [data-theme="light"] .sr-curate-btn.active{color:#fff}
 
 /* Curate checkboxes on cards */
-.sr-curate-check{position:absolute;top:0.5rem;left:0.5rem;width:26px;height:26px;border-radius:50%;border:2px solid rgba(255,255,255,0.8);background:rgba(0,0,0,0.35);display:none;align-items:center;justify-content:center;cursor:pointer;z-index:5;transition:all 0.2s}
+.sr-curate-check{position:absolute;top:0.5rem;left:0.5rem;width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,255,255,0.85);background:rgba(0,0,0,0.4);display:none;align-items:center;justify-content:center;cursor:pointer;z-index:5;transition:all 0.2s}
+.sr-curate-check:hover{background:rgba(196,176,140,0.5);border-color:var(--gold);transform:scale(1.1)}
 .sr-curate-check svg{width:14px;height:14px;stroke:#fff;fill:none;stroke-width:3;opacity:0;transition:opacity 0.15s}
 .curate-mode .sr-curate-check{display:flex}
 .sr-card.curate-selected .sr-curate-check{background:var(--gold);border-color:var(--gold)}
