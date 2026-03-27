@@ -5046,14 +5046,15 @@ function _srBindCardDelegation(){
   container.addEventListener('click', function(e){
     // Ignore clicks on fav heart buttons
     if(e.target.closest('.card-fav-btn')) return;
+    // Curate mode: clicking the checkbox toggles selection
+    if(_srCurateMode && e.target.closest('.sr-curate-check')){
+      var card = e.target.closest('.sr-card');
+      if(card) _srToggleCurateCard(card);
+      return;
+    }
     var card = e.target.closest('.sr-card');
     if(!card) return;
     if(window._cardSwiped){window._cardSwiped=false;return;}
-    // Curate mode: toggle selection instead of opening property
-    if(_srCurateMode){
-      _srToggleCurateCard(card);
-      return;
-    }
     var lid = card.getAttribute('data-lid');
     var listing = _srCardLookup[lid];
     if(!listing) return;
