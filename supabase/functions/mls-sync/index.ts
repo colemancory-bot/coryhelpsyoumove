@@ -1372,6 +1372,22 @@ Deno.serve(async (req) => {
       const { data: syncState } = await supabase
         .from("mls_sync_state").select("*").eq("resource_type", res).single();
 
+      // Stale-lock protection: if status is "running" but last_sync_at was >10 min ago,
+      // the previous run crashed/timed out — auto-reset so we don't stay stuck forever
+      if (syncState?.status === "running" && syncState?.last_sync_at) {
+        const staleMins = (Date.now() - new Date(syncState.last_sync_at).getTime()) / 60000;
+        if (staleMins > 10) {
+          console.warn(`[MLS Grid] ${res} stuck in "running" for ${Math.round(staleMins)} min — resetting stale lock`);
+          await supabase.from("mls_sync_state")
+            .update({ status: "idle", error_message: `Auto-reset: stale lock after ${Math.round(staleMins)} min` })
+            .eq("resource_type", res);
+        } else {
+          console.log(`[MLS Grid] ${res} already running (${Math.round(staleMins)} min ago) — skipping`);
+          results[res] = { skipped: true, reason: "already running" };
+          continue;
+        }
+      }
+
       // Use saved timestamp for resumption — even initial imports resume from where
       // the last batch left off (the sync function handles URL building for initial vs incremental)
       const lastTs = syncState?.last_modification_timestamp || null;

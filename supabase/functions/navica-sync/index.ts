@@ -1070,6 +1070,22 @@ Deno.serve(async (req) => {
         .eq("resource_type", syncStateKey)
         .single();
 
+      // Stale-lock protection: if status is "running" but last_sync_at was >10 min ago,
+      // the previous run crashed/timed out — auto-reset so we don't stay stuck forever
+      if (syncState?.status === "running" && syncState?.last_sync_at) {
+        const staleMins = (Date.now() - new Date(syncState.last_sync_at).getTime()) / 60000;
+        if (staleMins > 10) {
+          console.warn(`[NavicaSync] ${syncStateKey} stuck in "running" for ${Math.round(staleMins)} min — resetting stale lock`);
+          await supabase.from("mls_sync_state")
+            .update({ status: "idle", error_message: `Auto-reset: stale lock after ${Math.round(staleMins)} min` })
+            .eq("resource_type", syncStateKey);
+        } else {
+          console.log(`[NavicaSync] ${syncStateKey} already running (${Math.round(staleMins)} min ago) — skipping`);
+          results[res] = { skipped: true, reason: "already running" };
+          continue;
+        }
+      }
+
       // sync-active uses timestamp for resumption across invocations (combined with status filter)
       const lastTs = isInitial
         ? null
