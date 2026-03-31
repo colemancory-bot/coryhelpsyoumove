@@ -532,7 +532,10 @@ async function syncProperties(
         for (let i = 0; i < media.length; i++) {
           const m = media[i];
           const mediaUrl = m.MediaURL || "";
-          const localUrl = await uploadMediaToR2(mediaUrl, listingId, i);
+          // Upload only primary photo (order 0/1) to R2 during sync;
+          // additional photos stored with CDN URL only — backfill-media cron handles R2 later
+          const isPrimary = (m.Order || i) <= 1;
+          const localUrl = isPrimary ? await uploadMediaToR2(mediaUrl, listingId, i) : "";
           mediaRows.push({
             listing_key: listingKey,
             media_key: m.MediaKey || `${listingKey}-${i}`,
