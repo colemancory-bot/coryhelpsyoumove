@@ -682,7 +682,7 @@ var SIMPLYRETS = {
           var imgSrc = l.photo || 'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=700&q=80';
           var hpStatus=l.status==='Under Contract'?'<div class="card-status-tag">Under Contract</div>':'';
           c.innerHTML='<div class="f-card-img"><img src="'+imgSrc+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge '+(l.type==='Land'?'land':'')+'">'+l.type+'</div>'+hpStatus+cardFavHtml(l.address,l.city)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+l.city+', NC</div><div class="f-card-features">'+feats+'</div></div>';
-          c.onclick=function(){try{openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,lot:l.lot,restrictions:l.restrictions||'unrestricted',status:l.status||'Active',photo:l.photo||null,photos:l.photos||[],description:l.description||''},l.city)}catch(err){console.error(err)}};
+          c.onclick=function(){try{openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,lot:l.lot,restrictions:l.restrictions||'unrestricted',status:l.status||'Active',photo:l.photo||null,photos:l.photos||[],description:l.description||''},l.city,this)}catch(err){console.error(err)}};
           grid.appendChild(c);
         });
       }
@@ -2603,7 +2603,7 @@ function renderTownFeatured(townSlug){
     var tMlsNums2 = _formatMlsNums(l);
     var tBrokerHtml=tBrokerParts.length?'<div class="f-card-office">Listed by '+tBrokerParts.join(' &bull; ')+(tMlsNums2?' | '+tMlsNums2:'')+'</div>':'';
     c.innerHTML='<div class="f-card-img" style="position:relative">'+photoHtml+'<div class="f-card-badge'+badge+'">'+l.type+'</div>'+statusBadge+cardFavHtml(l.address,townName)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+townName+', NC</div><div class="f-card-features">'+feats+'</div>'+tBrokerHtml+'</div>';
-    (function(listing,town){c.onclick=function(e){if(e.target.closest('.card-fav-heart'))return;try{openProp(listing,town)}catch(err){console.error(err)}}})(l,townName);
+    (function(listing,town,cardEl){c.onclick=function(e){if(e.target.closest('.card-fav-heart'))return;try{openProp(listing,town,cardEl)}catch(err){console.error(err)}}})(l,townName,c);
     grid.appendChild(c);
   });
 }
@@ -2730,7 +2730,7 @@ var PROP_DESCRIPTIONS = {
 
 var RESTRICT_LABELS = {'unrestricted':'Unrestricted — No HOA','restricted':'Has Restrictions','light':'Has Restrictions','hoa':'Has Restrictions'};
 
-function openProp(listing, townName) {
+function openProp(listing, townName, sourceCardEl) {
   // Registration gate — allow 3 free previews, gate on 4th view
   if(!_acctLoggedIn){
     _guestViewCount++;
@@ -3083,13 +3083,39 @@ function openProp(listing, townName) {
     if(contentArea) contentArea.insertAdjacentHTML('beforebegin', bannerHTML);
   }
 
-  // Show overlay
-  o.classList.add('active');
-  o.scrollTop = 0;
-  _lockScroll();
-  // Build shareable hash: #property/<mlsId> or #property/<address>|<city>
+  // Show overlay — with View Transition if supported
   var _propHashId = listing.mlsId || listing.listingKey || (listing.address + '|' + (townName||''));
-  try{history.pushState({page:'property'},'','#property/' + encodeURIComponent(_propHashId))}catch(he){}
+  function _activateOverlay() {
+    o.classList.add('active');
+    o.scrollTop = 0;
+    _lockScroll();
+    try{history.pushState({page:'property'},'','#property/' + encodeURIComponent(_propHashId))}catch(he){}
+  }
+
+  if (sourceCardEl && document.startViewTransition) {
+    var srcImg = sourceCardEl.querySelector('.f-card-img img, .sr-card-img img');
+    var heroImg = document.getElementById('propHeroImg');
+    if (srcImg && heroImg) {
+      window._vtSourceCard = sourceCardEl;
+      srcImg.style.viewTransitionName = 'card-hero';
+      var vt = document.startViewTransition(function() {
+        srcImg.style.viewTransitionName = '';
+        heroImg.style.viewTransitionName = 'card-hero';
+        _activateOverlay();
+      });
+      vt.finished.then(function() {
+        heroImg.style.viewTransitionName = '';
+      }).catch(function() {
+        heroImg.style.viewTransitionName = '';
+      });
+    } else {
+      window._vtSourceCard = null;
+      _activateOverlay();
+    }
+  } else {
+    window._vtSourceCard = null;
+    _activateOverlay();
+  }
 
   // Fetch full MLS data for admin — reads raw_data from Navica API
   if(_isAdmin && listing.listingKey && _sb) {
@@ -3364,35 +3390,65 @@ function closeProp(fromPopstate) {
   // Clean up property map
   if(window._propMap) { try { window._propMap.remove(); } catch(e){} window._propMap = null; }
   var o = document.getElementById('propOverlay');
-  if (o) o.classList.remove('active');
-  // On town pages, simply hide and restore scroll — no navigation
-  if(_isTownPage) {
+
+  function _deactivateOverlay() {
+    if (o) o.classList.remove('active');
+  }
+
+  function _afterClose() {
+    if(_isTownPage) {
+      var searchOv = document.getElementById('searchOverlay');
+      if(!searchOv || !searchOv.classList.contains('active')){
+        _unlockScroll();
+      }
+      if (!fromPopstate && history.state && history.state.page === 'property') {
+        window._propJustClosed = true;
+        history.back();
+      }
+      return;
+    }
     var searchOv = document.getElementById('searchOverlay');
     if(!searchOv || !searchOv.classList.contains('active')){
       _unlockScroll();
+    }
+    if(_propDeepLinkRef) {
+      var returnUrl = _propDeepLinkRef;
+      _propDeepLinkRef = null;
+      window.location.href = returnUrl;
+      return;
     }
     if (!fromPopstate && history.state && history.state.page === 'property') {
       window._propJustClosed = true;
       history.back();
     }
-    return;
   }
-  // Only restore scroll if search overlay isn't also open
-  var searchOv = document.getElementById('searchOverlay');
-  if(!searchOv || !searchOv.classList.contains('active')){
-    _unlockScroll();
+
+  var sourceCard = window._vtSourceCard;
+  if (sourceCard && document.startViewTransition && o) {
+    var heroImg = document.getElementById('propHeroImg');
+    var srcImg = sourceCard.querySelector('.f-card-img img, .sr-card-img img');
+    if (srcImg && heroImg && document.body.contains(sourceCard)) {
+      heroImg.style.viewTransitionName = 'card-hero';
+      var vt = document.startViewTransition(function() {
+        heroImg.style.viewTransitionName = '';
+        srcImg.style.viewTransitionName = 'card-hero';
+        _deactivateOverlay();
+      });
+      vt.finished.then(function() {
+        srcImg.style.viewTransitionName = '';
+        window._vtSourceCard = null;
+        _afterClose();
+      }).catch(function() {
+        srcImg.style.viewTransitionName = '';
+        window._vtSourceCard = null;
+        _afterClose();
+      });
+      return;
+    }
   }
-  // If user came from a town page deep link, go back there
-  if(_propDeepLinkRef) {
-    var returnUrl = _propDeepLinkRef;
-    _propDeepLinkRef = null;
-    window.location.href = returnUrl;
-    return;
-  }
-  if (!fromPopstate && history.state && history.state.page === 'property') {
-    window._propJustClosed = true;
-    history.back();
-  }
+  window._vtSourceCard = null;
+  _deactivateOverlay();
+  _afterClose();
 }
 
 function _propShareUrl() {
@@ -5058,7 +5114,7 @@ function _srBindCardDelegation(){
     var lid = card.getAttribute('data-lid');
     var listing = _srCardLookup[lid];
     if(!listing) return;
-    try { openProp({price:listing.price,address:listing.address,type:listing.type,beds:listing.beds,baths:listing.baths,sqft:listing.sqft,sqftRange:listing.sqftRange||'',lot:listing.lot,restrictions:listing.restrictions||'unrestricted',status:listing.status||'Active',photo:listing.photo||null,photos:listing.photos||[],description:listing.description||'',listAgent:listing.listAgent||'',listOffice:listing.listOffice||'',listOfficePhone:listing.listOfficePhone||'',attributionContact:listing.attributionContact||'',mlsId:listing.mlsId||'',daysOnMarket:listing.daysOnMarket||0,listingKey:listing.listingKey||'',originatingSystem:listing.originatingSystem||'',mlsSources:listing.mlsSources||[]}, listing.city); } catch(err){console.error(err)}
+    try { openProp({price:listing.price,address:listing.address,type:listing.type,beds:listing.beds,baths:listing.baths,sqft:listing.sqft,sqftRange:listing.sqftRange||'',lot:listing.lot,restrictions:listing.restrictions||'unrestricted',status:listing.status||'Active',photo:listing.photo||null,photos:listing.photos||[],description:listing.description||'',listAgent:listing.listAgent||'',listOffice:listing.listOffice||'',listOfficePhone:listing.listOfficePhone||'',attributionContact:listing.attributionContact||'',mlsId:listing.mlsId||'',daysOnMarket:listing.daysOnMarket||0,listingKey:listing.listingKey||'',originatingSystem:listing.originatingSystem||'',mlsSources:listing.mlsSources||[]}, listing.city, card); } catch(err){console.error(err)}
   });
 
   container.addEventListener('mouseenter', function(e){

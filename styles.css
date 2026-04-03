@@ -921,6 +921,17 @@ textarea.form-input{resize:vertical;min-height:100px}
 .prop-overlay{position:fixed;inset:0;z-index:5000;background:var(--bg);overflow-y:auto;overflow-x:hidden;opacity:0;pointer-events:none;transition:opacity 0.5s cubic-bezier(0.16,1,0.3,1);overscroll-behavior:contain}
 .prop-overlay.active{opacity:1;pointer-events:all}
 
+/* View Transitions: Card <-> Property Detail */
+::view-transition-old(root),
+::view-transition-new(root){animation:none;mix-blend-mode:normal}
+::view-transition-group(card-hero){animation-duration:0.4s;animation-timing-function:cubic-bezier(0.16,1,0.3,1)}
+::view-transition-old(card-hero){animation:vt-fade-out 0.25s ease forwards}
+::view-transition-new(card-hero){animation:vt-fade-in 0.25s ease 0.1s forwards;opacity:0}
+@keyframes vt-fade-out{to{opacity:0}}
+@keyframes vt-fade-in{to{opacity:1}}
+html:has(::view-transition) .prop-overlay.active{opacity:1;transition:none}
+html:has(::view-transition) .prop-overlay:not(.active){opacity:0;transition:none}
+
 /* Property page theme toggle */
 .prop-theme-toggle{
   position:fixed;top:1.5rem;right:5.5rem;z-index:5002;width:48px;height:48px;
