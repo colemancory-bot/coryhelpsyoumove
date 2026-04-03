@@ -407,6 +407,76 @@ if(_isTownPage){
   // Inject all HTML into the page
   document.body.insertAdjacentHTML('beforeend', html);
 
+  // Inject mobile filter drawer (for town pages — index.html uses _srdInjectDrawer below)
+  (function(){
+    var srFilters = document.getElementById('srFilters');
+    if(!srFilters) return;
+    if(document.getElementById('srdBar')) return; // already injected
+    var drawerHTML =
+      '<div class="srd-bar" id="srdBar">' +
+        '<span class="srd-bar-count" id="srdBarCount"></span>' +
+        '<span class="srd-bar-summary" id="srdBarSummary"></span>' +
+        '<button class="srd-bar-btn" onclick="srdOpen()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="8" cy="6" r="1.5" fill="currentColor"/><circle cx="16" cy="12" r="1.5" fill="currentColor"/><circle cx="10" cy="18" r="1.5" fill="currentColor"/></svg> Filters <span class="srd-badge" id="srdBadge"></span></button>' +
+      '</div>' +
+      '<div class="srd-overlay" id="srdOverlay" onclick="srdClose()"></div>' +
+      '<div class="srd-drawer" id="srdDrawer">' +
+        '<div class="srd-handle"></div>' +
+        '<div class="srd-header"><span class="srd-title">Filters</span><button class="srd-close" onclick="srdClose()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>' +
+        '<div class="srd-content">' +
+          '<div class="srd-section"><div class="srd-section-label">Areas</div><div class="srd-area-grid" id="srdAreas">' +
+            '<label class="srd-area-pill"><input type="checkbox" value="Waynesville"><span>Waynesville</span></label>' +
+            '<label class="srd-area-pill"><input type="checkbox" value="Sylva"><span>Sylva</span></label>' +
+            '<label class="srd-area-pill"><input type="checkbox" value="Maggie Valley"><span>Maggie Valley</span></label>' +
+            '<label class="srd-area-pill"><input type="checkbox" value="Bryson City"><span>Bryson City</span></label>' +
+            '<label class="srd-area-pill"><input type="checkbox" value="Cashiers"><span>Cashiers / Highlands</span></label>' +
+            '<label class="srd-area-pill"><input type="checkbox" value="Franklin"><span>Franklin</span></label>' +
+            '<label class="srd-area-pill"><input type="checkbox" value="Dillsboro"><span>Dillsboro</span></label>' +
+            '<label class="srd-area-pill"><input type="checkbox" value="Cullowhee"><span>Cullowhee</span></label>' +
+          '</div></div>' +
+          '<div class="srd-section"><div class="srd-section-label">Property Type</div><div class="srd-pill-row" id="srdType">' +
+            '<button class="srd-pill active" data-val="">All</button>' +
+            '<button class="srd-pill" data-val="Single Family">Single Family</button>' +
+            '<button class="srd-pill" data-val="Cabin">Cabin</button>' +
+            '<button class="srd-pill" data-val="Multi-Family">Multi-Family</button>' +
+            '<button class="srd-pill" data-val="Land">Land</button>' +
+          '</div></div>' +
+          '<div class="srd-section"><div class="srd-section-label">Price Range</div>' +
+            '<div class="hp-pop-slider ps-wrap" id="ps-srd"><div class="ps-display" id="psd-srd"></div><div class="ps-track" id="pst-srd"><div class="ps-fill" id="psf-srd"></div><div class="ps-thumb idle" id="psa-srd"></div><div class="ps-thumb idle" id="psb-srd"></div></div><div class="ps-ticks"><span>$0</span><span>$500K</span><span>$1M</span><span>$1.5M</span><span>$2M+</span></div></div>' +
+            '<input type="hidden" id="tps-price-srd" value="">' +
+            '<div class="srd-presets">' +
+              '<button class="srd-preset" onclick="srdPricePreset(0,200000,this)">Under $200K</button>' +
+              '<button class="srd-preset" onclick="srdPricePreset(200000,400000,this)">$200K-$400K</button>' +
+              '<button class="srd-preset" onclick="srdPricePreset(400000,700000,this)">$400K-$700K</button>' +
+              '<button class="srd-preset" onclick="srdPricePreset(700000,1000000,this)">$700K-$1M</button>' +
+              '<button class="srd-preset" onclick="srdPricePreset(1000000,99999999,this)">$1M+</button>' +
+              '<button class="srd-preset" onclick="srdPricePreset(0,0,this)" style="color:var(--text-muted)">Reset</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="srd-section"><div class="srd-section-label">Bedrooms</div><div class="srd-pill-row" id="srdBeds">' +
+            '<button class="srd-pill active" data-val="">Any</button>' +
+            '<button class="srd-pill" data-val="2">2+</button>' +
+            '<button class="srd-pill" data-val="3">3+</button>' +
+            '<button class="srd-pill" data-val="4">4+</button>' +
+            '<button class="srd-pill" data-val="5">5+</button>' +
+          '</div></div>' +
+          '<div class="srd-section"><div class="srd-section-label">Bathrooms</div><div class="srd-pill-row" id="srdBaths">' +
+            '<button class="srd-pill active" data-val="">Any</button>' +
+            '<button class="srd-pill" data-val="1">1+</button>' +
+            '<button class="srd-pill" data-val="2">2+</button>' +
+            '<button class="srd-pill" data-val="3">3+</button>' +
+            '<button class="srd-pill" data-val="4">4+</button>' +
+          '</div></div>' +
+          '<div class="srd-section srd-restrict-section" id="srdRestrictSection"><div class="srd-section-label">Restrictions</div><div class="srd-pill-row" id="srdRestrict">' +
+            '<button class="srd-pill active" data-val="">Any</button>' +
+            '<button class="srd-pill" data-val="unrestricted">Unrestricted</button>' +
+            '<button class="srd-pill" data-val="restricted">Restrictions</button>' +
+          '</div><div class="srd-restrict-lock" id="srdRestrictLock" onclick="openAcctModal()"><span>Create account to filter</span></div></div>' +
+        '</div>' +
+        '<div class="srd-footer"><button class="srd-reset" onclick="srdReset()">Reset All</button><button class="srd-apply" id="srdApplyBtn" onclick="srdApply()">Apply</button></div>' +
+      '</div>';
+    srFilters.insertAdjacentHTML('afterend', drawerHTML);
+  })();
+
   // Now that chat elements exist, re-bind listeners
   var ct = document.getElementById('chatTrigger');
   if(ct){ ct.addEventListener('click', toggleChat); ct.classList.add('compact'); }
@@ -2395,6 +2465,7 @@ function initSlider(id){
   },{passive:false});
 
   wrap._reset=function(){vals=[0,0];moved=[false,false];render()};
+  wrap._setRange=function(lo,hi){vals=[lo,hi];moved=[lo>0,true];render()};
   render();
 }
 
@@ -5615,6 +5686,206 @@ function srClearFilters(){
   srClearDrawing(); // Also clear any drawn shapes
 }
 
+// ── Mobile Filter Drawer ──────────────────────────────────
+var _srdSliderInit = false;
+
+function srdOpen() {
+  if (!_srdSliderInit) {
+    initSlider('srd');
+    _srdSliderInit = true;
+  }
+  srdSyncFromFilters();
+  document.getElementById('srdOverlay').classList.add('open');
+  // Force display:flex before triggering transform transition
+  var drawer = document.getElementById('srdDrawer');
+  drawer.style.display = 'flex';
+  requestAnimationFrame(function(){ drawer.classList.add('open'); });
+  _lockScroll();
+}
+
+function srdClose() {
+  document.getElementById('srdOverlay').classList.remove('open');
+  var drawer = document.getElementById('srdDrawer');
+  drawer.classList.remove('open');
+  _unlockScroll();
+}
+
+function srdSyncFromFilters() {
+  // Areas
+  var origChecked = getSelectedAreas();
+  document.querySelectorAll('#srdAreas .srd-area-pill').forEach(function(pill) {
+    var cb = pill.querySelector('input');
+    var isActive = origChecked.indexOf(cb.value) !== -1;
+    cb.checked = isActive;
+    pill.classList.toggle('active', isActive);
+  });
+  // Type
+  var typeVal = document.getElementById('srfTypeSelect').value;
+  document.querySelectorAll('#srdType .srd-pill').forEach(function(p) {
+    p.classList.toggle('active', p.getAttribute('data-val') === typeVal);
+  });
+  // Price: read the select, set slider if possible
+  var priceVal = document.getElementById('srfPriceSelect').value;
+  var srdHidden = document.getElementById('tps-price-srd');
+  if (srdHidden) srdHidden.value = priceVal;
+  var srdWrap = document.getElementById('ps-srd');
+  if (srdWrap && srdWrap._reset) srdWrap._reset();
+  if (priceVal && srdWrap && srdWrap._setRange) {
+    var parts = priceVal.split('-');
+    srdWrap._setRange(parseInt(parts[0]), parseInt(parts[1]));
+  }
+  // Highlight matching preset
+  document.querySelectorAll('.srd-preset').forEach(function(b) { b.classList.remove('active'); });
+  // Beds
+  var bedsVal = document.getElementById('srfBedsSelect').value;
+  document.querySelectorAll('#srdBeds .srd-pill').forEach(function(p) {
+    p.classList.toggle('active', p.getAttribute('data-val') === bedsVal);
+  });
+  // Baths
+  var bathsVal = document.getElementById('srfBathsSelect').value;
+  document.querySelectorAll('#srdBaths .srd-pill').forEach(function(p) {
+    p.classList.toggle('active', p.getAttribute('data-val') === bathsVal);
+  });
+  // Restrictions
+  var restrictVal = document.getElementById('srfRestrictSelect').value;
+  document.querySelectorAll('#srdRestrict .srd-pill').forEach(function(p) {
+    p.classList.toggle('active', p.getAttribute('data-val') === restrictVal);
+  });
+  var section = document.getElementById('srdRestrictSection');
+  if (section) section.classList.toggle('srd-restrict-unlocked', _acctLoggedIn);
+}
+
+function srdApply() {
+  // Areas
+  var drawerAreas = [];
+  document.querySelectorAll('#srdAreas .srd-area-pill input:checked').forEach(function(cb) {
+    drawerAreas.push(cb.value);
+  });
+  setSelectedAreas(drawerAreas);
+  // Type
+  var typeVal = '';
+  var activeType = document.querySelector('#srdType .srd-pill.active');
+  if (activeType) typeVal = activeType.getAttribute('data-val');
+  document.getElementById('srfTypeSelect').value = typeVal;
+  // Price
+  var srdPrice = (document.getElementById('tps-price-srd') || {}).value || '';
+  var priceSel = document.getElementById('srfPriceSelect');
+  if (srdPrice) {
+    var existing = priceSel.querySelector('option[data-custom]');
+    if (existing) existing.remove();
+    priceSel.value = srdPrice;
+    if (priceSel.value !== srdPrice) {
+      var parts = srdPrice.split('-');
+      var lo = parseInt(parts[0]), hi = parseInt(parts[1]);
+      var fmtK = function(v) {
+        return v >= 1000000 ? '$' + (v/1000000).toFixed(1) + 'M' : '$' + Math.round(v/1000) + 'K';
+      };
+      var label = lo === 0 ? 'Under ' + fmtK(hi) : hi >= 99999999 ? fmtK(lo) + '+' : fmtK(lo) + ' \u2013 ' + fmtK(hi);
+      var opt = document.createElement('option');
+      opt.value = srdPrice;
+      opt.textContent = label;
+      opt.setAttribute('data-custom', '1');
+      priceSel.appendChild(opt);
+      priceSel.value = srdPrice;
+    }
+  } else {
+    priceSel.value = '';
+  }
+  // Beds
+  var bedsVal = '';
+  var activeBeds = document.querySelector('#srdBeds .srd-pill.active');
+  if (activeBeds) bedsVal = activeBeds.getAttribute('data-val');
+  document.getElementById('srfBedsSelect').value = bedsVal;
+  // Baths
+  var bathsVal = '';
+  var activeBaths = document.querySelector('#srdBaths .srd-pill.active');
+  if (activeBaths) bathsVal = activeBaths.getAttribute('data-val');
+  document.getElementById('srfBathsSelect').value = bathsVal;
+  // Restrictions
+  if (_acctLoggedIn) {
+    var restrictVal = '';
+    var activeRestrict = document.querySelector('#srdRestrict .srd-pill.active');
+    if (activeRestrict) restrictVal = activeRestrict.getAttribute('data-val');
+    document.getElementById('srfRestrictSelect').value = restrictVal;
+  }
+  srApplyFilters();
+  srdUpdateBar();
+  srdClose();
+}
+
+function srdReset() {
+  document.querySelectorAll('#srdAreas .srd-area-pill').forEach(function(p) {
+    p.querySelector('input').checked = false;
+    p.classList.remove('active');
+  });
+  document.querySelectorAll('#srdDrawer .srd-pill').forEach(function(p) {
+    p.classList.toggle('active', p.getAttribute('data-val') === '');
+  });
+  document.querySelectorAll('.srd-preset').forEach(function(b) { b.classList.remove('active'); });
+  var srdWrap = document.getElementById('ps-srd');
+  if (srdWrap && srdWrap._reset) srdWrap._reset();
+  var srdHidden = document.getElementById('tps-price-srd');
+  if (srdHidden) srdHidden.value = '';
+}
+
+function srdPricePreset(lo, hi, btn) {
+  document.querySelectorAll('.srd-preset').forEach(function(b) { b.classList.remove('active'); });
+  if (lo === 0 && hi === 0) {
+    var srdWrap = document.getElementById('ps-srd');
+    if (srdWrap && srdWrap._reset) srdWrap._reset();
+    var h = document.getElementById('tps-price-srd');
+    if (h) h.value = '';
+    return;
+  }
+  btn.classList.add('active');
+  var h = document.getElementById('tps-price-srd');
+  if (h) h.value = lo + '-' + hi;
+  var srdWrap = document.getElementById('ps-srd');
+  if (srdWrap && srdWrap._setRange) srdWrap._setRange(lo, hi);
+}
+
+function srdUpdateBar() {
+  var countEl = document.getElementById('srdBarCount');
+  var srCount = document.getElementById('srCount');
+  if (countEl && srCount) countEl.textContent = srCount.textContent;
+  var n = 0;
+  if (getSelectedAreas().length > 0) n++;
+  if (document.getElementById('srfTypeSelect').value) n++;
+  if (document.getElementById('srfPriceSelect').value) n++;
+  if (document.getElementById('srfBedsSelect').value) n++;
+  if (document.getElementById('srfBathsSelect').value) n++;
+  if (document.getElementById('srfRestrictSelect').value) n++;
+  var badge = document.getElementById('srdBadge');
+  if (badge) { badge.textContent = n; badge.classList.toggle('visible', n > 0); }
+  var parts = [];
+  var areas = getSelectedAreas();
+  if (areas.length === 1) parts.push(areas[0]);
+  else if (areas.length > 1) parts.push(areas.length + ' areas');
+  if (document.getElementById('srfTypeSelect').value) parts.push(document.getElementById('srfTypeSelect').value);
+  if (document.getElementById('srfPriceSelect').value) {
+    var pv = document.getElementById('srfPriceSelect');
+    parts.push(pv.options[pv.selectedIndex].textContent);
+  }
+  var summary = document.getElementById('srdBarSummary');
+  if (summary) summary.textContent = parts.join(' \u00b7 ');
+}
+
+// Pill click delegation for drawer
+document.addEventListener('click', function(e) {
+  var pill = e.target.closest('.srd-pill');
+  if (!pill) return;
+  var row = pill.parentElement;
+  if (!row || !row.classList.contains('srd-pill-row')) return;
+  row.querySelectorAll('.srd-pill').forEach(function(p) { p.classList.remove('active'); });
+  pill.classList.add('active');
+});
+// Area pill toggle
+document.addEventListener('change', function(e) {
+  var pill = e.target.closest('.srd-area-pill');
+  if (!pill) return;
+  pill.classList.toggle('active', e.target.checked);
+});
+
 // Save current search filters from search results topbar
 async function saveCurrentSearch() {
   if(!_acctLoggedIn) { openAcctModal(); return; }
@@ -8358,7 +8629,77 @@ var _origSrApplyFilters = srApplyFilters;
 srApplyFilters = function() {
   _origSrApplyFilters();
   setTimeout(srApplyViewedFavStates, 100);
+  if (window.innerWidth <= 900) setTimeout(srdUpdateBar, 150);
 };
+
+// --- Inject mobile filter drawer on homepage (index.html has #srFilters in static HTML) ---
+(function(){
+  var srFilters = document.getElementById('srFilters');
+  if(!srFilters || document.getElementById('srdBar')) return;
+  var drawerHTML =
+    '<div class="srd-bar" id="srdBar">' +
+      '<span class="srd-bar-count" id="srdBarCount"></span>' +
+      '<span class="srd-bar-summary" id="srdBarSummary"></span>' +
+      '<button class="srd-bar-btn" onclick="srdOpen()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="8" cy="6" r="1.5" fill="currentColor"/><circle cx="16" cy="12" r="1.5" fill="currentColor"/><circle cx="10" cy="18" r="1.5" fill="currentColor"/></svg> Filters <span class="srd-badge" id="srdBadge"></span></button>' +
+    '</div>' +
+    '<div class="srd-overlay" id="srdOverlay" onclick="srdClose()"></div>' +
+    '<div class="srd-drawer" id="srdDrawer">' +
+      '<div class="srd-handle"></div>' +
+      '<div class="srd-header"><span class="srd-title">Filters</span><button class="srd-close" onclick="srdClose()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>' +
+      '<div class="srd-content">' +
+        '<div class="srd-section"><div class="srd-section-label">Areas</div><div class="srd-area-grid" id="srdAreas">' +
+          '<label class="srd-area-pill"><input type="checkbox" value="Waynesville"><span>Waynesville</span></label>' +
+          '<label class="srd-area-pill"><input type="checkbox" value="Sylva"><span>Sylva</span></label>' +
+          '<label class="srd-area-pill"><input type="checkbox" value="Maggie Valley"><span>Maggie Valley</span></label>' +
+          '<label class="srd-area-pill"><input type="checkbox" value="Bryson City"><span>Bryson City</span></label>' +
+          '<label class="srd-area-pill"><input type="checkbox" value="Cashiers"><span>Cashiers / Highlands</span></label>' +
+          '<label class="srd-area-pill"><input type="checkbox" value="Franklin"><span>Franklin</span></label>' +
+          '<label class="srd-area-pill"><input type="checkbox" value="Dillsboro"><span>Dillsboro</span></label>' +
+          '<label class="srd-area-pill"><input type="checkbox" value="Cullowhee"><span>Cullowhee</span></label>' +
+        '</div></div>' +
+        '<div class="srd-section"><div class="srd-section-label">Property Type</div><div class="srd-pill-row" id="srdType">' +
+          '<button class="srd-pill active" data-val="">All</button>' +
+          '<button class="srd-pill" data-val="Single Family">Single Family</button>' +
+          '<button class="srd-pill" data-val="Cabin">Cabin</button>' +
+          '<button class="srd-pill" data-val="Multi-Family">Multi-Family</button>' +
+          '<button class="srd-pill" data-val="Land">Land</button>' +
+        '</div></div>' +
+        '<div class="srd-section"><div class="srd-section-label">Price Range</div>' +
+          '<div class="hp-pop-slider ps-wrap" id="ps-srd"><div class="ps-display" id="psd-srd"></div><div class="ps-track" id="pst-srd"><div class="ps-fill" id="psf-srd"></div><div class="ps-thumb idle" id="psa-srd"></div><div class="ps-thumb idle" id="psb-srd"></div></div><div class="ps-ticks"><span>$0</span><span>$500K</span><span>$1M</span><span>$1.5M</span><span>$2M+</span></div></div>' +
+          '<input type="hidden" id="tps-price-srd" value="">' +
+          '<div class="srd-presets">' +
+            '<button class="srd-preset" onclick="srdPricePreset(0,200000,this)">Under $200K</button>' +
+            '<button class="srd-preset" onclick="srdPricePreset(200000,400000,this)">$200K-$400K</button>' +
+            '<button class="srd-preset" onclick="srdPricePreset(400000,700000,this)">$400K-$700K</button>' +
+            '<button class="srd-preset" onclick="srdPricePreset(700000,1000000,this)">$700K-$1M</button>' +
+            '<button class="srd-preset" onclick="srdPricePreset(1000000,99999999,this)">$1M+</button>' +
+            '<button class="srd-preset" onclick="srdPricePreset(0,0,this)" style="color:var(--text-muted)">Reset</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="srd-section"><div class="srd-section-label">Bedrooms</div><div class="srd-pill-row" id="srdBeds">' +
+          '<button class="srd-pill active" data-val="">Any</button>' +
+          '<button class="srd-pill" data-val="2">2+</button>' +
+          '<button class="srd-pill" data-val="3">3+</button>' +
+          '<button class="srd-pill" data-val="4">4+</button>' +
+          '<button class="srd-pill" data-val="5">5+</button>' +
+        '</div></div>' +
+        '<div class="srd-section"><div class="srd-section-label">Bathrooms</div><div class="srd-pill-row" id="srdBaths">' +
+          '<button class="srd-pill active" data-val="">Any</button>' +
+          '<button class="srd-pill" data-val="1">1+</button>' +
+          '<button class="srd-pill" data-val="2">2+</button>' +
+          '<button class="srd-pill" data-val="3">3+</button>' +
+          '<button class="srd-pill" data-val="4">4+</button>' +
+        '</div></div>' +
+        '<div class="srd-section srd-restrict-section" id="srdRestrictSection"><div class="srd-section-label">Restrictions</div><div class="srd-pill-row" id="srdRestrict">' +
+          '<button class="srd-pill active" data-val="">Any</button>' +
+          '<button class="srd-pill" data-val="unrestricted">Unrestricted</button>' +
+          '<button class="srd-pill" data-val="restricted">Restrictions</button>' +
+        '</div><div class="srd-restrict-lock" id="srdRestrictLock" onclick="openAcctModal()"><span>Create account to filter</span></div></div>' +
+      '</div>' +
+      '<div class="srd-footer"><button class="srd-reset" onclick="srdReset()">Reset All</button><button class="srd-apply" id="srdApplyBtn" onclick="srdApply()">Apply</button></div>' +
+    '</div>';
+  srFilters.insertAdjacentHTML('afterend', drawerHTML);
+})();
 
 // --- Init account UI ---
 updateAcctUI();
