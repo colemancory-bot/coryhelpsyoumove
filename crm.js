@@ -4773,9 +4773,11 @@ async function cmaGeneratePDF() {
 // ═══════════════════════════════════════════════════════
 
 async function _rvFetch(body) {
+  var sess = (await _sb.auth.getSession()).data.session;
+  var token = sess ? sess.access_token : SUPABASE_KEY;
   var resp = await fetch(SUPABASE_URL + '/functions/v1/review-request', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _session.access_token, 'apikey': SUPABASE_KEY },
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token, 'apikey': SUPABASE_KEY },
     body: JSON.stringify(body)
   });
   return resp.json();
