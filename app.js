@@ -3943,7 +3943,7 @@ function _parallaxScroll() {
   var heroImg = document.getElementById('propHeroImg');
   if (!overlay || !heroImg) return;
   var scrollY = overlay.scrollTop;
-  heroImg.style.transform = 'translateY(' + (-scrollY * PARALLAX_SPEED) + 'px)';
+  heroImg.style.transform = 'translate3d(0,' + (-scrollY * PARALLAX_SPEED) + 'px,0)';
   // Also handle scroll-fade gradient + hero darken
   var area = document.getElementById('propContentArea');
   if (area) {
@@ -3973,7 +3973,7 @@ function _startParallax() {
   if (overlay) overlay.addEventListener('scroll', _onPropScroll, {passive: true});
   // Reset position
   var heroImg = document.getElementById('propHeroImg');
-  if (heroImg) heroImg.style.transform = 'translateY(0)';
+  if (heroImg) heroImg.style.transform = 'translate3d(0,0,0)';
 }
 
 function _stopParallax() {
@@ -3990,14 +3990,17 @@ function _stopParallax() {
   var heroSection = document.querySelector('.hero');
   if (!heroSection) return;
   var _heroRaf = 0;
+  var _lastY = -1;
   function onHeroScroll() {
     if (_heroRaf) return;
     _heroRaf = requestAnimationFrame(function() {
       _heroRaf = 0;
       var scrollY = window.pageYOffset || document.documentElement.scrollTop;
+      if (scrollY === _lastY) return;
+      _lastY = scrollY;
       var heroBottom = heroSection.offsetTop + heroSection.offsetHeight;
       if (scrollY > heroBottom) return;
-      heroFallback.style.transform = 'translateY(' + (scrollY * PARALLAX_SPEED) + 'px)';
+      heroFallback.style.transform = 'translate3d(0,' + (scrollY * PARALLAX_SPEED) + 'px,0)';
     });
   }
   window.addEventListener('scroll', onHeroScroll, {passive: true});
