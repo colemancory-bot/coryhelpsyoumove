@@ -3983,6 +3983,26 @@ function _stopParallax() {
   if (overlay) overlay.removeEventListener('scroll', _onPropScroll);
 }
 
+// ── Landing page hero parallax ──
+(function() {
+  var heroFallback = document.querySelector('.hero-bg-fallback');
+  if (!heroFallback) return;
+  var heroSection = document.querySelector('.hero');
+  if (!heroSection) return;
+  var _heroRaf = 0;
+  function onHeroScroll() {
+    if (_heroRaf) return;
+    _heroRaf = requestAnimationFrame(function() {
+      _heroRaf = 0;
+      var scrollY = window.pageYOffset || document.documentElement.scrollTop;
+      var heroBottom = heroSection.offsetTop + heroSection.offsetHeight;
+      if (scrollY > heroBottom) return;
+      heroFallback.style.transform = 'translateY(' + (scrollY * PARALLAX_SPEED) + 'px)';
+    });
+  }
+  window.addEventListener('scroll', onHeroScroll, {passive: true});
+})();
+
 
 
 // ═══════════════════════════════════════════════════
