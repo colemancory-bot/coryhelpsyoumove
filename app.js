@@ -1595,6 +1595,7 @@ function buildChatTranscript(){
 
 // --- Push lead to Follow Up Boss via edge function ---
 function _pushToFUB(leadData){
+  if(_isAdmin){ _log('[FUB] Skipping push for admin user'); return; }
   try {
     fetch(SUPABASE_URL + '/functions/v1/fub-push', {
       method: 'POST',
