@@ -258,7 +258,8 @@ if(_isTownPage){
     '<button class="prop-close" onclick="closeProp()">&times;</button>' +
     '<div class="prop-theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode"><span class="prop-toggle-sun">☀</span><span class="prop-toggle-moon">☽</span></div>' +
     '<div class="prop-hero-wrap"><div class="prop-hero" id="propHeroZone">' +
-      '<img class="prop-hero-img" id="propHeroImg" src="" alt="Property listing photo">' +
+      '<div class="prop-hero-img" id="propHeroImg"></div>' +
+      '<img id="propHeroSeo" src="" alt="Property listing photo" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">' +
       '<div class="prop-nav prop-nav-left" onclick="propImgNav(-1)"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></div>' +
       '<div class="prop-nav prop-nav-right" onclick="propImgNav(1)"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>' +
       '<div class="prop-hero-expand" onclick="openLightbox()"><svg viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg> View Photos</div>' +
@@ -2842,8 +2843,10 @@ function openProp(listing, townName, sourceCardEl) {
     imgs = PROP_IMAGES[listing.type] || PROP_IMAGES['Single Family'];
   }
   var mainImg = imgs[0] || imgs[Math.floor(Math.random()*imgs.length)];
-  document.getElementById('propHeroImg').src = mainImg;
-  document.getElementById('propHeroImg').alt = listing.address + ' ' + townName + ' NC real estate';
+  _setPropHeroImage(mainImg);
+  var seoAlt = (listing.beds ? listing.beds + ' bedroom home for sale in ' : 'Property for sale in ') + (townName || 'Western NC') + ', NC';
+  var seoImg = document.getElementById('propHeroSeo');
+  if (seoImg) { seoImg.src = mainImg; seoImg.alt = seoAlt; }
 
   // Image gallery state
   window._propImgs = imgs;
@@ -2886,7 +2889,9 @@ function openProp(listing, townName, sourceCardEl) {
       if(allPhotos && allPhotos.length > 1) {
         window._propImgs = allPhotos;
         window._propImgIdx = 0;
-        document.getElementById('propHeroImg').src = allPhotos[0];
+        _setPropHeroImage(allPhotos[0]);
+        var _seo = document.getElementById('propHeroSeo');
+        if (_seo) _seo.src = allPhotos[0];
         _renderThumbs(allPhotos);
         // Update mobile photo counter with pulse animation
         var _ctr = document.getElementById('propHeroCounter');
@@ -3160,6 +3165,7 @@ function openProp(listing, townName, sourceCardEl) {
     o.classList.add('active');
     o.scrollTop = 0;
     _lockScroll();
+    _startParallax();
     try{history.pushState({page:'property'},'','#property/' + encodeURIComponent(_propHashId))}catch(he){}
   }
 
@@ -3463,6 +3469,7 @@ function closeProp(fromPopstate) {
   var o = document.getElementById('propOverlay');
 
   function _deactivateOverlay() {
+    _stopParallax();
     if (o) o.classList.remove('active');
   }
 
@@ -3558,8 +3565,8 @@ function propShare(type) {
     var cpPage = document.getElementById('comparePrintPage');
     if(cpPage) cpPage.className = 'compare-print-page';
     // Populate print page
-    var heroImg = document.getElementById('propHeroImg');
-    document.getElementById('printThumb').src = heroImg ? heroImg.src : '';
+    var heroSeo = document.getElementById('propHeroSeo');
+    document.getElementById('printThumb').src = heroSeo ? heroSeo.src : '';
     document.getElementById('printPrice').textContent = price;
     document.getElementById('printAddr').textContent = addr;
     document.getElementById('printCity').textContent = document.getElementById('propCity').textContent || '';
@@ -3794,7 +3801,7 @@ function propGoTo(idx) {
   var heroImg = document.getElementById('propHeroImg');
   heroImg.classList.add('fade');
   setTimeout(function() {
-    heroImg.src = imgs[idx];
+    _setPropHeroImage(imgs[idx]);
     heroImg.classList.remove('fade');
   }, 250);
   // Update mobile photo counter
@@ -3919,25 +3926,62 @@ function addSwipe(el, onLeft, onRight) {
   }
 })();
 
-// Fade in scroll-over gradient + hero darken on scroll
-(function(){
+// ── Prop Hero Image Helper (background-image for parallax + SEO img) ──
+function _setPropHeroImage(url) {
+  var el = document.getElementById('propHeroImg');
+  if (el) el.style.backgroundImage = 'url(' + url + ')';
+}
+
+// ── Parallax scroll for property hero ──
+var PARALLAX_SPEED = 0.4;
+var _parallaxRaf = 0;
+var _parallaxActive = false;
+
+function _parallaxScroll() {
+  if (!_parallaxActive) return;
   var overlay = document.getElementById('propOverlay');
-  if (!overlay) return;
-  overlay.addEventListener('scroll', function() {
-    var area = document.getElementById('propContentArea');
-    if (area) {
-      if (overlay.scrollTop > 30) area.classList.add('scroll-fade');
-      else area.classList.remove('scroll-fade');
-    }
-    // Darken hero image as user scrolls
-    var hero = document.querySelector('.prop-hero');
-    if (hero) {
-      var heroH = hero.offsetHeight || 500;
-      var fade = Math.min(overlay.scrollTop / heroH, 0.85);
-      hero.style.setProperty('--hero-fade', fade);
-    }
+  var heroImg = document.getElementById('propHeroImg');
+  if (!overlay || !heroImg) return;
+  var scrollY = overlay.scrollTop;
+  heroImg.style.backgroundPositionY = 'calc(50% + ' + (scrollY * PARALLAX_SPEED) + 'px)';
+  // Also handle scroll-fade gradient + hero darken
+  var area = document.getElementById('propContentArea');
+  if (area) {
+    if (scrollY > 30) area.classList.add('scroll-fade');
+    else area.classList.remove('scroll-fade');
+  }
+  var hero = document.querySelector('.prop-hero');
+  if (hero) {
+    var heroH = hero.offsetHeight || 500;
+    var fade = Math.min(scrollY / heroH, 0.85);
+    hero.style.setProperty('--hero-fade', fade);
+  }
+}
+
+function _onPropScroll() {
+  if (!_parallaxActive) return;
+  if (_parallaxRaf) return;
+  _parallaxRaf = requestAnimationFrame(function() {
+    _parallaxRaf = 0;
+    _parallaxScroll();
   });
-})();
+}
+
+function _startParallax() {
+  _parallaxActive = true;
+  var overlay = document.getElementById('propOverlay');
+  if (overlay) overlay.addEventListener('scroll', _onPropScroll, {passive: true});
+  // Reset position
+  var heroImg = document.getElementById('propHeroImg');
+  if (heroImg) heroImg.style.backgroundPositionY = 'center';
+}
+
+function _stopParallax() {
+  _parallaxActive = false;
+  if (_parallaxRaf) { cancelAnimationFrame(_parallaxRaf); _parallaxRaf = 0; }
+  var overlay = document.getElementById('propOverlay');
+  if (overlay) overlay.removeEventListener('scroll', _onPropScroll);
+}
 
 
 
