@@ -3933,7 +3933,7 @@ function _setPropHeroImage(url) {
 }
 
 // ── Parallax scroll for property hero ──
-var PARALLAX_SPEED = 0.4;
+var PARALLAX_SPEED = 0.5;
 var _parallaxRaf = 0;
 var _parallaxActive = false;
 
@@ -3943,7 +3943,7 @@ function _parallaxScroll() {
   var heroImg = document.getElementById('propHeroImg');
   if (!overlay || !heroImg) return;
   var scrollY = overlay.scrollTop;
-  heroImg.style.backgroundPositionY = 'calc(50% + ' + (scrollY * PARALLAX_SPEED) + 'px)';
+  heroImg.style.transform = 'translateY(' + (-scrollY * PARALLAX_SPEED) + 'px)';
   // Also handle scroll-fade gradient + hero darken
   var area = document.getElementById('propContentArea');
   if (area) {
@@ -3973,7 +3973,7 @@ function _startParallax() {
   if (overlay) overlay.addEventListener('scroll', _onPropScroll, {passive: true});
   // Reset position
   var heroImg = document.getElementById('propHeroImg');
-  if (heroImg) heroImg.style.backgroundPositionY = 'center';
+  if (heroImg) heroImg.style.transform = 'translateY(0)';
 }
 
 function _stopParallax() {
