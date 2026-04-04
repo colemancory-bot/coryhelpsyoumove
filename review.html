@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Google Analytics 4 -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-FRXENGTEZF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-FRXENGTEZF');</script>
+<title>Leave a Review | Cory Coleman Real Estate</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://coryhelpsyoumove.com/review.html">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0C0B09;--gold:#C4B08C;--cream:#F5F0E8;--text-body:rgba(245,240,232,0.75);--text-muted:rgba(245,240,232,0.4);--border:rgba(196,176,140,0.15);--surface:#1A1815;--green:#4CAF50}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--cream);font-family:'Outfit',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1.5rem}
+.rv-container{max-width:560px;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:2.5rem;position:relative}
+.rv-logo{text-align:center;margin-bottom:2rem}
+.rv-logo-name{font-family:'Cormorant Garamond',serif;font-size:1.6rem;color:var(--cream);font-weight:300}
+.rv-logo-sub{font-size:0.6rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--gold);margin-top:0.2rem}
+.rv-greeting{text-align:center;margin-bottom:2rem}
+.rv-greeting h1{font-family:'Cormorant Garamond',serif;font-size:1.8rem;font-weight:300;color:var(--cream);margin-bottom:0.5rem}
+.rv-greeting p{font-size:0.85rem;color:var(--text-body);line-height:1.6}
+.rv-greeting .rv-addr{color:var(--gold);font-weight:500}
+
+/* Stars */
+.rv-stars{display:flex;justify-content:center;gap:0.5rem;margin:1.5rem 0}
+.rv-star{width:48px;height:48px;cursor:pointer;fill:var(--border);transition:all 0.2s;stroke:none}
+.rv-star.active{fill:var(--gold)}
+.rv-star:hover{transform:scale(1.15)}
+
+/* Steps */
+.rv-step{display:none}
+.rv-step.active{display:block}
+
+/* Form fields */
+.rv-field{margin-bottom:1.25rem}
+.rv-label{font-size:0.6rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold);margin-bottom:0.5rem;display:block}
+.rv-select,.rv-textarea,.rv-input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--cream);font-family:'Outfit',sans-serif;font-size:0.85rem;padding:0.75rem 1rem;border-radius:6px;outline:none;transition:border-color 0.3s}
+.rv-select:focus,.rv-textarea:focus,.rv-input:focus{border-color:var(--gold)}
+.rv-textarea{resize:vertical;min-height:120px;line-height:1.6}
+.rv-select option{background:var(--bg);color:var(--cream)}
+.rv-charcount{font-size:0.65rem;color:var(--text-muted);text-align:right;margin-top:0.3rem}
+
+/* Generated review */
+.rv-generated{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:1.25rem;margin:1rem 0;position:relative}
+.rv-generated-label{font-size:0.55rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold);margin-bottom:0.5rem}
+.rv-generated-text{font-size:0.9rem;color:var(--cream);line-height:1.7;white-space:pre-wrap}
+.rv-edit-btn{font-size:0.65rem;color:var(--gold);background:none;border:none;cursor:pointer;text-decoration:underline;margin-top:0.5rem;font-family:'Outfit',sans-serif}
+
+/* Buttons */
+.rv-btn{display:block;width:100%;padding:0.9rem;border:none;border-radius:6px;font-family:'Outfit',sans-serif;font-size:0.75rem;font-weight:600;letter-spacing:0.15em;text-transform:uppercase;cursor:pointer;transition:all 0.3s;margin-top:1rem}
+.rv-btn-primary{background:var(--gold);color:var(--bg)}
+.rv-btn-primary:hover{background:#d4c49c}
+.rv-btn-primary:disabled{opacity:0.4;cursor:not-allowed}
+.rv-btn-secondary{background:transparent;border:1px solid var(--border);color:var(--cream)}
+.rv-btn-secondary:hover{border-color:var(--gold);color:var(--gold)}
+
+/* Thank you / share */
+.rv-thankyou{text-align:center}
+.rv-thankyou h2{font-family:'Cormorant Garamond',serif;font-size:1.6rem;font-weight:300;color:var(--cream);margin-bottom:0.75rem}
+.rv-thankyou p{font-size:0.85rem;color:var(--text-body);margin-bottom:1.5rem;line-height:1.6}
+.rv-copy-box{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:1rem;margin:1rem 0;text-align:left;font-size:0.85rem;color:var(--cream);line-height:1.6;max-height:200px;overflow-y:auto}
+.rv-copy-btn{display:flex;align-items:center;justify-content:center;gap:0.4rem;width:100%;padding:0.75rem;background:var(--surface);border:1px solid var(--gold);color:var(--gold);border-radius:6px;font-family:'Outfit',sans-serif;font-size:0.7rem;letter-spacing:0.12em;text-transform:uppercase;cursor:pointer;margin:0.75rem 0;transition:all 0.3s}
+.rv-copy-btn:hover{background:var(--gold);color:var(--bg)}
+.rv-copy-btn.copied{background:var(--green);border-color:var(--green);color:#fff}
+
+.rv-share-label{font-size:0.6rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold);margin:1.5rem 0 0.75rem;text-align:center}
+.rv-share-btns{display:flex;flex-direction:column;gap:0.5rem}
+.rv-share-btn{display:flex;align-items:center;gap:0.75rem;padding:0.85rem 1rem;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--cream);font-family:'Outfit',sans-serif;font-size:0.8rem;cursor:pointer;text-decoration:none;transition:all 0.3s}
+.rv-share-btn:hover{border-color:var(--gold);color:var(--gold)}
+.rv-share-btn svg{width:20px;height:20px;flex-shrink:0}
+.rv-share-btn span{flex:1}
+.rv-share-btn .rv-arrow{color:var(--text-muted);font-size:0.7rem}
+
+/* Private feedback thank you */
+.rv-private{text-align:center}
+.rv-private h2{font-family:'Cormorant Garamond',serif;font-size:1.6rem;font-weight:300;color:var(--cream);margin-bottom:0.75rem}
+
+/* Loading/error */
+.rv-loading{text-align:center;padding:3rem;color:var(--text-muted)}
+.rv-error{text-align:center;padding:3rem;color:#e57373}
+
+/* Footer */
+.rv-footer{text-align:center;margin-top:2rem;font-size:0.6rem;color:var(--text-muted);letter-spacing:0.1em}
+
+@media(max-width:600px){
+  body{padding:1rem}
+  .rv-container{padding:1.5rem}
+  .rv-star{width:40px;height:40px}
+  .rv-greeting h1{font-size:1.4rem}
+}
+</style>
+</head>
+<body>
+
+<div class="rv-container" id="rvContainer">
+  <div class="rv-loading" id="rvLoading">Loading...</div>
+</div>
+
+<div class="rv-footer">Equal Housing Opportunity | Cory Coleman, Keller Williams Great Smokies</div>
+
+<script>
+var SUPABASE_URL = 'https://kzaabnnwjupjqvydiqlz.supabase.co';
+var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6YWFibm53anVwanF2eWRpcWx6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExMTE5NDMsImV4cCI6MjA4NjY4Nzk0M30.2B2sJnAuDim_yhn5UFKxXzdZw58ne4E20-ulW8pTwPA';
+
+// Review link placeholders - Cory will fill these in
+var GOOGLE_REVIEW_URL = 'https://search.google.com/local/writereview?placeid=ChIJiyLzaaxi6A0RaBEQSTh2okM';
+var FACEBOOK_REVIEW_URL = 'https://www.facebook.com/profile.php?id=61561909577942&sk=reviews';
+var YELP_REVIEW_URL = 'https://www.yelp.com/biz/YOUR_YELP_BIZ_HERE';
+
+var _token = new URLSearchParams(window.location.search).get('token');
+var _requestData = null;
+var _selectedRating = 0;
+var _generatedReview = '';
+
+var container = document.getElementById('rvContainer');
+
+// Star SVG
+function starSVG(){ return '<svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>'; }
+
+async function rvFetch(body){
+  var resp = await fetch(SUPABASE_URL + '/functions/v1/review-request', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_KEY,'apikey':SUPABASE_KEY},
+    body:JSON.stringify(body)
+  });
+  return resp.json();
+}
+
+async function init(){
+  if(!_token){ showError('Invalid review link.'); return; }
+  try {
+    var data = await rvFetch({action:'load',token:_token});
+    if(!data.ok){ showError(data.error || 'This review link is no longer valid.'); return; }
+    _requestData = data;
+    showStep1();
+  } catch(e){ showError('Unable to load. Please try again later.'); }
+}
+
+function showError(msg){
+  container.innerHTML = '<div class="rv-error">'+msg+'</div>';
+}
+
+function showStep1(){
+  var addrHtml = _requestData.propertyAddress ? '<span class="rv-addr">'+_requestData.propertyAddress+'</span>' : 'your property';
+  container.innerHTML =
+    '<div class="rv-logo"><div class="rv-logo-name">Cory Coleman</div><div class="rv-logo-sub">Keller Williams Great Smokies</div></div>' +
+    '<div class="rv-greeting"><h1>How was your experience?</h1><p>'+(_requestData.clientName ? _requestData.clientName+', thank' : 'Thank')+' you for choosing me to help with '+addrHtml+'. Your feedback means a lot.</p></div>' +
+    '<div class="rv-stars" id="rvStars"></div>' +
+    '<button class="rv-btn rv-btn-primary" id="rvNextBtn" disabled onclick="onRatingNext()">Continue</button>';
+
+  var starsEl = document.getElementById('rvStars');
+  for(var i=1;i<=5;i++){
+    var s = document.createElement('div');
+    s.className = 'rv-star';
+    s.innerHTML = starSVG();
+    s.setAttribute('data-val', i);
+    s.onclick = function(){ selectRating(parseInt(this.getAttribute('data-val'))); };
+    starsEl.appendChild(s);
+  }
+}
+
+function selectRating(val){
+  _selectedRating = val;
+  document.querySelectorAll('.rv-star').forEach(function(s,i){
+    s.classList.toggle('active', i < val);
+  });
+  document.getElementById('rvNextBtn').disabled = false;
+}
+
+function onRatingNext(){
+  if(_selectedRating === 5) showStep2_FiveStar();
+  else showStep2_Private();
+}
+
+function showStep2_FiveStar(){
+  var towns = ['Waynesville','Sylva','Bryson City','Maggie Valley','Franklin','Cashiers','Highlands','Dillsboro','Cullowhee','Other'];
+  var townOpts = towns.map(function(t){ var sel = t===_requestData.town?' selected':''; return '<option value="'+t+'"'+sel+'>'+t+'</option>'; }).join('');
+
+  container.innerHTML =
+    '<div class="rv-logo"><div class="rv-logo-name">Cory Coleman</div><div class="rv-logo-sub">Keller Williams Great Smokies</div></div>' +
+    '<div class="rv-greeting"><h1>Help us build your review</h1><p>Answer a few quick questions and we\'ll draft a review for you. You can edit it before posting.</p></div>' +
+    '<div class="rv-field"><label class="rv-label">What town?</label><select class="rv-select" id="rvTown">'+townOpts+'</select></div>' +
+    '<div class="rv-field"><label class="rv-label">Property Type</label><select class="rv-select" id="rvPropType"><option value="home">Home</option><option value="cabin">Cabin</option><option value="land">Land / Acreage</option><option value="investment">Investment Property</option><option value="multi-family">Multi-Family</option></select></div>' +
+    '<div class="rv-field"><label class="rv-label">Did you buy or sell?</label><select class="rv-select" id="rvAction"><option value="buy">Buy</option><option value="sell">Sell</option><option value="both">Both</option></select></div>' +
+    '<div class="rv-field"><label class="rv-label">What stood out about working with Cory?</label><select class="rv-select" id="rvStandout"><option value="local-knowledge">Local knowledge of the area</option><option value="communication">Great communication throughout</option><option value="negotiation">Strong negotiation skills</option><option value="above-beyond">Went above and beyond</option><option value="made-easy">Made the process easy</option><option value="responsive">Very responsive and available</option><option value="trustworthy">Honest and trustworthy</option></select></div>' +
+    '<button class="rv-btn rv-btn-primary" onclick="generateReview()">Generate My Review</button>';
+}
+
+function generateReview(){
+  var town = document.getElementById('rvTown').value;
+  var propType = document.getElementById('rvPropType').value;
+  var action = document.getElementById('rvAction').value;
+  var standout = document.getElementById('rvStandout').value;
+
+  var propLabel = {home:'a home',cabin:'a cabin',land:'land','investment':'an investment property','multi-family':'a multi-family property'}[propType] || 'a property';
+  var actionLabel = {buy:'buy',sell:'sell',both:'buy and sell'}[action] || 'buy';
+  var standoutText = {
+    'local-knowledge':'He knew the area inside and out, from the best neighborhoods to details about well and septic that most agents don\'t even think about.',
+    'communication':'He kept us informed every step of the way. We never had to wonder what was happening with our transaction.',
+    'negotiation':'His negotiation skills saved us money and got us terms we didn\'t think were possible.',
+    'above-beyond':'He went above and beyond what we expected. Nothing was too much trouble.',
+    'made-easy':'He made what could have been a stressful process feel simple and straightforward.',
+    'responsive':'He was incredibly responsive. Every call and text was answered quickly, even on weekends.',
+    'trustworthy':'He was honest from day one. No pressure, no games, just straight answers.'
+  }[standout] || 'He was great to work with.';
+
+  var countyMap = {Waynesville:'Haywood',Sylva:'Jackson','Bryson City':'Swain','Maggie Valley':'Haywood',Franklin:'Macon',Cashiers:'Jackson',Highlands:'Macon',Dillsboro:'Jackson',Cullowhee:'Jackson'};
+  var county = countyMap[town] || '';
+  var countyPhrase = county ? ' in '+county+' County' : '';
+
+  var templates = [
+    'Cory Coleman helped us '+actionLabel+' '+propLabel+' in '+town+', NC. '+standoutText+' The entire process from start to finish was handled professionally. Would highly recommend Cory and Keller Williams Great Smokies to anyone looking for real estate in Western North Carolina.',
+    'We worked with Cory Coleman at Keller Williams Great Smokies to '+actionLabel+' '+propLabel+' in '+town+countyPhrase+'. '+standoutText+' If you\'re looking for a knowledgeable real estate broker in the Western NC mountains, Cory is your guy.',
+    'Cory helped us '+actionLabel+' '+propLabel+' in '+town+', North Carolina. '+standoutText+' From our first meeting to closing day, everything was smooth. Highly recommend Cory Coleman with Keller Williams Great Smokies for anyone searching for property in WNC.'
+  ];
+
+  _generatedReview = templates[Math.floor(Math.random()*templates.length)];
+  showGeneratedReview();
+}
+
+function showGeneratedReview(){
+  container.innerHTML =
+    '<div class="rv-logo"><div class="rv-logo-name">Cory Coleman</div><div class="rv-logo-sub">Keller Williams Great Smokies</div></div>' +
+    '<div class="rv-greeting"><h1>Here\'s your review</h1><p>Feel free to edit it or write your own. When you\'re happy with it, hit submit.</p></div>' +
+    '<div class="rv-generated"><div class="rv-generated-label">Your Review</div><div id="rvReviewDisplay" class="rv-generated-text">'+_generatedReview+'</div><button class="rv-edit-btn" id="rvEditBtn" onclick="editReview()">Edit this review</button></div>' +
+    '<div id="rvEditArea" style="display:none"><div class="rv-field"><textarea class="rv-textarea" id="rvReviewText" rows="6" maxlength="2000">'+_generatedReview+'</textarea><div class="rv-charcount"><span id="rvCharCount">'+_generatedReview.length+'</span> / 2,000</div></div></div>' +
+    '<button class="rv-btn rv-btn-primary" id="rvSubmitBtn" onclick="submitReview()">Submit Review</button>' +
+    '<button class="rv-btn rv-btn-secondary" onclick="showStep2_FiveStar()">Start Over</button>';
+}
+
+function editReview(){
+  document.getElementById('rvReviewDisplay').style.display = 'none';
+  document.getElementById('rvEditBtn').style.display = 'none';
+  document.getElementById('rvEditArea').style.display = 'block';
+  var ta = document.getElementById('rvReviewText');
+  ta.addEventListener('input', function(){ document.getElementById('rvCharCount').textContent = ta.value.length; _generatedReview = ta.value; });
+}
+
+async function submitReview(){
+  var btn = document.getElementById('rvSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+
+  var reviewText = _generatedReview;
+  if(document.getElementById('rvReviewText')) reviewText = document.getElementById('rvReviewText').value;
+
+  try {
+    var data = await rvFetch({
+      action:'submit', token:_token, rating:_selectedRating, reviewText:reviewText,
+      town: document.getElementById('rvTown') ? document.getElementById('rvTown').value : _requestData.town,
+      propertyType: document.getElementById('rvPropType') ? document.getElementById('rvPropType').value : '',
+      buyOrSell: document.getElementById('rvAction') ? document.getElementById('rvAction').value : ''
+    });
+    if(!data.ok){ btn.disabled=false; btn.textContent='Submit Review'; alert(data.error||'Error submitting. Please try again.'); return; }
+    showThankYou5Star(reviewText);
+  } catch(e){ btn.disabled=false; btn.textContent='Submit Review'; alert('Error submitting. Please try again.'); }
+}
+
+function showThankYou5Star(reviewText){
+  container.innerHTML =
+    '<div class="rv-thankyou">' +
+      '<div class="rv-logo"><div class="rv-logo-name">Cory Coleman</div><div class="rv-logo-sub">Keller Williams Great Smokies</div></div>' +
+      '<h2>Thank you!</h2>' +
+      '<p>Your review is now live on our website. If you have a minute, posting the same review on Google, Facebook, or Yelp helps other buyers and sellers find us.</p>' +
+      '<div class="rv-copy-box" id="rvCopyText">'+reviewText+'</div>' +
+      '<button class="rv-copy-btn" id="rvCopyBtn" onclick="copyReview()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy Review to Clipboard</button>' +
+      '<div class="rv-share-label">Paste Your Review On</div>' +
+      '<div class="rv-share-btns">' +
+        '<a class="rv-share-btn" href="'+GOOGLE_REVIEW_URL+'" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="#4285F4"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg><span>Post on Google</span><span class="rv-arrow">&rarr;</span></a>' +
+        '<a class="rv-share-btn" href="'+FACEBOOK_REVIEW_URL+'" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg><span>Post on Facebook</span><span class="rv-arrow">&rarr;</span></a>' +
+        '<a class="rv-share-btn" href="'+YELP_REVIEW_URL+'" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="#D32323"><path d="M20.16 12.594l-4.995 1.433c-.96.276-1.74-.8-1.176-1.63l2.905-4.308a1.09 1.09 0 011.783-.1l3.174 3.034c.592.566.143 1.418-.69 1.57zm-7.042 5.836l1.065-5.09c.197-.94 1.504-1.11 1.937-.252l2.268 4.486c.304.6-.187 1.3-.856 1.22l-3.886-.516c-.747-.1-1.074-.94-.528-1.848zM6.2 17.074l4.455-2.563c.836-.48 1.764.4 1.38 1.312l-1.97 4.7c-.27.64-1.14.72-1.518.14l-2.486-3.837c-.42-.65.07-1.49.14-1.752zm-.84-5.36l5.15.152c.96.028 1.37 1.24.612 1.808L7.14 16.72c-.53.4-1.3.04-1.34-.62L5.36 12.4c-.04-.74.66-1.33 1-.686zM11.43 2.024l1.477 5.002c.276.934-.71 1.744-1.573 1.29L6.74 5.676c-.6-.316-.62-1.18-.04-1.53L10.4 1.9c.5-.3 1.15.02 1.03.124z"/></svg><span>Post on Yelp</span><span class="rv-arrow">&rarr;</span></a>' +
+      '</div>' +
+    '</div>';
+}
+
+function copyReview(){
+  var text = document.getElementById('rvCopyText').textContent;
+  navigator.clipboard.writeText(text).then(function(){
+    var btn = document.getElementById('rvCopyBtn');
+    btn.classList.add('copied');
+    btn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg> Copied!';
+    setTimeout(function(){ btn.classList.remove('copied'); btn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy Review to Clipboard'; }, 3000);
+  });
+}
+
+// Private feedback flow (4 stars or less)
+function showStep2_Private(){
+  container.innerHTML =
+    '<div class="rv-logo"><div class="rv-logo-name">Cory Coleman</div><div class="rv-logo-sub">Keller Williams Great Smokies</div></div>' +
+    '<div class="rv-greeting"><h1>We appreciate your honesty</h1><p>Your feedback helps me improve. This will be sent directly to me and will not be posted publicly.</p></div>' +
+    '<div class="rv-field"><label class="rv-label">What could I have done better?</label><textarea class="rv-textarea" id="rvPrivateText" rows="5" placeholder="Your feedback is private and goes directly to Cory..."></textarea></div>' +
+    '<button class="rv-btn rv-btn-primary" id="rvPrivateSubmit" onclick="submitPrivate()">Send Feedback</button>';
+}
+
+async function submitPrivate(){
+  var btn = document.getElementById('rvPrivateSubmit');
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+  var text = document.getElementById('rvPrivateText').value || '(No feedback provided)';
+  try {
+    await rvFetch({action:'submit',token:_token,rating:_selectedRating,reviewText:text,town:_requestData.town||'',propertyType:'',buyOrSell:''});
+    showThankYouPrivate();
+  } catch(e){ btn.disabled=false; btn.textContent='Send Feedback'; alert('Error sending. Please try again.'); }
+}
+
+function showThankYouPrivate(){
+  container.innerHTML =
+    '<div class="rv-private">' +
+      '<div class="rv-logo"><div class="rv-logo-name">Cory Coleman</div><div class="rv-logo-sub">Keller Williams Great Smokies</div></div>' +
+      '<h2>Thank you for your feedback</h2>' +
+      '<p>Your feedback has been sent directly to Cory. We take every response seriously and will use it to improve our service.</p>' +
+      '<p style="color:var(--text-muted);font-size:0.75rem;margin-top:2rem">(828) 506-6413 | coryhelpsyoumove@gmail.com</p>' +
+    '</div>';
+}
+
+// Init
+init();
+</script>
+</body>
+</html>

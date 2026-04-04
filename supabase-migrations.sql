@@ -1198,3 +1198,32 @@ ALTER TABLE cma_paired_sales ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Admin can manage paired sales" ON cma_paired_sales FOR ALL USING (
   EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
+
+-- ═══════════════════════════════════════════════════════
+-- REVIEW REQUESTS — Token-based review collection system
+-- ═══════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS review_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_name TEXT NOT NULL,
+  client_email TEXT NOT NULL,
+  property_address TEXT DEFAULT '',
+  town TEXT DEFAULT '',
+  token TEXT UNIQUE NOT NULL,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending','submitted','approved','rejected')),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  submitted_at TIMESTAMPTZ,
+  review_id UUID REFERENCES reviews(id)
+);
+
+-- RLS: anon can read by token (for the review page), admin can do everything
+ALTER TABLE review_requests ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anon can read own request by token" ON review_requests
+  FOR SELECT USING (true);
+
+CREATE POLICY "Service role full access review_requests" ON review_requests
+  FOR ALL USING (true) WITH CHECK (true);
+
+-- Index for token lookups
+CREATE INDEX idx_review_requests_token ON review_requests(token);
