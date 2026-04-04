@@ -3481,6 +3481,7 @@ function closeProp(fromPopstate) {
   }
 
   function _afterClose() {
+    _clearPropHash();
     if(_isTownPage) {
       var searchOv = document.getElementById('searchOverlay');
       if(!searchOv || !searchOv.classList.contains('active')){
@@ -3489,8 +3490,6 @@ function closeProp(fromPopstate) {
       if (!fromPopstate && history.state && history.state.page === 'property') {
         window._propJustClosed = true;
         history.back();
-      } else if (!fromPopstate) {
-        _clearPropHash();
       }
       return;
     }
