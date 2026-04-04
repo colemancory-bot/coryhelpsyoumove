@@ -3473,6 +3473,13 @@ function closeProp(fromPopstate) {
     if (o) o.classList.remove('active');
   }
 
+  function _clearPropHash() {
+    // Clear #property/ hash so hard refresh doesn't reopen this listing
+    if (window.location.hash && window.location.hash.indexOf('#property/') === 0) {
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+  }
+
   function _afterClose() {
     if(_isTownPage) {
       var searchOv = document.getElementById('searchOverlay');
@@ -3482,6 +3489,8 @@ function closeProp(fromPopstate) {
       if (!fromPopstate && history.state && history.state.page === 'property') {
         window._propJustClosed = true;
         history.back();
+      } else if (!fromPopstate) {
+        _clearPropHash();
       }
       return;
     }
@@ -3498,6 +3507,8 @@ function closeProp(fromPopstate) {
     if (!fromPopstate && history.state && history.state.page === 'property') {
       window._propJustClosed = true;
       history.back();
+    } else if (!fromPopstate) {
+      _clearPropHash();
     }
   }
 
@@ -3936,6 +3947,7 @@ function _setPropHeroImage(url) {
 var PARALLAX_SPEED = 0.5;
 var _parallaxRaf = 0;
 var _parallaxActive = false;
+var _lastPropScrollY = -1;
 
 function _parallaxScroll() {
   if (!_parallaxActive) return;
@@ -3943,6 +3955,8 @@ function _parallaxScroll() {
   var heroImg = document.getElementById('propHeroImg');
   if (!overlay || !heroImg) return;
   var scrollY = overlay.scrollTop;
+  if (scrollY === _lastPropScrollY) return;
+  _lastPropScrollY = scrollY;
   heroImg.style.transform = 'translate3d(0,' + (-scrollY * PARALLAX_SPEED) + 'px,0)';
   // Also handle scroll-fade gradient + hero darken
   var area = document.getElementById('propContentArea');
@@ -3969,6 +3983,7 @@ function _onPropScroll() {
 
 function _startParallax() {
   _parallaxActive = true;
+  _lastPropScrollY = -1;
   var overlay = document.getElementById('propOverlay');
   if (overlay) overlay.addEventListener('scroll', _onPropScroll, {passive: true});
   // Reset position
@@ -3983,28 +3998,7 @@ function _stopParallax() {
   if (overlay) overlay.removeEventListener('scroll', _onPropScroll);
 }
 
-// ── Landing page hero parallax ──
-(function() {
-  var heroFallback = document.querySelector('.hero-bg-fallback');
-  if (!heroFallback) return;
-  var heroSection = document.querySelector('.hero');
-  if (!heroSection) return;
-  var _heroRaf = 0;
-  var _lastY = -1;
-  function onHeroScroll() {
-    if (_heroRaf) return;
-    _heroRaf = requestAnimationFrame(function() {
-      _heroRaf = 0;
-      var scrollY = window.pageYOffset || document.documentElement.scrollTop;
-      if (scrollY === _lastY) return;
-      _lastY = scrollY;
-      var heroBottom = heroSection.offsetTop + heroSection.offsetHeight;
-      if (scrollY > heroBottom) return;
-      heroFallback.style.transform = 'translate3d(0,' + (scrollY * PARALLAX_SPEED) + 'px,0)';
-    });
-  }
-  window.addEventListener('scroll', onHeroScroll, {passive: true});
-})();
+// Landing page hero parallax handled by pure CSS (background-attachment: fixed)
 
 
 
