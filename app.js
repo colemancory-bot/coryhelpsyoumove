@@ -3997,7 +3997,24 @@ function _stopParallax() {
   if (overlay) overlay.removeEventListener('scroll', _onPropScroll);
 }
 
-// Landing page hero parallax handled by pure CSS (background-attachment: fixed)
+// ── Landing page hero parallax ──
+(function() {
+  var fb = document.querySelector('.hero-bg-fallback');
+  if (!fb) return;
+  var hero = document.querySelector('.hero');
+  if (!hero) return;
+  var ticking = false;
+  window.addEventListener('scroll', function() {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(function() {
+      ticking = false;
+      var y = window.pageYOffset;
+      if (y > hero.offsetHeight) return;
+      fb.style.transform = 'translate3d(0,' + (y * PARALLAX_SPEED) + 'px,0)';
+    });
+  }, {passive: true});
+})();
 
 
 
