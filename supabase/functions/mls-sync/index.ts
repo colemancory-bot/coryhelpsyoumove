@@ -483,11 +483,9 @@ async function syncProperties(
           const m = media[i];
           const mediaUrl = m.MediaURL || "";
           const order = m.Order || i;
-          // Upload only primary photo (order 0/1) to R2 during sync;
-          // additional photos stored with CDN URL only — backfill-media cron handles R2 later
-          const isPrimary = order <= 1;
+          // Upload ALL photos to R2 (MLS Grid signed URLs must not be displayed on website)
           const slug = addressSlug(record.StreetNumber || "", record.StreetName || "", record.StreetSuffix || "", record.City || "", record.StateOrProvince || "");
-          let localUrl = isPrimary ? await uploadMediaToR2(mediaUrl, listingId, i, slug) : "";
+          let localUrl = await uploadMediaToR2(mediaUrl, listingId, i, slug);
           // If R2 upload failed, reuse existing R2 URL if we had one
           if (!localUrl && existingR2[order]) {
             localUrl = existingR2[order];
