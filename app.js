@@ -3955,7 +3955,11 @@ function addSwipe(el, onLeft, onRight) {
 // ── Prop Hero Image Helper (background-image for parallax + SEO img) ──
 function _setPropHeroImage(url) {
   var el = document.getElementById('propHeroImg');
-  if (el) el.style.backgroundImage = 'url(' + url + ')';
+  if (el) {
+    el.style.backgroundImage = 'url(' + url + ')';
+    el.style.backgroundColor = '';
+    el.innerHTML = ''; // Clear any "Photos Coming Soon" placeholder
+  }
 }
 
 // ── Parallax scroll for property hero ──
