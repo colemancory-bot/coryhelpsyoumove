@@ -9043,12 +9043,17 @@ function _checkPropDeepLink(){
       if (match) {
         history.replaceState(null, '', window.location.pathname);
         setTimeout(function(){ openProp(match, match.city || ''); }, 300);
-      } else if (ALL_LISTINGS.length === 0) {
-        // Data hasn't loaded yet, retry after a delay
-        setTimeout(function(){ _checkPropDeepLink(); }, 2000);
       } else {
-        // Data loaded but listing not found, clean URL
-        history.replaceState(null, '', window.location.pathname);
+        // Retry up to 10 times over 20 seconds while data loads
+        if (!window._listingRetryCount) window._listingRetryCount = 0;
+        window._listingRetryCount++;
+        if (window._listingRetryCount < 10) {
+          setTimeout(function(){ _checkPropDeepLink(); }, 2000);
+        } else {
+          // Give up, clean URL
+          window._listingRetryCount = 0;
+          history.replaceState(null, '', window.location.pathname);
+        }
       }
       return;
     }
