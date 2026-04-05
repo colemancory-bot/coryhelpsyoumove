@@ -101,7 +101,10 @@ function generatePosts(listing: ListingData) {
     "",
     `View details + photos: ${propUrl}`,
     "",
+    `Call or text Cory for more info: (828) 506-6413`,
+    "",
     `Cory Coleman, Broker | Keller Williams Great Smokies`,
+    `coryhelpsyoumove.com`,
     `Equal Housing Opportunity`,
     "",
     `#${city.replace(/\s+/g, "")}NC #WNCRealEstate ${county ? "#" + county + "County " : ""}#WesternNC #HomesForSale`,
@@ -123,6 +126,9 @@ function generatePosts(listing: ListingData) {
     "",
     `Link in bio for full details and photos.`,
     "",
+    `Call or text Cory for more info: (828) 506-6413`,
+    `coryhelpsyoumove.com`,
+    "",
     `Cory Coleman, Broker`,
     `Keller Williams Great Smokies`,
     `Equal Housing Opportunity`,
@@ -140,12 +146,18 @@ function generatePosts(listing: ListingData) {
     "",
     `View the full listing: ${propUrl}`,
     "",
+    `Call or text Cory: (828) 506-6413`,
+    `coryhelpsyoumove.com`,
+    "",
     `#WNCRealEstate #${city.replace(/\s+/g, "")}NC #RealEstate`,
   ].join("\n");
 
   // ── Google Business Profile ──
   const gbp = [
-    `New listing in ${city}, NC. ${statsLine}${county ? " in " + county + " County" : ""}.${descSnippet ? " " + descSnippet.substring(0, 80) : ""} View at coryhelpsyoumove.com`,
+    `New listing in ${city}, NC. ${statsLine}${county ? " in " + county + " County" : ""}.${descSnippet ? " " + descSnippet.substring(0, 80) : ""}`,
+    "",
+    `View at coryhelpsyoumove.com`,
+    `Call or text Cory: (828) 506-6413`,
     "",
     `Cory Coleman, Broker | Keller Williams Great Smokies`,
   ].join("\n");

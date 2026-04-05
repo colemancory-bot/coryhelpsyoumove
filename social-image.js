@@ -182,9 +182,9 @@ var SocialImage = (function() {
     ctx.fillStyle = firmColor;
     ctx.fillRect(0, y, WIDTH, 4);
 
-    // Headshot - large circle
-    var circleR = 65;
-    var circleX = 60 + circleR;
+    // Headshot - very large circle
+    var circleR = 78;
+    var circleX = 55 + circleR;
     var circleY = y + h/2;
     if (_headshotLoaded) {
       ctx.save();
@@ -205,27 +205,30 @@ var SocialImage = (function() {
       ctx.stroke();
     }
 
-    // Name - very large and bold
+    // Name - huge and bold
     var textX = circleX + circleR + 25;
     ctx.textAlign = 'left';
-    ctx.font = '700 44px Outfit, sans-serif';
+    ctx.font = '700 52px Outfit, sans-serif';
     ctx.fillStyle = nameColor;
-    ctx.fillText('Cory Coleman', textX, circleY - 18);
+    ctx.fillText('Cory Coleman', textX, circleY - 28);
 
     // Broker title
-    ctx.font = '400 22px Outfit, sans-serif';
+    ctx.font = '400 24px Outfit, sans-serif';
     ctx.fillStyle = firmColor;
-    ctx.fillText('Broker', textX, circleY + 12);
+    ctx.fillText('Broker', textX, circleY + 5);
 
-    // Firm name - prominent
-    ctx.font = '500 24px Outfit, sans-serif';
+    // Firm name - large
+    ctx.font = '500 28px Outfit, sans-serif';
     ctx.fillStyle = nameColor;
-    ctx.fillText('Keller Williams Great Smokies', textX, circleY + 44);
+    ctx.fillText('Keller Williams Great Smokies', textX, circleY + 40);
 
-    // Website + phone
-    ctx.font = '400 20px Outfit, sans-serif';
+    // Website + phone - prominent
+    ctx.font = '500 24px Outfit, sans-serif';
     ctx.fillStyle = firmColor;
-    ctx.fillText('coryhelpsyoumove.com  |  (828) 506-6413', textX, circleY + 74);
+    ctx.fillText('coryhelpsyoumove.com', textX, circleY + 75);
+    ctx.font = '400 22px Outfit, sans-serif';
+    ctx.fillStyle = nameColor;
+    ctx.fillText('Call or Text: (828) 506-6413', textX, circleY + 105);
 
     ctx.textAlign = 'left';
   }
@@ -264,20 +267,20 @@ var SocialImage = (function() {
     ctx.textAlign = 'left';
     ctx.font = '700 72px Georgia, serif';
     ctx.fillStyle = '#FFFFFF';
-    shadowText(ctx, priceStr(l), 50, HEIGHT - 300);
+    shadowText(ctx, priceStr(l), 50, HEIGHT - 350);
 
     // Address + city
     ctx.font = '400 26px Outfit, sans-serif';
     ctx.fillStyle = '#FFFFFF';
-    shadowText(ctx, (l.address||'') + '  |  ' + (l.city||'') + ', NC', 50, HEIGHT - 250);
+    shadowText(ctx, (l.address||'') + '  |  ' + (l.city||'') + ', NC', 50, HEIGHT - 300);
 
     // Stats
     ctx.font = '300 20px Outfit, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    shadowText(ctx, getStats(l).join('  \u00B7  '), 50, HEIGHT - 220);
+    shadowText(ctx, getStats(l).join('  \u00B7  '), 50, HEIGHT - 270);
 
     // Branding bar at bottom
-    drawBranding(ctx, HEIGHT - 200, 200, 'dark');
+    drawBranding(ctx, HEIGHT - 250, 250, 'dark');
   }
 
   // ═══ TEMPLATE 2: Scroll Stopper ═══
@@ -312,28 +315,28 @@ var SocialImage = (function() {
     // Price - huge, centered
     ctx.font = '800 96px Georgia, serif';
     ctx.fillStyle = '#C4B08C';
-    shadowText(ctx, priceStr(l), WIDTH/2, HEIGHT - 310);
+    shadowText(ctx, priceStr(l), WIDTH/2, HEIGHT - 360);
 
     // Address
     ctx.font = '400 28px Outfit, sans-serif';
     ctx.fillStyle = '#FFFFFF';
-    shadowText(ctx, (l.address||'') + ', ' + (l.city||'') + ', NC', WIDTH/2, HEIGHT - 250);
+    shadowText(ctx, (l.address||'') + ', ' + (l.city||'') + ', NC', WIDTH/2, HEIGHT - 300);
 
     // Stats
     ctx.font = '300 22px Outfit, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    shadowText(ctx, getStats(l).join('  \u00B7  '), WIDTH/2, HEIGHT - 215);
+    shadowText(ctx, getStats(l).join('  \u00B7  '), WIDTH/2, HEIGHT - 265);
     ctx.textAlign = 'left';
 
     // Branding bar
-    drawBranding(ctx, HEIGHT - 200, 200, 'dark');
+    drawBranding(ctx, HEIGHT - 250, 250, 'dark');
   }
 
   // ═══ TEMPLATE 3: Split Card ═══
   // Photo top 60%, solid dark card bottom 40%
   function renderSplitCard(ctx) {
     var l = _listing;
-    var splitY = Math.round(HEIGHT * 0.48);
+    var splitY = Math.round(HEIGHT * 0.42);
 
     // Photo in top portion
     drawPhoto(ctx, 0, 0, WIDTH, splitY);
@@ -379,7 +382,7 @@ var SocialImage = (function() {
     ctx.fillText((l.city||'') + ', North Carolina', 50, splitY + 150);
 
     // Branding bar at bottom of card
-    drawBranding(ctx, HEIGHT - 200, 200, 'dark');
+    drawBranding(ctx, HEIGHT - 250, 250, 'dark');
   }
 
   // ═══ TEMPLATE 4: Corner Badge ═══
@@ -408,7 +411,7 @@ var SocialImage = (function() {
     ctx.fillText((l.city||'') + ', NC  \u00B7  ' + getStats(l).slice(0,2).join(' / '), 25, badgeY + 68);
 
     // Branding bar at bottom
-    drawBranding(ctx, HEIGHT - 200, 200, 'dark');
+    drawBranding(ctx, HEIGHT - 250, 250, 'dark');
   }
 
   // ═══ TEMPLATE 5: Magazine ═══
@@ -416,7 +419,7 @@ var SocialImage = (function() {
   function renderMagazine(ctx) {
     var l = _listing;
     var border = 40;
-    var photoH = HEIGHT - 340;
+    var photoH = HEIGHT - 400;
 
     // White background
     ctx.fillStyle = '#FFFFFF';
@@ -449,7 +452,7 @@ var SocialImage = (function() {
     ctx.fillText((l.city||'') + ', North Carolina', border + 10, photoH + 120);
 
     // Branding bar at bottom
-    drawBranding(ctx, HEIGHT - 200, 200, 'dark');
+    drawBranding(ctx, HEIGHT - 250, 250, 'dark');
   }
 
   // ── Export ──
