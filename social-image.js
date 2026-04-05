@@ -40,7 +40,6 @@ var SocialImage = (function() {
     _photoIndex = 0;
 
     _img = new Image();
-    _img.crossOrigin = 'anonymous';
     _img.onload = function() {
       _imgLoaded = true;
       var scale = WIDTH / _img.width;

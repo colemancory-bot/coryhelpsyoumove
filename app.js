@@ -9853,20 +9853,20 @@ function closeSocialShare() {
 }
 
 function downloadSocialImage() {
-  if (typeof SocialImage === 'undefined') return;
+  // Canvas is tainted (cross-origin image), so we take a screenshot approach
+  // Right-click save works, but for a download button we need to use a workaround
+  var canvas = document.getElementById('socialCanvas');
+  if (!canvas) return;
   try {
-    SocialImage.toBlob(function(blob) {
-      if (!blob) { alert('Unable to export image. Try a different photo.'); return; }
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement('a');
-      a.href = url;
-      var listing = window._currentListing || {};
-      a.download = (listing.address || 'listing').replace(/[^a-zA-Z0-9]/g, '-') + '-social.jpg';
-      a.click();
-      URL.revokeObjectURL(url);
-    });
+    var dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+    var a = document.createElement('a');
+    a.href = dataUrl;
+    var listing = window._currentListing || {};
+    a.download = (listing.address || 'listing').replace(/[^a-zA-Z0-9]/g, '-') + '-social.jpg';
+    a.click();
   } catch(e) {
-    alert('Unable to export image. The photo may not support cross-origin export. Try a different photo.');
+    // Tainted canvas - show instructions instead
+    alert('To save the image: right-click (or long-press on mobile) the image preview above and select "Save Image As"');
   }
 }
 
@@ -9876,50 +9876,10 @@ function postToSocial(platform) {
   var btn = document.getElementById('socialBtn_' + platform);
   var text = document.getElementById('socialText_' + platform).value;
 
-  btn.textContent = 'Uploading image...';
+  btn.textContent = 'Posting...';
   btn.disabled = true;
 
-  // Export canvas to blob, upload to R2, then post with that URL
-  if (typeof SocialImage !== 'undefined') {
-    try {
-      SocialImage.toBlob(function(blob) {
-        if (!blob) {
-          // Fallback to raw photo
-          var photoUrl = listing.photo || '';
-          if (!photoUrl && listing.photos && listing.photos.length) photoUrl = listing.photos[0];
-          doPost(platform, btn, text, photoUrl, listing);
-          return;
-        }
-        // Upload blob to R2 via the worker
-        var key = 'social/' + (listing.listingKey || 'post') + '-' + Date.now() + '.jpg';
-        var formData = blob;
-        fetch('https://r2-upload.coryhelpsyoumove.workers.dev/' + key, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'image/jpeg' },
-          body: formData
-        }).then(function(r) {
-          if (r.ok) {
-            var r2Url = 'https://pub-bfc65eba3b4f4bec8ca241aab44da702.r2.dev/' + key;
-            btn.textContent = 'Posting...';
-            doPost(platform, btn, text, r2Url, listing);
-          } else {
-            // Fallback to raw photo
-            var photoUrl = listing.photo || '';
-            if (!photoUrl && listing.photos && listing.photos.length) photoUrl = listing.photos[0];
-            btn.textContent = 'Posting...';
-            doPost(platform, btn, text, photoUrl, listing);
-          }
-        }).catch(function() {
-          var photoUrl = listing.photo || '';
-          if (!photoUrl && listing.photos && listing.photos.length) photoUrl = listing.photos[0];
-          btn.textContent = 'Posting...';
-          doPost(platform, btn, text, photoUrl, listing);
-        });
-      });
-      return;
-    } catch(e) { /* fall through to raw photo */ }
-  }
-
+  // Use raw listing photo for now (canvas overlay is for preview/download only)
   var photoUrl = listing.photo || '';
   if (!photoUrl && listing.photos && listing.photos.length) photoUrl = listing.photos[0];
   doPost(platform, btn, text, photoUrl, listing);
