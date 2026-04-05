@@ -22,6 +22,8 @@ var SocialImage = (function() {
   var _onUpdate = null;
   var _photos = [];
   var _photoIndex = 0;
+  var _headshot = null;
+  var _headshotLoaded = false;
 
   function init(canvasEl, listing, onUpdate) {
     _canvas = canvasEl;
@@ -68,6 +70,12 @@ var SocialImage = (function() {
       _ctx.fillText('Photo not available', WIDTH/2, HEIGHT/2);
     };
     if (_photos.length > 0) _img.src = _photos[0];
+
+    // Preload headshot
+    _headshot = new Image();
+    _headshot.crossOrigin = 'anonymous';
+    _headshot.onload = function() { _headshotLoaded = true; render(); };
+    _headshot.src = 'https://coryhelpsyoumove.com/images/about-cory.webp';
 
     _canvas.onmousedown = function(e) { startDrag(e.clientX, e.clientY); };
     _canvas.onmousemove = function(e) { if(_dragging) doDrag(e.clientX, e.clientY); };
@@ -159,6 +167,63 @@ var SocialImage = (function() {
     ctx.closePath();
   }
 
+  // ── Shared branding bar with headshot ──
+  // style: 'dark' (dark bg, light text) or 'light' (light bg, dark text)
+  function drawBranding(ctx, y, h, style) {
+    var isDark = style !== 'light';
+    var bgColor = isDark ? '#0C0B09' : '#FFFFFF';
+    var nameColor = isDark ? '#F5F0E8' : '#1A1815';
+    var firmColor = isDark ? '#C4B08C' : '#8B7748';
+    var urlColor = isDark ? 'rgba(245,240,232,0.5)' : 'rgba(0,0,0,0.4)';
+
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(0, y, WIDTH, h);
+
+    // Gold accent line at top
+    ctx.fillStyle = firmColor;
+    ctx.fillRect(0, y, WIDTH, 2);
+
+    // Headshot circle
+    var circleR = Math.min(h * 0.35, 28);
+    var circleX = 50 + circleR;
+    var circleY = y + h/2;
+    if (_headshotLoaded) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(circleX, circleY, circleR, 0, Math.PI*2);
+      ctx.clip();
+      var hSize = circleR * 2;
+      var hScale = hSize / Math.min(_headshot.width, _headshot.height);
+      var hW = _headshot.width * hScale;
+      var hH = _headshot.height * hScale;
+      ctx.drawImage(_headshot, circleX - hW/2, circleY - hH/2, hW, hH);
+      ctx.restore();
+      // Border
+      ctx.strokeStyle = firmColor;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(circleX, circleY, circleR, 0, Math.PI*2);
+      ctx.stroke();
+    }
+
+    // Name + title
+    var textX = circleX + circleR + 15;
+    ctx.textAlign = 'left';
+    ctx.font = '600 20px Outfit, sans-serif';
+    ctx.fillStyle = nameColor;
+    ctx.fillText('Cory Coleman', textX, circleY - 6);
+    ctx.font = '300 14px Outfit, sans-serif';
+    ctx.fillStyle = firmColor;
+    ctx.fillText('Broker | Keller Williams Great Smokies', textX, circleY + 14);
+
+    // Website right-aligned
+    ctx.textAlign = 'right';
+    ctx.font = '300 14px Outfit, sans-serif';
+    ctx.fillStyle = urlColor;
+    ctx.fillText('coryhelpsyoumove.com', WIDTH - 50, circleY + 5);
+    ctx.textAlign = 'left';
+  }
+
   function render() {
     if (!_ctx) return;
     var ctx = _ctx;
@@ -189,28 +254,24 @@ var SocialImage = (function() {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-    // Price - large, bottom left with drop shadow
+    // Price - large, above branding bar
     ctx.textAlign = 'left';
     ctx.font = '700 72px Georgia, serif';
     ctx.fillStyle = '#FFFFFF';
-    shadowText(ctx, priceStr(l), 50, HEIGHT - 120);
+    shadowText(ctx, priceStr(l), 50, HEIGHT - 180);
 
     // Address + city
     ctx.font = '400 26px Outfit, sans-serif';
     ctx.fillStyle = '#FFFFFF';
-    shadowText(ctx, (l.address||'') + '  |  ' + (l.city||'') + ', NC', 50, HEIGHT - 75);
+    shadowText(ctx, (l.address||'') + '  |  ' + (l.city||'') + ', NC', 50, HEIGHT - 130);
 
     // Stats
     ctx.font = '300 20px Outfit, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    shadowText(ctx, getStats(l).join('  \u00B7  '), 50, HEIGHT - 42);
+    shadowText(ctx, getStats(l).join('  \u00B7  '), 50, HEIGHT - 100);
 
-    // Branding - tiny, top right
-    ctx.textAlign = 'right';
-    ctx.font = '300 16px Outfit, sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    shadowText(ctx, 'Cory Coleman | KW Great Smokies', WIDTH - 30, 35, 'rgba(0,0,0,0.5)', 4);
-    ctx.textAlign = 'left';
+    // Branding bar at bottom
+    drawBranding(ctx, HEIGHT - 80, 80, 'dark');
   }
 
   // ═══ TEMPLATE 2: Scroll Stopper ═══
@@ -245,23 +306,21 @@ var SocialImage = (function() {
     // Price - huge, centered
     ctx.font = '800 96px Georgia, serif';
     ctx.fillStyle = '#C4B08C';
-    shadowText(ctx, priceStr(l), WIDTH/2, HEIGHT - 130);
+    shadowText(ctx, priceStr(l), WIDTH/2, HEIGHT - 190);
 
     // Address
     ctx.font = '400 28px Outfit, sans-serif';
     ctx.fillStyle = '#FFFFFF';
-    shadowText(ctx, (l.address||'') + ', ' + (l.city||'') + ', NC', WIDTH/2, HEIGHT - 75);
+    shadowText(ctx, (l.address||'') + ', ' + (l.city||'') + ', NC', WIDTH/2, HEIGHT - 130);
 
     // Stats
     ctx.font = '300 22px Outfit, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    shadowText(ctx, getStats(l).join('  \u00B7  '), WIDTH/2, HEIGHT - 40);
-
-    // Branding bottom center
-    ctx.font = '300 14px Outfit, sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.fillText('coryhelpsyoumove.com', WIDTH/2, HEIGHT - 12);
+    shadowText(ctx, getStats(l).join('  \u00B7  '), WIDTH/2, HEIGHT - 95);
     ctx.textAlign = 'left';
+
+    // Branding bar
+    drawBranding(ctx, HEIGHT - 80, 80, 'dark');
   }
 
   // ═══ TEMPLATE 3: Split Card ═══
@@ -313,24 +372,8 @@ var SocialImage = (function() {
     ctx.fillStyle = '#F5F0E8';
     ctx.fillText((l.city||'') + ', North Carolina', 50, splitY + 150);
 
-    // Divider line
-    ctx.strokeStyle = 'rgba(196,176,140,0.3)';
-    ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(50, splitY + 175); ctx.lineTo(WIDTH-50, splitY + 175); ctx.stroke();
-
-    // Branding
-    ctx.font = '400 18px Outfit, sans-serif';
-    ctx.fillStyle = '#C4B08C';
-    ctx.fillText('Cory Coleman, Broker', 50, splitY + 210);
-    ctx.font = '300 16px Outfit, sans-serif';
-    ctx.fillStyle = 'rgba(245,240,232,0.5)';
-    ctx.fillText('Keller Williams Great Smokies', 50, splitY + 235);
-
-    ctx.textAlign = 'right';
-    ctx.font = '300 16px Outfit, sans-serif';
-    ctx.fillStyle = 'rgba(245,240,232,0.4)';
-    ctx.fillText('coryhelpsyoumove.com', WIDTH - 50, splitY + 235);
-    ctx.textAlign = 'left';
+    // Branding bar at bottom of card
+    drawBranding(ctx, HEIGHT - 80, 80, 'dark');
   }
 
   // ═══ TEMPLATE 4: Corner Badge ═══
@@ -358,15 +401,8 @@ var SocialImage = (function() {
     ctx.fillStyle = 'rgba(245,240,232,0.7)';
     ctx.fillText((l.city||'') + ', NC  \u00B7  ' + getStats(l).slice(0,2).join(' / '), 25, badgeY + 68);
 
-    // Tiny branding badge top-right
-    ctx.fillStyle = 'rgba(12,11,9,0.6)';
-    roundRect(ctx, WIDTH - 220, 20, 200, 30, 4);
-    ctx.fill();
-    ctx.textAlign = 'center';
-    ctx.font = '300 12px Outfit, sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.fillText('coryhelpsyoumove.com', WIDTH - 120, 40);
-    ctx.textAlign = 'left';
+    // Branding bar at bottom
+    drawBranding(ctx, HEIGHT - 80, 80, 'dark');
   }
 
   // ═══ TEMPLATE 5: Magazine ═══
@@ -406,18 +442,8 @@ var SocialImage = (function() {
     ctx.fillStyle = '#666';
     ctx.fillText((l.city||'') + ', North Carolina', border + 10, photoH + 120);
 
-    // Bottom branding bar
-    ctx.fillStyle = '#0C0B09';
-    ctx.fillRect(0, HEIGHT - 60, WIDTH, 60);
-    ctx.font = '400 16px Outfit, sans-serif';
-    ctx.fillStyle = '#C4B08C';
-    ctx.textAlign = 'left';
-    ctx.fillText('Cory Coleman, Broker  |  Keller Williams Great Smokies', border + 10, HEIGHT - 28);
-    ctx.textAlign = 'right';
-    ctx.fillStyle = '#F5F0E8';
-    ctx.font = '300 14px Outfit, sans-serif';
-    ctx.fillText('coryhelpsyoumove.com', WIDTH - border - 10, HEIGHT - 28);
-    ctx.textAlign = 'left';
+    // Branding bar at bottom
+    drawBranding(ctx, HEIGHT - 80, 80, 'dark');
   }
 
   // ── Export ──
