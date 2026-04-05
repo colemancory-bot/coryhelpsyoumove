@@ -8614,6 +8614,15 @@ openProp = function(listing, townName) {
   }
   var adminPrintBtns = document.getElementById('adminPrintBtns');
   if(adminPrintBtns) adminPrintBtns.style.display = _isAdmin ? '' : 'none';
+  // Admin Share to Social button
+  if(_isAdmin && listing.listAgent && listing.listAgent.toLowerCase().indexOf('cory') !== -1) {
+    var wrap2 = printBtn ? printBtn.parentElement : null;
+    if(wrap2 && !document.getElementById('adminShareBtn')) {
+      wrap2.insertAdjacentHTML('beforeend', '<button id="adminShareBtn" class="prop-info-print-btn" onclick="openSocialShareModal()" style="background:rgba(196,176,140,0.15);border-color:var(--gold)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg><span>Share to Social</span></button>');
+    }
+  }
+  var adminShareBtn = document.getElementById('adminShareBtn');
+  if(adminShareBtn) adminShareBtn.style.display = (_isAdmin && listing.listAgent && listing.listAgent.toLowerCase().indexOf('cory') !== -1) ? '' : 'none';
   // Load property history (price + tax)
   setTimeout(function(){ loadPropertyHistory(listing); }, 65);
   // Build Cory's Take
@@ -9685,6 +9694,161 @@ function printAgentCopy() {
   if(agentSection) agentSection.style.display = '';
   propShare('print');
 }
+// ═══ Social Share Modal ═══
+var _socialPosts = null;
+
+function openSocialShareModal() {
+  var listing = window._currentListing;
+  if (!listing) return;
+
+  // Create modal if it doesn't exist
+  if (!document.getElementById('socialShareModal')) {
+    document.body.insertAdjacentHTML('beforeend',
+      '<div id="socialShareOverlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9000;display:none" onclick="closeSocialShare()"></div>' +
+      '<div id="socialShareModal" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:90%;max-width:640px;max-height:85vh;background:var(--bg);border:1px solid var(--border);border-radius:12px;z-index:9001;display:none;overflow-y:auto;padding:0">' +
+        '<div style="position:sticky;top:0;background:var(--bg);padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;z-index:2">' +
+          '<span style="font-family:Cormorant Garamond,serif;font-size:1.3rem;color:var(--cream)">Share to Social Media</span>' +
+          '<button onclick="closeSocialShare()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem">&times;</button>' +
+        '</div>' +
+        '<div id="socialShareContent" style="padding:1.5rem"></div>' +
+      '</div>'
+    );
+  }
+
+  document.getElementById('socialShareOverlay').style.display = 'block';
+  document.getElementById('socialShareModal').style.display = 'block';
+  var content = document.getElementById('socialShareContent');
+  content.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-muted)">Generating posts...</div>';
+
+  // Get primary photo URL
+  var photoUrl = listing.photo || '';
+  if (!photoUrl && listing.photos && listing.photos.length) photoUrl = listing.photos[0];
+
+  // Call edge function to generate posts
+  fetch(SUPABASE_URL + '/functions/v1/social-post', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY },
+    body: JSON.stringify({
+      action: 'generate',
+      listing: {
+        address: listing.address || '',
+        city: listing.city || window._currentTownName || '',
+        price: listing.price || 0,
+        beds: listing.beds || 0,
+        baths: listing.baths || 0,
+        sqft: listing.sqft || 0,
+        lot: listing.lot || '',
+        type: listing.type || 'Single Family',
+        mlsId: listing.mlsId || '',
+        description: listing.description || '',
+        photoUrl: photoUrl,
+        listingKey: listing.listingKey || ''
+      }
+    })
+  }).then(function(r){ return r.json(); }).then(function(data) {
+    if (!data.ok || !data.posts) {
+      content.innerHTML = '<div style="text-align:center;padding:2rem;color:#e57373">Error generating posts: ' + (data.error || 'Unknown error') + '</div>';
+      return;
+    }
+    _socialPosts = data.posts;
+    var photoThumb = photoUrl ? '<img src="' + photoUrl + '" style="width:100%;max-height:200px;object-fit:cover;border-radius:8px;margin-bottom:1rem">' : '';
+
+    var html = photoThumb;
+    // Platform tabs
+    var platforms = [
+      { id: 'facebook', label: 'Facebook', icon: 'f', color: '#1877F2', auto: true },
+      { id: 'instagram', label: 'Instagram', icon: 'IG', color: '#E4405F', auto: true },
+      { id: 'linkedin', label: 'LinkedIn', icon: 'in', color: '#0A66C2', auto: false },
+      { id: 'gbp', label: 'Google Business', icon: 'G', color: '#4285F4', auto: false }
+    ];
+
+    platforms.forEach(function(p) {
+      var postText = data.posts[p.id] || '';
+      html += '<div style="margin-bottom:1.25rem;border:1px solid var(--border);border-radius:8px;overflow:hidden">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;background:var(--surface)">' +
+          '<div style="display:flex;align-items:center;gap:0.5rem">' +
+            '<span style="background:' + p.color + ';color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:700">' + p.icon + '</span>' +
+            '<span style="font-size:0.8rem;color:var(--cream);font-weight:500">' + p.label + '</span>' +
+          '</div>' +
+          (p.auto
+            ? '<button class="social-post-btn" onclick="postToSocial(\'' + p.id + '\')" style="padding:0.4rem 0.85rem;background:var(--gold);color:var(--bg);border:none;border-radius:4px;font-family:Outfit,sans-serif;font-size:0.65rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer" id="socialBtn_' + p.id + '">Post Now</button>'
+            : '<button onclick="copySocialPost(\'' + p.id + '\')" style="padding:0.4rem 0.85rem;background:transparent;color:var(--gold);border:1px solid var(--gold);border-radius:4px;font-family:Outfit,sans-serif;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer" id="socialBtn_' + p.id + '">Copy Text</button>'
+          ) +
+        '</div>' +
+        '<textarea id="socialText_' + p.id + '" style="width:100%;min-height:120px;padding:0.75rem 1rem;background:var(--bg);color:var(--cream);border:none;font-family:Outfit,sans-serif;font-size:0.78rem;line-height:1.5;resize:vertical;outline:none">' + postText.replace(/</g,'&lt;') + '</textarea>' +
+      '</div>';
+    });
+
+    content.innerHTML = html;
+  }).catch(function(err) {
+    content.innerHTML = '<div style="text-align:center;padding:2rem;color:#e57373">Error: ' + err.message + '</div>';
+  });
+}
+
+function closeSocialShare() {
+  var overlay = document.getElementById('socialShareOverlay');
+  var modal = document.getElementById('socialShareModal');
+  if (overlay) overlay.style.display = 'none';
+  if (modal) modal.style.display = 'none';
+}
+
+function postToSocial(platform) {
+  var listing = window._currentListing;
+  if (!listing) return;
+  var btn = document.getElementById('socialBtn_' + platform);
+  var text = document.getElementById('socialText_' + platform).value;
+  var photoUrl = listing.photo || '';
+  if (!photoUrl && listing.photos && listing.photos.length) photoUrl = listing.photos[0];
+
+  btn.textContent = 'Posting...';
+  btn.disabled = true;
+
+  var body = { action: 'post-' + platform, listingKey: listing.listingKey || listing.mlsId || '' };
+  if (platform === 'facebook') {
+    body.message = text;
+    body.photoUrl = photoUrl;
+  } else if (platform === 'instagram') {
+    body.caption = text;
+    body.photoUrl = photoUrl;
+  }
+
+  fetch(SUPABASE_URL + '/functions/v1/social-post', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY },
+    body: JSON.stringify(body)
+  }).then(function(r){ return r.json(); }).then(function(data) {
+    if (data.ok) {
+      btn.textContent = 'Posted!';
+      btn.style.background = '#4CAF50';
+      btn.style.borderColor = '#4CAF50';
+      btn.style.color = '#fff';
+    } else {
+      btn.textContent = 'Failed';
+      btn.style.background = '#e57373';
+      btn.style.borderColor = '#e57373';
+      btn.style.color = '#fff';
+      btn.disabled = false;
+      console.error('[Social] Post failed:', data.error, data.detail);
+      setTimeout(function(){ btn.textContent = 'Retry'; btn.style.background = 'var(--gold)'; btn.style.color = 'var(--bg)'; }, 3000);
+    }
+  }).catch(function(err) {
+    btn.textContent = 'Error';
+    btn.disabled = false;
+    console.error('[Social] Error:', err);
+  });
+}
+
+function copySocialPost(platform) {
+  var text = document.getElementById('socialText_' + platform).value;
+  var btn = document.getElementById('socialBtn_' + platform);
+  navigator.clipboard.writeText(text).then(function() {
+    btn.textContent = 'Copied!';
+    btn.style.background = 'var(--gold)';
+    btn.style.color = 'var(--bg)';
+    setTimeout(function(){ btn.textContent = 'Copy Text'; btn.style.background = 'transparent'; btn.style.color = 'var(--gold)'; }, 3000);
+  });
+}
+
 function printClientCopy() {
   var agentSection = document.getElementById('printAgentSection');
   if(agentSection) agentSection.style.display = 'none';
