@@ -3490,9 +3490,12 @@ function closeProp(fromPopstate) {
   }
 
   function _clearPropHash() {
-    // Clear #property/ hash so hard refresh doesn't reopen this listing
-    if (window.location.hash && window.location.hash.indexOf('#property/') === 0) {
-      history.replaceState(null, '', window.location.pathname + window.location.search);
+    // Clear #property/ hash or ?listing= param so refresh doesn't reopen this listing
+    var needsClear = false;
+    if (window.location.hash && window.location.hash.indexOf('#property/') === 0) needsClear = true;
+    if (window.location.search && window.location.search.indexOf('listing=') !== -1) needsClear = true;
+    if (needsClear) {
+      history.replaceState(null, '', window.location.pathname);
     }
   }
 
@@ -9044,7 +9047,6 @@ function _checkPropDeepLink(){
         window._listingRetryCount = 0;
         var loadEl = document.getElementById('deepLinkLoading');
         if (loadEl) loadEl.remove();
-        history.replaceState(null, '', window.location.pathname);
         setTimeout(function(){ openProp(match, match.city || ''); }, 300);
       } else {
         // Show loading overlay while waiting for data
