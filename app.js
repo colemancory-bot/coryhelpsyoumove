@@ -9876,13 +9876,55 @@ function postToSocial(platform) {
   var btn = document.getElementById('socialBtn_' + platform);
   var text = document.getElementById('socialText_' + platform).value;
 
-  btn.textContent = 'Posting...';
+  btn.textContent = 'Preparing image...';
   btn.disabled = true;
 
-  // Use raw listing photo for now (canvas overlay is for preview/download only)
-  var photoUrl = listing.photo || '';
-  if (!photoUrl && listing.photos && listing.photos.length) photoUrl = listing.photos[0];
-  doPost(platform, btn, text, photoUrl, listing);
+  // Try to export canvas overlay as base64 and send to edge function
+  var imageBase64 = '';
+  if (typeof SocialImage !== 'undefined') {
+    try {
+      imageBase64 = SocialImage.toDataURL();
+    } catch(e) {
+      console.warn('[Social] Canvas export failed:', e);
+    }
+  }
+
+  var photoUrl = '';
+  if (!imageBase64) {
+    photoUrl = listing.photo || (listing.photos && listing.photos.length ? listing.photos[0] : '');
+  }
+
+  btn.textContent = 'Posting...';
+
+  var postBody = { action: 'post-' + platform, listingKey: listing.listingKey || listing.mlsId || '' };
+  if (platform === 'facebook') {
+    postBody.message = text;
+    if (imageBase64) postBody.imageBase64 = imageBase64;
+    else postBody.photoUrl = photoUrl;
+  }
+
+  fetch(SUPABASE_URL + '/functions/v1/social-post', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY },
+    body: JSON.stringify(postBody)
+  }).then(function(r){ return r.json(); }).then(function(data) {
+    if (data.ok) {
+      btn.textContent = 'Posted!';
+      btn.style.background = '#4CAF50';
+      btn.style.color = '#fff';
+    } else {
+      btn.textContent = 'Failed';
+      btn.style.background = '#e57373';
+      btn.style.color = '#fff';
+      btn.disabled = false;
+      console.error('[Social] Post failed:', data.error, data.detail);
+      setTimeout(function(){ btn.textContent = 'Retry'; btn.style.background = 'var(--gold)'; btn.style.color = 'var(--bg)'; }, 3000);
+    }
+  }).catch(function(err) {
+    btn.textContent = 'Error';
+    btn.disabled = false;
+    console.error('[Social] Error:', err);
+  });
 }
 
 function doPost(platform, btn, text, photoUrl, listing) {
