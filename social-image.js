@@ -206,29 +206,40 @@ var SocialImage = (function() {
     }
 
     // Name - huge and bold
-    var textX = circleX + circleR + 25;
+    var textX = circleX + circleR + 30;
+    var topY = y + 35;
     ctx.textAlign = 'left';
-    ctx.font = '700 52px Outfit, sans-serif';
+    ctx.font = '700 48px Outfit, sans-serif';
     ctx.fillStyle = nameColor;
-    ctx.fillText('Cory Coleman', textX, circleY - 28);
+    ctx.fillText('Cory Coleman', textX, topY + 42);
 
-    // Broker title
-    ctx.font = '400 24px Outfit, sans-serif';
-    ctx.fillStyle = firmColor;
-    ctx.fillText('Broker', textX, circleY + 5);
-
-    // Firm name - large
-    ctx.font = '500 28px Outfit, sans-serif';
-    ctx.fillStyle = nameColor;
-    ctx.fillText('Keller Williams Great Smokies', textX, circleY + 40);
-
-    // Website + phone - prominent
-    ctx.font = '500 24px Outfit, sans-serif';
-    ctx.fillStyle = firmColor;
-    ctx.fillText('coryhelpsyoumove.com', textX, circleY + 75);
+    // Broker | Keller Williams Great Smokies on one line
     ctx.font = '400 22px Outfit, sans-serif';
+    ctx.fillStyle = firmColor;
+    ctx.fillText('Broker  |  Keller Williams Great Smokies', textX, topY + 78);
+
+    // Divider line
+    ctx.strokeStyle = firmColor;
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.3;
+    ctx.beginPath(); ctx.moveTo(textX, topY + 100); ctx.lineTo(WIDTH - 50, topY + 100); ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Website and phone side by side
+    ctx.font = '500 24px Outfit, sans-serif';
     ctx.fillStyle = nameColor;
-    ctx.fillText('Call or Text: (828) 506-6413', textX, circleY + 105);
+    ctx.fillText('coryhelpsyoumove.com', textX, topY + 135);
+
+    ctx.textAlign = 'right';
+    ctx.font = '500 24px Outfit, sans-serif';
+    ctx.fillStyle = nameColor;
+    ctx.fillText('(828) 506-6413', WIDTH - 50, topY + 135);
+
+    // "Call or Text" label
+    ctx.textAlign = 'right';
+    ctx.font = '300 16px Outfit, sans-serif';
+    ctx.fillStyle = urlColor;
+    ctx.fillText('Call or Text', WIDTH - 50, topY + 160);
 
     ctx.textAlign = 'left';
   }
