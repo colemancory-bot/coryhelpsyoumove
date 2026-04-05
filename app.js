@@ -9039,10 +9039,16 @@ function _checkPropDeepLink(){
     var params = new URLSearchParams(window.location.search);
     var listingId = params.get('listing');
     if (listingId) {
-      history.replaceState(null, '', window.location.pathname);
       var match = _findListingById(listingId);
       if (match) {
+        history.replaceState(null, '', window.location.pathname);
         setTimeout(function(){ openProp(match, match.city || ''); }, 300);
+      } else if (ALL_LISTINGS.length === 0) {
+        // Data hasn't loaded yet, retry after a delay
+        setTimeout(function(){ _checkPropDeepLink(); }, 2000);
+      } else {
+        // Data loaded but listing not found, clean URL
+        history.replaceState(null, '', window.location.pathname);
       }
       return;
     }
