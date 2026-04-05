@@ -168,24 +168,23 @@ var SocialImage = (function() {
   }
 
   // ── Shared branding bar with headshot ──
-  // style: 'dark' (dark bg, light text) or 'light' (light bg, dark text)
   function drawBranding(ctx, y, h, style) {
     var isDark = style !== 'light';
     var bgColor = isDark ? '#0C0B09' : '#FFFFFF';
     var nameColor = isDark ? '#F5F0E8' : '#1A1815';
     var firmColor = isDark ? '#C4B08C' : '#8B7748';
-    var urlColor = isDark ? 'rgba(245,240,232,0.5)' : 'rgba(0,0,0,0.4)';
+    var urlColor = isDark ? 'rgba(245,240,232,0.6)' : 'rgba(0,0,0,0.4)';
 
     ctx.fillStyle = bgColor;
     ctx.fillRect(0, y, WIDTH, h);
 
     // Gold accent line at top
     ctx.fillStyle = firmColor;
-    ctx.fillRect(0, y, WIDTH, 2);
+    ctx.fillRect(0, y, WIDTH, 3);
 
-    // Headshot circle
-    var circleR = Math.min(h * 0.35, 28);
-    var circleX = 50 + circleR;
+    // Headshot circle - large
+    var circleR = 42;
+    var circleX = 55 + circleR;
     var circleY = y + h/2;
     if (_headshotLoaded) {
       ctx.save();
@@ -198,29 +197,34 @@ var SocialImage = (function() {
       var hH = _headshot.height * hScale;
       ctx.drawImage(_headshot, circleX - hW/2, circleY - hH/2, hW, hH);
       ctx.restore();
-      // Border
+      // Gold border
       ctx.strokeStyle = firmColor;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.arc(circleX, circleY, circleR, 0, Math.PI*2);
       ctx.stroke();
     }
 
-    // Name + title
-    var textX = circleX + circleR + 15;
+    // Name - large and prominent
+    var textX = circleX + circleR + 20;
     ctx.textAlign = 'left';
-    ctx.font = '600 20px Outfit, sans-serif';
+    ctx.font = '700 32px Outfit, sans-serif';
     ctx.fillStyle = nameColor;
-    ctx.fillText('Cory Coleman', textX, circleY - 6);
-    ctx.font = '300 14px Outfit, sans-serif';
-    ctx.fillStyle = firmColor;
-    ctx.fillText('Broker | Keller Williams Great Smokies', textX, circleY + 14);
+    ctx.fillText('Cory Coleman', textX, circleY - 8);
 
-    // Website right-aligned
+    // Firm name
+    ctx.font = '400 18px Outfit, sans-serif';
+    ctx.fillStyle = firmColor;
+    ctx.fillText('Broker | Keller Williams Great Smokies', textX, circleY + 20);
+
+    // Website + phone right-aligned
     ctx.textAlign = 'right';
-    ctx.font = '300 14px Outfit, sans-serif';
+    ctx.font = '500 18px Outfit, sans-serif';
+    ctx.fillStyle = nameColor;
+    ctx.fillText('coryhelpsyoumove.com', WIDTH - 50, circleY - 8);
+    ctx.font = '300 16px Outfit, sans-serif';
     ctx.fillStyle = urlColor;
-    ctx.fillText('coryhelpsyoumove.com', WIDTH - 50, circleY + 5);
+    ctx.fillText('(828) 506-6413', WIDTH - 50, circleY + 18);
     ctx.textAlign = 'left';
   }
 
@@ -258,20 +262,20 @@ var SocialImage = (function() {
     ctx.textAlign = 'left';
     ctx.font = '700 72px Georgia, serif';
     ctx.fillStyle = '#FFFFFF';
-    shadowText(ctx, priceStr(l), 50, HEIGHT - 180);
+    shadowText(ctx, priceStr(l), 50, HEIGHT - 220);
 
     // Address + city
     ctx.font = '400 26px Outfit, sans-serif';
     ctx.fillStyle = '#FFFFFF';
-    shadowText(ctx, (l.address||'') + '  |  ' + (l.city||'') + ', NC', 50, HEIGHT - 130);
+    shadowText(ctx, (l.address||'') + '  |  ' + (l.city||'') + ', NC', 50, HEIGHT - 170);
 
     // Stats
     ctx.font = '300 20px Outfit, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    shadowText(ctx, getStats(l).join('  \u00B7  '), 50, HEIGHT - 100);
+    shadowText(ctx, getStats(l).join('  \u00B7  '), 50, HEIGHT - 140);
 
     // Branding bar at bottom
-    drawBranding(ctx, HEIGHT - 80, 80, 'dark');
+    drawBranding(ctx, HEIGHT - 120, 120, 'dark');
   }
 
   // ═══ TEMPLATE 2: Scroll Stopper ═══
@@ -306,21 +310,21 @@ var SocialImage = (function() {
     // Price - huge, centered
     ctx.font = '800 96px Georgia, serif';
     ctx.fillStyle = '#C4B08C';
-    shadowText(ctx, priceStr(l), WIDTH/2, HEIGHT - 190);
+    shadowText(ctx, priceStr(l), WIDTH/2, HEIGHT - 230);
 
     // Address
     ctx.font = '400 28px Outfit, sans-serif';
     ctx.fillStyle = '#FFFFFF';
-    shadowText(ctx, (l.address||'') + ', ' + (l.city||'') + ', NC', WIDTH/2, HEIGHT - 130);
+    shadowText(ctx, (l.address||'') + ', ' + (l.city||'') + ', NC', WIDTH/2, HEIGHT - 170);
 
     // Stats
     ctx.font = '300 22px Outfit, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    shadowText(ctx, getStats(l).join('  \u00B7  '), WIDTH/2, HEIGHT - 95);
+    shadowText(ctx, getStats(l).join('  \u00B7  '), WIDTH/2, HEIGHT - 135);
     ctx.textAlign = 'left';
 
     // Branding bar
-    drawBranding(ctx, HEIGHT - 80, 80, 'dark');
+    drawBranding(ctx, HEIGHT - 120, 120, 'dark');
   }
 
   // ═══ TEMPLATE 3: Split Card ═══
@@ -373,7 +377,7 @@ var SocialImage = (function() {
     ctx.fillText((l.city||'') + ', North Carolina', 50, splitY + 150);
 
     // Branding bar at bottom of card
-    drawBranding(ctx, HEIGHT - 80, 80, 'dark');
+    drawBranding(ctx, HEIGHT - 120, 120, 'dark');
   }
 
   // ═══ TEMPLATE 4: Corner Badge ═══
@@ -402,7 +406,7 @@ var SocialImage = (function() {
     ctx.fillText((l.city||'') + ', NC  \u00B7  ' + getStats(l).slice(0,2).join(' / '), 25, badgeY + 68);
 
     // Branding bar at bottom
-    drawBranding(ctx, HEIGHT - 80, 80, 'dark');
+    drawBranding(ctx, HEIGHT - 120, 120, 'dark');
   }
 
   // ═══ TEMPLATE 5: Magazine ═══
@@ -443,7 +447,7 @@ var SocialImage = (function() {
     ctx.fillText((l.city||'') + ', North Carolina', border + 10, photoH + 120);
 
     // Branding bar at bottom
-    drawBranding(ctx, HEIGHT - 80, 80, 'dark');
+    drawBranding(ctx, HEIGHT - 120, 120, 'dark');
   }
 
   // ── Export ──
