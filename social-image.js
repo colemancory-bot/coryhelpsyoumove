@@ -182,64 +182,69 @@ var SocialImage = (function() {
     ctx.fillStyle = firmColor;
     ctx.fillRect(0, y, WIDTH, 4);
 
-    // Headshot - very large circle
-    var circleR = 78;
-    var circleX = 55 + circleR;
-    var circleY = y + h/2;
+    // Centered layout: headshot left, text block right, all vertically centered
+    var circleR = 55;
+    var centerY = y + h/2;
+
+    // Left section: headshot + name stacked
+    var leftCenterX = WIDTH * 0.25;
     if (_headshotLoaded) {
+      var circleY = centerY - 20;
       ctx.save();
       ctx.beginPath();
-      ctx.arc(circleX, circleY, circleR, 0, Math.PI*2);
+      ctx.arc(leftCenterX, circleY, circleR, 0, Math.PI*2);
       ctx.clip();
       var hSize = circleR * 2;
       var hScale = hSize / Math.min(_headshot.width, _headshot.height);
       var hW = _headshot.width * hScale;
       var hH = _headshot.height * hScale;
-      ctx.drawImage(_headshot, circleX - hW/2, circleY - hH/2, hW, hH);
+      ctx.drawImage(_headshot, leftCenterX - hW/2, circleY - hH/2, hW, hH);
       ctx.restore();
-      // Gold border
       ctx.strokeStyle = firmColor;
-      ctx.lineWidth = 4;
+      ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.arc(circleX, circleY, circleR, 0, Math.PI*2);
+      ctx.arc(leftCenterX, circleY, circleR, 0, Math.PI*2);
       ctx.stroke();
     }
 
-    // Name - huge and bold
-    var textX = circleX + circleR + 30;
-    var topY = y + 35;
-    ctx.textAlign = 'left';
-    ctx.font = '700 48px Outfit, sans-serif';
+    // Name under headshot
+    ctx.textAlign = 'center';
+    ctx.font = '700 36px Outfit, sans-serif';
     ctx.fillStyle = nameColor;
-    ctx.fillText('Cory Coleman', textX, topY + 42);
+    ctx.fillText('Cory Coleman', leftCenterX, centerY + circleR + 10);
 
-    // Broker | Keller Williams Great Smokies on one line
-    ctx.font = '400 22px Outfit, sans-serif';
+    ctx.font = '300 18px Outfit, sans-serif';
     ctx.fillStyle = firmColor;
-    ctx.fillText('Broker  |  Keller Williams Great Smokies', textX, topY + 78);
+    ctx.fillText('Broker', leftCenterX, centerY + circleR + 35);
 
-    // Divider line
+    // Vertical gold divider
+    var divX = WIDTH * 0.48;
     ctx.strokeStyle = firmColor;
     ctx.lineWidth = 1;
-    ctx.globalAlpha = 0.3;
-    ctx.beginPath(); ctx.moveTo(textX, topY + 100); ctx.lineTo(WIDTH - 50, topY + 100); ctx.stroke();
+    ctx.globalAlpha = 0.4;
+    ctx.beginPath(); ctx.moveTo(divX, y + 30); ctx.lineTo(divX, y + h - 30); ctx.stroke();
     ctx.globalAlpha = 1;
 
-    // Website and phone side by side
+    // Right section: firm, website, phone
+    var rightCenterX = WIDTH * 0.74;
+    ctx.textAlign = 'center';
+
+    ctx.font = '500 28px Outfit, sans-serif';
+    ctx.fillStyle = nameColor;
+    ctx.fillText('Keller Williams', rightCenterX, centerY - 40);
+    ctx.fillText('Great Smokies', rightCenterX, centerY - 8);
+
+    ctx.font = '400 22px Outfit, sans-serif';
+    ctx.fillStyle = firmColor;
+    ctx.fillText('coryhelpsyoumove.com', rightCenterX, centerY + 35);
+
     ctx.font = '500 24px Outfit, sans-serif';
     ctx.fillStyle = nameColor;
-    ctx.fillText('coryhelpsyoumove.com', textX, topY + 135);
+    ctx.fillText('(828) 506-6413', rightCenterX, centerY + 70);
 
-    ctx.textAlign = 'right';
-    ctx.font = '500 24px Outfit, sans-serif';
-    ctx.fillStyle = nameColor;
-    ctx.fillText('(828) 506-6413', WIDTH - 50, topY + 135);
-
-    // "Call or Text" label
-    ctx.textAlign = 'right';
-    ctx.font = '300 16px Outfit, sans-serif';
+    ctx.font = '300 14px Outfit, sans-serif';
     ctx.fillStyle = urlColor;
-    ctx.fillText('Call or Text', WIDTH - 50, topY + 160);
+    ctx.fillText('Call or Text', rightCenterX, centerY + 92);
 
     ctx.textAlign = 'left';
   }
