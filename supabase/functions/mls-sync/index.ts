@@ -95,10 +95,22 @@ async function mlsGridFetch(url: string, timeoutMs = 25000): Promise<any> {
 }
 
 // Download image and upload to Cloudflare R2 via Worker proxy
+// Create SEO-friendly slug from address: "14 Winter Woods Drive" + "Asheville" + "NC" → "14-winter-woods-drive-asheville-nc"
+function addressSlug(streetNumber: string, streetName: string, streetSuffix: string, city: string, state: string): string {
+  const parts = [streetNumber, streetName, streetSuffix, city, state || "nc"]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return parts || "property";
+}
+
 async function uploadMediaToR2(
   mediaUrl: string,
   listingId: string,
-  order: number
+  order: number,
+  slug?: string
 ): Promise<string> {
   if (!r2Available()) return "";
   try {
@@ -106,7 +118,11 @@ async function uploadMediaToR2(
     if (!resp.ok) return "";
     const contentType = resp.headers.get("content-type") || "image/jpeg";
     const ext = contentType.includes("png") ? "png" : "jpg";
-    const key = `listings/${listingId}/${order}.${ext}`;
+    // SEO-friendly path: listings/14-winter-woods-drive-asheville-nc/photo-1.jpg
+    // Falls back to listings/CAR4363291/0.jpg if no slug
+    const folder = slug || listingId;
+    const fileName = slug ? `photo-${order + 1}` : String(order);
+    const key = `listings/${folder}/${fileName}.${ext}`;
     const uploadResp = await fetch(`${R2_WORKER_URL}/${key}`, {
       method: "PUT",
       headers: {
@@ -470,7 +486,8 @@ async function syncProperties(
           // Upload only primary photo (order 0/1) to R2 during sync;
           // additional photos stored with CDN URL only — backfill-media cron handles R2 later
           const isPrimary = order <= 1;
-          let localUrl = isPrimary ? await uploadMediaToR2(mediaUrl, listingId, i) : "";
+          const slug = addressSlug(record.StreetNumber || "", record.StreetName || "", record.StreetSuffix || "", record.City || "", record.StateOrProvince || "");
+          let localUrl = isPrimary ? await uploadMediaToR2(mediaUrl, listingId, i, slug) : "";
           // If R2 upload failed, reuse existing R2 URL if we had one
           if (!localUrl && existingR2[order]) {
             localUrl = existingR2[order];
@@ -1064,7 +1081,8 @@ Deno.serve(async (req) => {
             for (let i = 0; i < media.length; i++) {
               const m = media[i];
               const mUrl = m.MediaURL || "";
-              const localUrl = await uploadMediaToR2(mUrl, lid, i);
+              const bfSlug = addressSlug(record.StreetNumber || "", record.StreetName || "", record.StreetSuffix || "", record.City || "", record.StateOrProvince || "");
+              const localUrl = await uploadMediaToR2(mUrl, lid, i, bfSlug);
               if (localUrl) r2Uploaded++; else r2Failed++;
               mediaRows.push({
                 listing_key: lk,
