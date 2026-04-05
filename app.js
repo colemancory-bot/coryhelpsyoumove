@@ -5148,6 +5148,29 @@ function srRenderCards(results){
   });
   container.appendChild(frag);
 
+  // Self-healing: collect listings with missing photos and request backfill
+  (function(){
+    var missingKeys = [];
+    results.forEach(function(l){
+      if(!l.photo && l.listingKey) missingKeys.push(l.listingKey);
+    });
+    if(missingKeys.length > 0 && _sb) {
+      _log('[Photos] ' + missingKeys.length + ' listings missing photos, requesting backfill');
+      // Debounce: only fire once per session per set of keys
+      if(!window._photoHealRequested) window._photoHealRequested = {};
+      var newKeys = missingKeys.filter(function(k){ return !window._photoHealRequested[k]; });
+      if(newKeys.length > 0) {
+        newKeys.forEach(function(k){ window._photoHealRequested[k] = true; });
+        // Fire-and-forget: tell the backfill to prioritize these listings
+        fetch(SUPABASE_URL + '/functions/v1/mls-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY },
+          body: JSON.stringify({ action: 'backfill-media', limit: Math.min(newKeys.length, 10) })
+        }).catch(function(){});
+      }
+    }
+  })();
+
   // "Show More" button — loads next batch of 40 cards at a time
   if(_capped){
     var _srShown = _SR_CARD_LIMIT;
