@@ -11,11 +11,17 @@ var SocialImage = (function() {
   var _imgLoaded = false;
   var _offsetY = 0;
   var _dragging = false;
+  var _dragStartX = 0;
   var _dragStartY = 0;
+  var _dragStartOffsetX = 0;
   var _dragStartOffset = 0;
+  var _offsetX = 0;
+  var _zoom = 1;
   var _currentTemplate = 'dark-overlay';
   var _listing = null;
   var _onUpdate = null;
+  var _photos = [];
+  var _photoIndex = 0;
 
   function init(canvasEl, listing, onUpdate) {
     _canvas = canvasEl;
@@ -25,13 +31,22 @@ var SocialImage = (function() {
     _listing = listing;
     _onUpdate = onUpdate;
     _offsetY = 0;
+    _offsetX = 0;
+    _zoom = 1;
+
+    // Build photo list
+    _photos = [];
+    if (listing.photos && listing.photos.length) {
+      _photos = listing.photos.slice();
+    } else if (listing.photo) {
+      _photos = [listing.photo];
+    }
+    _photoIndex = 0;
 
     // Load image
     _img = new Image();
-    _img.crossOrigin = 'anonymous';
     _img.onload = function() {
       _imgLoaded = true;
-      // Center vertically by default
       var scale = WIDTH / _img.width;
       var scaledH = _img.height * scale;
       _offsetY = -(scaledH - HEIGHT) / 2;
@@ -47,35 +62,41 @@ var SocialImage = (function() {
       _ctx.fillText('Photo not available', WIDTH/2, HEIGHT/2);
     };
 
-    var photoUrl = listing.photo || (listing.photos && listing.photos.length ? listing.photos[0] : '');
-    if (photoUrl) _img.src = photoUrl;
+    if (_photos.length > 0) _img.src = _photos[0];
 
     // Drag to reposition
-    _canvas.onmousedown = function(e) { startDrag(e.clientY); };
-    _canvas.onmousemove = function(e) { if(_dragging) doDrag(e.clientY); };
+    _canvas.onmousedown = function(e) { startDrag(e.clientX, e.clientY); };
+    _canvas.onmousemove = function(e) { if(_dragging) doDrag(e.clientX, e.clientY); };
     _canvas.onmouseup = function() { endDrag(); };
     _canvas.onmouseleave = function() { endDrag(); };
-    _canvas.ontouchstart = function(e) { e.preventDefault(); startDrag(e.touches[0].clientY); };
-    _canvas.ontouchmove = function(e) { e.preventDefault(); if(_dragging) doDrag(e.touches[0].clientY); };
+    _canvas.ontouchstart = function(e) { e.preventDefault(); startDrag(e.touches[0].clientX, e.touches[0].clientY); };
+    _canvas.ontouchmove = function(e) { e.preventDefault(); if(_dragging) doDrag(e.touches[0].clientX, e.touches[0].clientY); };
     _canvas.ontouchend = function() { endDrag(); };
+    // Scroll to zoom
+    _canvas.onwheel = function(e) {
+      e.preventDefault();
+      var delta = e.deltaY > 0 ? -0.05 : 0.05;
+      _zoom = Math.max(0.5, Math.min(3, _zoom + delta));
+      render();
+    };
   }
 
-  function startDrag(clientY) {
+  function startDrag(clientX, clientY) {
     _dragging = true;
+    _dragStartX = clientX;
     _dragStartY = clientY;
+    _dragStartOffsetX = _offsetX;
     _dragStartOffset = _offsetY;
     _canvas.style.cursor = 'grabbing';
   }
 
-  function doDrag(clientY) {
+  function doDrag(clientX, clientY) {
     var canvasRect = _canvas.getBoundingClientRect();
     var scaleRatio = WIDTH / canvasRect.width;
-    var delta = (clientY - _dragStartY) * scaleRatio;
-    var scale = WIDTH / _img.width;
-    var scaledH = _img.height * scale;
-    var maxOffset = 0;
-    var minOffset = -(scaledH - HEIGHT);
-    _offsetY = Math.max(minOffset, Math.min(maxOffset, _dragStartOffset + delta));
+    var deltaX = (clientX - _dragStartX) * scaleRatio;
+    var deltaY = (clientY - _dragStartY) * scaleRatio;
+    _offsetX = _dragStartOffsetX + deltaX;
+    _offsetY = _dragStartOffset + deltaY;
     render();
   }
 
@@ -89,15 +110,38 @@ var SocialImage = (function() {
     render();
   }
 
+  function setPhoto(index) {
+    if (index < 0 || index >= _photos.length) return;
+    _photoIndex = index;
+    _imgLoaded = false;
+    _offsetX = 0;
+    _zoom = 1;
+    _img.src = _photos[index];
+  }
+
+  function nextPhoto() {
+    setPhoto((_photoIndex + 1) % _photos.length);
+  }
+
+  function prevPhoto() {
+    setPhoto((_photoIndex - 1 + _photos.length) % _photos.length);
+  }
+
+  function getPhotoIndex() { return _photoIndex; }
+  function getPhotoCount() { return _photos.length; }
+
   function render() {
     if (!_ctx || !_imgLoaded) return;
     var ctx = _ctx;
     ctx.clearRect(0, 0, WIDTH, HEIGHT);
 
-    // Draw photo scaled to fill width
-    var scale = WIDTH / _img.width;
+    // Draw photo scaled to fill width with zoom and pan
+    var scale = (WIDTH / _img.width) * _zoom;
+    var scaledW = _img.width * scale;
     var scaledH = _img.height * scale;
-    ctx.drawImage(_img, 0, _offsetY, WIDTH, scaledH);
+    var drawX = _offsetX + (WIDTH - scaledW) / 2;
+    var drawY = _offsetY;
+    ctx.drawImage(_img, drawX, drawY, scaledW, scaledH);
 
     if (_currentTemplate === 'dark-overlay') renderDarkOverlay(ctx);
     else if (_currentTemplate === 'banner-bar') renderBannerBar(ctx);
@@ -339,6 +383,11 @@ var SocialImage = (function() {
   return {
     init: init,
     setTemplate: setTemplate,
+    setPhoto: setPhoto,
+    nextPhoto: nextPhoto,
+    prevPhoto: prevPhoto,
+    getPhotoIndex: getPhotoIndex,
+    getPhotoCount: getPhotoCount,
     render: render,
     toBlob: toBlob,
     toDataURL: toDataURL,

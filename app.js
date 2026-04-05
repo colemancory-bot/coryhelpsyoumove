@@ -9756,8 +9756,13 @@ function openSocialShareModal() {
 
     // Image generator section
     var html = '<div style="margin-bottom:1.5rem">' +
-      '<div style="font-size:0.6rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold);margin-bottom:0.75rem">Social Image (drag to reposition photo)</div>' +
-      '<canvas id="socialCanvas" style="width:100%;border-radius:8px;cursor:grab;border:1px solid var(--border)"></canvas>' +
+      '<div style="font-size:0.6rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold);margin-bottom:0.75rem">Drag to move, scroll to zoom, arrows to change photo</div>' +
+      '<div style="position:relative">' +
+        '<canvas id="socialCanvas" style="width:100%;border-radius:8px;cursor:grab;border:1px solid var(--border)"></canvas>' +
+        '<button onclick="SocialImage.prevPhoto();updatePhotoCounter()" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.6);color:#fff;border:none;width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:1.2rem">&lsaquo;</button>' +
+        '<button onclick="SocialImage.nextPhoto();updatePhotoCounter()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.6);color:#fff;border:none;width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:1.2rem">&rsaquo;</button>' +
+        '<div id="socialPhotoCounter" style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.6);color:#fff;padding:4px 10px;border-radius:12px;font-size:0.7rem"></div>' +
+      '</div>' +
       '<div style="display:flex;gap:0.5rem;margin-top:0.75rem" id="socialTemplates"></div>' +
     '</div>';
 
@@ -9816,11 +9821,19 @@ function openSocialShareModal() {
             templatesEl.appendChild(btn);
           });
         }
+        updatePhotoCounter();
       }
     }
   }).catch(function(err) {
     content.innerHTML = '<div style="text-align:center;padding:2rem;color:#e57373">Error: ' + err.message + '</div>';
   });
+}
+
+function updatePhotoCounter() {
+  var el = document.getElementById('socialPhotoCounter');
+  if (el && typeof SocialImage !== 'undefined') {
+    el.textContent = (SocialImage.getPhotoIndex() + 1) + ' / ' + SocialImage.getPhotoCount();
+  }
 }
 
 function closeSocialShare() {
