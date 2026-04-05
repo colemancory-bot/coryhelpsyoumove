@@ -354,7 +354,7 @@ if(_isTownPage){
   html += '<div class="search-overlay" id="searchOverlay">' +
     '<div class="sr-topbar"><div class="sr-topbar-left"><button class="sr-back" onclick="closeSearch()"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button><div><div class="sr-title">Properties in <em id="srRegion">Western NC</em></div><div class="sr-count" id="srCount">0 listings</div></div></div><div class="sr-topbar-right"><button class="theme-toggle" onclick="toggleTheme()" style="width:36px;height:36px;font-size:0.85rem" aria-label="Toggle theme"><span class="prop-toggle-sun" style="display:none">☀</span><span class="prop-toggle-moon">☽</span></button></div></div>' +
     '<div class="sr-filters" id="srFilters">' +
-      '<div class="sr-filter-chip sr-multi-chip" id="srfLocation" onclick="toggleLocDropdown(event)"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span class="sr-multi-label" id="srfLocLabel">All Areas</span><svg class="sr-multi-arrow" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg><div class="sr-multi-dropdown" id="srfLocDropdown" onclick="event.stopPropagation()"><label class="sr-multi-option"><input type="checkbox" value="Waynesville" onchange="srLocChanged()"><span>Waynesville</span></label><label class="sr-multi-option"><input type="checkbox" value="Sylva" onchange="srLocChanged()"><span>Sylva</span></label><label class="sr-multi-option"><input type="checkbox" value="Maggie Valley" onchange="srLocChanged()"><span>Maggie Valley</span></label><label class="sr-multi-option"><input type="checkbox" value="Bryson City" onchange="srLocChanged()"><span>Bryson City</span></label><label class="sr-multi-option"><input type="checkbox" value="Cashiers" onchange="srLocChanged()"><span>Cashiers / Highlands</span></label><label class="sr-multi-option"><input type="checkbox" value="Franklin" onchange="srLocChanged()"><span>Franklin</span></label><label class="sr-multi-option"><input type="checkbox" value="Dillsboro" onchange="srLocChanged()"><span>Dillsboro</span></label><label class="sr-multi-option"><input type="checkbox" value="Cullowhee" onchange="srLocChanged()"><span>Cullowhee</span></label></div></div>' +
+      '<div class="sr-filter-chip sr-multi-chip" id="srfLocation" onclick="toggleLocDropdown(event)"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span class="sr-multi-label" id="srfLocLabel">All Areas</span><svg class="sr-multi-arrow" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg><div class="sr-multi-dropdown" id="srfLocDropdown" onclick="event.stopPropagation()"><label class="sr-multi-option"><input type="checkbox" value="Waynesville" onchange="srLocChanged()"><span>Waynesville</span></label><label class="sr-multi-option"><input type="checkbox" value="Sylva" onchange="srLocChanged()"><span>Sylva</span></label><label class="sr-multi-option"><input type="checkbox" value="Maggie Valley" onchange="srLocChanged()"><span>Maggie Valley</span></label><label class="sr-multi-option"><input type="checkbox" value="Bryson City" onchange="srLocChanged()"><span>Bryson City</span></label><label class="sr-multi-option"><input type="checkbox" value="Cashiers" onchange="srLocChanged()"><span>Cashiers / Highlands</span></label><label class="sr-multi-option"><input type="checkbox" value="Franklin" onchange="srLocChanged()"><span>Franklin</span></label><label class="sr-multi-option"><input type="checkbox" value="Dillsboro" onchange="srLocChanged()"><span>Dillsboro</span></label><label class="sr-multi-option"><input type="checkbox" value="Cullowhee" onchange="srLocChanged()"><span>Cullowhee</span></label><label class="sr-multi-option"><input type="checkbox" value="Asheville" onchange="srLocChanged()"><span>Asheville / Buncombe</span></label></div></div>' +
       '<div class="sr-filter-chip" id="srfType"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg><select id="srfTypeSelect" onchange="srApplyFilters()"><option value="">All Types</option><option value="Single Family">Single Family</option><option value="Cabin">Cabin</option><option value="Multi-Family">Multi-Family</option><option value="Land">Land</option></select></div>' +
       '<div class="sr-filter-chip" id="srfPrice"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg><select id="srfPriceSelect" onchange="srApplyFilters()"><option value="">Any Price</option><option value="0-200000">Under $200K</option><option value="200000-400000">$200K – $400K</option><option value="400000-700000">$400K – $700K</option><option value="700000-1000000">$700K – $1M</option><option value="1000000-99999999">$1M+</option></select></div>' +
       '<div class="sr-filter-chip" id="srfBeds"><select id="srfBedsSelect" onchange="srApplyFilters()"><option value="">Any Beds</option><option value="2">2+ Beds</option><option value="3">3+ Beds</option><option value="4">4+ Beds</option><option value="5">5+ Beds</option></select></div>' +
@@ -4135,13 +4135,15 @@ var AREA_CITIES = {
   'Cashiers': ['Cashiers','Highlands','Sapphire','Glenville','Scaly Mountain'],
   'Franklin': ['Franklin','Franklin City Limits','Otto'],
   'Dillsboro': ['Dillsboro'],
-  'Cullowhee': ['Cullowhee','Webster','Tuckasegee']
+  'Cullowhee': ['Cullowhee','Webster','Tuckasegee'],
+  'Asheville': ['Asheville','Arden','Black Mountain','Candler','Enka','Fairview','Fletcher','Leicester','Mars Hill','Montreat','Swannanoa','Weaverville','Woodfin']
 };
 // Display labels for area chip
 var AREA_LABELS = {
   'Waynesville':'Waynesville','Sylva':'Sylva','Maggie Valley':'Maggie Valley',
   'Bryson City':'Bryson City','Cashiers':'Cashiers / Highlands',
-  'Franklin':'Franklin','Dillsboro':'Dillsboro','Cullowhee':'Cullowhee'
+  'Franklin':'Franklin','Dillsboro':'Dillsboro','Cullowhee':'Cullowhee',
+  'Asheville':'Asheville / Buncombe'
 };
 
 // Check if a listing city matches a selected area (includes rural variants)
@@ -8734,6 +8736,7 @@ srApplyFilters = function() {
           '<label class="srd-area-pill"><input type="checkbox" value="Franklin"><span>Franklin</span></label>' +
           '<label class="srd-area-pill"><input type="checkbox" value="Dillsboro"><span>Dillsboro</span></label>' +
           '<label class="srd-area-pill"><input type="checkbox" value="Cullowhee"><span>Cullowhee</span></label>' +
+          '<label class="srd-area-pill"><input type="checkbox" value="Asheville"><span>Asheville / Buncombe</span></label>' +
         '</div></div>' +
         '<div class="srd-section"><div class="srd-section-label">Property Type</div><div class="srd-pill-row" id="srdType">' +
           '<button class="srd-pill active" data-val="">All</button>' +
