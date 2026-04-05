@@ -9041,17 +9041,28 @@ function _checkPropDeepLink(){
     if (listingId) {
       var match = _findListingById(listingId);
       if (match) {
+        window._listingRetryCount = 0;
+        var loadEl = document.getElementById('deepLinkLoading');
+        if (loadEl) loadEl.remove();
         history.replaceState(null, '', window.location.pathname);
         setTimeout(function(){ openProp(match, match.city || ''); }, 300);
       } else {
-        // Retry up to 10 times over 20 seconds while data loads
+        // Show loading overlay while waiting for data
+        if (!document.getElementById('deepLinkLoading')) {
+          var loadDiv = document.createElement('div');
+          loadDiv.id = 'deepLinkLoading';
+          loadDiv.style.cssText = 'position:fixed;inset:0;z-index:10000;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem';
+          loadDiv.innerHTML = '<div style="width:40px;height:40px;border:3px solid var(--gold);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite"></div><div style="color:var(--cream);font-family:Outfit,sans-serif;font-size:0.9rem">Loading property details...</div><style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
+          document.body.appendChild(loadDiv);
+        }
         if (!window._listingRetryCount) window._listingRetryCount = 0;
         window._listingRetryCount++;
-        if (window._listingRetryCount < 10) {
+        if (window._listingRetryCount < 15) {
           setTimeout(function(){ _checkPropDeepLink(); }, 2000);
         } else {
-          // Give up, clean URL
           window._listingRetryCount = 0;
+          var loadEl2 = document.getElementById('deepLinkLoading');
+          if (loadEl2) loadEl2.remove();
           history.replaceState(null, '', window.location.pathname);
         }
       }
