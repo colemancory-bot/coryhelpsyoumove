@@ -9770,26 +9770,35 @@ function openSocialShareModal() {
     html += '<div style="border-top:1px solid var(--border);margin:1rem 0"></div>';
     // Platform tabs
     var platforms = [
-      { id: 'facebook', label: 'Facebook', icon: 'f', color: '#1877F2', auto: true },
-      { id: 'instagram', label: 'Instagram', icon: 'IG', color: '#E4405F', auto: true },
-      { id: 'linkedin', label: 'LinkedIn', icon: 'in', color: '#0A66C2', auto: false },
-      { id: 'gbp', label: 'Google Business', icon: 'G', color: '#4285F4', auto: false }
+      { id: 'facebook', label: 'Facebook', icon: 'f', color: '#1877F2', action: 'post' },
+      { id: 'instagram', label: 'Instagram', icon: 'IG', color: '#E4405F', action: 'download' },
+      { id: 'linkedin', label: 'LinkedIn', icon: 'in', color: '#0A66C2', action: 'copy' },
+      { id: 'gbp', label: 'Google Business', icon: 'G', color: '#4285F4', action: 'copy' }
     ];
 
     platforms.forEach(function(p) {
       var postText = data.posts[p.id] || '';
+      var btnHtml = '';
+      if (p.action === 'post') {
+        btnHtml = '<button onclick="postToSocial(\'' + p.id + '\')" style="padding:0.4rem 0.85rem;background:var(--gold);color:var(--bg);border:none;border-radius:4px;font-family:Outfit,sans-serif;font-size:0.65rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer" id="socialBtn_' + p.id + '">Post Now</button>';
+      } else if (p.action === 'download') {
+        btnHtml = '<div style="display:flex;gap:0.4rem">' +
+          '<button onclick="downloadSocialImage()" style="padding:0.4rem 0.65rem;background:var(--gold);color:var(--bg);border:none;border-radius:4px;font-family:Outfit,sans-serif;font-size:0.6rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer" id="socialBtn_' + p.id + '_dl">Download Image</button>' +
+          '<button onclick="copySocialPost(\'' + p.id + '\')" style="padding:0.4rem 0.65rem;background:transparent;color:var(--gold);border:1px solid var(--gold);border-radius:4px;font-family:Outfit,sans-serif;font-size:0.6rem;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer" id="socialBtn_' + p.id + '">Copy Caption</button>' +
+        '</div>';
+      } else {
+        btnHtml = '<button onclick="copySocialPost(\'' + p.id + '\')" style="padding:0.4rem 0.85rem;background:transparent;color:var(--gold);border:1px solid var(--gold);border-radius:4px;font-family:Outfit,sans-serif;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer" id="socialBtn_' + p.id + '">Copy Text</button>';
+      }
       html += '<div style="margin-bottom:1.25rem;border:1px solid var(--border);border-radius:8px;overflow:hidden">' +
         '<div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;background:var(--surface)">' +
           '<div style="display:flex;align-items:center;gap:0.5rem">' +
             '<span style="background:' + p.color + ';color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:700">' + p.icon + '</span>' +
             '<span style="font-size:0.8rem;color:var(--cream);font-weight:500">' + p.label + '</span>' +
+            (p.action === 'download' ? '<span style="font-size:0.6rem;color:var(--text-muted)">(download image, paste caption, add music in app)</span>' : '') +
           '</div>' +
-          (p.auto
-            ? '<button class="social-post-btn" onclick="postToSocial(\'' + p.id + '\')" style="padding:0.4rem 0.85rem;background:var(--gold);color:var(--bg);border:none;border-radius:4px;font-family:Outfit,sans-serif;font-size:0.65rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer" id="socialBtn_' + p.id + '">Post Now</button>'
-            : '<button onclick="copySocialPost(\'' + p.id + '\')" style="padding:0.4rem 0.85rem;background:transparent;color:var(--gold);border:1px solid var(--gold);border-radius:4px;font-family:Outfit,sans-serif;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer" id="socialBtn_' + p.id + '">Copy Text</button>'
-          ) +
+          btnHtml +
         '</div>' +
-        '<textarea id="socialText_' + p.id + '" style="width:100%;min-height:120px;padding:0.75rem 1rem;background:var(--bg);color:var(--cream);border:none;font-family:Outfit,sans-serif;font-size:0.78rem;line-height:1.5;resize:vertical;outline:none">' + postText.replace(/</g,'&lt;') + '</textarea>' +
+        '<textarea id="socialText_' + p.id + '" style="width:100%;min-height:100px;padding:0.75rem 1rem;background:var(--bg);color:var(--cream);border:none;font-family:Outfit,sans-serif;font-size:0.78rem;line-height:1.5;resize:vertical;outline:none">' + postText.replace(/</g,'&lt;') + '</textarea>' +
       '</div>';
     });
 
@@ -9843,23 +9852,83 @@ function closeSocialShare() {
   if (modal) modal.style.display = 'none';
 }
 
+function downloadSocialImage() {
+  if (typeof SocialImage === 'undefined') return;
+  try {
+    SocialImage.toBlob(function(blob) {
+      if (!blob) { alert('Unable to export image. Try a different photo.'); return; }
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      var listing = window._currentListing || {};
+      a.download = (listing.address || 'listing').replace(/[^a-zA-Z0-9]/g, '-') + '-social.jpg';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  } catch(e) {
+    alert('Unable to export image. The photo may not support cross-origin export. Try a different photo.');
+  }
+}
+
 function postToSocial(platform) {
   var listing = window._currentListing;
   if (!listing) return;
   var btn = document.getElementById('socialBtn_' + platform);
   var text = document.getElementById('socialText_' + platform).value;
-  var photoUrl = listing.photo || '';
-  if (!photoUrl && listing.photos && listing.photos.length) photoUrl = listing.photos[0];
 
-  btn.textContent = 'Posting...';
+  btn.textContent = 'Uploading image...';
   btn.disabled = true;
 
+  // Export canvas to blob, upload to R2, then post with that URL
+  if (typeof SocialImage !== 'undefined') {
+    try {
+      SocialImage.toBlob(function(blob) {
+        if (!blob) {
+          // Fallback to raw photo
+          var photoUrl = listing.photo || '';
+          if (!photoUrl && listing.photos && listing.photos.length) photoUrl = listing.photos[0];
+          doPost(platform, btn, text, photoUrl, listing);
+          return;
+        }
+        // Upload blob to R2 via the worker
+        var key = 'social/' + (listing.listingKey || 'post') + '-' + Date.now() + '.jpg';
+        var formData = blob;
+        fetch('https://r2-upload.coryhelpsyoumove.workers.dev/' + key, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'image/jpeg' },
+          body: formData
+        }).then(function(r) {
+          if (r.ok) {
+            var r2Url = 'https://pub-bfc65eba3b4f4bec8ca241aab44da702.r2.dev/' + key;
+            btn.textContent = 'Posting...';
+            doPost(platform, btn, text, r2Url, listing);
+          } else {
+            // Fallback to raw photo
+            var photoUrl = listing.photo || '';
+            if (!photoUrl && listing.photos && listing.photos.length) photoUrl = listing.photos[0];
+            btn.textContent = 'Posting...';
+            doPost(platform, btn, text, photoUrl, listing);
+          }
+        }).catch(function() {
+          var photoUrl = listing.photo || '';
+          if (!photoUrl && listing.photos && listing.photos.length) photoUrl = listing.photos[0];
+          btn.textContent = 'Posting...';
+          doPost(platform, btn, text, photoUrl, listing);
+        });
+      });
+      return;
+    } catch(e) { /* fall through to raw photo */ }
+  }
+
+  var photoUrl = listing.photo || '';
+  if (!photoUrl && listing.photos && listing.photos.length) photoUrl = listing.photos[0];
+  doPost(platform, btn, text, photoUrl, listing);
+}
+
+function doPost(platform, btn, text, photoUrl, listing) {
   var body = { action: 'post-' + platform, listingKey: listing.listingKey || listing.mlsId || '' };
   if (platform === 'facebook') {
     body.message = text;
-    body.photoUrl = photoUrl;
-  } else if (platform === 'instagram') {
-    body.caption = text;
     body.photoUrl = photoUrl;
   }
 
