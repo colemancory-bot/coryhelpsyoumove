@@ -1061,28 +1061,39 @@ Deno.serve(async (req) => {
 
           const media = record.Media || [];
           if (media.length > 0) {
-            // Check if this listing already has R2 photos
+            // Check if ALL photos already have R2 URLs (not just one)
             const { data: existingMedia } = await supabase
               .from("mls_media")
-              .select("local_url")
-              .eq("listing_key", lk)
-              .neq("local_url", "")
-              .limit(1);
+              .select("order, local_url")
+              .eq("listing_key", lk);
+            const existingCount = existingMedia ? existingMedia.length : 0;
+            const r2Count = existingMedia ? existingMedia.filter((m: any) => m.local_url).length : 0;
 
-            if (existingMedia && existingMedia.length > 0) {
-              // Already has R2 photos, skip
+            if (existingCount >= media.length && r2Count >= media.length) {
+              // All photos have R2 URLs, skip
               totalProcessed++;
               continue;
             }
 
-            // Delete stale media rows and re-insert with R2 URLs
+            // Build map of existing R2 URLs to preserve on failure
+            const existingR2: Record<number, string> = {};
+            if (existingMedia) {
+              existingMedia.forEach((m: any) => {
+                if (m.local_url) existingR2[m.order] = m.local_url;
+              });
+            }
+
+            // Delete and re-insert with R2 URLs
             await supabase.from("mls_media").delete().eq("listing_key", lk);
             const mediaRows = [];
+            const bfSlug = addressSlug(record.StreetNumber || "", record.StreetName || "", record.StreetSuffix || "", record.City || "", record.StateOrProvince || "");
             for (let i = 0; i < media.length; i++) {
               const m = media[i];
               const mUrl = m.MediaURL || "";
-              const bfSlug = addressSlug(record.StreetNumber || "", record.StreetName || "", record.StreetSuffix || "", record.City || "", record.StateOrProvince || "");
-              const localUrl = await uploadMediaToR2(mUrl, lid, i, bfSlug);
+              const order = m.Order || i;
+              let localUrl = await uploadMediaToR2(mUrl, lid, i, bfSlug);
+              // Reuse existing R2 URL if upload failed
+              if (!localUrl && existingR2[order]) localUrl = existingR2[order];
               if (localUrl) r2Uploaded++; else r2Failed++;
               mediaRows.push({
                 listing_key: lk,
