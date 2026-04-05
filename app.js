@@ -750,9 +750,9 @@ var SIMPLYRETS = {
         LISTINGS.slice(0,6).forEach(function(l,i){
           var c=document.createElement('div');c.className='f-card reveal vis';
           var feats=_cardFeats(l);
-          var imgSrc = l.photo || 'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=700&q=80';
           var hpStatus=l.status==='Under Contract'?'<div class="card-status-tag">Under Contract</div>':'';
-          c.innerHTML='<div class="f-card-img"><img src="'+imgSrc+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge '+(l.type==='Land'?'land':'')+'">'+l.type+'</div>'+hpStatus+cardFavHtml(l.address,l.city)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+l.city+', NC</div><div class="f-card-features">'+feats+'</div></div>';
+          var imgInner = l.photo ? '<img src="'+l.photo+'" alt="'+l.address+'" loading="lazy">' : '<div style="width:100%;aspect-ratio:16/10;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.7rem;letter-spacing:0.08em;text-transform:uppercase">Photos Coming Soon</div>';
+          c.innerHTML='<div class="f-card-img">'+imgInner+'<div class="f-card-badge '+(l.type==='Land'?'land':'')+'">'+l.type+'</div>'+hpStatus+cardFavHtml(l.address,l.city)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+l.city+', NC</div><div class="f-card-features">'+feats+'</div></div>';
           c.onclick=function(){try{openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,lot:l.lot,restrictions:l.restrictions||'unrestricted',status:l.status||'Active',photo:l.photo||null,photos:l.photos||[],description:l.description||''},l.city,this)}catch(err){console.error(err)}};
           grid.appendChild(c);
         });
@@ -2784,7 +2784,11 @@ document.addEventListener('error', function(e) {
   // Prevent infinite loop: only try fallback once
   if (img._photoFallbackDone) return;
   img._photoFallbackDone = true;
-  img.src = 'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=700&q=80';
+  // Replace broken image with "Photos Coming Soon" placeholder
+  var placeholder = document.createElement('div');
+  placeholder.style.cssText = 'width:100%;height:100%;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase';
+  placeholder.textContent = 'Photos Coming Soon';
+  img.replaceWith(placeholder);
 }, true);
 
 var PROP_DESCRIPTIONS = {
@@ -2842,13 +2846,23 @@ function openProp(listing, townName, sourceCardEl) {
   } else if(listing.photo) {
     imgs = [listing.photo];
   } else {
-    imgs = PROP_IMAGES[listing.type] || PROP_IMAGES['Single Family'];
+    imgs = [];
   }
-  var mainImg = imgs[0] || imgs[Math.floor(Math.random()*imgs.length)];
-  _setPropHeroImage(mainImg);
+  var mainImg = imgs.length > 0 ? imgs[0] : '';
+  if (mainImg) {
+    _setPropHeroImage(mainImg);
+  } else {
+    // No photo available — show "Photos Coming Soon" on hero
+    var heroEl = document.getElementById('propHeroImg');
+    if (heroEl) {
+      heroEl.style.backgroundImage = 'none';
+      heroEl.style.backgroundColor = 'var(--surface)';
+      heroEl.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-muted);gap:0.5rem"><svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg><span style="font-size:0.85rem;letter-spacing:0.1em;text-transform:uppercase">Photos Coming Soon</span></div>';
+    }
+  }
   var seoAlt = (listing.beds ? listing.beds + ' bedroom home for sale in ' : 'Property for sale in ') + (townName || 'Western NC') + ', NC';
   var seoImg = document.getElementById('propHeroSeo');
-  if (seoImg) { seoImg.src = mainImg; seoImg.alt = seoAlt; }
+  if (seoImg) { seoImg.src = mainImg || ''; seoImg.alt = seoAlt; }
 
   // Image gallery state
   window._propImgs = imgs;
