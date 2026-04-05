@@ -9035,8 +9035,18 @@ function _checkPropDeepLink(){
         return; // Don't process query params if hash link found
       }
     }
-    // Fallback: query param deep link (?prop=address&city=town)
+    // Query param deep link: ?listing=CAR4363291 (MLS ID)
     var params = new URLSearchParams(window.location.search);
+    var listingId = params.get('listing');
+    if (listingId) {
+      history.replaceState(null, '', window.location.pathname);
+      var match = _findListingById(listingId);
+      if (match) {
+        setTimeout(function(){ openProp(match, match.city || ''); }, 300);
+      }
+      return;
+    }
+    // Fallback: query param deep link (?prop=address&city=town)
     var propAddr = params.get('prop');
     var propCity = params.get('city');
     var ref = params.get('ref');
