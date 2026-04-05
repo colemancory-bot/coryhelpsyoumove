@@ -152,16 +152,19 @@ var SocialImage = (function() {
 
   function renderDarkOverlay(ctx) {
     var l = _listing;
-    // Gradient overlay from bottom
-    var grad = ctx.createLinearGradient(0, HEIGHT * 0.4, 0, HEIGHT);
+    // Solid dark overlay on bottom half
+    ctx.fillStyle = '#0C0B09';
+    ctx.fillRect(0, HEIGHT - 340, WIDTH, 340);
+
+    // Gradient transition from photo to solid
+    var grad = ctx.createLinearGradient(0, HEIGHT - 420, 0, HEIGHT - 340);
     grad.addColorStop(0, 'rgba(12,11,9,0)');
-    grad.addColorStop(0.4, 'rgba(12,11,9,0.6)');
-    grad.addColorStop(1, 'rgba(12,11,9,0.95)');
+    grad.addColorStop(1, '#0C0B09');
     ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    ctx.fillRect(0, HEIGHT - 420, WIDTH, 80);
 
     // Top badge: NEW LISTING
-    ctx.fillStyle = 'rgba(196,176,140,0.9)';
+    ctx.fillStyle = '#C4B08C';
     roundRect(ctx, 40, 40, 200, 42, 6);
     ctx.fill();
     ctx.font = '600 16px Outfit, sans-serif';
@@ -172,7 +175,7 @@ var SocialImage = (function() {
     // Price
     ctx.textAlign = 'left';
     ctx.font = '700 64px Georgia, serif';
-    ctx.fillStyle = '#F5F0E8';
+    ctx.fillStyle = '#C4B08C';
     ctx.fillText('$' + (l.price || 0).toLocaleString(), 50, HEIGHT - 240);
 
     // Address
@@ -182,7 +185,7 @@ var SocialImage = (function() {
 
     // City, State
     ctx.font = '300 24px Outfit, sans-serif';
-    ctx.fillStyle = 'rgba(245,240,232,0.7)';
+    ctx.fillStyle = '#F5F0E8';
     ctx.fillText((l.city || '') + ', North Carolina', 50, HEIGHT - 155);
 
     // Stats bar
@@ -199,14 +202,17 @@ var SocialImage = (function() {
     ctx.fillText(stats.join('  |  '), 50, statsY);
 
     // Branding bar at bottom
-    ctx.fillStyle = 'rgba(12,11,9,0.8)';
+    ctx.fillStyle = '#0C0B09';
     ctx.fillRect(0, HEIGHT - 70, WIDTH, 70);
+    ctx.strokeStyle = '#C4B08C';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(50, HEIGHT - 70); ctx.lineTo(WIDTH - 50, HEIGHT - 70); ctx.stroke();
     ctx.font = '400 18px Outfit, sans-serif';
     ctx.fillStyle = '#C4B08C';
     ctx.textAlign = 'left';
     ctx.fillText('Cory Coleman, Broker  |  Keller Williams Great Smokies', 50, HEIGHT - 38);
     ctx.textAlign = 'right';
-    ctx.fillStyle = 'rgba(245,240,232,0.5)';
+    ctx.fillStyle = '#F5F0E8';
     ctx.font = '300 16px Outfit, sans-serif';
     ctx.fillText('coryhelpsyoumove.com', WIDTH - 50, HEIGHT - 38);
     ctx.textAlign = 'left';
@@ -214,14 +220,11 @@ var SocialImage = (function() {
 
   function renderBannerBar(ctx) {
     var l = _listing;
-    // Subtle darkening on whole image
-    ctx.fillStyle = 'rgba(12,11,9,0.15)';
-    ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-    // Banner bar at bottom (taller)
+    // Solid banner bar at bottom
     var barH = 200;
     var barY = HEIGHT - barH;
-    ctx.fillStyle = 'rgba(12,11,9,0.92)';
+    ctx.fillStyle = '#0C0B09';
     ctx.fillRect(0, barY, WIDTH, barH);
 
     // Gold accent line
@@ -239,7 +242,7 @@ var SocialImage = (function() {
     ctx.fillStyle = '#F5F0E8';
     ctx.fillText(l.address || '', 50, barY + 95);
     ctx.font = '300 20px Outfit, sans-serif';
-    ctx.fillStyle = 'rgba(245,240,232,0.6)';
+    ctx.fillStyle = '#F5F0E8';
     ctx.fillText((l.city || '') + ', NC', 50, barY + 125);
 
     // Stats on the right
@@ -257,9 +260,10 @@ var SocialImage = (function() {
 
     // Branding
     ctx.font = '400 16px Outfit, sans-serif';
-    ctx.fillStyle = 'rgba(245,240,232,0.5)';
+    ctx.fillStyle = '#C4B08C';
     ctx.fillText('Cory Coleman, Broker  |  Keller Williams Great Smokies', WIDTH - 50, barY + 170);
     ctx.font = '300 14px Outfit, sans-serif';
+    ctx.fillStyle = '#F5F0E8';
     ctx.fillText('coryhelpsyoumove.com', WIDTH - 50, barY + 192);
     ctx.textAlign = 'left';
 
@@ -289,16 +293,18 @@ var SocialImage = (function() {
     ctx.lineWidth = 2;
     ctx.strokeRect(border - 1, border - 1, innerW + 2, innerH + 2);
 
-    // Draw photo inside frame
+    // Draw photo inside frame with zoom and pan
     if (_imgLoaded) {
       ctx.save();
       ctx.beginPath();
       ctx.rect(border, border, innerW, innerH);
       ctx.clip();
-      var scale = innerW / _img.width;
+      var scale = (innerW / _img.width) * _zoom;
+      var scaledW = _img.width * scale;
       var scaledH = _img.height * scale;
-      var frameOffsetY = _offsetY * (innerH / HEIGHT);
-      ctx.drawImage(_img, border, border + frameOffsetY, innerW, scaledH);
+      var drawX = border + _offsetX * (innerW / WIDTH) + (innerW - scaledW) / 2;
+      var drawY = border + _offsetY * (innerH / HEIGHT);
+      ctx.drawImage(_img, drawX, drawY, scaledW, scaledH);
       ctx.restore();
     }
 
