@@ -449,15 +449,32 @@ async function syncProperties(
         || newPhotosTs !== existing.photos_change_timestamp;
 
       if (media.length > 0 && photosChanged) {
+        // Preserve existing R2 URLs before deleting — if upload fails, reuse them
+        const { data: existingMedia } = await supabase
+          .from("mls_media")
+          .select("order, local_url")
+          .eq("listing_key", listingKey);
+        const existingR2: Record<number, string> = {};
+        if (existingMedia) {
+          existingMedia.forEach((m: any) => {
+            if (m.local_url) existingR2[m.order] = m.local_url;
+          });
+        }
+
         await supabase.from("mls_media").delete().eq("listing_key", listingKey);
         const mediaRows = [];
         for (let i = 0; i < media.length; i++) {
           const m = media[i];
           const mediaUrl = m.MediaURL || "";
+          const order = m.Order || i;
           // Upload only primary photo (order 0/1) to R2 during sync;
           // additional photos stored with CDN URL only — backfill-media cron handles R2 later
-          const isPrimary = (m.Order || i) <= 1;
-          const localUrl = isPrimary ? await uploadMediaToR2(mediaUrl, listingId, i) : "";
+          const isPrimary = order <= 1;
+          let localUrl = isPrimary ? await uploadMediaToR2(mediaUrl, listingId, i) : "";
+          // If R2 upload failed, reuse existing R2 URL if we had one
+          if (!localUrl && existingR2[order]) {
+            localUrl = existingR2[order];
+          }
           mediaRows.push({
             listing_key: listingKey,
             media_key: m.MediaKey || `${listingKey}-${i}`,
@@ -466,7 +483,7 @@ async function syncProperties(
             media_type: m.MimeType || "image/jpeg",
             media_category: m.MediaCategory || "Photo",
             short_description: m.ShortDescription || "",
-            order: m.Order || i,
+            order: order,
             image_width: m.ImageWidth || null,
             image_height: m.ImageHeight || null,
             modification_timestamp: m.ModificationTimestamp || modTs,
