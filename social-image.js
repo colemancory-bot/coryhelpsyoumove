@@ -39,7 +39,18 @@ var SocialImage = (function() {
     else if (listing.photo) _photos = [listing.photo];
     _photoIndex = 0;
 
+    // Convert R2 public URLs to worker URLs for CORS support
+    var WORKER_URL = 'https://r2-upload.coryhelpsyoumove.workers.dev';
+    var R2_PUBLIC = 'https://pub-bfc65eba3b4f4bec8ca241aab44da702.r2.dev';
+    _photos = _photos.map(function(url) {
+      if (url && url.indexOf(R2_PUBLIC) === 0) {
+        return WORKER_URL + url.substring(R2_PUBLIC.length);
+      }
+      return url;
+    });
+
     _img = new Image();
+    _img.crossOrigin = 'anonymous';
     _img.onload = function() {
       _imgLoaded = true;
       var scale = WIDTH / _img.width;
