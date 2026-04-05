@@ -1129,7 +1129,7 @@ var MLS_GRID = {
         var mediaMap = {};
         mediaRows.forEach(function(m) {
           if(!mediaMap[m.listing_key] || m.order === 0) {
-            mediaMap[m.listing_key] = m.local_url || m.media_url;
+            mediaMap[m.listing_key] = m.local_url || '';
           }
         });
         _log('[MLS Grid] Primary photos loaded: ' + mediaRows.length + ' rows, ' + Object.keys(mediaMap).length + ' unique listings');
@@ -1262,7 +1262,8 @@ var MLS_GRID = {
             // MLS Grid signed URL — expires in ~24h, skip until R2 backfill
             return false;
           })
-          .map(function(m) { return m.local_url || m.media_url; });
+          .map(function(m) { return m.local_url || m.media_url; })
+          .filter(function(url) { return url && url.indexOf('mlsgrid.com') === -1; });
       }).catch(function(err) {
         _warn('[MLS Grid] Failed to load photos for ' + listingKey, err);
         return [];
