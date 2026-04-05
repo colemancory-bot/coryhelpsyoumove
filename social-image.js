@@ -86,7 +86,18 @@ var SocialImage = (function() {
     _canvas.ontouchend = function() { endDrag(); };
     _canvas.onwheel = function(e) {
       e.preventDefault();
-      _zoom = Math.max(0.5, Math.min(3, _zoom + (e.deltaY > 0 ? -0.05 : 0.05)));
+      // Scale zoom step based on delta magnitude for smooth touchpad support
+      // Touchpads send small deltas (1-10), mouse wheels send large ones (100+)
+      var delta = -e.deltaY;
+      var step;
+      if (Math.abs(e.deltaY) > 50) {
+        // Mouse wheel: fixed steps
+        step = delta > 0 ? 0.08 : -0.08;
+      } else {
+        // Touchpad: proportional to gesture, much smaller steps
+        step = delta * 0.003;
+      }
+      _zoom = Math.max(0.5, Math.min(3, _zoom + step));
       render();
     };
   }
