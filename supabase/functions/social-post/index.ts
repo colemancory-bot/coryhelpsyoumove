@@ -76,7 +76,9 @@ function generatePosts(listing: ListingData) {
   const county = COUNTY_MAP[city] || "";
   const landmark = county ? LANDMARKS[county] || "" : "";
   const priceStr = "$" + price.toLocaleString("en-US");
-  const propUrl = `https://coryhelpsyoumove.com/?listing=${encodeURIComponent(mlsId || listingKey)}`;
+  // SEO-friendly URL with address slug
+  const slug = `${address} ${city} nc`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  const propUrl = `https://coryhelpsyoumove.com/?listing=${slug}`;
 
   // Property description snippet (first sentence or first 120 chars)
   const descSnippet = description

@@ -3177,12 +3177,15 @@ function openProp(listing, townName, sourceCardEl) {
 
   // Show overlay — with View Transition if supported
   var _propHashId = listing.mlsId || listing.listingKey || (listing.address + '|' + (townName||''));
+  // SEO-friendly URL slug from address + city
+  var _propSlug = ((listing.address || '') + ' ' + (townName || listing.city || '') + ' nc')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   function _activateOverlay() {
     o.classList.add('active');
     o.scrollTop = 0;
     _lockScroll();
     _startParallax();
-    try{history.pushState({page:'property'},'','#property/' + encodeURIComponent(_propHashId))}catch(he){}
+    try{history.pushState({page:'property'},'','?listing=' + _propSlug)}catch(he){}
   }
 
   if (sourceCardEl && document.startViewTransition) {
@@ -3561,8 +3564,9 @@ function closeProp(fromPopstate) {
 function _propShareUrl() {
   var listing = window._currentListing;
   if(!listing) return 'https://coryhelpsyoumove.com';
-  var id = listing.mlsId || listing.listingKey || (listing.address + '|' + (window._currentTownName||''));
-  return window.location.origin + window.location.pathname + '#property/' + encodeURIComponent(id);
+  var city = listing.city || window._currentTownName || '';
+  var slug = ((listing.address||'') + ' ' + city + ' nc').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return 'https://coryhelpsyoumove.com/?listing=' + slug;
 }
 
 function propShare(type) {
@@ -9001,13 +9005,16 @@ if(MLS_GRID.enabled) {
   }
 }
 
-// Find a listing by mlsId, listingKey, or address|city fallback
+// Find a listing by mlsId, listingKey, address slug, or address|city fallback
 function _findListingById(id) {
   if(!id) return null;
   for(var i = 0; i < ALL_LISTINGS.length; i++){
     var l = ALL_LISTINGS[i];
     if(l.mlsId && l.mlsId.toString() === id) return l;
     if(l.listingKey && l.listingKey === id) return l;
+    // Match address slug: "14-winter-woods-drive-asheville-nc"
+    var slug = ((l.address||'') + ' ' + (l.city||'') + ' nc').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    if(slug === id) return l;
     var fallback = l.address + '|' + (l.city||'');
     if(fallback === id) return l;
   }
