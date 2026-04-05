@@ -9724,36 +9724,45 @@ function openSocialShareModal() {
   var photoUrl = listing.photo || '';
   if (!photoUrl && listing.photos && listing.photos.length) photoUrl = listing.photos[0];
 
+  // Build listing data for both image generator and post generator
+  var listingData = {
+    address: listing.address || '',
+    city: listing.city || window._currentTownName || '',
+    price: listing.price || 0,
+    beds: listing.beds || 0,
+    baths: listing.baths || 0,
+    sqft: listing.sqft || 0,
+    lot: listing.lot || '',
+    type: listing.type || 'Single Family',
+    mlsId: listing.mlsId || '',
+    description: listing.description || '',
+    photo: photoUrl,
+    photos: listing.photos || (photoUrl ? [photoUrl] : []),
+    photoUrl: photoUrl,
+    listingKey: listing.listingKey || ''
+  };
+
   // Call edge function to generate posts
   fetch(SUPABASE_URL + '/functions/v1/social-post', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY },
-    body: JSON.stringify({
-      action: 'generate',
-      listing: {
-        address: listing.address || '',
-        city: listing.city || window._currentTownName || '',
-        price: listing.price || 0,
-        beds: listing.beds || 0,
-        baths: listing.baths || 0,
-        sqft: listing.sqft || 0,
-        lot: listing.lot || '',
-        type: listing.type || 'Single Family',
-        mlsId: listing.mlsId || '',
-        description: listing.description || '',
-        photoUrl: photoUrl,
-        listingKey: listing.listingKey || ''
-      }
-    })
+    body: JSON.stringify({ action: 'generate', listing: listingData })
   }).then(function(r){ return r.json(); }).then(function(data) {
     if (!data.ok || !data.posts) {
       content.innerHTML = '<div style="text-align:center;padding:2rem;color:#e57373">Error generating posts: ' + (data.error || 'Unknown error') + '</div>';
       return;
     }
     _socialPosts = data.posts;
-    var photoThumb = photoUrl ? '<img src="' + photoUrl + '" style="width:100%;max-height:200px;object-fit:cover;border-radius:8px;margin-bottom:1rem">' : '';
 
-    var html = photoThumb;
+    // Image generator section
+    var html = '<div style="margin-bottom:1.5rem">' +
+      '<div style="font-size:0.6rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold);margin-bottom:0.75rem">Social Image (drag to reposition photo)</div>' +
+      '<canvas id="socialCanvas" style="width:100%;border-radius:8px;cursor:grab;border:1px solid var(--border)"></canvas>' +
+      '<div style="display:flex;gap:0.5rem;margin-top:0.75rem" id="socialTemplates"></div>' +
+    '</div>';
+
+    // Divider
+    html += '<div style="border-top:1px solid var(--border);margin:1rem 0"></div>';
     // Platform tabs
     var platforms = [
       { id: 'facebook', label: 'Facebook', icon: 'f', color: '#1877F2', auto: true },
@@ -9780,6 +9789,35 @@ function openSocialShareModal() {
     });
 
     content.innerHTML = html;
+
+    // Initialize social image generator
+    if (typeof SocialImage !== 'undefined') {
+      var canvas = document.getElementById('socialCanvas');
+      if (canvas) {
+        SocialImage.init(canvas, listingData);
+        // Render template buttons
+        var templatesEl = document.getElementById('socialTemplates');
+        if (templatesEl) {
+          SocialImage.templates.forEach(function(t) {
+            var btn = document.createElement('button');
+            btn.textContent = SocialImage.templateLabels[t];
+            btn.style.cssText = 'flex:1;padding:0.5rem;border:1px solid var(--border);background:' + (t === 'dark-overlay' ? 'rgba(196,176,140,0.15)' : 'transparent') + ';color:' + (t === 'dark-overlay' ? 'var(--gold)' : 'var(--text-body)') + ';font-family:Outfit,sans-serif;font-size:0.7rem;border-radius:4px;cursor:pointer';
+            btn.onclick = function() {
+              SocialImage.setTemplate(t);
+              templatesEl.querySelectorAll('button').forEach(function(b) {
+                b.style.background = 'transparent';
+                b.style.color = 'var(--text-body)';
+                b.style.borderColor = 'var(--border)';
+              });
+              btn.style.background = 'rgba(196,176,140,0.15)';
+              btn.style.color = 'var(--gold)';
+              btn.style.borderColor = 'var(--gold)';
+            };
+            templatesEl.appendChild(btn);
+          });
+        }
+      }
+    }
   }).catch(function(err) {
     content.innerHTML = '<div style="text-align:center;padding:2rem;color:#e57373">Error: ' + err.message + '</div>';
   });
