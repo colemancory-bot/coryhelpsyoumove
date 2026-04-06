@@ -7,6 +7,7 @@
 // Schedule: Set up a cron via pg_cron or external scheduler every 15 minutes
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { computeAddressGroupKey, computeQualityScore } from "../_shared/dedup.ts";
 
 // ── Configuration ──────────────────────────────────────────────
 const MLS_GRID_API = "https://api.mlsgrid.com/v2";
@@ -223,7 +224,7 @@ async function syncProperties(
       }
 
       // Map RESO Data Dictionary fields
-      const listing = {
+      const listing: Record<string, any> = {
         listing_id: listingId,
         listing_key: listingKey,
         originating_system_name: ORIGINATING_SYSTEM_NAME,
@@ -305,6 +306,28 @@ async function syncProperties(
         raw_data: record,
         updated_at: new Date().toISOString(),
       };
+
+      // ── Dedup fields ────────────────────────────────────────
+      // See supabase/functions/_shared/dedup.ts. The trigger on mls_listings
+      // uses these to elect exactly one winner per physical address across
+      // CSAR and Canopy feeds. Only winners get R2 media storage.
+      const mediaCountForScore = Array.isArray(record.Media) ? record.Media.length : 0;
+      listing.address_group_key = computeAddressGroupKey(
+        record.StreetNumber || "",
+        record.StreetName || "",
+        record.StreetSuffix || "",
+        record.City || "",
+      );
+      listing.media_count = mediaCountForScore;
+      listing.quality_score = computeQualityScore({
+        mediaCount: mediaCountForScore,
+        livingArea: listing.living_area,
+        latitude: listing.latitude,
+        longitude: listing.longitude,
+        publicRemarks: listing.public_remarks,
+        yearBuilt: listing.year_built,
+        lotSizeAcres: listing.lot_size_acres,
+      });
 
       // ── Price History Tracking ──
       const currentPrice = record.ListPrice || null;
@@ -454,10 +477,10 @@ async function syncProperties(
         for (let i = 0; i < media.length; i++) {
           const m = media[i];
           const mediaUrl = m.MediaURL || "";
-          // Upload only primary photo (order 0/1) to R2 during sync;
-          // additional photos stored with CDN URL only — backfill-media cron handles R2 later
-          const isPrimary = (m.Order || i) <= 1;
-          const localUrl = isPrimary ? await uploadMediaToR2(mediaUrl, listingId, i) : "";
+          // R2 uploads are deferred to the `backfill-media` cron. Doing them
+          // inline adds ~1-2s per photo and was causing the edge function to
+          // time out before it could advance its sync cursor.
+          const localUrl = "";
           mediaRows.push({
             listing_key: listingKey,
             media_key: m.MediaKey || `${listingKey}-${i}`,
@@ -974,6 +997,86 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── Cleanup action: delete R2 photos for listings that lost winner status ──
+    // When a cross-MLS dedup flip happens, the former winner is enqueued to
+    // mls_media_cleanup_queue with a 24h grace period (to absorb transient
+    // sync glitches). This action processes entries that have aged past the
+    // grace period. Runs hourly via pg_cron.
+    if (action === "cleanup-orphan-media") {
+      const graceHours = typeof body.graceHours === "number" ? body.graceHours : 24;
+      const limit = typeof body.limit === "number" ? body.limit : 50;
+
+      // Fetch eligible queue rows (queued_at older than grace period).
+      const cutoff = new Date(Date.now() - graceHours * 3600 * 1000).toISOString();
+      const { data: queueRows, error: queueErr } = await supabase
+        .from("mls_media_cleanup_queue")
+        .select("listing_key, listing_id, reason, queued_at")
+        .lt("queued_at", cutoff)
+        .order("queued_at", { ascending: true })
+        .limit(limit);
+
+      if (queueErr) {
+        return new Response(JSON.stringify({ ok: false, error: queueErr.message }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+
+      let deleted = 0;
+      let skippedReclaimed = 0;
+      let errors = 0;
+
+      for (const row of (queueRows || [])) {
+        // Double-check that the listing didn't reclaim winner status within
+        // the grace window. If it did, drop the queue entry without touching
+        // R2 — its photos are still needed.
+        const { data: listingRow } = await supabase
+          .from("mls_listings")
+          .select("is_winner")
+          .eq("listing_key", row.listing_key)
+          .maybeSingle();
+
+        if (listingRow?.is_winner === true) {
+          await supabase
+            .from("mls_media_cleanup_queue")
+            .delete()
+            .eq("listing_key", row.listing_key);
+          skippedReclaimed++;
+          continue;
+        }
+
+        // Delete R2 objects under this listing's folder, then clear local_url
+        // on any mls_media rows so a future re-win triggers a fresh download.
+        try {
+          await deleteR2Folder(row.listing_id);
+          await supabase
+            .from("mls_media")
+            .update({ local_url: "" })
+            .eq("listing_key", row.listing_key)
+            .neq("local_url", "");
+          await supabase
+            .from("mls_media_cleanup_queue")
+            .delete()
+            .eq("listing_key", row.listing_key);
+          deleted++;
+        } catch (err) {
+          errors++;
+          console.error(`[Cleanup] Failed for ${row.listing_key}:`, err);
+        }
+      }
+
+      return new Response(JSON.stringify({
+        ok: true,
+        action: "cleanup-orphan-media",
+        deleted,
+        skippedReclaimed,
+        errors,
+        graceHours,
+      }), {
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      });
+    }
+
     // ── Backfill action: download existing Canopy photos to R2 ──
     // Pages through all active Canopy listings via MLS Grid API with $expand=Media,
     // downloads each photo to R2, and updates local_url in mls_media.
@@ -1012,6 +1115,21 @@ Deno.serve(async (req) => {
         const records = data.value || [];
         console.log(`[Backfill] Page: ${records.length} records`);
 
+        // Look up is_winner for every listing in this page in a single query.
+        // Rows that are losers in a cross-MLS dedup group get their photos
+        // skipped entirely — we never display them, so downloading to R2
+        // would be wasted storage. See migrations/20260406000001_winner_dedup.sql.
+        const pageKeys = records.map((r: any) => r.ListingKey || "").filter(Boolean);
+        const winnerSet = new Set<string>();
+        if (pageKeys.length > 0) {
+          const { data: winnerRows } = await supabase
+            .from("mls_listings")
+            .select("listing_key")
+            .in("listing_key", pageKeys)
+            .eq("is_winner", true);
+          for (const r of (winnerRows || [])) winnerSet.add(r.listing_key);
+        }
+
         for (const record of records) {
           if (totalProcessed >= maxRecords) break;
           const lk = record.ListingKey || "";
@@ -1024,6 +1142,12 @@ Deno.serve(async (req) => {
           if (!county || !WNC_COUNTIES.has(county)) continue;
           if ((record.PropertyType || "") === "Residential Lease") continue;
           if (record.MlgCanView === false) continue;
+
+          // Skip losers — Navica has a better copy and is displayed instead.
+          if (!winnerSet.has(lk)) {
+            totalProcessed++;
+            continue;
+          }
 
           const media = record.Media || [];
           if (media.length > 0) {
