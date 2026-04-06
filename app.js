@@ -9805,6 +9805,7 @@ function openSocialShareModal() {
         '<div id="socialPhotoCounter" style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.6);color:#fff;padding:4px 10px;border-radius:12px;font-size:0.7rem"></div>' +
       '</div>' +
       '<div style="display:flex;gap:0.5rem;margin-top:0.75rem" id="socialTemplates"></div>' +
+      '<button onclick="downloadSocialImage()" style="width:100%;margin-top:0.75rem;padding:0.7rem;background:var(--gold);color:var(--bg);border:none;border-radius:6px;font-family:Outfit,sans-serif;font-size:0.75rem;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;cursor:pointer">Download This Image</button>' +
     '</div>';
 
     // Divider
