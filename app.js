@@ -9069,10 +9069,40 @@ function _checkPropDeepLink(){
         if (window._listingRetryCount < 15) {
           setTimeout(function(){ _checkPropDeepLink(); }, 2000);
         } else {
+          // Last resort: fetch listing directly from Supabase
           window._listingRetryCount = 0;
-          var loadEl2 = document.getElementById('deepLinkLoading');
-          if (loadEl2) loadEl2.remove();
-          history.replaceState(null, '', window.location.pathname);
+          if (_sb && !window._deepLinkDirectFetched) {
+            window._deepLinkDirectFetched = true;
+            // Try matching by listing_id (MLS ID) or address slug
+            var q = _sb.from('mls_listings').select('listing_id,listing_key,list_price,full_address,city,property_type,bedrooms_total,bathrooms_total_integer,living_area,lot_size_acres,standard_status,public_remarks,list_agent_full_name,list_office_name,originating_system_name,restrictions,days_on_market').eq('mlg_can_view', true).limit(1);
+            // Check if it looks like an MLS ID or a slug
+            if (listingId.match(/^[A-Z]{2,4}\d+$/i)) {
+              q = q.eq('listing_id', listingId);
+            } else {
+              q = q.ilike('full_address', '%' + listingId.replace(/-/g, '%') + '%');
+            }
+            q.then(function(res) {
+              if (res.data && res.data.length > 0) {
+                var row = res.data[0];
+                var mapped = MLS_GRID.mapListing(row);
+                var loadEl3 = document.getElementById('deepLinkLoading');
+                if (loadEl3) loadEl3.remove();
+                openProp(mapped, mapped.city || '');
+              } else {
+                var loadEl3 = document.getElementById('deepLinkLoading');
+                if (loadEl3) loadEl3.remove();
+                history.replaceState(null, '', window.location.pathname);
+              }
+            }).catch(function() {
+              var loadEl3 = document.getElementById('deepLinkLoading');
+              if (loadEl3) loadEl3.remove();
+              history.replaceState(null, '', window.location.pathname);
+            });
+          } else {
+            var loadEl2 = document.getElementById('deepLinkLoading');
+            if (loadEl2) loadEl2.remove();
+            history.replaceState(null, '', window.location.pathname);
+          }
         }
       }
       return;
