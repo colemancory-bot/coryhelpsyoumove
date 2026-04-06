@@ -487,50 +487,124 @@ var SocialImage = (function() {
   function toDataURL() { return _canvas ? _canvas.toDataURL('image/jpeg', 0.92) : ''; }
 
   // ── Carousel: generate first slide (scroll-stopper) and last slide (CTA) ──
-  function generateCarouselSlides(listing, callback) {
-    // Returns array of data URLs: [scroll-stopper, ...raw photos..., CTA slide]
-    var slides = [];
+  function generateCTASlide() {
     var tempCanvas = document.createElement('canvas');
     tempCanvas.width = WIDTH;
     tempCanvas.height = HEIGHT;
-    var tempCtx = tempCanvas.getContext('2d');
+    var ctx = tempCanvas.getContext('2d');
 
-    // Slide 1: Use current canvas state (whatever template is selected)
-    slides.push(_canvas.toDataURL('image/jpeg', 0.92));
+    // Dark background
+    ctx.fillStyle = '#0C0B09';
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-    // Middle slides: raw property photos (no overlay)
-    // These will be added by the caller from the photos array
+    // Subtle gold border
+    ctx.strokeStyle = '#C4B08C';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(50, 50, WIDTH-100, HEIGHT-100);
 
+    // Inner decorative corners
+    var cLen = 40;
+    ctx.strokeStyle = '#C4B08C';
+    ctx.lineWidth = 3;
+    // Top-left
+    ctx.beginPath(); ctx.moveTo(70, 90); ctx.lineTo(70, 70); ctx.lineTo(90, 70); ctx.stroke();
+    // Top-right
+    ctx.beginPath(); ctx.moveTo(WIDTH-90, 70); ctx.lineTo(WIDTH-70, 70); ctx.lineTo(WIDTH-70, 90); ctx.stroke();
+    // Bottom-left
+    ctx.beginPath(); ctx.moveTo(70, HEIGHT-90); ctx.lineTo(70, HEIGHT-70); ctx.lineTo(90, HEIGHT-70); ctx.stroke();
+    // Bottom-right
+    ctx.beginPath(); ctx.moveTo(WIDTH-90, HEIGHT-70); ctx.lineTo(WIDTH-70, HEIGHT-70); ctx.lineTo(WIDTH-70, HEIGHT-90); ctx.stroke();
+
+    // Headshot - large centered
+    var centerX = WIDTH/2;
+    if (_headshotLoaded) {
+      var hsR = 85;
+      var hsY = 280;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(centerX, hsY, hsR, 0, Math.PI*2);
+      ctx.clip();
+      var hScale = (hsR*2) / Math.min(_headshot.width, _headshot.height);
+      ctx.drawImage(_headshot, centerX - _headshot.width*hScale/2, hsY - _headshot.height*hScale/2, _headshot.width*hScale, _headshot.height*hScale);
+      ctx.restore();
+      ctx.strokeStyle = '#C4B08C';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(centerX, hsY, hsR, 0, Math.PI*2);
+      ctx.stroke();
+    }
+
+    // "Interested?" heading
+    ctx.textAlign = 'center';
+    ctx.font = '300 52px Georgia, serif';
+    ctx.fillStyle = '#F5F0E8';
+    ctx.fillText('Interested in this property?', centerX, 440);
+
+    // Gold divider
+    ctx.strokeStyle = '#C4B08C';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(centerX - 100, 470); ctx.lineTo(centerX + 100, 470); ctx.stroke();
+
+    // "Let\'s talk" subheading
+    ctx.font = '400 28px Outfit, sans-serif';
+    ctx.fillStyle = '#C4B08C';
+    ctx.fillText("Let's talk about it.", centerX, 510);
+
+    // Name
+    ctx.font = '700 44px Outfit, sans-serif';
+    ctx.fillStyle = '#F5F0E8';
+    ctx.fillText('Cory Coleman', centerX, 600);
+
+    // Title
+    ctx.font = '400 24px Outfit, sans-serif';
+    ctx.fillStyle = '#C4B08C';
+    ctx.fillText('Broker  |  Keller Williams Great Smokies', centerX, 640);
+
+    // Divider
+    ctx.strokeStyle = '#C4B08C';
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.3;
+    ctx.beginPath(); ctx.moveTo(centerX - 200, 670); ctx.lineTo(centerX + 200, 670); ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Website
+    ctx.font = '500 32px Outfit, sans-serif';
+    ctx.fillStyle = '#F5F0E8';
+    ctx.fillText('coryhelpsyoumove.com', centerX, 720);
+
+    // Phone
+    ctx.font = '500 36px Outfit, sans-serif';
+    ctx.fillStyle = '#C4B08C';
+    ctx.fillText('(828) 506-6413', centerX, 775);
+
+    // Call or Text label
+    ctx.font = '300 20px Outfit, sans-serif';
+    ctx.fillStyle = 'rgba(245,240,232,0.5)';
+    ctx.fillText('Call or Text', centerX, 805);
+
+    // Equal Housing at bottom
+    ctx.font = '300 14px Outfit, sans-serif';
+    ctx.fillStyle = 'rgba(245,240,232,0.3)';
+    ctx.fillText('Equal Housing Opportunity', centerX, HEIGHT - 80);
+
+    return tempCanvas.toDataURL('image/jpeg', 0.92);
+  }
+
+  function generateCarouselSlides(callback) {
+    var slides = [];
+
+    // Slide 1: Current overlay template
+    try {
+      slides.push(_canvas.toDataURL('image/jpeg', 0.92));
+    } catch(e) {
+      // Canvas tainted, skip
+    }
+
+    // Middle slides: raw property photos (caller adds these)
     // Last slide: CTA
-    tempCtx.fillStyle = '#0C0B09';
-    tempCtx.fillRect(0, 0, WIDTH, HEIGHT);
+    var ctaSlide = generateCTASlide();
 
-    // Gold accent lines
-    tempCtx.strokeStyle = '#C4B08C';
-    tempCtx.lineWidth = 2;
-    tempCtx.strokeRect(60, 60, WIDTH-120, HEIGHT-120);
-
-    tempCtx.textAlign = 'center';
-    tempCtx.font = '300 42px Georgia, serif';
-    tempCtx.fillStyle = '#F5F0E8';
-    tempCtx.fillText('Interested in this property?', WIDTH/2, HEIGHT/2 - 80);
-
-    tempCtx.font = '400 28px Outfit, sans-serif';
-    tempCtx.fillStyle = '#C4B08C';
-    tempCtx.fillText('coryhelpsyoumove.com', WIDTH/2, HEIGHT/2 - 20);
-
-    tempCtx.font = '300 22px Outfit, sans-serif';
-    tempCtx.fillStyle = '#F5F0E8';
-    tempCtx.fillText('(828) 506-6413', WIDTH/2, HEIGHT/2 + 30);
-
-    tempCtx.font = '400 20px Outfit, sans-serif';
-    tempCtx.fillStyle = 'rgba(245,240,232,0.5)';
-    tempCtx.fillText('Cory Coleman, Broker', WIDTH/2, HEIGHT/2 + 90);
-    tempCtx.fillText('Keller Williams Great Smokies', WIDTH/2, HEIGHT/2 + 120);
-
-    var ctaSlide = tempCanvas.toDataURL('image/jpeg', 0.92);
-
-    callback(slides[0], ctaSlide);
+    callback(slides, ctaSlide, _photos);
   }
 
   return {

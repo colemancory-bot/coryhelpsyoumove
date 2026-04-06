@@ -9823,8 +9823,9 @@ function openSocialShareModal() {
       if (p.action === 'post') {
         btnHtml = '<button onclick="postToSocial(\'' + p.id + '\')" style="padding:0.4rem 0.85rem;background:var(--gold);color:var(--bg);border:none;border-radius:4px;font-family:Outfit,sans-serif;font-size:0.65rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer" id="socialBtn_' + p.id + '">Post Now</button>';
       } else if (p.action === 'download') {
-        btnHtml = '<div style="display:flex;gap:0.4rem">' +
-          '<button onclick="downloadSocialImage()" style="padding:0.4rem 0.65rem;background:var(--gold);color:var(--bg);border:none;border-radius:4px;font-family:Outfit,sans-serif;font-size:0.6rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer" id="socialBtn_' + p.id + '_dl">Download Image</button>' +
+        btnHtml = '<div style="display:flex;gap:0.4rem;flex-wrap:wrap">' +
+          '<button onclick="downloadCarousel()" style="padding:0.4rem 0.65rem;background:var(--gold);color:var(--bg);border:none;border-radius:4px;font-family:Outfit,sans-serif;font-size:0.6rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer" id="socialBtn_' + p.id + '_carousel">Download Carousel</button>' +
+          '<button onclick="downloadSocialImage()" style="padding:0.4rem 0.65rem;background:transparent;color:var(--gold);border:1px solid var(--gold);border-radius:4px;font-family:Outfit,sans-serif;font-size:0.6rem;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer" id="socialBtn_' + p.id + '_dl">Single Image</button>' +
           '<button onclick="copySocialPost(\'' + p.id + '\')" style="padding:0.4rem 0.65rem;background:transparent;color:var(--gold);border:1px solid var(--gold);border-radius:4px;font-family:Outfit,sans-serif;font-size:0.6rem;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer" id="socialBtn_' + p.id + '">Copy Caption</button>' +
         '</div>';
       } else {
@@ -9891,6 +9892,56 @@ function closeSocialShare() {
   var modal = document.getElementById('socialShareModal');
   if (overlay) overlay.style.display = 'none';
   if (modal) modal.style.display = 'none';
+}
+
+function downloadCarousel() {
+  if (typeof SocialImage === 'undefined') return;
+  var listing = window._currentListing || {};
+  var slug = ((listing.address||'listing').replace(/[^a-zA-Z0-9]/g, '-'));
+  var btn = document.getElementById('socialBtn_instagram_carousel');
+  if (btn) { btn.textContent = 'Preparing...'; btn.disabled = true; }
+
+  SocialImage.generateCarouselSlides(function(overlaySlides, ctaSlide, photos) {
+    var downloads = [];
+    var count = 0;
+
+    // Slide 1: Overlay image
+    if (overlaySlides.length > 0) {
+      downloads.push({ data: overlaySlides[0], name: slug + '-01-cover.jpg' });
+    }
+
+    // Middle slides: first 5 raw photos (skip the one used in overlay)
+    var photoSlides = photos.slice(1, 6);
+    photoSlides.forEach(function(url, i) {
+      downloads.push({ url: url, name: slug + '-0' + (i+2) + '-photo.jpg' });
+    });
+
+    // Last slide: CTA
+    downloads.push({ data: ctaSlide, name: slug + '-' + (photoSlides.length + 2) + '-cta.jpg' });
+
+    // Download each with a small delay to not overwhelm the browser
+    function downloadNext(idx) {
+      if (idx >= downloads.length) {
+        if (btn) { btn.textContent = 'Downloaded!'; setTimeout(function(){ btn.textContent = 'Download Carousel'; btn.disabled = false; }, 3000); }
+        return;
+      }
+      var item = downloads[idx];
+      var a = document.createElement('a');
+      a.download = item.name;
+      if (item.data) {
+        a.href = item.data;
+        a.click();
+        setTimeout(function(){ downloadNext(idx + 1); }, 500);
+      } else if (item.url) {
+        // For photo URLs, just download directly
+        a.href = item.url;
+        a.target = '_blank';
+        a.click();
+        setTimeout(function(){ downloadNext(idx + 1); }, 500);
+      }
+    }
+    downloadNext(0);
+  });
 }
 
 function downloadSocialImage() {
