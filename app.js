@@ -1129,7 +1129,10 @@ var MLS_GRID = {
         var mediaMap = {};
         mediaRows.forEach(function(m) {
           if(!mediaMap[m.listing_key] || m.order === 0) {
-            mediaMap[m.listing_key] = m.local_url || '';
+            // Prefer R2 local_url; fall back to non-MLS Grid media_url (CSAR CDN etc)
+            var url = m.local_url || '';
+            if (!url && m.media_url && m.media_url.indexOf('mlsgrid.com') === -1) url = m.media_url;
+            mediaMap[m.listing_key] = url;
           }
         });
         _log('[MLS Grid] Primary photos loaded: ' + mediaRows.length + ' rows, ' + Object.keys(mediaMap).length + ' unique listings');
