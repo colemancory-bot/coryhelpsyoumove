@@ -9045,18 +9045,21 @@ function _checkPropDeepLink(){
         return; // Don't process query params if hash link found
       }
     }
-    // Query param deep link: ?listing=CAR4363291 (MLS ID)
+    // Query param deep link: ?listing=CAR4363291 or ?listing=14-winter-woods-drive-asheville-nc
     var params = new URLSearchParams(window.location.search);
     var listingId = params.get('listing');
+    if (window._deepLinkHandled) return;
     if (listingId) {
+      // First: check if already in memory (instant)
       var match = _findListingById(listingId);
       if (match) {
-        window._listingRetryCount = 0;
+        window._deepLinkHandled = true;
         var loadEl = document.getElementById('deepLinkLoading');
         if (loadEl) loadEl.remove();
-        setTimeout(function(){ openProp(match, match.city || ''); }, 300);
-      } else {
-        // Show loading overlay while waiting for data
+        setTimeout(function(){ openProp(match, match.city || ''); }, 100);
+      } else if (_sb && !window._deepLinkDirectFetched) {
+        // Fetch directly from Supabase immediately (single row, fast)
+        window._deepLinkDirectFetched = true;
         if (!document.getElementById('deepLinkLoading')) {
           var loadDiv = document.createElement('div');
           loadDiv.id = 'deepLinkLoading';
@@ -9064,46 +9067,45 @@ function _checkPropDeepLink(){
           loadDiv.innerHTML = '<div style="width:40px;height:40px;border:3px solid var(--gold);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite"></div><div style="color:var(--cream);font-family:Outfit,sans-serif;font-size:0.9rem">Loading property details...</div><style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
           document.body.appendChild(loadDiv);
         }
-        if (!window._listingRetryCount) window._listingRetryCount = 0;
-        window._listingRetryCount++;
-        if (window._listingRetryCount < 15) {
-          setTimeout(function(){ _checkPropDeepLink(); }, 2000);
+        var q = _sb.from('mls_listings').select('listing_id,listing_key,list_price,full_address,city,property_type,property_sub_type,bedrooms_total,bathrooms_total_integer,living_area,living_area_range,lot_size_acres,lot_size_square_feet,standard_status,public_remarks,list_agent_full_name,list_office_name,list_office_phone,attribution_contact,originating_system_name,restrictions,days_on_market,latitude,longitude').eq('mlg_can_view', true).limit(1);
+        if (listingId.match(/^[A-Z]{2,4}\d+$/i)) {
+          q = q.eq('listing_id', listingId);
         } else {
-          // Last resort: fetch listing directly from Supabase
-          window._listingRetryCount = 0;
-          if (_sb && !window._deepLinkDirectFetched) {
-            window._deepLinkDirectFetched = true;
-            // Try matching by listing_id (MLS ID) or address slug
-            var q = _sb.from('mls_listings').select('listing_id,listing_key,list_price,full_address,city,property_type,bedrooms_total,bathrooms_total_integer,living_area,lot_size_acres,standard_status,public_remarks,list_agent_full_name,list_office_name,originating_system_name,restrictions,days_on_market').eq('mlg_can_view', true).limit(1);
-            // Check if it looks like an MLS ID or a slug
-            if (listingId.match(/^[A-Z]{2,4}\d+$/i)) {
-              q = q.eq('listing_id', listingId);
-            } else {
-              q = q.ilike('full_address', '%' + listingId.replace(/-/g, '%') + '%');
-            }
-            q.then(function(res) {
-              if (res.data && res.data.length > 0) {
-                var row = res.data[0];
-                var mapped = MLS_GRID.mapListing(row);
-                var loadEl3 = document.getElementById('deepLinkLoading');
-                if (loadEl3) loadEl3.remove();
-                openProp(mapped, mapped.city || '');
-              } else {
-                var loadEl3 = document.getElementById('deepLinkLoading');
-                if (loadEl3) loadEl3.remove();
-                history.replaceState(null, '', window.location.pathname);
-              }
-            }).catch(function() {
-              var loadEl3 = document.getElementById('deepLinkLoading');
-              if (loadEl3) loadEl3.remove();
-              history.replaceState(null, '', window.location.pathname);
-            });
-          } else {
-            var loadEl2 = document.getElementById('deepLinkLoading');
-            if (loadEl2) loadEl2.remove();
-            history.replaceState(null, '', window.location.pathname);
+          // Address slug: convert dashes back to search pattern
+          var words = listingId.replace(/-nc$/, '').split('-').filter(function(w){ return w.length > 1; });
+          if (words.length >= 2) {
+            q = q.ilike('full_address', '%' + words.slice(0, -1).join('%') + '%');
+            q = q.ilike('city', '%' + words[words.length - 1] + '%');
           }
         }
+        q.then(function(res) {
+          if (res.data && res.data.length > 0 && !window._deepLinkHandled) {
+            window._deepLinkHandled = true;
+            var mapped = MLS_GRID.mapListing(res.data[0]);
+            // Also fetch primary photo
+            _sb.from('mls_media').select('local_url').eq('listing_key', mapped.listingKey).eq('order', 0).limit(1).then(function(mr) {
+              if (mr.data && mr.data.length > 0 && mr.data[0].local_url) {
+                mapped.photo = mr.data[0].local_url;
+                mapped.photos = [mr.data[0].local_url];
+              }
+              var loadEl2 = document.getElementById('deepLinkLoading');
+              if (loadEl2) loadEl2.remove();
+              openProp(mapped, mapped.city || '');
+            }).catch(function() {
+              var loadEl2 = document.getElementById('deepLinkLoading');
+              if (loadEl2) loadEl2.remove();
+              openProp(mapped, mapped.city || '');
+            });
+          } else {
+            // Not found, keep retrying in case full data loads
+            setTimeout(function(){ _checkPropDeepLink(); }, 2000);
+          }
+        }).catch(function() {
+          setTimeout(function(){ _checkPropDeepLink(); }, 2000);
+        });
+      } else {
+        // Supabase not ready, retry
+        setTimeout(function(){ _checkPropDeepLink(); }, 1000);
       }
       return;
     }
