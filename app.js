@@ -9894,6 +9894,26 @@ function closeSocialShare() {
   if (modal) modal.style.display = 'none';
 }
 
+function _dataUrlToBlob(dataUrl) {
+  var parts = dataUrl.split(',');
+  var mime = parts[0].match(/:(.*?);/)[1];
+  var raw = atob(parts[1]);
+  var arr = new Uint8Array(raw.length);
+  for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return new Blob([arr], {type: mime});
+}
+
+function _downloadBlob(blob, filename) {
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+}
+
 function downloadCarousel() {
   if (typeof SocialImage === 'undefined') return;
   var listing = window._currentListing || {};
@@ -9901,46 +9921,63 @@ function downloadCarousel() {
   var btn = document.getElementById('socialBtn_instagram_carousel');
   if (btn) { btn.textContent = 'Preparing...'; btn.disabled = true; }
 
+  // Convert R2 public URLs to worker URLs for fetching
+  var WORKER_URL = 'https://r2-upload.coryhelpsyoumove.workers.dev';
+  var R2_PUBLIC = 'https://pub-bfc65eba3b4f4bec8ca241aab44da702.r2.dev';
+
   SocialImage.generateCarouselSlides(function(overlaySlides, ctaSlide, photos) {
     var downloads = [];
-    var count = 0;
 
-    // Slide 1: Overlay image
+    // Slide 1: Overlay image (data URL)
     if (overlaySlides.length > 0) {
       downloads.push({ data: overlaySlides[0], name: slug + '-01-cover.jpg' });
     }
 
-    // Middle slides: first 5 raw photos (skip the one used in overlay)
+    // Middle slides: first 5 raw photos
     var photoSlides = photos.slice(1, 6);
     photoSlides.forEach(function(url, i) {
-      downloads.push({ url: url, name: slug + '-0' + (i+2) + '-photo.jpg' });
+      // Convert to worker URL for CORS fetch
+      var fetchUrl = url;
+      if (fetchUrl && fetchUrl.indexOf(R2_PUBLIC) === 0) {
+        fetchUrl = WORKER_URL + fetchUrl.substring(R2_PUBLIC.length);
+      }
+      downloads.push({ fetchUrl: fetchUrl, name: slug + '-0' + (i+2) + '-photo.jpg' });
     });
 
-    // Last slide: CTA
-    downloads.push({ data: ctaSlide, name: slug + '-' + (photoSlides.length + 2) + '-cta.jpg' });
+    // Last slide: CTA (data URL)
+    downloads.push({ data: ctaSlide, name: slug + '-' + String(photoSlides.length + 2).padStart(2,'0') + '-cta.jpg' });
 
-    // Download each with a small delay to not overwhelm the browser
-    function downloadNext(idx) {
+    // Download each sequentially
+    var idx = 0;
+    function downloadNext() {
       if (idx >= downloads.length) {
-        if (btn) { btn.textContent = 'Downloaded!'; setTimeout(function(){ btn.textContent = 'Download Carousel'; btn.disabled = false; }, 3000); }
+        if (btn) { btn.textContent = 'Downloaded ' + downloads.length + ' images!'; setTimeout(function(){ btn.textContent = 'Download Carousel'; btn.disabled = false; }, 4000); }
         return;
       }
       var item = downloads[idx];
-      var a = document.createElement('a');
-      a.download = item.name;
+      if (btn) btn.textContent = 'Downloading ' + (idx+1) + '/' + downloads.length + '...';
+      idx++;
+
       if (item.data) {
-        a.href = item.data;
-        a.click();
-        setTimeout(function(){ downloadNext(idx + 1); }, 500);
-      } else if (item.url) {
-        // For photo URLs, just download directly
-        a.href = item.url;
-        a.target = '_blank';
-        a.click();
-        setTimeout(function(){ downloadNext(idx + 1); }, 500);
+        // Data URL: convert to blob and download
+        var blob = _dataUrlToBlob(item.data);
+        _downloadBlob(blob, item.name);
+        setTimeout(downloadNext, 800);
+      } else if (item.fetchUrl) {
+        // Remote URL: fetch as blob then download
+        fetch(item.fetchUrl)
+          .then(function(r) { return r.blob(); })
+          .then(function(blob) {
+            _downloadBlob(blob, item.name);
+            setTimeout(downloadNext, 800);
+          })
+          .catch(function() {
+            // Skip failed downloads
+            setTimeout(downloadNext, 200);
+          });
       }
     }
-    downloadNext(0);
+    downloadNext();
   });
 }
 
