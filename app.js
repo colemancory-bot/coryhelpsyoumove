@@ -6041,13 +6041,6 @@ try { _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
         '</div></div>';
       grid.appendChild(card);
     });
-    // Update stat counter
-    _sb.from('reviews').select('id',{count:'exact',head:true}).eq('rating',5).eq('is_published',true).then(function(res){
-      var statEl = document.getElementById('reviewStatNum');
-      if(statEl && res.count != null){
-        statEl.textContent = res.count + ' ★';
-      }
-    });
   }
 
   // Defer query until testimonials section is near viewport
