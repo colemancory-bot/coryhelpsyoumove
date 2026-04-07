@@ -14,6 +14,7 @@
 //   R2_WORKER_URL, R2_WORKER_SECRET, R2_PUBLIC_URL — Cloudflare R2 via Worker proxy
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { computeAddressGroupKey, computeQualityScore } from "../_shared/dedup.ts";
 
 // ── Configuration ──────────────────────────────────────────────
 const NAVICA_DATASET_ID = Deno.env.get("NAVICA_DATASET_ID") || "nav27";
@@ -375,6 +376,29 @@ async function syncProperties(
         updated_at: new Date().toISOString(),
       };
 
+      // ── Dedup fields ────────────────────────────────────────
+      // Cross-MLS winner selection: compute group key + quality score +
+      // media count so the mls_listings trigger can pick exactly one winner
+      // per physical address. Backfill-media and client app.js both read
+      // `is_winner` to avoid wasting R2 storage on loser rows.
+      const mediaCountForScore = Array.isArray(record.Media) ? record.Media.length : 0;
+      listing.address_group_key = computeAddressGroupKey(
+        record.StreetNumber || "",
+        record.StreetName || "",
+        record.StreetSuffix || "",
+        record.City || "",
+      );
+      listing.media_count = mediaCountForScore;
+      listing.quality_score = computeQualityScore({
+        mediaCount: mediaCountForScore,
+        livingArea: listing.living_area,
+        latitude: listing.latitude,
+        longitude: listing.longitude,
+        publicRemarks: listing.public_remarks,
+        yearBuilt: listing.year_built,
+        lotSizeAcres: listing.lot_size_acres,
+      });
+
       // ── Price History Tracking ──────────────────────────────
       // Read existing record BEFORE upsert to detect changes
       const currentPrice = record.ListPrice || null;
@@ -532,10 +556,11 @@ async function syncProperties(
         for (let i = 0; i < media.length; i++) {
           const m = media[i];
           const mediaUrl = m.MediaURL || "";
-          // Upload only primary photo (order 0/1) to R2 during sync;
-          // additional photos stored with CDN URL only — backfill-media cron handles R2 later
-          const isPrimary = (m.Order || i) <= 1;
-          const localUrl = isPrimary ? await uploadMediaToR2(mediaUrl, listingId, i) : "";
+          // R2 upload removed from the sync hot path — it was adding ~1-2s per photo
+          // and pushing per-record sync time to ~3.8s, which timed out the edge function
+          // before the cursor could advance. The backfill-media cron handles R2 migration
+          // asynchronously for all listings that still have an empty local_url.
+          const localUrl = "";
           mediaRows.push({
             listing_key: listingKey,
             media_key: m.MediaKey || `${listingKey}-${i}`,

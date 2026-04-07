@@ -914,6 +914,7 @@ var MLS_GRID = {
       listOfficePhone: row.list_office_phone || '',
       attributionContact: row.attribution_contact || '',
       originatingSystem: row.originating_system_name || '',
+      addressGroupKey: row.address_group_key || '',
       _src: 'mlsgrid'
     };
   },
@@ -925,144 +926,41 @@ var MLS_GRID = {
     if(s === 'carolina' || s.indexOf('canopy') > -1) return 'Canopy MLS';
     return sys;
   },
-  // USPS standard suffix abbreviations → canonical form for address matching
-  _suffixMap: {
-    'rd':'road','dr':'drive','st':'street','ave':'avenue','blvd':'boulevard',
-    'ct':'court','ln':'lane','cir':'circle','pl':'place','trl':'trail',
-    'pkwy':'parkway','hwy':'highway','rdg':'ridge','xing':'crossing',
-    'ter':'terrace','terr':'terrace','pt':'point','crk':'creek','hl':'hill',
-    'hls':'hills','holw':'hollow','lk':'lake','brg':'bridge','brk':'brook',
-    'est':'estates','gln':'glen','grv':'grove','knl':'knoll','lndg':'landing',
-    'mdw':'meadow','mdws':'meadows','ml':'mill','mls':'mills','mt':'mount',
-    'mtn':'mountain','psge':'passage','rnch':'ranch','spg':'spring',
-    'spgs':'springs','vly':'valley','vw':'view','vis':'vista','run':'run',
-    'frk':'fork','frks':'forks','pass':'pass','cv':'cove','bnd':'bend',
-    'n':'north','s':'south','e':'east','w':'west',
-    'ne':'northeast','nw':'northwest','se':'southeast','sw':'southwest'
-  },
-  // Data quality score for dedup ranking: higher = more complete listing data
-  _qualityScore: function(l) {
-    var score = 0;
-    if(l.photo) score += 100;
-    if(l.sqft && l.sqft > 0) score += 10;
-    if(l.lat && l.lng) score += 15;
-    var descLen = (l.description || '').length;
-    if(descLen > 200) score += 20;
-    else if(descLen > 50) score += 10;
-    else if(descLen > 0) score += 3;
-    if(l.yearBuilt) score += 5;
-    if(l.lot && l.lot !== '0.00 ac') score += 5;
-    return score;
-  },
-  // Normalize address for dedup: expand abbreviations, strip punctuation
-  _normalizeAddress: function(addr) {
-    if(!addr) return '';
-    var parts = addr.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/);
-    var map = this._suffixMap;
-    return parts.map(function(w){ return map[w] || w; }).join('');
-  },
-  // Merge duplicate listings that appear in both CSAR and Canopy MLS.
-  // Match by normalized address+city. The merged listing keeps the data from
-  // the version with the most complete info (photo, description, etc.) and
-  // stores an mlsSources array crediting each MLS feed.
-  // Same-system duplicates (e.g. 3 CSAR listings for one property) are
-  // collapsed to the newest MLS# only — the older ones are stale relists.
-  _deduplicateListings: function(listings) {
-    var self = this;
-    var groups = {};
-    var keyByIdx = {}; // track which key each listing got, for lat/lng fallback
-    listings.forEach(function(l, idx) {
-      // Normalize: expand suffix abbreviations, strip punctuation, combine address+city
-      // If address is empty/missing, use mlsId as key so it never groups with others
-      var addr = (l.address || '').trim();
-      var key = addr ? (self._normalizeAddress(addr) + '|' + (l.city||'').toLowerCase().replace(/[^a-z0-9]/g, '')) : ('_mls_' + l.mlsId);
-      if(!groups[key]) groups[key] = [];
-      groups[key].push(l);
-      keyByIdx[idx] = key;
+  // Attach mlsSources to each winner listing so the detail UI can display
+  // every MLS that carries this property. Winners come from the is_winner=true
+  // query; sibling loser rows come from a parallel small-projection query.
+  //
+  // Replaces the old client-side _deduplicateListings. The server-side trigger
+  // on mls_listings now elects exactly one winner per address_group_key (see
+  // migrations/20260406000001_winner_dedup.sql), so the client no longer
+  // groups by normalized address, runs geo-merge, or computes quality scores.
+  _attachMlsSources: function(winners, siblingRows) {
+    var siblingsByGroup = {};
+    (siblingRows || []).forEach(function(s) {
+      var key = s.address_group_key;
+      if(!key) return;
+      if(!siblingsByGroup[key]) siblingsByGroup[key] = [];
+      siblingsByGroup[key].push(s);
     });
-
-    // Secondary pass: merge groups whose listings are within ~50m of each other (same property, different address text)
-    var groupKeys = Object.keys(groups);
-    for(var i = 0; i < groupKeys.length; i++) {
-      var gA = groups[groupKeys[i]];
-      if(!gA) continue; // already merged away
-      var aRep = gA[0];
-      if(!aRep.lat || !aRep.lng) continue;
-      for(var j = i + 1; j < groupKeys.length; j++) {
-        var gB = groups[groupKeys[j]];
-        if(!gB) continue;
-        var bRep = gB[0];
-        if(!bRep.lat || !bRep.lng) continue;
-        // Quick distance check: ~0.0005 degrees ≈ 50m at these latitudes
-        if(Math.abs(aRep.lat - bRep.lat) < 0.0005 && Math.abs(aRep.lng - bRep.lng) < 0.0005) {
-          // Merge group B into group A
-          gB.forEach(function(l){ gA.push(l); });
-          delete groups[groupKeys[j]];
-        }
-      }
-    }
-    var merged = [];
-    Object.keys(groups).forEach(function(key) {
-      var group = groups[key];
-      if(group.length === 1) {
-        // Single source — wrap in mlsSources for consistent downstream access
-        var single = group[0];
-        single.mlsSources = [{ system: MLS_GRID._mlsLabel(single.originatingSystem), mlsId: single.mlsId, attributionContact: single.attributionContact }];
-        merged.push(single);
-      } else {
-        // Multiple listings for same address — deduplicate by MLS system.
-        // Within each system, keep only the newest listing (highest MLS#).
-        var bySystem = {};
-        group.forEach(function(l) {
-          var sys = MLS_GRID._mlsLabel(l.originatingSystem);
-          if(!bySystem[sys]) bySystem[sys] = [];
-          bySystem[sys].push(l);
-        });
-        // For each system, sort by MLS ID descending and keep only the newest
-        var bestPerSystem = [];
-        Object.keys(bySystem).forEach(function(sys) {
-          var sysGroup = bySystem[sys];
-          sysGroup.sort(function(a, b) {
-            // Higher MLS ID = newer listing
-            var aId = parseInt(a.mlsId) || 0;
-            var bId = parseInt(b.mlsId) || 0;
-            if(bId !== aId) return bId - aId;
-            // Tiebreak: prefer one with better data quality
-            var aScore = MLS_GRID._qualityScore(a);
-            var bScore = MLS_GRID._qualityScore(b);
-            return bScore - aScore;
+    winners.forEach(function(l) {
+      var sources = [{
+        system: MLS_GRID._mlsLabel(l.originatingSystem),
+        mlsId: l.mlsId,
+        attributionContact: l.attributionContact
+      }];
+      var sibs = l.addressGroupKey ? siblingsByGroup[l.addressGroupKey] : null;
+      if(sibs) {
+        sibs.forEach(function(s) {
+          sources.push({
+            system: MLS_GRID._mlsLabel(s.originating_system_name),
+            mlsId: s.listing_id,
+            attributionContact: s.attribution_contact || ''
           });
-          bestPerSystem.push(sysGroup[0]); // newest from this system
         });
-        // Now pick the best across systems as primary (winner-takes-all)
-        bestPerSystem.sort(function(a, b) {
-          var aScore = MLS_GRID._qualityScore(a);
-          var bScore = MLS_GRID._qualityScore(b);
-          return bScore - aScore;
-        });
-        var primary = bestPerSystem[0];
-        // Build mlsSources array: winner first, then alternates
-        primary.mlsSources = bestPerSystem.map(function(l) {
-          return { system: MLS_GRID._mlsLabel(l.originatingSystem), mlsId: l.mlsId, attributionContact: l.attributionContact };
-        });
-        // Winner-takes-all with gap-fill: primary source controls all data,
-        // but if a field is completely missing (null/0/empty), fill from secondary.
-        if(bestPerSystem.length > 1) {
-          for(var si = 1; si < bestPerSystem.length; si++) {
-            var sec = bestPerSystem[si];
-            if(!primary.sqft && sec.sqft) primary.sqft = sec.sqft;
-            if(!primary.sqftRange && sec.sqftRange) primary.sqftRange = sec.sqftRange;
-            if((!primary.lot || primary.lot === '0.00 ac') && sec.lot && sec.lot !== '0.00 ac') primary.lot = sec.lot;
-            if(!primary.yearBuilt && sec.yearBuilt) primary.yearBuilt = sec.yearBuilt;
-            if(!primary.description && sec.description) primary.description = sec.description;
-            if(!primary.lat && sec.lat) { primary.lat = sec.lat; primary.lng = sec.lng; }
-            if(!primary.photo && sec.photo) { primary.photo = sec.photo; primary.photos = sec.photos; }
-          }
-        }
-        merged.push(primary);
       }
+      l.mlsSources = sources;
     });
-    return merged;
+    return winners;
   },
   // Paginated fetch helper — Supabase caps at 1000 rows per request
   _fetchAll: function(table, selectCols, filters, orderCol) {
@@ -1097,23 +995,34 @@ var MLS_GRID = {
     }
     _log('[MLS Grid] Loading listings from Supabase...');
 
-    // Fetch all listings (paginated) and all primary photos (paginated) in parallel
+    // Fetch listings (paginated) and all primary photos (paginated) in parallel.
+    // Dedup is server-side now — we only load rows where is_winner=true.
+    // A parallel sibling query picks up loser rows so we can still show the
+    // mlsSources attribution block for listings that appear in both MLSes.
     var listingsPromise = MLS_GRID._fetchAll('mls_listings',
-      'listing_id,listing_key,list_price,full_address,city,property_type,property_sub_type,' +
+      'listing_id,listing_key,address_group_key,list_price,full_address,city,property_type,property_sub_type,' +
       'bedrooms_total,bathrooms_total_integer,living_area,living_area_range,lot_size_acres,lot_size_square_feet,' +
       'standard_status,association_fee,latitude,longitude,year_built,days_on_market,' +
       'public_remarks,list_agent_full_name,list_office_name,list_office_phone,attribution_contact,originating_system_name,restrictions,list_date', [
       { method: 'eq', args: ['mlg_can_view', true] },
+      { method: 'eq', args: ['is_winner', true] },
       { method: 'in', args: ['standard_status', ['Active','Active Under Contract','Pending']] },
       { method: 'neq', args: ['property_type', 'Residential Lease'] }
     ], 'listing_key');
     var mediaPromise = MLS_GRID._fetchAll('mls_media', 'listing_key, local_url, media_url, "order"', [
       { method: 'in', args: ['"order"', [0, 1]] }
     ], 'listing_key');
+    // Loser rows — tiny projection for mlsSources attribution only.
+    var siblingsPromise = MLS_GRID._fetchAll('mls_listings',
+      'listing_key,address_group_key,listing_id,originating_system_name,attribution_contact', [
+      { method: 'eq', args: ['mlg_can_view', true] },
+      { method: 'eq', args: ['is_winner', false] }
+    ], 'listing_key');
 
-    return Promise.all([listingsPromise, mediaPromise]).then(function(results) {
+    return Promise.all([listingsPromise, mediaPromise, siblingsPromise]).then(function(results) {
         var listingRows = results[0];
         var mediaRows = results[1];
+        var siblingRows = results[2];
 
         if(!listingRows || !listingRows.length) {
           _warn('[MLS Grid] No listings found');
@@ -1146,15 +1055,13 @@ var MLS_GRID = {
         });
         _log('[MLS Grid] Photo assignment: ' + withPhoto + ' with photo, ' + noPhoto + ' without');
 
-        // ── Multi-MLS deduplication ─────────────────────────────
-        // Both CSAR (Navica) and Canopy MLS (MLS Grid) write to the same table.
-        // If the same property appears in both feeds, merge into a single listing
-        // with mlsSources array crediting both MLSs and both MLS numbers.
-        var preDedupCount = mapped.length;
-        mapped = MLS_GRID._deduplicateListings(mapped);
-        if(preDedupCount !== mapped.length) {
-          _log('[MLS Grid] Deduplicated: ' + preDedupCount + ' → ' + mapped.length + ' listings (' + (preDedupCount - mapped.length) + ' duplicates merged)');
-        }
+        // ── Cross-MLS mlsSources attribution ────────────────────
+        // Winner selection is done server-side (is_winner flag on mls_listings).
+        // We only need to build the mlsSources array so the listing detail UI
+        // can display every MLS that carries this property plus their
+        // respective MLS numbers and attribution contacts. Loser rows come
+        // from siblingsPromise (tiny projection).
+        mapped = MLS_GRID._attachMlsSources(mapped, siblingRows);
 
         // Populate TOWN_LISTINGS
         var newTowns = {};
@@ -6205,13 +6112,6 @@ try { _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
         '<div class="test-stars">' + stars5 + '</div>' +
         '</div></div>';
       grid.appendChild(card);
-    });
-    // Update stat counter
-    _sb.from('reviews').select('id',{count:'exact',head:true}).eq('rating',5).eq('is_published',true).then(function(res){
-      var statEl = document.getElementById('reviewStatNum');
-      if(statEl && res.count != null){
-        statEl.textContent = res.count + ' ★';
-      }
     });
   }
 
