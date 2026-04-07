@@ -354,7 +354,7 @@ if(_isTownPage){
   html += '<div class="search-overlay" id="searchOverlay">' +
     '<div class="sr-topbar"><div class="sr-topbar-left"><button class="sr-back" onclick="closeSearch()"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button><div><div class="sr-title">Properties in <em id="srRegion">Western NC</em></div><div class="sr-count" id="srCount">0 listings</div></div></div><div class="sr-topbar-right"><button class="theme-toggle" onclick="toggleTheme()" style="width:36px;height:36px;font-size:0.85rem" aria-label="Toggle theme"><span class="prop-toggle-sun" style="display:none">☀</span><span class="prop-toggle-moon">☽</span></button></div></div>' +
     '<div class="sr-filters" id="srFilters">' +
-      '<div class="sr-filter-chip sr-multi-chip" id="srfLocation" onclick="toggleLocDropdown(event)"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span class="sr-multi-label" id="srfLocLabel">All Areas</span><svg class="sr-multi-arrow" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg><div class="sr-multi-dropdown" id="srfLocDropdown" onclick="event.stopPropagation()"><label class="sr-multi-option"><input type="checkbox" value="Waynesville" onchange="srLocChanged()"><span>Waynesville</span></label><label class="sr-multi-option"><input type="checkbox" value="Sylva" onchange="srLocChanged()"><span>Sylva</span></label><label class="sr-multi-option"><input type="checkbox" value="Maggie Valley" onchange="srLocChanged()"><span>Maggie Valley</span></label><label class="sr-multi-option"><input type="checkbox" value="Bryson City" onchange="srLocChanged()"><span>Bryson City</span></label><label class="sr-multi-option"><input type="checkbox" value="Cashiers" onchange="srLocChanged()"><span>Cashiers / Highlands</span></label><label class="sr-multi-option"><input type="checkbox" value="Franklin" onchange="srLocChanged()"><span>Franklin</span></label><label class="sr-multi-option"><input type="checkbox" value="Dillsboro" onchange="srLocChanged()"><span>Dillsboro</span></label><label class="sr-multi-option"><input type="checkbox" value="Cullowhee" onchange="srLocChanged()"><span>Cullowhee</span></label></div></div>' +
+      '<div class="sr-filter-chip sr-multi-chip" id="srfLocation" onclick="toggleLocDropdown(event)"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span class="sr-multi-label" id="srfLocLabel">All Areas</span><svg class="sr-multi-arrow" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg><div class="sr-multi-dropdown" id="srfLocDropdown" onclick="event.stopPropagation()"><label class="sr-multi-option"><input type="checkbox" value="Waynesville" onchange="srLocChanged()"><span>Waynesville</span></label><label class="sr-multi-option"><input type="checkbox" value="Sylva" onchange="srLocChanged()"><span>Sylva</span></label><label class="sr-multi-option"><input type="checkbox" value="Maggie Valley" onchange="srLocChanged()"><span>Maggie Valley</span></label><label class="sr-multi-option"><input type="checkbox" value="Bryson City" onchange="srLocChanged()"><span>Bryson City</span></label><label class="sr-multi-option"><input type="checkbox" value="Cashiers" onchange="srLocChanged()"><span>Cashiers / Highlands</span></label><label class="sr-multi-option"><input type="checkbox" value="Franklin" onchange="srLocChanged()"><span>Franklin</span></label><label class="sr-multi-option"><input type="checkbox" value="Dillsboro" onchange="srLocChanged()"><span>Dillsboro</span></label><label class="sr-multi-option"><input type="checkbox" value="Cullowhee" onchange="srLocChanged()"><span>Cullowhee</span></label><label class="sr-multi-option"><input type="checkbox" value="Asheville" onchange="srLocChanged()"><span>Asheville / Buncombe</span></label></div></div>' +
       '<div class="sr-filter-chip" id="srfType"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg><select id="srfTypeSelect" onchange="srApplyFilters()"><option value="">All Types</option><option value="Single Family">Single Family</option><option value="Cabin">Cabin</option><option value="Multi-Family">Multi-Family</option><option value="Land">Land</option></select></div>' +
       '<div class="sr-filter-chip" id="srfPrice"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg><select id="srfPriceSelect" onchange="srApplyFilters()"><option value="">Any Price</option><option value="0-200000">Under $200K</option><option value="200000-400000">$200K – $400K</option><option value="400000-700000">$400K – $700K</option><option value="700000-1000000">$700K – $1M</option><option value="1000000-99999999">$1M+</option></select></div>' +
       '<div class="sr-filter-chip" id="srfBeds"><select id="srfBedsSelect" onchange="srApplyFilters()"><option value="">Any Beds</option><option value="2">2+ Beds</option><option value="3">3+ Beds</option><option value="4">4+ Beds</option><option value="5">5+ Beds</option></select></div>' +
@@ -750,9 +750,9 @@ var SIMPLYRETS = {
         LISTINGS.slice(0,6).forEach(function(l,i){
           var c=document.createElement('div');c.className='f-card reveal vis';
           var feats=_cardFeats(l);
-          var imgSrc = l.photo || 'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=700&q=80';
           var hpStatus=l.status==='Under Contract'?'<div class="card-status-tag">Under Contract</div>':'';
-          c.innerHTML='<div class="f-card-img"><img src="'+imgSrc+'" alt="'+l.address+'" loading="lazy"><div class="f-card-badge '+(l.type==='Land'?'land':'')+'">'+l.type+'</div>'+hpStatus+cardFavHtml(l.address,l.city)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+l.city+', NC</div><div class="f-card-features">'+feats+'</div></div>';
+          var imgInner = l.photo ? '<img src="'+l.photo+'" alt="'+l.address+'" loading="lazy">' : '<div style="width:100%;aspect-ratio:16/10;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.7rem;letter-spacing:0.08em;text-transform:uppercase">Photos Coming Soon</div>';
+          c.innerHTML='<div class="f-card-img">'+imgInner+'<div class="f-card-badge '+(l.type==='Land'?'land':'')+'">'+l.type+'</div>'+hpStatus+cardFavHtml(l.address,l.city)+'</div><div class="f-card-body"><div class="f-card-price">$'+l.price.toLocaleString()+'</div><div class="f-card-addr">'+l.address+'</div><div class="f-card-city">'+l.city+', NC</div><div class="f-card-features">'+feats+'</div></div>';
           c.onclick=function(){try{openProp({price:l.price,address:l.address,type:l.type,beds:l.beds,baths:l.baths,sqft:l.sqft,lot:l.lot,restrictions:l.restrictions||'unrestricted',status:l.status||'Active',photo:l.photo||null,photos:l.photos||[],description:l.description||''},l.city,this)}catch(err){console.error(err)}};
           grid.appendChild(c);
         });
@@ -1038,7 +1038,10 @@ var MLS_GRID = {
         var mediaMap = {};
         mediaRows.forEach(function(m) {
           if(!mediaMap[m.listing_key] || m.order === 0) {
-            mediaMap[m.listing_key] = m.local_url || m.media_url;
+            // Prefer R2 local_url; fall back to non-MLS Grid media_url (CSAR CDN etc)
+            var url = m.local_url || '';
+            if (!url && m.media_url && m.media_url.indexOf('mlsgrid.com') === -1) url = m.media_url;
+            mediaMap[m.listing_key] = url;
           }
         });
         _log('[MLS Grid] Primary photos loaded: ' + mediaRows.length + ' rows, ' + Object.keys(mediaMap).length + ' unique listings');
@@ -1169,7 +1172,8 @@ var MLS_GRID = {
             // MLS Grid signed URL — expires in ~24h, skip until R2 backfill
             return false;
           })
-          .map(function(m) { return m.local_url || m.media_url; });
+          .map(function(m) { return m.local_url || m.media_url; })
+          .filter(function(url) { return url && url.indexOf('mlsgrid.com') === -1; });
       }).catch(function(err) {
         _warn('[MLS Grid] Failed to load photos for ' + listingKey, err);
         return [];
@@ -1502,6 +1506,7 @@ function buildChatTranscript(){
 
 // --- Push lead to Follow Up Boss via edge function ---
 function _pushToFUB(leadData){
+  if(_isAdmin){ _log('[FUB] Skipping push for admin user'); return; }
   try {
     fetch(SUPABASE_URL + '/functions/v1/fub-push', {
       method: 'POST',
@@ -2689,7 +2694,11 @@ document.addEventListener('error', function(e) {
   // Prevent infinite loop: only try fallback once
   if (img._photoFallbackDone) return;
   img._photoFallbackDone = true;
-  img.src = 'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=700&q=80';
+  // Replace broken image with "Photos Coming Soon" placeholder
+  var placeholder = document.createElement('div');
+  placeholder.style.cssText = 'width:100%;height:100%;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase';
+  placeholder.textContent = 'Photos Coming Soon';
+  img.replaceWith(placeholder);
 }, true);
 
 var PROP_DESCRIPTIONS = {
@@ -2747,13 +2756,23 @@ function openProp(listing, townName, sourceCardEl) {
   } else if(listing.photo) {
     imgs = [listing.photo];
   } else {
-    imgs = PROP_IMAGES[listing.type] || PROP_IMAGES['Single Family'];
+    imgs = [];
   }
-  var mainImg = imgs[0] || imgs[Math.floor(Math.random()*imgs.length)];
-  _setPropHeroImage(mainImg);
+  var mainImg = imgs.length > 0 ? imgs[0] : '';
+  if (mainImg) {
+    _setPropHeroImage(mainImg);
+  } else {
+    // No photo available — show "Photos Coming Soon" on hero
+    var heroEl = document.getElementById('propHeroImg');
+    if (heroEl) {
+      heroEl.style.backgroundImage = 'none';
+      heroEl.style.backgroundColor = 'var(--surface)';
+      heroEl.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-muted);gap:0.5rem"><svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg><span style="font-size:0.85rem;letter-spacing:0.1em;text-transform:uppercase">Photos Coming Soon</span></div>';
+    }
+  }
   var seoAlt = (listing.beds ? listing.beds + ' bedroom home for sale in ' : 'Property for sale in ') + (townName || 'Western NC') + ', NC';
   var seoImg = document.getElementById('propHeroSeo');
-  if (seoImg) { seoImg.src = mainImg; seoImg.alt = seoAlt; }
+  if (seoImg) { seoImg.src = mainImg || ''; seoImg.alt = seoAlt; }
 
   // Image gallery state
   window._propImgs = imgs;
@@ -3068,12 +3087,15 @@ function openProp(listing, townName, sourceCardEl) {
 
   // Show overlay — with View Transition if supported
   var _propHashId = listing.mlsId || listing.listingKey || (listing.address + '|' + (townName||''));
+  // SEO-friendly URL slug from address + city
+  var _propSlug = ((listing.address || '') + ' ' + (townName || listing.city || '') + ' nc')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   function _activateOverlay() {
     o.classList.add('active');
     o.scrollTop = 0;
     _lockScroll();
     _startParallax();
-    try{history.pushState({page:'property'},'','#property/' + encodeURIComponent(_propHashId))}catch(he){}
+    try{history.pushState({page:'property'},'','?listing=' + _propSlug)}catch(he){}
   }
 
   if (sourceCardEl && document.startViewTransition) {
@@ -3381,9 +3403,12 @@ function closeProp(fromPopstate) {
   }
 
   function _clearPropHash() {
-    // Clear #property/ hash so hard refresh doesn't reopen this listing
-    if (window.location.hash && window.location.hash.indexOf('#property/') === 0) {
-      history.replaceState(null, '', window.location.pathname + window.location.search);
+    // Clear #property/ hash or ?listing= param so refresh doesn't reopen this listing
+    var needsClear = false;
+    if (window.location.hash && window.location.hash.indexOf('#property/') === 0) needsClear = true;
+    if (window.location.search && window.location.search.indexOf('listing=') !== -1) needsClear = true;
+    if (needsClear) {
+      history.replaceState(null, '', window.location.pathname);
     }
   }
 
@@ -3449,8 +3474,9 @@ function closeProp(fromPopstate) {
 function _propShareUrl() {
   var listing = window._currentListing;
   if(!listing) return 'https://coryhelpsyoumove.com';
-  var id = listing.mlsId || listing.listingKey || (listing.address + '|' + (window._currentTownName||''));
-  return window.location.origin + window.location.pathname + '#property/' + encodeURIComponent(id);
+  var city = listing.city || window._currentTownName || '';
+  var slug = ((listing.address||'') + ' ' + city + ' nc').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return 'https://coryhelpsyoumove.com/?listing=' + slug;
 }
 
 function propShare(type) {
@@ -3846,7 +3872,11 @@ function addSwipe(el, onLeft, onRight) {
 // ── Prop Hero Image Helper (background-image for parallax + SEO img) ──
 function _setPropHeroImage(url) {
   var el = document.getElementById('propHeroImg');
-  if (el) el.style.backgroundImage = 'url(' + url + ')';
+  if (el) {
+    el.style.backgroundImage = 'url(' + url + ')';
+    el.style.backgroundColor = '';
+    el.innerHTML = ''; // Clear any "Photos Coming Soon" placeholder
+  }
 }
 
 // ── Parallax scroll for property hero ──
@@ -3904,7 +3934,24 @@ function _stopParallax() {
   if (overlay) overlay.removeEventListener('scroll', _onPropScroll);
 }
 
-// Landing page hero parallax handled by pure CSS (background-attachment: fixed)
+// ── Landing page hero parallax ──
+(function() {
+  var fb = document.querySelector('.hero-bg-fallback');
+  if (!fb) return;
+  var hero = document.querySelector('.hero');
+  if (!hero) return;
+  var ticking = false;
+  window.addEventListener('scroll', function() {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(function() {
+      ticking = false;
+      var y = window.pageYOffset;
+      if (y > hero.offsetHeight) return;
+      fb.style.transform = 'translate3d(0,' + (y * PARALLAX_SPEED) + 'px,0)';
+    });
+  }, {passive: true});
+})();
 
 
 
@@ -4024,13 +4071,15 @@ var AREA_CITIES = {
   'Cashiers': ['Cashiers','Highlands','Sapphire','Glenville','Scaly Mountain'],
   'Franklin': ['Franklin','Franklin City Limits','Otto'],
   'Dillsboro': ['Dillsboro'],
-  'Cullowhee': ['Cullowhee','Webster','Tuckasegee']
+  'Cullowhee': ['Cullowhee','Webster','Tuckasegee'],
+  'Asheville': ['Asheville','Arden','Black Mountain','Candler','Enka','Fairview','Fletcher','Leicester','Mars Hill','Montreat','Swannanoa','Weaverville','Woodfin']
 };
 // Display labels for area chip
 var AREA_LABELS = {
   'Waynesville':'Waynesville','Sylva':'Sylva','Maggie Valley':'Maggie Valley',
   'Bryson City':'Bryson City','Cashiers':'Cashiers / Highlands',
-  'Franklin':'Franklin','Dillsboro':'Dillsboro','Cullowhee':'Cullowhee'
+  'Franklin':'Franklin','Dillsboro':'Dillsboro','Cullowhee':'Cullowhee',
+  'Asheville':'Asheville / Buncombe'
 };
 
 // Check if a listing city matches a selected area (includes rural variants)
@@ -5033,6 +5082,29 @@ function srRenderCards(results){
     frag.appendChild(card);
   });
   container.appendChild(frag);
+
+  // Self-healing: collect listings with missing photos and request backfill
+  (function(){
+    var missingKeys = [];
+    results.forEach(function(l){
+      if(!l.photo && l.listingKey) missingKeys.push(l.listingKey);
+    });
+    if(missingKeys.length > 0 && _sb) {
+      _log('[Photos] ' + missingKeys.length + ' listings missing photos, requesting backfill');
+      // Debounce: only fire once per session per set of keys
+      if(!window._photoHealRequested) window._photoHealRequested = {};
+      var newKeys = missingKeys.filter(function(k){ return !window._photoHealRequested[k]; });
+      if(newKeys.length > 0) {
+        newKeys.forEach(function(k){ window._photoHealRequested[k] = true; });
+        // Fire-and-forget: tell the backfill to prioritize these listings
+        fetch(SUPABASE_URL + '/functions/v1/mls-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY },
+          body: JSON.stringify({ action: 'backfill-media', limit: Math.min(newKeys.length, 10) })
+        }).catch(function(){});
+      }
+    }
+  })();
 
   // "Show More" button — loads next batch of 40 cards at a time
   if(_capped){
@@ -8452,6 +8524,15 @@ openProp = function(listing, townName) {
   }
   var adminPrintBtns = document.getElementById('adminPrintBtns');
   if(adminPrintBtns) adminPrintBtns.style.display = _isAdmin ? '' : 'none';
+  // Admin Share to Social button
+  if(_isAdmin && listing.listAgent && listing.listAgent.toLowerCase().indexOf('cory') !== -1) {
+    var wrap2 = printBtn ? printBtn.parentElement : null;
+    if(wrap2 && !document.getElementById('adminShareBtn')) {
+      wrap2.insertAdjacentHTML('beforeend', '<button id="adminShareBtn" class="prop-info-print-btn" onclick="openSocialShareModal()" style="background:rgba(196,176,140,0.15);border-color:var(--gold)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg><span>Share to Social</span></button>');
+    }
+  }
+  var adminShareBtn = document.getElementById('adminShareBtn');
+  if(adminShareBtn) adminShareBtn.style.display = (_isAdmin && listing.listAgent && listing.listAgent.toLowerCase().indexOf('cory') !== -1) ? '' : 'none';
   // Load property history (price + tax)
   setTimeout(function(){ loadPropertyHistory(listing); }, 65);
   // Build Cory's Take
@@ -8616,6 +8697,7 @@ srApplyFilters = function() {
           '<label class="srd-area-pill"><input type="checkbox" value="Franklin"><span>Franklin</span></label>' +
           '<label class="srd-area-pill"><input type="checkbox" value="Dillsboro"><span>Dillsboro</span></label>' +
           '<label class="srd-area-pill"><input type="checkbox" value="Cullowhee"><span>Cullowhee</span></label>' +
+          '<label class="srd-area-pill"><input type="checkbox" value="Asheville"><span>Asheville / Buncombe</span></label>' +
         '</div></div>' +
         '<div class="srd-section"><div class="srd-section-label">Property Type</div><div class="srd-pill-row" id="srdType">' +
           '<button class="srd-pill active" data-val="">All</button>' +
@@ -8826,13 +8908,16 @@ if(MLS_GRID.enabled) {
   }
 }
 
-// Find a listing by mlsId, listingKey, or address|city fallback
+// Find a listing by mlsId, listingKey, address slug, or address|city fallback
 function _findListingById(id) {
   if(!id) return null;
   for(var i = 0; i < ALL_LISTINGS.length; i++){
     var l = ALL_LISTINGS[i];
     if(l.mlsId && l.mlsId.toString() === id) return l;
     if(l.listingKey && l.listingKey === id) return l;
+    // Match address slug: "14-winter-woods-drive-asheville-nc"
+    var slug = ((l.address||'') + ' ' + (l.city||'') + ' nc').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    if(slug === id) return l;
     var fallback = l.address + '|' + (l.city||'');
     if(fallback === id) return l;
   }
@@ -8863,8 +8948,71 @@ function _checkPropDeepLink(){
         return; // Don't process query params if hash link found
       }
     }
-    // Fallback: query param deep link (?prop=address&city=town)
+    // Query param deep link: ?listing=CAR4363291 or ?listing=14-winter-woods-drive-asheville-nc
     var params = new URLSearchParams(window.location.search);
+    var listingId = params.get('listing');
+    if (window._deepLinkHandled) return;
+    if (listingId) {
+      // First: check if already in memory (instant)
+      var match = _findListingById(listingId);
+      if (match) {
+        window._deepLinkHandled = true;
+        var loadEl = document.getElementById('deepLinkLoading');
+        if (loadEl) loadEl.remove();
+        setTimeout(function(){ openProp(match, match.city || ''); }, 100);
+      } else if (_sb && !window._deepLinkDirectFetched) {
+        // Fetch directly from Supabase immediately (single row, fast)
+        window._deepLinkDirectFetched = true;
+        if (!document.getElementById('deepLinkLoading')) {
+          var loadDiv = document.createElement('div');
+          loadDiv.id = 'deepLinkLoading';
+          loadDiv.style.cssText = 'position:fixed;inset:0;z-index:10000;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem';
+          loadDiv.innerHTML = '<div style="width:40px;height:40px;border:3px solid var(--gold);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite"></div><div style="color:var(--cream);font-family:Outfit,sans-serif;font-size:0.9rem">Loading property details...</div><style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
+          document.body.appendChild(loadDiv);
+        }
+        var q = _sb.from('mls_listings').select('listing_id,listing_key,list_price,full_address,city,property_type,property_sub_type,bedrooms_total,bathrooms_total_integer,living_area,living_area_range,lot_size_acres,lot_size_square_feet,standard_status,public_remarks,list_agent_full_name,list_office_name,list_office_phone,attribution_contact,originating_system_name,restrictions,days_on_market,latitude,longitude').eq('mlg_can_view', true).limit(1);
+        if (listingId.match(/^[A-Z]{2,4}\d+$/i)) {
+          q = q.eq('listing_id', listingId);
+        } else {
+          // Address slug: convert dashes back to search pattern
+          var words = listingId.replace(/-nc$/, '').split('-').filter(function(w){ return w.length > 1; });
+          if (words.length >= 2) {
+            q = q.ilike('full_address', '%' + words.slice(0, -1).join('%') + '%');
+            q = q.ilike('city', '%' + words[words.length - 1] + '%');
+          }
+        }
+        q.then(function(res) {
+          if (res.data && res.data.length > 0 && !window._deepLinkHandled) {
+            window._deepLinkHandled = true;
+            var mapped = MLS_GRID.mapListing(res.data[0]);
+            // Also fetch primary photo
+            _sb.from('mls_media').select('local_url').eq('listing_key', mapped.listingKey).eq('order', 0).limit(1).then(function(mr) {
+              if (mr.data && mr.data.length > 0 && mr.data[0].local_url) {
+                mapped.photo = mr.data[0].local_url;
+                mapped.photos = [mr.data[0].local_url];
+              }
+              var loadEl2 = document.getElementById('deepLinkLoading');
+              if (loadEl2) loadEl2.remove();
+              openProp(mapped, mapped.city || '');
+            }).catch(function() {
+              var loadEl2 = document.getElementById('deepLinkLoading');
+              if (loadEl2) loadEl2.remove();
+              openProp(mapped, mapped.city || '');
+            });
+          } else {
+            // Not found, keep retrying in case full data loads
+            setTimeout(function(){ _checkPropDeepLink(); }, 2000);
+          }
+        }).catch(function() {
+          setTimeout(function(){ _checkPropDeepLink(); }, 2000);
+        });
+      } else {
+        // Supabase not ready, retry
+        setTimeout(function(){ _checkPropDeepLink(); }, 1000);
+      }
+      return;
+    }
+    // Fallback: query param deep link (?prop=address&city=town)
     var propAddr = params.get('prop');
     var propCity = params.get('city');
     var ref = params.get('ref');
@@ -9522,6 +9670,372 @@ function printAgentCopy() {
   if(agentSection) agentSection.style.display = '';
   propShare('print');
 }
+// ═══ Social Share Modal ═══
+var _socialPosts = null;
+
+function openSocialShareModal() {
+  var listing = window._currentListing;
+  if (!listing) return;
+
+  // Create modal if it doesn't exist
+  if (!document.getElementById('socialShareModal')) {
+    document.body.insertAdjacentHTML('beforeend',
+      '<div id="socialShareOverlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9000;display:none" onclick="closeSocialShare()"></div>' +
+      '<div id="socialShareModal" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:90%;max-width:640px;max-height:85vh;background:var(--bg);border:1px solid var(--border);border-radius:12px;z-index:9001;display:none;overflow-y:auto;padding:0">' +
+        '<div style="position:sticky;top:0;background:var(--bg);padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;z-index:2">' +
+          '<span style="font-family:Cormorant Garamond,serif;font-size:1.3rem;color:var(--cream)">Share to Social Media</span>' +
+          '<button onclick="closeSocialShare()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem">&times;</button>' +
+        '</div>' +
+        '<div id="socialShareContent" style="padding:1.5rem"></div>' +
+      '</div>'
+    );
+  }
+
+  document.getElementById('socialShareOverlay').style.display = 'block';
+  document.getElementById('socialShareModal').style.display = 'block';
+  var content = document.getElementById('socialShareContent');
+  content.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-muted)">Generating posts...</div>';
+
+  // Get primary photo URL
+  var photoUrl = listing.photo || '';
+  if (!photoUrl && listing.photos && listing.photos.length) photoUrl = listing.photos[0];
+
+  // Build listing data for both image generator and post generator
+  var listingData = {
+    address: listing.address || '',
+    city: listing.city || window._currentTownName || '',
+    price: listing.price || 0,
+    beds: listing.beds || 0,
+    baths: listing.baths || 0,
+    sqft: listing.sqft || 0,
+    lot: listing.lot || '',
+    type: listing.type || 'Single Family',
+    mlsId: listing.mlsId || '',
+    description: listing.description || '',
+    photo: photoUrl,
+    photos: listing.photos || (photoUrl ? [photoUrl] : []),
+    photoUrl: photoUrl,
+    listingKey: listing.listingKey || ''
+  };
+
+  // Call edge function to generate posts
+  fetch(SUPABASE_URL + '/functions/v1/social-post', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY },
+    body: JSON.stringify({ action: 'generate', listing: listingData })
+  }).then(function(r){ return r.json(); }).then(function(data) {
+    if (!data.ok || !data.posts) {
+      content.innerHTML = '<div style="text-align:center;padding:2rem;color:#e57373">Error generating posts: ' + (data.error || 'Unknown error') + '</div>';
+      return;
+    }
+    _socialPosts = data.posts;
+
+    // Image generator section
+    var html = '<div style="margin-bottom:1.5rem">' +
+      '<div style="font-size:0.6rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold);margin-bottom:0.75rem">Drag to move, scroll to zoom, arrows to change photo</div>' +
+      '<div style="position:relative">' +
+        '<canvas id="socialCanvas" style="width:100%;border-radius:8px;cursor:grab;border:1px solid var(--border)"></canvas>' +
+        '<button onclick="SocialImage.prevPhoto();updatePhotoCounter()" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.6);color:#fff;border:none;width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:1.2rem">&lsaquo;</button>' +
+        '<button onclick="SocialImage.nextPhoto();updatePhotoCounter()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.6);color:#fff;border:none;width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:1.2rem">&rsaquo;</button>' +
+        '<div id="socialPhotoCounter" style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.6);color:#fff;padding:4px 10px;border-radius:12px;font-size:0.7rem"></div>' +
+      '</div>' +
+      '<div style="display:flex;gap:0.5rem;margin-top:0.75rem" id="socialTemplates"></div>' +
+      '<button onclick="downloadSocialImage()" style="width:100%;margin-top:0.75rem;padding:0.7rem;background:var(--gold);color:var(--bg);border:none;border-radius:6px;font-family:Outfit,sans-serif;font-size:0.75rem;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;cursor:pointer">Download This Image</button>' +
+    '</div>';
+
+    // Divider
+    html += '<div style="border-top:1px solid var(--border);margin:1rem 0"></div>';
+    // Platform tabs
+    var platforms = [
+      { id: 'facebook', label: 'Facebook', icon: 'f', color: '#1877F2', action: 'post' },
+      { id: 'instagram', label: 'Instagram', icon: 'IG', color: '#E4405F', action: 'download' },
+      { id: 'linkedin', label: 'LinkedIn', icon: 'in', color: '#0A66C2', action: 'copy' },
+      { id: 'gbp', label: 'Google Business', icon: 'G', color: '#4285F4', action: 'copy' }
+    ];
+
+    platforms.forEach(function(p) {
+      var postText = data.posts[p.id] || '';
+      var btnHtml = '';
+      if (p.action === 'post') {
+        btnHtml = '<button onclick="postToSocial(\'' + p.id + '\')" style="padding:0.4rem 0.85rem;background:var(--gold);color:var(--bg);border:none;border-radius:4px;font-family:Outfit,sans-serif;font-size:0.65rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer" id="socialBtn_' + p.id + '">Post Now</button>';
+      } else if (p.action === 'download') {
+        btnHtml = '<div style="display:flex;gap:0.4rem;flex-wrap:wrap">' +
+          '<button onclick="downloadCarousel()" style="padding:0.4rem 0.65rem;background:var(--gold);color:var(--bg);border:none;border-radius:4px;font-family:Outfit,sans-serif;font-size:0.6rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer" id="socialBtn_' + p.id + '_carousel">Download Carousel</button>' +
+          '<button onclick="downloadSocialImage()" style="padding:0.4rem 0.65rem;background:transparent;color:var(--gold);border:1px solid var(--gold);border-radius:4px;font-family:Outfit,sans-serif;font-size:0.6rem;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer" id="socialBtn_' + p.id + '_dl">Single Image</button>' +
+          '<button onclick="copySocialPost(\'' + p.id + '\')" style="padding:0.4rem 0.65rem;background:transparent;color:var(--gold);border:1px solid var(--gold);border-radius:4px;font-family:Outfit,sans-serif;font-size:0.6rem;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer" id="socialBtn_' + p.id + '">Copy Caption</button>' +
+        '</div>';
+      } else {
+        btnHtml = '<button onclick="copySocialPost(\'' + p.id + '\')" style="padding:0.4rem 0.85rem;background:transparent;color:var(--gold);border:1px solid var(--gold);border-radius:4px;font-family:Outfit,sans-serif;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer" id="socialBtn_' + p.id + '">Copy Text</button>';
+      }
+      html += '<div style="margin-bottom:1.25rem;border:1px solid var(--border);border-radius:8px;overflow:hidden">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;background:var(--surface)">' +
+          '<div style="display:flex;align-items:center;gap:0.5rem">' +
+            '<span style="background:' + p.color + ';color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:700">' + p.icon + '</span>' +
+            '<span style="font-size:0.8rem;color:var(--cream);font-weight:500">' + p.label + '</span>' +
+            (p.action === 'download' ? '<span style="font-size:0.6rem;color:var(--text-muted)">(download image, paste caption, add music in app)</span>' : '') +
+          '</div>' +
+          btnHtml +
+        '</div>' +
+        '<textarea id="socialText_' + p.id + '" style="width:100%;min-height:100px;padding:0.75rem 1rem;background:var(--bg);color:var(--cream);border:none;font-family:Outfit,sans-serif;font-size:0.78rem;line-height:1.5;resize:vertical;outline:none">' + postText.replace(/</g,'&lt;') + '</textarea>' +
+      '</div>';
+    });
+
+    content.innerHTML = html;
+
+    // Initialize social image generator
+    if (typeof SocialImage !== 'undefined') {
+      var canvas = document.getElementById('socialCanvas');
+      if (canvas) {
+        SocialImage.init(canvas, listingData);
+        // Render template buttons
+        var templatesEl = document.getElementById('socialTemplates');
+        if (templatesEl) {
+          SocialImage.templates.forEach(function(t) {
+            var btn = document.createElement('button');
+            btn.textContent = SocialImage.templateLabels[t];
+            btn.style.cssText = 'flex:1;padding:0.5rem;border:1px solid var(--border);background:' + (t === 'dark-overlay' ? 'rgba(196,176,140,0.15)' : 'transparent') + ';color:' + (t === 'dark-overlay' ? 'var(--gold)' : 'var(--text-body)') + ';font-family:Outfit,sans-serif;font-size:0.7rem;border-radius:4px;cursor:pointer';
+            btn.onclick = function() {
+              SocialImage.setTemplate(t);
+              templatesEl.querySelectorAll('button').forEach(function(b) {
+                b.style.background = 'transparent';
+                b.style.color = 'var(--text-body)';
+                b.style.borderColor = 'var(--border)';
+              });
+              btn.style.background = 'rgba(196,176,140,0.15)';
+              btn.style.color = 'var(--gold)';
+              btn.style.borderColor = 'var(--gold)';
+            };
+            templatesEl.appendChild(btn);
+          });
+        }
+        updatePhotoCounter();
+      }
+    }
+  }).catch(function(err) {
+    content.innerHTML = '<div style="text-align:center;padding:2rem;color:#e57373">Error: ' + err.message + '</div>';
+  });
+}
+
+function updatePhotoCounter() {
+  var el = document.getElementById('socialPhotoCounter');
+  if (el && typeof SocialImage !== 'undefined') {
+    el.textContent = (SocialImage.getPhotoIndex() + 1) + ' / ' + SocialImage.getPhotoCount();
+  }
+}
+
+function closeSocialShare() {
+  var overlay = document.getElementById('socialShareOverlay');
+  var modal = document.getElementById('socialShareModal');
+  if (overlay) overlay.style.display = 'none';
+  if (modal) modal.style.display = 'none';
+}
+
+function _dataUrlToBlob(dataUrl) {
+  var parts = dataUrl.split(',');
+  var mime = parts[0].match(/:(.*?);/)[1];
+  var raw = atob(parts[1]);
+  var arr = new Uint8Array(raw.length);
+  for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return new Blob([arr], {type: mime});
+}
+
+function _downloadBlob(blob, filename) {
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+}
+
+function downloadCarousel() {
+  if (typeof SocialImage === 'undefined') return;
+  var listing = window._currentListing || {};
+  var slug = ((listing.address||'listing').replace(/[^a-zA-Z0-9]/g, '-'));
+  var btn = document.getElementById('socialBtn_instagram_carousel');
+  if (btn) { btn.textContent = 'Preparing...'; btn.disabled = true; }
+
+  // Convert R2 public URLs to worker URLs for fetching
+  var WORKER_URL = 'https://r2-upload.coryhelpsyoumove.workers.dev';
+  var R2_PUBLIC = 'https://pub-bfc65eba3b4f4bec8ca241aab44da702.r2.dev';
+
+  SocialImage.generateCarouselSlides(function(overlaySlides, ctaSlide, photos) {
+    var downloads = [];
+
+    // Slide 1: Overlay image (data URL)
+    if (overlaySlides.length > 0) {
+      downloads.push({ data: overlaySlides[0], name: slug + '-01-cover.jpg' });
+    }
+
+    // Middle slides: first 5 raw photos
+    var photoSlides = photos.slice(1, 6);
+    photoSlides.forEach(function(url, i) {
+      // Convert to worker URL for CORS fetch
+      var fetchUrl = url;
+      if (fetchUrl && fetchUrl.indexOf(R2_PUBLIC) === 0) {
+        fetchUrl = WORKER_URL + fetchUrl.substring(R2_PUBLIC.length);
+      }
+      downloads.push({ fetchUrl: fetchUrl, name: slug + '-0' + (i+2) + '-photo.jpg' });
+    });
+
+    // Last slide: CTA (data URL)
+    downloads.push({ data: ctaSlide, name: slug + '-' + String(photoSlides.length + 2).padStart(2,'0') + '-cta.jpg' });
+
+    // Download each sequentially
+    var idx = 0;
+    function downloadNext() {
+      if (idx >= downloads.length) {
+        if (btn) { btn.textContent = 'Downloaded ' + downloads.length + ' images!'; setTimeout(function(){ btn.textContent = 'Download Carousel'; btn.disabled = false; }, 4000); }
+        return;
+      }
+      var item = downloads[idx];
+      if (btn) btn.textContent = 'Downloading ' + (idx+1) + '/' + downloads.length + '...';
+      idx++;
+
+      if (item.data) {
+        // Data URL: convert to blob and download
+        var blob = _dataUrlToBlob(item.data);
+        _downloadBlob(blob, item.name);
+        setTimeout(downloadNext, 800);
+      } else if (item.fetchUrl) {
+        // Remote URL: fetch as blob then download
+        fetch(item.fetchUrl)
+          .then(function(r) { return r.blob(); })
+          .then(function(blob) {
+            _downloadBlob(blob, item.name);
+            setTimeout(downloadNext, 800);
+          })
+          .catch(function() {
+            // Skip failed downloads
+            setTimeout(downloadNext, 200);
+          });
+      }
+    }
+    downloadNext();
+  });
+}
+
+function downloadSocialImage() {
+  // Canvas is tainted (cross-origin image), so we take a screenshot approach
+  // Right-click save works, but for a download button we need to use a workaround
+  var canvas = document.getElementById('socialCanvas');
+  if (!canvas) return;
+  try {
+    var dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+    var a = document.createElement('a');
+    a.href = dataUrl;
+    var listing = window._currentListing || {};
+    a.download = (listing.address || 'listing').replace(/[^a-zA-Z0-9]/g, '-') + '-social.jpg';
+    a.click();
+  } catch(e) {
+    // Tainted canvas - show instructions instead
+    alert('To save the image: right-click (or long-press on mobile) the image preview above and select "Save Image As"');
+  }
+}
+
+function postToSocial(platform) {
+  var listing = window._currentListing;
+  if (!listing) return;
+  var btn = document.getElementById('socialBtn_' + platform);
+  var text = document.getElementById('socialText_' + platform).value;
+
+  btn.textContent = 'Preparing image...';
+  btn.disabled = true;
+
+  // Try to export canvas overlay as base64 and send to edge function
+  var imageBase64 = '';
+  if (typeof SocialImage !== 'undefined') {
+    try {
+      imageBase64 = SocialImage.toDataURL();
+    } catch(e) {
+      console.warn('[Social] Canvas export failed:', e);
+    }
+  }
+
+  var photoUrl = '';
+  if (!imageBase64) {
+    photoUrl = listing.photo || (listing.photos && listing.photos.length ? listing.photos[0] : '');
+  }
+
+  btn.textContent = 'Posting...';
+
+  var postBody = { action: 'post-' + platform, listingKey: listing.listingKey || listing.mlsId || '' };
+  if (platform === 'facebook') {
+    postBody.message = text;
+    if (imageBase64) postBody.imageBase64 = imageBase64;
+    else postBody.photoUrl = photoUrl;
+  }
+
+  fetch(SUPABASE_URL + '/functions/v1/social-post', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY },
+    body: JSON.stringify(postBody)
+  }).then(function(r){ return r.json(); }).then(function(data) {
+    if (data.ok) {
+      btn.textContent = 'Posted!';
+      btn.style.background = '#4CAF50';
+      btn.style.color = '#fff';
+    } else {
+      btn.textContent = 'Failed';
+      btn.style.background = '#e57373';
+      btn.style.color = '#fff';
+      btn.disabled = false;
+      console.error('[Social] Post failed:', data.error, data.detail);
+      setTimeout(function(){ btn.textContent = 'Retry'; btn.style.background = 'var(--gold)'; btn.style.color = 'var(--bg)'; }, 3000);
+    }
+  }).catch(function(err) {
+    btn.textContent = 'Error';
+    btn.disabled = false;
+    console.error('[Social] Error:', err);
+  });
+}
+
+function doPost(platform, btn, text, photoUrl, listing) {
+  var body = { action: 'post-' + platform, listingKey: listing.listingKey || listing.mlsId || '' };
+  if (platform === 'facebook') {
+    body.message = text;
+    body.photoUrl = photoUrl;
+  }
+
+  fetch(SUPABASE_URL + '/functions/v1/social-post', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY },
+    body: JSON.stringify(body)
+  }).then(function(r){ return r.json(); }).then(function(data) {
+    if (data.ok) {
+      btn.textContent = 'Posted!';
+      btn.style.background = '#4CAF50';
+      btn.style.borderColor = '#4CAF50';
+      btn.style.color = '#fff';
+    } else {
+      btn.textContent = 'Failed';
+      btn.style.background = '#e57373';
+      btn.style.borderColor = '#e57373';
+      btn.style.color = '#fff';
+      btn.disabled = false;
+      console.error('[Social] Post failed:', data.error, data.detail);
+      setTimeout(function(){ btn.textContent = 'Retry'; btn.style.background = 'var(--gold)'; btn.style.color = 'var(--bg)'; }, 3000);
+    }
+  }).catch(function(err) {
+    btn.textContent = 'Error';
+    btn.disabled = false;
+    console.error('[Social] Error:', err);
+  });
+}
+
+function copySocialPost(platform) {
+  var text = document.getElementById('socialText_' + platform).value;
+  var btn = document.getElementById('socialBtn_' + platform);
+  navigator.clipboard.writeText(text).then(function() {
+    btn.textContent = 'Copied!';
+    btn.style.background = 'var(--gold)';
+    btn.style.color = 'var(--bg)';
+    setTimeout(function(){ btn.textContent = 'Copy Text'; btn.style.background = 'transparent'; btn.style.color = 'var(--gold)'; }, 3000);
+  });
+}
+
 function printClientCopy() {
   var agentSection = document.getElementById('printAgentSection');
   if(agentSection) agentSection.style.display = 'none';

@@ -153,7 +153,8 @@ var SIDEBAR_TABS = [
   { id: 'questions', label: 'Questions', icon: '<svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>' },
   { id: 'analytics', label: 'Analytics', icon: '<svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>' },
   { id: 'listings', label: 'Listings', icon: '<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M9 22V12h6v10"/></svg>' },
-  { id: 'cma', label: 'CMA', icon: '<svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/><rect x="1" y="1" width="22" height="22" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>' }
+  { id: 'cma', label: 'CMA', icon: '<svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/><rect x="1" y="1" width="22" height="22" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>' },
+  { id: 'reviews', label: 'Reviews', icon: '<svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>' }
 ];
 
 function renderSidebar() {
@@ -205,6 +206,7 @@ function switchTab(tab, skipHistory) {
   else if (tab === 'analytics') loadAnalytics();
   else if (tab === 'listings') loadListings();
   else if (tab === 'cma') loadCMA(true);
+  else if (tab === 'reviews') loadReviews();
 }
 
 // ── Global Search ──
@@ -4764,4 +4766,115 @@ async function cmaGeneratePDF() {
     console.error('[CMA PDF] error:', e);
     toast('PDF generation failed: ' + e.message, 'error');
   }
+}
+
+// ═══════════════════════════════════════════════════════
+// REVIEWS TAB
+// ═══════════════════════════════════════════════════════
+
+async function _rvFetch(body) {
+  var sess = (await _sb.auth.getSession()).data.session;
+  var token = sess ? sess.access_token : SUPABASE_KEY;
+  var resp = await fetch(SUPABASE_URL + '/functions/v1/review-request', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token, 'apikey': SUPABASE_KEY },
+    body: JSON.stringify(body)
+  });
+  return resp.json();
+}
+
+async function loadReviews() {
+  var main = document.getElementById('crmMain');
+  main.innerHTML =
+    '<div class="crm-section">' +
+      '<div class="crm-section-header"><h2>Send Review Request</h2></div>' +
+      '<div class="crm-card" style="padding:1.25rem">' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">' +
+          '<div><label class="crm-field-label">Client Name</label><input class="crm-input" id="rvClientName" placeholder="John Smith"></div>' +
+          '<div><label class="crm-field-label">Client Email</label><input class="crm-input" id="rvClientEmail" placeholder="john@example.com" type="email"></div>' +
+          '<div><label class="crm-field-label">Property Address</label><input class="crm-input" id="rvPropAddr" placeholder="123 Mountain View Dr"></div>' +
+          '<div><label class="crm-field-label">Town</label><select class="crm-input" id="rvTown"><option value="">Select town</option><option>Waynesville</option><option>Sylva</option><option>Bryson City</option><option>Maggie Valley</option><option>Franklin</option><option>Cashiers</option><option>Highlands</option><option>Dillsboro</option><option>Cullowhee</option></select></div>' +
+        '</div>' +
+        '<button class="crm-btn crm-btn-primary" style="margin-top:1rem" onclick="sendReviewRequest()">Send Review Request Email</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="crm-section" style="margin-top:2rem">' +
+      '<div class="crm-section-header"><h2>Review Requests</h2></div>' +
+      '<div id="rvRequestsList"><div class="crm-loading"><div class="crm-spinner"></div></div></div>' +
+    '</div>';
+  try {
+    var data = await _rvFetch({ action: 'list' });
+    if (data.ok) renderReviewRequests(data.requests || []);
+    else document.getElementById('rvRequestsList').innerHTML = '<p style="color:var(--text-muted);padding:1rem">Unable to load reviews.</p>';
+  } catch(e) {
+    document.getElementById('rvRequestsList').innerHTML = '<p style="color:var(--text-muted);padding:1rem">Error loading reviews.</p>';
+  }
+}
+
+function renderReviewRequests(requests) {
+  var el = document.getElementById('rvRequestsList');
+  if (!requests.length) { el.innerHTML = '<p style="color:var(--text-muted);padding:1rem">No review requests sent yet.</p>'; return; }
+  var html = '<table class="crm-table"><thead><tr><th>Client</th><th>Property</th><th>Status</th><th>Rating</th><th>Date</th><th>Actions</th></tr></thead><tbody>';
+  requests.forEach(function(r) {
+    var statusLabel = r.status.charAt(0).toUpperCase() + r.status.slice(1);
+    if (r.status === 'submitted' && r.review_rating === 5) statusLabel = 'Published';
+    var statusClass = (statusLabel === 'Published' || r.status === 'approved') ? 'success' : r.status === 'rejected' ? 'error' : 'pending';
+    var stars = r.review_rating ? String.fromCharCode(9733).repeat(r.review_rating) + String.fromCharCode(9734).repeat(5 - r.review_rating) : '-';
+    var date = r.created_at ? new Date(r.created_at).toLocaleDateString() : '-';
+    var actions = '';
+    if (r.status === 'submitted' && r.review_rating < 5 && r.review_id) {
+      actions = '<button class="crm-btn-sm crm-btn-success" onclick="approveReview(\x27' + r.review_id + '\x27)">Approve</button> <button class="crm-btn-sm crm-btn-danger" onclick="rejectReview(\x27' + r.review_id + '\x27)">Reject</button>';
+    } else if (r.status === 'pending') {
+      actions = '<span style="color:var(--text-muted);font-size:0.75rem">Awaiting response</span>';
+    } else if (statusLabel === 'Published') {
+      actions = '<span style="color:var(--green);font-size:0.75rem">Auto-published</span>';
+    }
+    html += '<tr><td><strong>' + (r.client_name||'') + '</strong><br><span style="font-size:0.7rem;color:var(--text-muted)">' + (r.client_email||'') + '</span></td>';
+    html += '<td>' + (r.property_address||'-') + '<br><span style="font-size:0.7rem;color:var(--text-muted)">' + (r.town||'') + '</span></td>';
+    html += '<td><span class="crm-badge crm-badge-' + statusClass + '">' + statusLabel + '</span></td>';
+    html += '<td style="color:#C4B08C">' + stars + '</td>';
+    html += '<td style="font-size:0.75rem">' + date + '</td>';
+    html += '<td>' + actions + '</td></tr>';
+    if (r.review_text) {
+      html += '<tr><td colspan="6" style="padding:0.5rem 1rem;background:var(--surface);font-size:0.8rem;color:var(--text-body);border-top:none;font-style:italic">' + r.review_text.substring(0,300) + (r.review_text.length>300?'...':'') + '</td></tr>';
+    }
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+async function sendReviewRequest() {
+  var name = document.getElementById('rvClientName').value.trim();
+  var email = document.getElementById('rvClientEmail').value.trim();
+  var addr = document.getElementById('rvPropAddr').value.trim();
+  var town = document.getElementById('rvTown').value;
+  if (!name || !email) { toast('Please enter client name and email.', 'error'); return; }
+  if (!email.includes('@')) { toast('Please enter a valid email.', 'error'); return; }
+  try {
+    var data = await _rvFetch({ action: 'send', clientName: name, clientEmail: email, propertyAddress: addr, town: town });
+    if (data.ok) {
+      toast('Review request sent to ' + name + '!', 'success');
+      document.getElementById('rvClientName').value = '';
+      document.getElementById('rvClientEmail').value = '';
+      document.getElementById('rvPropAddr').value = '';
+      document.getElementById('rvTown').value = '';
+      loadReviews();
+    } else { toast(data.error || 'Failed to send.', 'error'); }
+  } catch(e) { toast('Error sending request.', 'error'); }
+}
+
+async function approveReview(reviewId) {
+  try {
+    var data = await _rvFetch({ action: 'approve', reviewId: reviewId });
+    if (data.ok) { toast('Review approved and published!', 'success'); loadReviews(); }
+    else toast(data.error || 'Error.', 'error');
+  } catch(e) { toast('Error approving.', 'error'); }
+}
+
+async function rejectReview(reviewId) {
+  try {
+    var data = await _rvFetch({ action: 'reject', reviewId: reviewId });
+    if (data.ok) { toast('Review rejected.', 'success'); loadReviews(); }
+    else toast(data.error || 'Error.', 'error');
+  } catch(e) { toast('Error rejecting.', 'error'); }
 }

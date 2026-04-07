@@ -96,10 +96,22 @@ async function mlsGridFetch(url: string, timeoutMs = 25000): Promise<any> {
 }
 
 // Download image and upload to Cloudflare R2 via Worker proxy
+// Create SEO-friendly slug from address: "14 Winter Woods Drive" + "Asheville" + "NC" → "14-winter-woods-drive-asheville-nc"
+function addressSlug(streetNumber: string, streetName: string, streetSuffix: string, city: string, state: string): string {
+  const parts = [streetNumber, streetName, streetSuffix, city, state || "nc"]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return parts || "property";
+}
+
 async function uploadMediaToR2(
   mediaUrl: string,
   listingId: string,
-  order: number
+  order: number,
+  slug?: string
 ): Promise<string> {
   if (!r2Available()) return "";
   try {
@@ -107,7 +119,11 @@ async function uploadMediaToR2(
     if (!resp.ok) return "";
     const contentType = resp.headers.get("content-type") || "image/jpeg";
     const ext = contentType.includes("png") ? "png" : "jpg";
-    const key = `listings/${listingId}/${order}.${ext}`;
+    // SEO-friendly path: listings/14-winter-woods-drive-asheville-nc/photo-1.jpg
+    // Falls back to listings/CAR4363291/0.jpg if no slug
+    const folder = slug || listingId;
+    const fileName = slug ? `photo-${order + 1}` : String(order);
+    const key = `listings/${folder}/${fileName}.${ext}`;
     const uploadResp = await fetch(`${R2_WORKER_URL}/${key}`, {
       method: "PUT",
       headers: {
@@ -472,15 +488,33 @@ async function syncProperties(
         || newPhotosTs !== existing.photos_change_timestamp;
 
       if (media.length > 0 && photosChanged) {
+        // Preserve existing R2 URLs before deleting — if upload fails, reuse them
+        const { data: existingMedia } = await supabase
+          .from("mls_media")
+          .select("order, local_url")
+          .eq("listing_key", listingKey);
+        const existingR2: Record<number, string> = {};
+        if (existingMedia) {
+          existingMedia.forEach((m: any) => {
+            if (m.local_url) existingR2[m.order] = m.local_url;
+          });
+        }
+
         await supabase.from("mls_media").delete().eq("listing_key", listingKey);
         const mediaRows = [];
         for (let i = 0; i < media.length; i++) {
           const m = media[i];
           const mediaUrl = m.MediaURL || "";
-          // R2 uploads are deferred to the `backfill-media` cron. Doing them
-          // inline adds ~1-2s per photo and was causing the edge function to
-          // time out before it could advance its sync cursor.
-          const localUrl = "";
+          const order = m.Order || i;
+          // Upload ALL photos to R2 (MLS Grid signed URLs must not be displayed on website).
+          // Inline uploads are gated by `photosChanged` above so this only fires when the
+          // MLS reports the photo set actually changed — in steady state most syncs skip it.
+          const slug = addressSlug(record.StreetNumber || "", record.StreetName || "", record.StreetSuffix || "", record.City || "", record.StateOrProvince || "");
+          let localUrl = await uploadMediaToR2(mediaUrl, listingId, i, slug);
+          // If R2 upload failed, reuse existing R2 URL if we had one
+          if (!localUrl && existingR2[order]) {
+            localUrl = existingR2[order];
+          }
           mediaRows.push({
             listing_key: listingKey,
             media_key: m.MediaKey || `${listingKey}-${i}`,
@@ -489,7 +523,7 @@ async function syncProperties(
             media_type: m.MimeType || "image/jpeg",
             media_category: m.MediaCategory || "Photo",
             short_description: m.ShortDescription || "",
-            order: m.Order || i,
+            order: order,
             image_width: m.ImageWidth || null,
             image_height: m.ImageHeight || null,
             modification_timestamp: m.ModificationTimestamp || modTs,
@@ -1151,27 +1185,39 @@ Deno.serve(async (req) => {
 
           const media = record.Media || [];
           if (media.length > 0) {
-            // Check if this listing already has R2 photos
+            // Check if ALL photos already have R2 URLs (not just one)
             const { data: existingMedia } = await supabase
               .from("mls_media")
-              .select("local_url")
-              .eq("listing_key", lk)
-              .neq("local_url", "")
-              .limit(1);
+              .select("order, local_url")
+              .eq("listing_key", lk);
+            const existingCount = existingMedia ? existingMedia.length : 0;
+            const r2Count = existingMedia ? existingMedia.filter((m: any) => m.local_url).length : 0;
 
-            if (existingMedia && existingMedia.length > 0) {
-              // Already has R2 photos, skip
+            if (existingCount >= media.length && r2Count >= media.length) {
+              // All photos have R2 URLs, skip
               totalProcessed++;
               continue;
             }
 
-            // Delete stale media rows and re-insert with R2 URLs
+            // Build map of existing R2 URLs to preserve on failure
+            const existingR2: Record<number, string> = {};
+            if (existingMedia) {
+              existingMedia.forEach((m: any) => {
+                if (m.local_url) existingR2[m.order] = m.local_url;
+              });
+            }
+
+            // Delete and re-insert with R2 URLs
             await supabase.from("mls_media").delete().eq("listing_key", lk);
             const mediaRows = [];
+            const bfSlug = addressSlug(record.StreetNumber || "", record.StreetName || "", record.StreetSuffix || "", record.City || "", record.StateOrProvince || "");
             for (let i = 0; i < media.length; i++) {
               const m = media[i];
               const mUrl = m.MediaURL || "";
-              const localUrl = await uploadMediaToR2(mUrl, lid, i);
+              const order = m.Order || i;
+              let localUrl = await uploadMediaToR2(mUrl, lid, i, bfSlug);
+              // Reuse existing R2 URL if upload failed
+              if (!localUrl && existingR2[order]) localUrl = existingR2[order];
               if (localUrl) r2Uploaded++; else r2Failed++;
               mediaRows.push({
                 listing_key: lk,

@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<!-- Google Analytics 4 -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-FRXENGTEZF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-FRXENGTEZF');</script>
 <script>
 (function(){var r={'#waynesville':'towns/waynesville.html','#sylva':'towns/sylva.html','#cashiers-highlands':'towns/cashiers-highlands.html','#bryson-city':'towns/bryson-city.html','#maggie-valley':'towns/maggie-valley.html','#franklin':'towns/franklin.html','#dillsboro':'towns/dillsboro.html','#cullowhee':'towns/cullowhee.html','#blog-unrestricted-land':'blog/unrestricted-land-western-nc.html','#blog-mountain-towns':'blog/mountain-towns-guide.html','#blog-market-update':'blog/market-update-2026.html','#blog-sell-land':'blog/how-to-sell-land-western-nc.html','#blog-seller-quiz':'blog/sell-your-home-western-nc-quiz.html'};var h=location.hash;if(h&&r[h])location.replace(r[h]);})();
 </script>
@@ -13,6 +16,7 @@
 <meta name="author" content="Cory Coleman - Keller Williams Great Smokies">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://coryhelpsyoumove.com/">
+<link rel="sitemap" type="application/xml" href="/sitemap.xml">
 <meta name="theme-color" content="#0C0B09" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#F8F6F1" media="(prefers-color-scheme: light)">
 <link rel="icon" href="images/favicon.svg" type="image/svg+xml">
@@ -264,6 +268,7 @@
             <label class="sr-multi-option"><input type="checkbox" value="Franklin" onchange="hsLocChanged()"><span>Franklin</span></label>
             <label class="sr-multi-option"><input type="checkbox" value="Dillsboro" onchange="hsLocChanged()"><span>Dillsboro</span></label>
             <label class="sr-multi-option"><input type="checkbox" value="Cullowhee" onchange="hsLocChanged()"><span>Cullowhee</span></label>
+            <label class="sr-multi-option"><input type="checkbox" value="Asheville" onchange="hsLocChanged()"><span>Asheville / Buncombe</span></label>
           </div>
         </div>
         <div class="hs-field">
@@ -344,7 +349,7 @@
       <!-- Text search row -->
       <div class="hero-search-text" id="heroSearchText">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        <input type="text" class="hs-text-input" id="hsTextQuery" placeholder="Search by address, MLS#, or keyword..." autocomplete="off" onkeydown="if(event.key==='Enter')heroSearch()">
+        <input type="text" class="hs-text-input" id="hsTextQuery" placeholder="Search by address, MLS#, or keyword..." autocomplete="off" onkeydown="if(event.key==='Enter'){this.blur();heroSearch()}">
       </div>
       <!-- SELL FORM (hidden by default, shown when Sell tab active) -->
       <div class="hero-sell-form" id="heroSellForm" style="display:none">
@@ -719,7 +724,8 @@
 </div>
 
 <!-- ═══════════════ SCRIPTS ═══════════════ -->
-<script defer src="app.js?v=95"></script>
+<script defer src="social-image.js"></script>
+<script defer src="app.js?v=96"></script>
 
 
 </div>
@@ -1228,6 +1234,7 @@
         <label class="sr-multi-option"><input type="checkbox" value="Franklin" onchange="srLocChanged()"><span>Franklin</span></label>
         <label class="sr-multi-option"><input type="checkbox" value="Dillsboro" onchange="srLocChanged()"><span>Dillsboro</span></label>
         <label class="sr-multi-option"><input type="checkbox" value="Cullowhee" onchange="srLocChanged()"><span>Cullowhee</span></label>
+        <label class="sr-multi-option"><input type="checkbox" value="Asheville" onchange="srLocChanged()"><span>Asheville / Buncombe</span></label>
       </div>
     </div>
     <div class="sr-filter-chip" id="srfType">
@@ -1279,7 +1286,7 @@
     </div>
     <div class="sr-filter-chip sr-text-search" id="srfTextChip">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-      <input type="text" class="sr-text-input" id="srfTextQuery" placeholder="Address, MLS#, keyword..." onkeyup="srApplyFilters()" autocomplete="off">
+      <input type="text" class="sr-text-input" id="srfTextQuery" placeholder="Address, MLS#, keyword..." onkeyup="if(event.key==='Enter')this.blur();srApplyFilters()" autocomplete="off">
     </div>
     <button class="sr-save-search-btn" id="srSaveSearchBtn" onclick="saveCurrentSearch()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
