@@ -824,6 +824,18 @@ var SIMPLYRETS = {
 // Set MLS_GRID.enabled = true and SIMPLYRETS.enabled = false to switch.
 var MLS_GRID = {
   enabled: true, // Navica CSAR sync is live — queries mls_listings from Supabase
+
+  // Ready-state machinery for search gating and freshness polling.
+  // `ready` flips true after init() resolves; `readyPromise` is a stable
+  // handle callers can `await` before reading ALL_LISTINGS / TOWN_LISTINGS.
+  // `_latestMod` tracks the max modification_timestamp we've loaded so the
+  // poll loop can detect new upstream data cheaply.
+  ready: false,
+  readyPromise: null,
+  _readyResolve: null,
+  _latestMod: '',
+  _pollTimer: null,
+  _pollIntervalMs: 90000, // 90s — cheap max-timestamp probe, full refresh only on change
   // Town slugs mapped from MLS city names
   cityMap: {
     'Waynesville': 'waynesville',
@@ -995,6 +1007,16 @@ var MLS_GRID = {
     }
     _log('[MLS Grid] Loading listings from Supabase...');
 
+    // Create the ready promise on first call so pending search clicks can await it.
+    // If init() is ever called again (e.g. freshness poll triggers a full refresh),
+    // we don't reset `ready`/`readyPromise` — the old promise stays resolved and
+    // callers see the refreshed ALL_LISTINGS on next read.
+    if (!MLS_GRID.readyPromise) {
+      MLS_GRID.readyPromise = new Promise(function(resolve){
+        MLS_GRID._readyResolve = resolve;
+      });
+    }
+
     // Fetch listings (paginated) and all primary photos (paginated) in parallel.
     // Dedup is server-side now — we only load rows where is_winner=true.
     // A parallel sibling query picks up loser rows so we can still show the
@@ -1002,7 +1024,7 @@ var MLS_GRID = {
     var listingsPromise = MLS_GRID._fetchAll('mls_listings',
       'listing_id,listing_key,address_group_key,list_price,full_address,city,property_type,property_sub_type,' +
       'bedrooms_total,bathrooms_total_integer,living_area,living_area_range,lot_size_acres,lot_size_square_feet,' +
-      'standard_status,association_fee,latitude,longitude,year_built,days_on_market,' +
+      'standard_status,association_fee,latitude,longitude,year_built,days_on_market,modification_timestamp,' +
       'public_remarks,list_agent_full_name,list_office_name,list_office_phone,attribution_contact,originating_system_name,restrictions,list_date', [
       { method: 'eq', args: ['mlg_can_view', true] },
       { method: 'eq', args: ['is_winner', true] },
@@ -1147,11 +1169,75 @@ var MLS_GRID = {
         // Re-render
         renderFeatured();
         _log('[MLS Grid] Site updated with ' + ALL_LISTINGS.length + ' listings across ' + Object.keys(TOWN_LISTINGS).length + ' areas');
+
+        // Record the freshest modification_timestamp so the poller can detect
+        // upstream changes. Rows carry this field on the raw listingRows, not
+        // on the mapped site listings (we don't persist it through mapListing),
+        // so we reach back to listingRows here.
+        var maxMod = '';
+        for (var i = 0; i < listingRows.length; i++) {
+          var mt = listingRows[i].modification_timestamp || '';
+          if (mt > maxMod) maxMod = mt;
+        }
+        MLS_GRID._latestMod = maxMod;
+
+        // Flip ready state + resolve the gate so any search queued while we
+        // were loading can now run.
+        MLS_GRID.ready = true;
+        if (MLS_GRID._readyResolve) {
+          MLS_GRID._readyResolve();
+          MLS_GRID._readyResolve = null;
+        }
+
+        // Start the freshness poller (idempotent — noop if already running).
+        MLS_GRID._startFreshnessPoll();
       }).catch(function(err){
         console.error('[MLS Grid] Failed to load:', err.message || err);
         var _fg = document.getElementById('featuredGrid');
         if(_fg) { var _ld = _fg.querySelector('.idx-loading'); if(_ld) _ld.innerHTML = '<div style="margin-bottom:0.8rem;font-size:1.8rem;">&#x26A0;</div>Unable to load listings. Please refresh the page.<div style="margin-top:0.5rem;font-size:0.85rem;opacity:0.6;">' + (err.message || 'Connection error') + '</div>'; }
+        // Resolve the ready gate even on failure, otherwise the search button
+        // spinner would spin forever. Mark ready=true so subsequent clicks
+        // don't re-enter the wait path — the user will get an empty overlay,
+        // which is better than a locked-up button.
+        MLS_GRID.ready = true;
+        if (MLS_GRID._readyResolve) {
+          MLS_GRID._readyResolve();
+          MLS_GRID._readyResolve = null;
+        }
       });
+  },
+  // Freshness poll — runs every 90s while the tab is visible. Cheap:
+  // queries for a single row with modification_timestamp greater than the
+  // freshest one we've already loaded. If anything comes back, the upstream
+  // sync has new data, so we call init() again for a full in-place refresh.
+  // Full refresh is cheaper than implementing delta-merge logic and runs at
+  // most every 90s, so the cost is bounded.
+  _startFreshnessPoll: function() {
+    if (MLS_GRID._pollTimer) return; // already running
+    var tick = function() {
+      if (document.hidden) return; // don't poll if tab is backgrounded
+      if (!_sb || !MLS_GRID._latestMod) return;
+      _sb.from('mls_listings')
+        .select('modification_timestamp')
+        .eq('mlg_can_view', true)
+        .eq('is_winner', true)
+        .gt('modification_timestamp', MLS_GRID._latestMod)
+        .order('modification_timestamp', { ascending: false })
+        .limit(1)
+        .then(function(res) {
+          if (res.error) { _warn('[MLS Grid] freshness poll error:', res.error.message); return; }
+          if (res.data && res.data.length > 0) {
+            _log('[MLS Grid] Upstream has new data, refreshing...');
+            MLS_GRID.init();
+          }
+        });
+    };
+    MLS_GRID._pollTimer = setInterval(tick, MLS_GRID._pollIntervalMs);
+    // Also refresh immediately when the user returns to a backgrounded tab —
+    // people who leave the tab open overnight shouldn't see 18-hour-stale data.
+    document.addEventListener('visibilitychange', function() {
+      if (!document.hidden) tick();
+    });
   },
   // Load all photos for a specific listing (on-demand for property detail overlay)
   loadPhotos: function(listingKey) {
@@ -2128,27 +2214,39 @@ function hsLocChanged() {
 }
 
 function heroSearch(){
+  // Snapshot filter state at click time so the search runs against exactly
+  // what the user typed, even if they touch the form again while we wait.
   var areas = getHsSelectedAreas();
-  var loc = areas.join(',');
-  var type=document.getElementById('hsType').value;
-  var price=document.getElementById('hsPrice').value;
-  var beds=document.getElementById('hsBeds').value;
-  var baths=document.getElementById('hsBaths').value;
-  var restrict=document.getElementById('hsRestrict').value;
-  var query=(document.getElementById('hsTextQuery')||{}).value||'';
+  var filters = {
+    location: (areas.join(',')) || '',
+    type: (function(){
+      var t = document.getElementById('hsType').value;
+      var typeMap = {'home':'Single Family','cabin':'Cabin','land':'Land','townhome':'Townhome / Condo','multifamily':'Multi-Family'};
+      return typeMap[t] || '';
+    })(),
+    price: document.getElementById('hsPrice').value || '',
+    beds: document.getElementById('hsBeds').value || '',
+    baths: document.getElementById('hsBaths').value || '',
+    restrictions: document.getElementById('hsRestrict').value || '',
+    query: ((document.getElementById('hsTextQuery')||{}).value||'').trim()
+  };
 
-  // Map hero type values to search type values
-  var typeMap = {'home':'Single Family','cabin':'Cabin','land':'Land','townhome':'Townhome / Condo','multifamily':'Multi-Family'};
-  var mappedType = typeMap[type] || '';
+  // Gate: if the MLS feed hasn't finished loading yet, swap the button icon
+  // for a spinner and wait for MLS_GRID.readyPromise before proceeding.
+  // Without this gate, clicks during the initial fetch would open an empty
+  // search results overlay, which is what made Cory's property appear
+  // missing this morning until a second search.
+  var gridReady = !(typeof MLS_GRID !== 'undefined' && MLS_GRID.enabled && !MLS_GRID.ready);
+  if (gridReady) {
+    openSearchResults(filters);
+    return;
+  }
 
-  openSearchResults({
-    location: loc || '',
-    type: mappedType,
-    price: price || '',
-    beds: beds || '',
-    baths: baths || '',
-    restrictions: restrict || '',
-    query: query.trim()
+  var btn = document.getElementById('hsSearchBtn');
+  if (btn) btn.classList.add('is-loading');
+  MLS_GRID.readyPromise.then(function(){
+    if (btn) btn.classList.remove('is-loading');
+    openSearchResults(filters);
   });
 }
 

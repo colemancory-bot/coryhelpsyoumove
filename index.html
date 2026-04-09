@@ -10,6 +10,9 @@
 (function(){var r={'#waynesville':'towns/waynesville.html','#sylva':'towns/sylva.html','#cashiers-highlands':'towns/cashiers-highlands.html','#bryson-city':'towns/bryson-city.html','#maggie-valley':'towns/maggie-valley.html','#franklin':'towns/franklin.html','#dillsboro':'towns/dillsboro.html','#cullowhee':'towns/cullowhee.html','#blog-unrestricted-land':'blog/unrestricted-land-western-nc.html','#blog-mountain-towns':'blog/mountain-towns-guide.html','#blog-market-update':'blog/market-update-2026.html','#blog-sell-land':'blog/how-to-sell-land-western-nc.html','#blog-seller-quiz':'blog/sell-your-home-western-nc-quiz.html'};var h=location.hash;if(h&&r[h])location.replace(r[h]);})();
 </script>
 <meta name="referrer" content="strict-origin-when-cross-origin">
+<!-- Warm TLS + DNS to Supabase so the listings fetch starts with zero handshake delay -->
+<link rel="preconnect" href="https://kzaabnnwjupjqvydiqlz.supabase.co" crossorigin>
+<link rel="dns-prefetch" href="https://kzaabnnwjupjqvydiqlz.supabase.co">
 <title>Cory Coleman | Real Estate — Western North Carolina</title>
 <meta name="description" content="Cory Coleman - Keller Williams Great Smokies. Trusted real estate guidance for buying and selling homes, land, and investment property in Western North Carolina.">
 <meta name="keywords" content="Western NC real estate, WNC homes for sale, unrestricted land Western NC, Waynesville real estate, Sylva NC homes, Bryson City real estate, mountain property North Carolina, Keller Williams Great Smokies, Cory Coleman realtor">
@@ -342,7 +345,8 @@
           </div>
         </div>
         <button class="hs-btn" id="hsSearchBtn" onclick="heroSearch()">
-          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <svg class="hs-btn-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <span class="hs-btn-spinner" aria-hidden="true"></span>
           Search
         </button>
       </div>
