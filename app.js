@@ -76,6 +76,14 @@ document.addEventListener('DOMContentLoaded', function(){
       },2000);
     }
   }catch(e){}
+
+  // GA4: track tel: link clicks (phone calls) via event delegation
+  document.addEventListener('click', function(e){
+    var link = e.target.closest('a[href^="tel:"]');
+    if(link && typeof gtag === 'function'){
+      gtag('event', 'phone_call', {event_category: 'contact', event_label: link.href});
+    }
+  });
 });
 
 // ═══ NAV ═══
@@ -1766,6 +1774,8 @@ if(window.visualViewport){
 
 // --- Chat Preview → Full Chat transition ---
 function openChatFromPreview(text){
+  // GA4: track chat engagement
+  if(typeof gtag==='function') gtag('event','chat_start',{event_category:'engagement'});
   // 1. Hide preview
   var preview=document.getElementById('chatPreview');
   if(preview) preview.classList.remove('show');
@@ -2294,6 +2304,8 @@ function submitSellForm(){
   btn.textContent='Sent!';
   btn.classList.add('sent');
   document.getElementById('hsfSuccess').style.display='flex';
+  // GA4: track seller lead
+  if(typeof gtag==='function') gtag('event','generate_lead',{event_category:'contact',event_label:'sell_form'});
 
   // Disable inputs
   document.querySelectorAll('#heroSellForm .hsf-input').forEach(i=>i.disabled=true);
@@ -2817,6 +2829,8 @@ var PROP_DESCRIPTIONS = {
 var RESTRICT_LABELS = {'unrestricted':'Unrestricted — No HOA','restricted':'Has Restrictions','light':'Has Restrictions','hoa':'Has Restrictions'};
 
 function openProp(listing, townName, sourceCardEl) {
+  // GA4: track property detail view
+  if(typeof gtag==='function') gtag('event','view_item',{currency:'USD',value:listing.price||0,items:[{item_id:listing.mlsId||'',item_name:(listing.address||'')+'  '+(listing.city||''),item_category:listing.type||'',price:listing.price||0}]});
   // Registration gate — allow 3 free previews, gate on 4th view
   if(!_acctLoggedIn){
     _guestViewCount++;
@@ -4267,6 +4281,8 @@ function srLocChanged() {
 }
 
 function openSearchResults(filters){
+  // GA4: track property search
+  if(typeof gtag==='function') gtag('event','search',{search_term:(filters&&filters.query)||'filter_search'});
   hideMobileCta();
   filters = filters || {};
 
@@ -7535,6 +7551,8 @@ async function submitConsultation(btn) {
     btn.textContent = 'Message Sent!';
     btn.style.background = 'var(--green)';
   }
+  // GA4: track lead submission
+  if(typeof gtag==='function') gtag('event','generate_lead',{event_category:'contact',event_label:'consultation_form'});
   btn.disabled = false;
   setTimeout(function(){ btn.textContent='Send Message'; btn.style.background=''; }, 3000);
 }
