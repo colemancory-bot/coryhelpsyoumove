@@ -378,16 +378,27 @@ function buildTownFilters() {
 
 function generateSchema() {
   allEvents.slice(0, 30).forEach(function(evt) {
+    var startIso = evt.event_date + (evt.start_time ? 'T' + evt.start_time : '');
+    // endDate: use explicit end, or default to +2h from start, or end of day
+    var endIso = evt.event_end_date
+      || (evt.end_time ? evt.event_date + 'T' + evt.end_time : '')
+      || (evt.start_time ? evt.event_date + 'T' + (function(t){
+           var h = parseInt(t.split(':')[0]) + 2;
+           return (h < 24 ? (h < 10 ? '0' : '') + h : '23') + ':' + t.split(':')[1] + ':' + (t.split(':')[2] || '00');
+         })(evt.start_time) : evt.event_date + 'T23:59:00');
     var s = {'@context':'https://schema.org','@type':'Event','name':evt.title,
-      'startDate':evt.event_date + (evt.start_time ? 'T' + evt.start_time : ''),
+      'startDate': startIso,
+      'endDate': endIso,
+      'eventStatus': 'https://schema.org/EventScheduled',
+      'eventAttendanceMode': 'https://schema.org/OfflineEventAttendanceMode',
+      'image': evt.image_url || 'https://coryhelpsyoumove.com/images/hero-bg.jpg',
+      'organizer': {'@type':'Organization','name': evt.venue || 'Community Event','url':'https://coryhelpsyoumove.com/events.html'},
+      'offers': {'@type':'Offer','url': evt.url || 'https://coryhelpsyoumove.com/events.html','price':'0','priceCurrency':'USD','availability':'https://schema.org/InStock','validFrom': evt.event_date},
       'location':{'@type':'Place','name':evt.venue || evt.town_display,
         'address':{'@type':'PostalAddress','addressLocality':evt.town_display,'addressRegion':'NC','addressCountry':'US'}}};
     if (evt.description) s.description = evt.description;
-    if (evt.end_time) s.endDate = evt.event_date + 'T' + evt.end_time;
-    if (evt.event_end_date) s.endDate = evt.event_end_date;
     if (evt.address) s.location.address.streetAddress = evt.address;
     if (evt.url) s.url = evt.url;
-    if (evt.image_url) s.image = evt.image_url;
     var el = document.createElement('script');
     el.type = 'application/ld+json';
     el.textContent = JSON.stringify(s);
