@@ -201,7 +201,7 @@ function showStep2_FiveStar(){
     '<button class="rv-btn rv-btn-primary" onclick="generateReview()">Generate My Review</button>';
 
   // Add clickable suggestion chips
-  var suggestions = ['Knew the area well','Great communication','Always available','Made it easy','Honest and upfront','Strong negotiator','Went above and beyond','Patient with our search'];
+  var suggestions = ['Knew every neighborhood','Local mountain home expert','Explained the market clearly','Knew things other agents didn\'t','Honest and upfront','Great communication','Strong negotiator','Made the process easy'];
   var chipsEl = document.getElementById('rvStandoutChips');
   suggestions.forEach(function(s){
     var chip = document.createElement('button');
@@ -264,9 +264,9 @@ function generateReview(){
     'Highly recommend Cory and Keller Williams Great Smokies to anyone looking for real estate in Western North Carolina.',
     'If you\'re searching for property in Western NC, Cory is the person to call.',
     'Would absolutely recommend Cory Coleman to anyone looking for a home in the WNC mountains.',
-    'Can\'t say enough good things. If you\'re buying in Western North Carolina, talk to Cory first.',
-    'Five stars. Would recommend Cory to anyone moving to the Western NC area.',
-    'If you want a broker who actually knows the Western NC mountains, Cory is your guy.',
+    'Can\'t say enough good things. If you\'re buying in Western North Carolina, talk to Cory first. His local knowledge is the real deal.',
+    'Five stars. Would recommend Cory to anyone moving to the Western NC mountains. Nobody knows these communities better.',
+    'If you want a broker who actually knows every mountain town from Waynesville to Murphy, Cory is your guy.',
     'We tell everyone we know to call Cory Coleman at Keller Williams Great Smokies.'
   ]);
   var closeSell = pick([
@@ -285,13 +285,13 @@ function generateReview(){
   // Randomized middle phrases
   var midBuy = pick([
     'He walked us through every step, from the first showing all the way to closing.',
-    'From our very first conversation he understood what we were looking for.',
-    'He helped us navigate everything from inspections to closing without any surprises.',
-    'He was patient with our search and never made us feel rushed.',
-    'He knew the area well and pointed out things we would have missed on our own.',
-    'Every question we had was answered quickly and thoroughly.',
-    'He made what could have been overwhelming feel completely manageable.',
-    'The whole experience from first call to closing day was seamless.'
+    'From our very first conversation he understood what we were looking for and which areas would be the best fit.',
+    'He helped us navigate everything from well and septic to inspections to closing without any surprises.',
+    'He was patient with our search and showed us options in neighborhoods we never would have found on our own.',
+    'He knew the area inside and out and pointed out things about the property and the community that we would have missed completely.',
+    'Every question we had about the local market, the neighborhoods, the county regulations, he had the answer.',
+    'His knowledge of the different mountain communities helped us narrow down exactly where we wanted to be.',
+    'The whole experience from first call to closing day was seamless. He clearly knows Western NC better than anyone we talked to.'
   ]);
   var midSell = pick([
     'He handled the pricing, photography, and marketing, and we had strong interest right away.',
