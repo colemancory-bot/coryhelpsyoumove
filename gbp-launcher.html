@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Publish GBP Post</title>
+<style>
+  :root {
+    --bg: #F8F6F1;
+    --ink: #1A1815;
+    --muted: #666;
+    --gold: #8B7748;
+    --gold-dark: #6f5e39;
+    --card: #FFFFFF;
+    --border: #E0DDD4;
+    --success: #2F7A3D;
+    --error: #B54141;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    margin: 0;
+    padding: 40px 20px;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; }
+  h1 {
+    font-family: "Cormorant Garamond", Georgia, serif;
+    font-size: 32px;
+    font-weight: 500;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+  }
+  .subtitle { color: var(--muted); font-size: 15px; margin-bottom: 32px; }
+  .label {
+    color: var(--muted);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 20px;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .type-pill {
+    display: inline-block;
+    background: var(--gold);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .post-preview {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    white-space: pre-wrap;
+    font-size: 15px;
+    line-height: 1.55;
+  }
+  .image-hint {
+    font-size: 14px;
+    color: var(--muted);
+    margin-top: 10px;
+    padding: 10px 14px;
+    background: var(--card);
+    border-left: 3px solid var(--gold);
+    border-radius: 4px;
+  }
+  button.go {
+    background: var(--gold);
+    color: white;
+    border: none;
+    padding: 16px 20px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: 10px;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 28px;
+    transition: background 0.15s;
+  }
+  button.go:hover { background: var(--gold-dark); }
+  button.go.done { background: var(--success); cursor: default; }
+  ol.steps {
+    color: var(--muted);
+    font-size: 14px;
+    margin-top: 18px;
+    padding-left: 22px;
+  }
+  ol.steps li { margin-bottom: 4px; }
+  .error {
+    background: #FDEDED;
+    color: var(--error);
+    padding: 16px;
+    border-radius: 10px;
+    border: 1px solid #F5C2C2;
+    font-size: 14px;
+  }
+  .char-count { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .fallback {
+    margin-top: 20px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .fallback a { color: var(--gold); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Publish your GBP post</h1>
+  <p class="subtitle">Click the button below. Text copies to your clipboard and Google Business Profile opens.</p>
+
+  <div id="content" style="display:none">
+    <div class="label">Post type</div>
+    <span class="type-pill" id="type"></span>
+
+    <div class="label">Ready-to-paste text</div>
+    <div class="post-preview" id="preview"></div>
+    <div class="char-count" id="count"></div>
+
+    <div class="image-hint" id="image" style="display:none"></div>
+
+    <button class="go" id="go">Copy text + Open Google Business Profile</button>
+
+    <ol class="steps">
+      <li>The text above is copied to your clipboard.</li>
+      <li>Google Business Profile opens in a new tab.</li>
+      <li>In GBP: click <strong>Add update</strong>, paste (Ctrl+V / Cmd+V), then click <strong>Post</strong>.</li>
+    </ol>
+
+    <div class="fallback">
+      If clipboard copy fails, select the text above manually and <a href="https://business.google.com/" target="_blank" rel="noopener">open GBP here</a>.
+    </div>
+  </div>
+
+  <div id="error" class="error" style="display:none"></div>
+</div>
+
+<script>
+(function() {
+  function b64urlDecodeToString(s) {
+    var b64 = s.replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    var bin = atob(b64);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder('utf-8').decode(bytes);
+  }
+
+  function showError(msg) {
+    document.getElementById('content').style.display = 'none';
+    var el = document.getElementById('error');
+    el.style.display = 'block';
+    el.textContent = 'Could not load this post: ' + msg + '. Check the email you came from and try again.';
+  }
+
+  var params = new URLSearchParams(window.location.search);
+  var p = params.get('p');
+  if (!p) { showError('no post data in URL'); return; }
+
+  var data;
+  try {
+    data = JSON.parse(b64urlDecodeToString(p));
+  } catch (err) {
+    showError('invalid post data');
+    return;
+  }
+
+  if (!data.text) { showError('post text missing'); return; }
+
+  document.getElementById('content').style.display = 'block';
+  document.getElementById('type').textContent = data.type || 'GBP post';
+  document.getElementById('preview').textContent = data.text;
+  document.getElementById('count').textContent = data.text.length + ' characters';
+  if (data.image) {
+    var img = document.getElementById('image');
+    img.style.display = 'block';
+    img.innerHTML = '<strong>Image suggestion:</strong> ' + data.image.replace(/[<>]/g, '');
+  }
+
+  var btn = document.getElementById('go');
+  btn.addEventListener('click', async function() {
+    try {
+      await navigator.clipboard.writeText(data.text);
+      btn.classList.add('done');
+      btn.textContent = 'Copied. Opening GBP in a new tab...';
+      setTimeout(function() {
+        window.open('https://business.google.com/', '_blank', 'noopener');
+      }, 350);
+    } catch (err) {
+      alert('Clipboard access was blocked. Please select the text manually and copy it, then open Google Business Profile.');
+    }
+  });
+})();
+</script>
+</body>
+</html>
