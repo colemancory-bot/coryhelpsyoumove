@@ -1,6 +1,8 @@
 // Admin Notify — shared-secret-protected email proxy for internal automation.
 //
-// Deploy: supabase functions deploy admin-notify
+// Deploy: supabase functions deploy admin-notify --no-verify-jwt
+//   (JWT check is disabled so callers only need the x-admin-secret header,
+//    not a Supabase auth token. The shared secret is the real gate.)
 // Invoke: POST /functions/v1/admin-notify
 //
 // Env vars required:
