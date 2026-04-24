@@ -481,11 +481,12 @@ Then invoke the function with a small limit (e.g. `{limit:20}`) a few times to w
 - [x] Submit sitemap to Google Search Console (verified submitted, Success status, 20 pages discovered)
 - [x] Claim Google Business Profile (verified claimed 2026-04-23)
 
-### MLS Grid IDX Compliance — Verify Once Live Data Flows
-These passed architectural review (Canopy MLS compliance form, ticket #CMDLA00483263) but require manual verification with real data:
-- [ ] **Rule 7 — Address Withholding:** Confirm listings with "Address on Internet = No" do NOT appear on the site and their map pins don't reveal location
-- [ ] **Rule 8 — Seller IDX Opt-Out:** Confirm listings with "Internet Listing = No" are fully suppressed (not in search, cards, or map)
-- [ ] **Rule 11B — Data Removal on Refresh:** Confirm that expired/withdrawn listings are removed after the next sync cycle (check a listing that expired yesterday)
+### MLS Grid IDX Compliance — Live-Data Verification (2026-04-24)
+These passed architectural review (Canopy MLS compliance form, ticket #CMDLA00483263). After Canopy and Navica feeds went live, a full audit against production data found gaps in all three rules and a fix was shipped as `supabase/migrations/20260424000001_compliance_rule7_8_11b.sql` plus updates to both sync functions (`supabase/functions/mls-sync/index.ts` and `supabase/functions/navica-sync/index.ts`).
+
+- [x] **Rule 7 — Address Withholding:** Verified via live anon REST on 2026-04-24. Gap found: 15 Active rows (9 Canopy + 6 CSAR) had `InternetAddressDisplayYN=false` yet still exposed `street_*` / `latitude` / `longitude` to the public. Fix: promoted `internet_address_display_yn` into a dedicated column, added one-time address masking for existing opt-outs, and every sync path (Canopy primary + sync-one + mini-backfill + backfill-closed, Navica primary + backfill-closed) now blanks `street_number/street_name/street_suffix/unit_number/latitude/longitude` when the seller opts out. `full_address` is a generated column and follows automatically.
+- [x] **Rule 8 — Seller IDX Opt-Out:** Verified via live anon REST on 2026-04-24. Gap found: 6 Active Canopy rows had `InternetEntireListingDisplayYN=false` yet were still served to anon (e.g. CAR292869404 — `MlgCanUse=["BO","VOW"]`, no IDX, was exposed). Fix: promoted `internet_entire_listing_display_yn` + `mlg_can_use` into dedicated columns; sync writes `mlg_can_view = MlgCanView && InternetEntireListingDisplayYN && MlgCanUse.includes('IDX')`; new RLS policy `Public can read IDX-eligible active winners` enforces every gate at the database edge, so a direct REST call cannot see what the frontend filter would hide.
+- [x] **Rule 11B — Data Removal on Refresh:** Verified via live anon REST on 2026-04-24. Incremental sync does capture status transitions (not just Actives — confirmed at `mls-sync/index.ts:188-189`), but the prior RLS policy only filtered on `mlg_can_view`, so 2,103 non-Active winner rows (1,413 Closed + 318 Canceled + 372 Expired) were still readable by anon even though the frontend filter excluded them. Fix: new RLS policy restricts anon SELECT to `standard_status IN ('Active','Active Under Contract','Pending')`. Non-Active rows are retained (agent-only CMA back-office still needs them) but admin-only via the existing `Admin can manage listings` policy.
 
 ### Future Features
 - Google Calendar sync for showing requests

@@ -227,6 +227,11 @@ async function syncProperties(
 
       const idxApproved = isIdxApproved(record);
       const feedType = getFeedType(record);
+      // Canopy MLS Compliance — same gates as Canopy / MLS Grid sync.
+      //   Rule 8 — seller can suppress entire-listing internet display
+      //   Rule 7 — seller can suppress public address display separately
+      const sellerAllowsInternetDisplay = record.InternetEntireListingDisplayYN !== false;
+      const sellerAllowsAddressDisplay = record.InternetAddressDisplayYN !== false;
 
       // Map RESO Data Dictionary fields → our mls_listings schema
       const listing: Record<string, any> = {
@@ -236,7 +241,11 @@ async function syncProperties(
           record.OriginatingSystemName || ORIGINATING_SYSTEM,
         modification_timestamp: modTs,
         standard_status: stdStatus,
-        mlg_can_view: idxApproved,
+        // Rule 8: suppress from public display when seller opts out, even if
+        // FeedTypes still advertises IDX.
+        mlg_can_view: idxApproved && sellerAllowsInternetDisplay,
+        internet_entire_listing_display_yn: sellerAllowsInternetDisplay,
+        internet_address_display_yn: sellerAllowsAddressDisplay,
         feed_type: feedType,
 
         // Pricing
@@ -244,11 +253,11 @@ async function syncProperties(
         close_price: record.ClosePrice || null,
         original_list_price: record.OriginalListPrice || null,
 
-        // Address
-        street_number: record.StreetNumber || "",
-        street_name: record.StreetName || "",
-        street_suffix: record.StreetSuffix || "",
-        unit_number: record.UnitNumber || "",
+        // Address — Rule 7: mask when seller opted out of address display
+        street_number: sellerAllowsAddressDisplay ? (record.StreetNumber || "") : "",
+        street_name: sellerAllowsAddressDisplay ? (record.StreetName || "") : "",
+        street_suffix: sellerAllowsAddressDisplay ? (record.StreetSuffix || "") : "",
+        unit_number: sellerAllowsAddressDisplay ? (record.UnitNumber || "") : "",
         city: record.City || "",
         state_or_province: record.StateOrProvince || "NC",
         postal_code: record.PostalCode || "",
@@ -302,9 +311,9 @@ async function syncProperties(
         days_on_market: record.DaysOnMarket || 0,
         cumulative_days_on_market: record.CumulativeDaysOnMarket || 0,
 
-        // Location
-        latitude: record.Latitude || null,
-        longitude: record.Longitude || null,
+        // Location (masked when seller opted out of address display)
+        latitude: sellerAllowsAddressDisplay ? (record.Latitude || null) : null,
+        longitude: sellerAllowsAddressDisplay ? (record.Longitude || null) : null,
 
         // HOA / Association
         association_fee: record.AssociationFee || null,
@@ -918,21 +927,29 @@ Deno.serve(async (req) => {
           const idxApproved = isIdxApproved(record);
           const feedType = getFeedType(record);
 
+          // Canopy compliance gates (rules 7 & 8): seller opt-outs
+          const sellerAllowsInternetDisplay = record.InternetEntireListingDisplayYN !== false;
+          const sellerAllowsAddressDisplay = record.InternetAddressDisplayYN !== false;
+          const mlgCanUse: string[] = Array.isArray(record.MlgCanUse) ? record.MlgCanUse : [];
+
           const listing: Record<string, any> = {
             listing_id: listingId,
             listing_key: listingKey,
             originating_system_name: record.OriginatingSystemName || ORIGINATING_SYSTEM,
             modification_timestamp: modTs,
             standard_status: "Closed",
-            mlg_can_view: idxApproved,
+            mlg_can_view: idxApproved && sellerAllowsInternetDisplay,
+            internet_entire_listing_display_yn: sellerAllowsInternetDisplay,
+            internet_address_display_yn: sellerAllowsAddressDisplay,
+            mlg_can_use: mlgCanUse.length ? mlgCanUse : ["IDX"],
             feed_type: feedType,
             list_price: record.ListPrice || null,
             close_price: record.ClosePrice || null,
             original_list_price: record.OriginalListPrice || null,
-            street_number: record.StreetNumber || "",
-            street_name: record.StreetName || "",
-            street_suffix: record.StreetSuffix || "",
-            unit_number: record.UnitNumber || "",
+            street_number: sellerAllowsAddressDisplay ? (record.StreetNumber || "") : "",
+            street_name: sellerAllowsAddressDisplay ? (record.StreetName || "") : "",
+            street_suffix: sellerAllowsAddressDisplay ? (record.StreetSuffix || "") : "",
+            unit_number: sellerAllowsAddressDisplay ? (record.UnitNumber || "") : "",
             city: record.City || "",
             state_or_province: record.StateOrProvince || "NC",
             postal_code: record.PostalCode || "",
@@ -972,8 +989,8 @@ Deno.serve(async (req) => {
             expiration_date: record.ExpirationDate || null,
             days_on_market: record.DaysOnMarket || 0,
             cumulative_days_on_market: record.CumulativeDaysOnMarket || 0,
-            latitude: record.Latitude || null,
-            longitude: record.Longitude || null,
+            latitude: sellerAllowsAddressDisplay ? (record.Latitude || null) : null,
+            longitude: sellerAllowsAddressDisplay ? (record.Longitude || null) : null,
             association_fee: record.AssociationFee || null,
             association_fee_frequency: record.AssociationFeeFrequency || "",
             association_name: record.AssociationName || "",

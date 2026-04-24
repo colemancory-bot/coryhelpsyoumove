@@ -204,7 +204,20 @@ async function syncProperties(
       const listingKey = record.ListingKey || "";
       const listingId = stripPrefix(record.ListingId || "");
       const modTs = record.ModificationTimestamp || "";
+
+      // Canopy MLS Compliance gates (verified against live data 2026-04-24).
+      //   Rule 8 — MlgCanView=false, InternetEntireListingDisplayYN=false,
+      //            or MlgCanUse missing "IDX" ⇒ not IDX-displayable.
+      //   Rule 7 — InternetAddressDisplayYN=false ⇒ mask address / coords.
       const canView = record.MlgCanView !== false;
+      const sellerAllowsInternetDisplay = record.InternetEntireListingDisplayYN !== false;
+      const mlgCanUse: string[] = Array.isArray(record.MlgCanUse) ? record.MlgCanUse : [];
+      // Empty/missing MlgCanUse defaults to allowed (common for sync feeds that
+      // don't project the field). Only block when we have an explicit array that
+      // omits "IDX".
+      const idxAllowed = mlgCanUse.length === 0 || mlgCanUse.includes("IDX");
+      const idxDisplayable = canView && sellerAllowsInternetDisplay && idxAllowed;
+      const sellerAllowsAddressDisplay = record.InternetAddressDisplayYN !== false;
 
       if (modTs > greatestTimestamp) greatestTimestamp = modTs;
 
@@ -219,8 +232,9 @@ async function syncProperties(
         continue;
       }
 
-      if (!canView) {
-        // MlgCanView false = no longer IDX-eligible
+      if (!idxDisplayable) {
+        // Not IDX-displayable (MlgCanView false, seller opted out of internet
+        // display, or MlgCanUse lacks "IDX").
         // Soft-delete: set mlg_can_view=false but RETAIN listing data for CMA back-office use
         // Clean up R2 photos (not needed for public display; CMA uses DB data)
         await deleteR2Folder(listingId);
@@ -232,12 +246,27 @@ async function syncProperties(
         if (existingRow) {
           await supabase
             .from("mls_listings")
-            .update({ mlg_can_view: false, updated_at: new Date().toISOString() })
+            .update({
+              mlg_can_view: false,
+              internet_entire_listing_display_yn: sellerAllowsInternetDisplay,
+              mlg_can_use: mlgCanUse.length ? mlgCanUse : ["IDX"],
+              updated_at: new Date().toISOString(),
+            })
             .eq("listing_key", listingKey);
         }
         totalSynced++;
         continue;
       }
+
+      // Rule 7: mask address fields when the seller opted out of address display.
+      // full_address is a GENERATED column off street_* / unit_number, so
+      // blanking the source columns masks the derived value automatically.
+      const streetNumber = sellerAllowsAddressDisplay ? (record.StreetNumber || "") : "";
+      const streetName = sellerAllowsAddressDisplay ? (record.StreetName || "") : "";
+      const streetSuffix = sellerAllowsAddressDisplay ? (record.StreetSuffix || "") : "";
+      const unitNumber = sellerAllowsAddressDisplay ? (record.UnitNumber || "") : "";
+      const latitude = sellerAllowsAddressDisplay ? (record.Latitude || null) : null;
+      const longitude = sellerAllowsAddressDisplay ? (record.Longitude || null) : null;
 
       // Map RESO Data Dictionary fields
       const listing: Record<string, any> = {
@@ -247,14 +276,17 @@ async function syncProperties(
         modification_timestamp: modTs,
         standard_status: record.StandardStatus || "Active",
         mlg_can_view: canView,
+        internet_entire_listing_display_yn: sellerAllowsInternetDisplay,
+        internet_address_display_yn: sellerAllowsAddressDisplay,
+        mlg_can_use: mlgCanUse.length ? mlgCanUse : ["IDX"],
         feed_type: "IDX", // MLS Grid listings default to IDX
         list_price: record.ListPrice || null,
         close_price: record.ClosePrice || null,
         original_list_price: record.OriginalListPrice || null,
-        street_number: record.StreetNumber || "",
-        street_name: record.StreetName || "",
-        street_suffix: record.StreetSuffix || "",
-        unit_number: record.UnitNumber || "",
+        street_number: streetNumber,
+        street_name: streetName,
+        street_suffix: streetSuffix,
+        unit_number: unitNumber,
         city: record.City || "",
         state_or_province: record.StateOrProvince || "NC",
         postal_code: record.PostalCode || "",
@@ -294,8 +326,8 @@ async function syncProperties(
         expiration_date: record.ExpirationDate || null,
         days_on_market: record.DaysOnMarket || 0,
         cumulative_days_on_market: record.CumulativeDaysOnMarket || 0,
-        latitude: record.Latitude || null,
-        longitude: record.Longitude || null,
+        latitude: latitude,
+        longitude: longitude,
         association_fee: record.AssociationFee || null,
         association_fee_frequency: record.AssociationFeeFrequency || "",
         association_name: record.AssociationName || "",
@@ -488,38 +520,26 @@ async function syncProperties(
         || newPhotosTs !== existing.photos_change_timestamp;
 
       if (media.length > 0 && photosChanged) {
-        // Preserve existing R2 URLs before deleting — if upload fails, reuse them
-        const { data: existingMedia } = await supabase
-          .from("mls_media")
-          .select("order, local_url")
-          .eq("listing_key", listingKey);
-        const existingR2: Record<number, string> = {};
-        if (existingMedia) {
-          existingMedia.forEach((m: any) => {
-            if (m.local_url) existingR2[m.order] = m.local_url;
-          });
-        }
-
+        // R2 uploads are NOT done inline here — they were too slow (1-2s each)
+        // and caused the 150s edge function timeout to trip on large batches,
+        // stalling the watermark. The backfill-media cron (every 2 min) fills
+        // in local_url asynchronously for winners only.
+        //
+        // When photosChanged=true, local_url is intentionally cleared so the
+        // backfill cron's "skip if all R2 URLs present" check does not short-
+        // circuit a re-upload of stale photos. This creates a brief broken-
+        // image window (up to ~2 min) for listings whose photos just changed.
         await supabase.from("mls_media").delete().eq("listing_key", listingKey);
         const mediaRows = [];
         for (let i = 0; i < media.length; i++) {
           const m = media[i];
           const mediaUrl = m.MediaURL || "";
           const order = m.Order || i;
-          // Upload ALL photos to R2 (MLS Grid signed URLs must not be displayed on website).
-          // Inline uploads are gated by `photosChanged` above so this only fires when the
-          // MLS reports the photo set actually changed — in steady state most syncs skip it.
-          const slug = addressSlug(record.StreetNumber || "", record.StreetName || "", record.StreetSuffix || "", record.City || "", record.StateOrProvince || "");
-          let localUrl = await uploadMediaToR2(mediaUrl, listingId, i, slug);
-          // If R2 upload failed, reuse existing R2 URL if we had one
-          if (!localUrl && existingR2[order]) {
-            localUrl = existingR2[order];
-          }
           mediaRows.push({
             listing_key: listingKey,
             media_key: m.MediaKey || `${listingKey}-${i}`,
             media_url: mediaUrl,
-            local_url: localUrl,
+            local_url: "",
             media_type: m.MimeType || "image/jpeg",
             media_category: m.MediaCategory || "Photo",
             short_description: m.ShortDescription || "",
@@ -799,6 +819,213 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Targeted single-listing sync: fetch one record by ListingId and force
+    // a full upsert + R2 photo re-upload. Used when the main watermark sync
+    // is backed up and we need a specific listing refreshed immediately.
+    if (action === "sync-one") {
+      const listingIdIn = (body.listingId || "").trim();
+      if (!listingIdIn) {
+        return new Response(JSON.stringify({ error: "listingId required" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+      const filter = `OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and ListingId eq '${listingIdIn}'`;
+      const url = `${MLS_GRID_API}/Property?$filter=${encodeURIComponent(filter)}&$expand=Media&$top=1`;
+      const data = await mlsGridFetch(url);
+      const record = (data.value || [])[0];
+      if (!record) {
+        return new Response(JSON.stringify({ ok: false, error: "listing not found in MLS Grid feed", listingId: listingIdIn }), {
+          status: 404,
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+
+      const listingKey = record.ListingKey || "";
+      const listingId = stripPrefix(record.ListingId || "");
+      const modTs = record.ModificationTimestamp || "";
+      const canView = record.MlgCanView !== false;
+      const sellerAllowsInternetDisplay = record.InternetEntireListingDisplayYN !== false;
+      const sellerAllowsAddressDisplay = record.InternetAddressDisplayYN !== false;
+      const mlgCanUse: string[] = Array.isArray(record.MlgCanUse) ? record.MlgCanUse : [];
+      const idxAllowed = mlgCanUse.length === 0 || mlgCanUse.includes("IDX");
+      const county = record.CountyOrParish || "";
+
+      if (!county || !WNC_COUNTIES.has(county)) {
+        return new Response(JSON.stringify({ ok: false, error: "listing county not in WNC set", county }), {
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+
+      // Rule 7: mask address fields when the seller opted out of address display
+      const streetNumber = sellerAllowsAddressDisplay ? (record.StreetNumber || "") : "";
+      const streetName = sellerAllowsAddressDisplay ? (record.StreetName || "") : "";
+      const streetSuffix = sellerAllowsAddressDisplay ? (record.StreetSuffix || "") : "";
+      const unitNumber = sellerAllowsAddressDisplay ? (record.UnitNumber || "") : "";
+      const latitude = sellerAllowsAddressDisplay ? (record.Latitude || null) : null;
+      const longitude = sellerAllowsAddressDisplay ? (record.Longitude || null) : null;
+
+      const mediaCountForScore = Array.isArray(record.Media) ? record.Media.length : 0;
+      const listing: Record<string, any> = {
+        listing_id: listingId,
+        listing_key: listingKey,
+        originating_system_name: ORIGINATING_SYSTEM_NAME,
+        modification_timestamp: modTs,
+        standard_status: record.StandardStatus || "Active",
+        // Rule 8: if the seller opted out of internet display or MlgCanUse lacks
+        // IDX, suppress from public display via mlg_can_view even when the
+        // upstream MlgCanView is true.
+        mlg_can_view: canView && sellerAllowsInternetDisplay && idxAllowed,
+        internet_entire_listing_display_yn: sellerAllowsInternetDisplay,
+        internet_address_display_yn: sellerAllowsAddressDisplay,
+        mlg_can_use: mlgCanUse.length ? mlgCanUse : ["IDX"],
+        feed_type: "IDX",
+        list_price: record.ListPrice || null,
+        close_price: record.ClosePrice || null,
+        original_list_price: record.OriginalListPrice || null,
+        street_number: streetNumber,
+        street_name: streetName,
+        street_suffix: streetSuffix,
+        unit_number: unitNumber,
+        city: record.City || "",
+        state_or_province: record.StateOrProvince || "NC",
+        postal_code: record.PostalCode || "",
+        county_or_parish: county,
+        property_type: record.PropertyType || "",
+        property_sub_type: record.PropertySubType || "",
+        bedrooms_total: record.BedroomsTotal || 0,
+        bathrooms_total_integer: record.BathroomsTotalInteger || 0,
+        bathrooms_half: record.BathroomsHalf || 0,
+        living_area: record.LivingArea || record.AboveGradeFinishedArea || record.BuildingAreaTotal || null,
+        living_area_range: record.LivingAreaRange || "",
+        living_area_units: record.LivingAreaUnits || "Square Feet",
+        lot_size_acres: record.LotSizeAcres || (record.LotSizeUnits === "Acres" && record.LotSizeArea ? record.LotSizeArea : null) || (record.LotSizeSquareFeet ? record.LotSizeSquareFeet / 43560 : null),
+        lot_size_square_feet: record.LotSizeSquareFeet || (record.LotSizeUnits === "Acres" && record.LotSizeArea ? record.LotSizeArea * 43560 : null),
+        year_built: record.YearBuilt || null,
+        stories: record.Stories || null,
+        garage_spaces: record.GarageSpaces || 0,
+        parking_total: record.ParkingTotal || 0,
+        public_remarks: record.PublicRemarks || "",
+        private_remarks: record.PrivateRemarks || "",
+        showing_instructions: record.ShowingInstructions || "",
+        directions: record.Directions || "",
+        list_agent_key: record.ListAgentKey || "",
+        list_agent_full_name: record.ListAgentFullName || "",
+        list_agent_email: record.ListAgentEmail || "",
+        list_agent_phone: record.ListAgentDirectPhone || record.ListAgentOfficePhone || "",
+        list_office_key: record.ListOfficeKey || "",
+        list_office_name: record.ListOfficeName || "",
+        list_office_phone: record.ListOfficePhone || "",
+        attribution_contact: record.AttributionContact || "",
+        buyer_agent_key: record.BuyerAgentKey || "",
+        buyer_agent_full_name: record.BuyerAgentFullName || "",
+        buyer_office_key: record.BuyerOfficeKey || "",
+        buyer_office_name: record.BuyerOfficeName || "",
+        list_date: record.ListingContractDate || null,
+        close_date: record.CloseDate || null,
+        expiration_date: record.ExpirationDate || null,
+        days_on_market: record.DaysOnMarket || 0,
+        cumulative_days_on_market: record.CumulativeDaysOnMarket || 0,
+        latitude: latitude,
+        longitude: longitude,
+        association_fee: record.AssociationFee || null,
+        association_fee_frequency: record.AssociationFeeFrequency || "",
+        association_name: record.AssociationName || "",
+        tax_annual_amount: record.TaxAnnualAmount || null,
+        tax_year: record.TaxYear || null,
+        heating: record.Heating || [],
+        cooling: record.Cooling || [],
+        interior_features: record.InteriorFeatures || [],
+        exterior_features: record.ExteriorFeatures || [],
+        appliances: record.Appliances || [],
+        waterfront_features: record.WaterfrontFeatures || [],
+        view: record.View || [],
+        roof: record.Roof || [],
+        flooring: record.Flooring || [],
+        foundation_details: record.FoundationDetails || [],
+        construction_materials: record.ConstructionMaterials || [],
+        water_source: record.WaterSource || [],
+        sewer: record.Sewer || [],
+        electric: record.Electric || [],
+        internet_whole_listing: record.InternetWholeListing || [],
+        zoning: record.Zoning || "",
+        restrictions: record.Restrictions || [],
+        photos_change_timestamp: record.PhotosChangeTimestamp || null,
+        raw_data: record,
+        updated_at: new Date().toISOString(),
+        address_group_key: computeAddressGroupKey(
+          streetNumber,
+          streetName,
+          streetSuffix,
+          record.City || "",
+        ),
+        media_count: mediaCountForScore,
+        quality_score: computeQualityScore({
+          mediaCount: mediaCountForScore,
+          livingArea: record.LivingArea || record.AboveGradeFinishedArea || record.BuildingAreaTotal || null,
+          latitude: latitude,
+          longitude: longitude,
+          publicRemarks: record.PublicRemarks || "",
+          yearBuilt: record.YearBuilt || null,
+          lotSizeAcres: record.LotSizeAcres || null,
+        }),
+      };
+
+      await supabase.from("mls_listings").upsert(listing, { onConflict: "listing_key" });
+
+      // Force-refresh media regardless of PhotosChangeTimestamp diff. If the
+      // inline R2 upload fails (e.g. MLS Grid is rate-limiting), we still
+      // write the deterministic R2 URL to local_url — if the R2 object
+      // already exists from a previous upload the site keeps working, and
+      // the backfill-media cron will overwrite it with fresh content later.
+      const media = record.Media || [];
+      const uploaded: number[] = [];
+      const failed: number[] = [];
+      if (media.length > 0) {
+        await supabase.from("mls_media").delete().eq("listing_key", listingKey);
+        const slug = addressSlug(record.StreetNumber || "", record.StreetName || "", record.StreetSuffix || "", record.City || "", record.StateOrProvince || "");
+        const mediaRows = [];
+        for (let i = 0; i < media.length; i++) {
+          const m = media[i];
+          const mediaUrl = m.MediaURL || "";
+          const order = m.Order || i;
+          const uploadResult = await uploadMediaToR2(mediaUrl, listingId, i, slug);
+          const deterministicUrl = R2_PUBLIC_URL
+            ? `${R2_PUBLIC_URL}/listings/${slug || listingId}/photo-${i + 1}.jpg`
+            : "";
+          const localUrl = uploadResult || deterministicUrl;
+          if (uploadResult) uploaded.push(order); else failed.push(order);
+          mediaRows.push({
+            listing_key: listingKey,
+            media_key: m.MediaKey || `${listingKey}-${i}`,
+            media_url: mediaUrl,
+            local_url: localUrl,
+            media_type: m.MimeType || "image/jpeg",
+            media_category: m.MediaCategory || "Photo",
+            short_description: m.ShortDescription || "",
+            order: order,
+            image_width: m.ImageWidth || null,
+            image_height: m.ImageHeight || null,
+            modification_timestamp: m.ModificationTimestamp || modTs,
+          });
+        }
+        if (mediaRows.length > 0) {
+          await supabase.from("mls_media").insert(mediaRows);
+        }
+      }
+
+      return new Response(JSON.stringify({
+        ok: true, action: "sync-one",
+        listingId, listingKey,
+        modTs, photosChangeTs: record.PhotosChangeTimestamp,
+        mediaCount: media.length,
+        r2Uploaded: uploaded.length,
+        r2Failed: failed.length,
+      }), {
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      });
+    }
+
     // Mini backfill: fetch one page of closed listings and upsert WNC ones
     if (action === "mini-backfill") {
       const steps: string[] = [];
@@ -845,22 +1072,30 @@ Deno.serve(async (req) => {
           if (existing) { skippedExisting++; continue; }
 
           const listingId = stripPrefix(record.ListingId || "");
-          const fullAddr = `${record.StreetNumber || ""} ${record.StreetName || ""} ${record.StreetSuffix || ""}`.trim();
+          // Compliance gates (Rules 7 & 8) — same logic as the primary sync path.
+          const canView = record.MlgCanView !== false;
+          const sellerAllowsInternetDisplay = record.InternetEntireListingDisplayYN !== false;
+          const sellerAllowsAddressDisplay = record.InternetAddressDisplayYN !== false;
+          const mlgCanUse: string[] = Array.isArray(record.MlgCanUse) ? record.MlgCanUse : [];
+          const idxAllowed = mlgCanUse.length === 0 || mlgCanUse.includes("IDX");
           await supabase.from("mls_listings").upsert({
             listing_id: listingId,
             listing_key: listingKey,
             originating_system_name: ORIGINATING_SYSTEM_NAME,
             modification_timestamp: modTs,
             standard_status: record.StandardStatus || "Closed",
-            mlg_can_view: record.MlgCanView !== false,
+            mlg_can_view: canView && sellerAllowsInternetDisplay && idxAllowed,
+            internet_entire_listing_display_yn: sellerAllowsInternetDisplay,
+            internet_address_display_yn: sellerAllowsAddressDisplay,
+            mlg_can_use: mlgCanUse.length ? mlgCanUse : ["IDX"],
             feed_type: "IDX",
             list_price: record.ListPrice || null,
             close_price: record.ClosePrice || null,
             original_list_price: record.OriginalListPrice || null,
-            street_number: record.StreetNumber || "",
-            street_name: record.StreetName || "",
-            street_suffix: record.StreetSuffix || "",
-            unit_number: record.UnitNumber || "",
+            street_number: sellerAllowsAddressDisplay ? (record.StreetNumber || "") : "",
+            street_name: sellerAllowsAddressDisplay ? (record.StreetName || "") : "",
+            street_suffix: sellerAllowsAddressDisplay ? (record.StreetSuffix || "") : "",
+            unit_number: sellerAllowsAddressDisplay ? (record.UnitNumber || "") : "",
             city: record.City || "",
             state_or_province: record.StateOrProvince || "NC",
             postal_code: record.PostalCode || "",
@@ -884,8 +1119,8 @@ Deno.serve(async (req) => {
             list_date: record.ListingContractDate || null,
             close_date: record.CloseDate || null,
             days_on_market: record.DaysOnMarket || 0,
-            latitude: record.Latitude || null,
-            longitude: record.Longitude || null,
+            latitude: sellerAllowsAddressDisplay ? (record.Latitude || null) : null,
+            longitude: sellerAllowsAddressDisplay ? (record.Longitude || null) : null,
             tax_annual_amount: record.TaxAnnualAmount || null,
             raw_data: record,
             updated_at: new Date().toISOString(),
@@ -1367,6 +1602,13 @@ Deno.serve(async (req) => {
             continue;
           }
 
+          // Compliance gates (Rules 7 & 8) — matches primary sync path.
+          const canView = record.MlgCanView !== false;
+          const sellerAllowsInternetDisplay = record.InternetEntireListingDisplayYN !== false;
+          const sellerAllowsAddressDisplay = record.InternetAddressDisplayYN !== false;
+          const mlgCanUse: string[] = Array.isArray(record.MlgCanUse) ? record.MlgCanUse : [];
+          const idxAllowed = mlgCanUse.length === 0 || mlgCanUse.includes("IDX");
+
           // Map and insert the listing (same mapping as syncProperties)
           const listing = {
             listing_id: listingId,
@@ -1374,15 +1616,18 @@ Deno.serve(async (req) => {
             originating_system_name: ORIGINATING_SYSTEM_NAME,
             modification_timestamp: modTs,
             standard_status: record.StandardStatus || "Closed",
-            mlg_can_view: record.MlgCanView !== false,
+            mlg_can_view: canView && sellerAllowsInternetDisplay && idxAllowed,
+            internet_entire_listing_display_yn: sellerAllowsInternetDisplay,
+            internet_address_display_yn: sellerAllowsAddressDisplay,
+            mlg_can_use: mlgCanUse.length ? mlgCanUse : ["IDX"],
             feed_type: "IDX",
             list_price: record.ListPrice || null,
             close_price: record.ClosePrice || null,
             original_list_price: record.OriginalListPrice || null,
-            street_number: record.StreetNumber || "",
-            street_name: record.StreetName || "",
-            street_suffix: record.StreetSuffix || "",
-            unit_number: record.UnitNumber || "",
+            street_number: sellerAllowsAddressDisplay ? (record.StreetNumber || "") : "",
+            street_name: sellerAllowsAddressDisplay ? (record.StreetName || "") : "",
+            street_suffix: sellerAllowsAddressDisplay ? (record.StreetSuffix || "") : "",
+            unit_number: sellerAllowsAddressDisplay ? (record.UnitNumber || "") : "",
             city: record.City || "",
             state_or_province: record.StateOrProvince || "NC",
             postal_code: record.PostalCode || "",
@@ -1422,8 +1667,8 @@ Deno.serve(async (req) => {
             expiration_date: record.ExpirationDate || null,
             days_on_market: record.DaysOnMarket || 0,
             cumulative_days_on_market: record.CumulativeDaysOnMarket || 0,
-            latitude: record.Latitude || null,
-            longitude: record.Longitude || null,
+            latitude: sellerAllowsAddressDisplay ? (record.Latitude || null) : null,
+            longitude: sellerAllowsAddressDisplay ? (record.Longitude || null) : null,
             association_fee: record.AssociationFee || null,
             association_fee_frequency: record.AssociationFeeFrequency || "",
             association_name: record.AssociationName || "",
