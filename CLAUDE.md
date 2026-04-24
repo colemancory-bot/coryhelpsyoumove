@@ -475,10 +475,10 @@ Then invoke the function with a small limit (e.g. `{limit:20}`) a few times to w
 - Tables: profiles, property_notes, viewing_history, showing_requests, availability_windows, property_questions, qa_library, price_history, alert_notifications, user_activity
 
 ### Pre-Production Checklist
-- [ ] Remove `devUnlock()` / `devLock()` functions
+- [x] Remove `devUnlock()` / `devLock()` functions (verified absent 2026-04-23)
 - [ ] Run supabase-migrations.sql
 - [x] Execute all technical SEO fixes (see Technical SEO Fixes section — complete as of 2026-04-23)
-- [ ] Submit sitemap to Google Search Console
+- [x] Submit sitemap to Google Search Console (verified submitted, Success status, 20 pages discovered)
 - [x] Claim Google Business Profile (verified claimed 2026-04-23)
 
 ### MLS Grid IDX Compliance — Verify Once Live Data Flows
