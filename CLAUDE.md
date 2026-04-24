@@ -71,66 +71,52 @@ Race, color, religion, national origin, sex (includes sexual orientation/gender 
 
 ---
 
-## Technical SEO Fixes — TO DO (Post IDX Launch)
-
-Execute these once real MLS/IDX data is live:
+## Technical SEO Fixes
 
 ### 1. Sitemap Updates (`sitemap.xml`)
-- [ ] Add blog index: `https://coryhelpsyoumove.com/blog/`
-- [ ] Add `<lastmod>` dates to every entry (use actual last-modified date)
-- [ ] Update sitemap whenever new pages are added
+- [x] Add blog index: `https://coryhelpsyoumove.com/blog/`
+- [x] Add `<lastmod>` dates to every entry
+- [ ] Update sitemap whenever new pages are added (ongoing task)
 
 ### 2. Unique Town Page Meta Descriptions
-All 8 towns currently use identical template: "Explore homes, cabins, and land for sale in [Town], NC. [County] real estate with mountain views and Blue Ridge access."
-
-Rewrite each to highlight the town's unique character:
-- [ ] **Waynesville** — Award-winning Main Street, arts district, Haywood County seat, gateway to Blue Ridge Parkway
-- [ ] **Sylva** — College-town energy, walkable downtown, Tuckasegee River, Jackson County courthouse
-- [ ] **Bryson City** — Great Smoky Mountains gateway, Nantahala Gorge, railroad town, outdoor recreation capital
-- [ ] **Maggie Valley** — Cataloochee ski access, elk viewing, vacation rental market, festival culture
-- [ ] **Cashiers/Highlands** — Luxury mountain plateau, 3,500+ ft elevation, gated communities, waterfalls
-- [ ] **Franklin** — Gem capital of the world, affordable land & acreage, Macon County, Appalachian Trail access
-- [ ] **Dillsboro** — Artisan village, Tuckasegee River, historic charm, walkable small-town character
-- [ ] **Cullowhee** — Western Carolina University, student housing investment, mountain campus community
+All 8 towns have unique, character-specific descriptions (verified 2026-04-23):
+- [x] **Waynesville** — Award-winning Main Street, arts district, Haywood County seat, gateway to Blue Ridge Parkway
+- [x] **Sylva** — College-town energy, walkable downtown, Tuckasegee River, Jackson County courthouse
+- [x] **Bryson City** — Great Smoky Mountains gateway, Nantahala Gorge, railroad town, outdoor recreation capital
+- [x] **Maggie Valley** — Cataloochee ski access, elk viewing, vacation rental market, festival culture
+- [x] **Cashiers/Highlands** — Luxury mountain plateau, 3,500+ ft elevation, gated communities, waterfalls
+- [x] **Franklin** — Gem capital of the world, affordable land & acreage, Macon County, Appalachian Trail access
+- [x] **Dillsboro** — Artisan village, Tuckasegee River, historic charm, walkable small-town character
+- [x] **Cullowhee** — Western Carolina University, student housing investment, mountain campus community
 
 ### 3. Missing Meta Tags
-- [ ] `events.html` — Add `og:image`, `twitter:image`, `twitter:description`
-- [ ] `blog/index.html` — Add `og:image`, `twitter:image`, `twitter:description`
-- [ ] All 8 town pages — Add `twitter:description`
-- [ ] All 4 blog posts — Add `twitter:description`
+- [x] `events.html` — `og:image`, `twitter:image`, `twitter:description`
+- [x] `blog/index.html` — `og:image`, `twitter:image`, `twitter:description`
+- [x] All 8 town pages — `twitter:description`
+- [x] All blog posts — `twitter:description` (8 posts covered)
 
 ### 4. BreadcrumbList Schema
-Add to every subpage (towns, blogs, events) as a second `<script type="application/ld+json">`:
-- [ ] All 8 town pages: Home → [Town Name]
-- [ ] All 4 blog posts: Home → Blog → [Post Title]
-- [ ] Blog index: Home → Blog
-- [ ] Events page: Home → Events
+Added as a second `<script type="application/ld+json">` on every subpage (17 files confirmed):
+- [x] All 8 town pages: Home → [Town Name]
+- [x] All blog posts: Home → Blog → [Post Title]
+- [x] Blog index: Home → Blog
+- [x] Events page: Home → Events
 
-### 5. Homepage Schema Address (`index.html` lines 43-47)
-- [ ] Update address from region-only to full address:
-```json
-"address": {
-  "@type": "PostalAddress",
-  "streetAddress": "96 W Sylva Shopping Area",
-  "addressLocality": "Sylva",
-  "addressRegion": "NC",
-  "postalCode": "28779",
-  "addressCountry": "US"
-}
-```
+### 5. Homepage Schema Address (`index.html`)
+- [x] Full `streetAddress` / `addressLocality` / `addressRegion` / `postalCode` / `addressCountry` present
 
 ### 6. Lazy Loading (`index.html`)
-- [ ] Add `loading="lazy"` to area card images (lines 364-371)
-- [ ] Add `loading="lazy"` to blog card images (lines 438+)
-- [ ] Add `loading="lazy"` to about section image (line 336)
-- [ ] Do NOT add to nav logos or hero badge (above fold)
+- [x] `loading="lazy"` applied to below-fold images (16 instances confirmed)
+- [x] Nav logos and hero badge correctly left un-lazy
 
 ### 7. Blog OG Images
-- [ ] Download Unsplash images, optimize as WebP, host locally in `images/blog/`
-- [ ] Update og:image and twitter:image URLs in all 4 blog posts to local paths
+- [x] Local hosting under `images/blog/` (no external Unsplash hotlinks)
+- [x] `.webp` optimized versions present alongside `.jpg`
+- [ ] `short-term-rental-rules-western-nc.html` and `is-waynesville-nc-good-place-to-retire.html` currently share generic hero images — consider adding dedicated OG art
 
 ### 8. FAQPage Schema
-- [ ] Add to any page with Q&A or FAQ content (blog posts, town pages after FAQ sections added)
+- [x] Added to all 8 town pages (verified 2026-04-23)
+- [ ] Add to blog posts that contain Q&A-formatted content
 
 ---
 
@@ -352,12 +338,16 @@ Zillow, Redfin, Homes.com, Realtor.com dominate head terms like "waynesville nc 
 ## Local SEO Checklist (Manual Tasks for Cory)
 
 ### Google Business Profile (HIGHEST PRIORITY)
-- [ ] Claim profile at business.google.com
-- [ ] Primary category: Real Estate Agent
-- [ ] Secondary: Real Estate Consultant, Real Estate Service
+- [x] Claim profile at business.google.com (CLAIMED AND VERIFIED — confirmed 2026-04-23 via business.google.com/dashboard)
+- [x] Primary category: Real Estate Agent (confirmed set)
+- [ ] Secondary: Real Estate Consultant, Real Estate Service (verify in profile edit)
 - [ ] Add all 9 towns as service areas
 - [ ] Write 750-char description with natural keywords
-- [ ] Upload 10+ photos (headshot, office, one per town)
+- [ ] Upload 10+ photos (headshot, office, one per town) — **NOTE: one existing photo shows wrong phone `828-586-4616` instead of correct `828-506-6413` — needs removal or replacement**
+- [ ] Populate Services list (currently empty — blocks Profile Strength from reaching 100%)
+- [ ] Set Opening Date (currently blank)
+- [ ] Set Special/Holiday hours
+- [ ] Respond to pending 5-star review
 - [ ] Seed Q&A section with 5-10 questions
 - [ ] Post weekly (market stats, listings, events, tips)
 - [ ] After every closing: send review link, ask them to mention the town
@@ -487,9 +477,9 @@ Then invoke the function with a small limit (e.g. `{limit:20}`) a few times to w
 ### Pre-Production Checklist
 - [ ] Remove `devUnlock()` / `devLock()` functions
 - [ ] Run supabase-migrations.sql
-- [ ] Execute all technical SEO fixes (Section above)
+- [x] Execute all technical SEO fixes (see Technical SEO Fixes section — complete as of 2026-04-23)
 - [ ] Submit sitemap to Google Search Console
-- [ ] Claim Google Business Profile
+- [x] Claim Google Business Profile (verified claimed 2026-04-23)
 
 ### MLS Grid IDX Compliance — Verify Once Live Data Flows
 These passed architectural review (Canopy MLS compliance form, ticket #CMDLA00483263) but require manual verification with real data:

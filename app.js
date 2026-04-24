@@ -77,11 +77,19 @@ document.addEventListener('DOMContentLoaded', function(){
     }
   }catch(e){}
 
-  // GA4: track tel: link clicks (phone calls) via event delegation
+  // GA4: track tel: and mailto: link clicks via event delegation.
+  // Fires a GA4 `click` event with link_url so the `phone_click` / `email_click`
+  // derived key events (GA4 Admin → Events) match and log as conversions.
   document.addEventListener('click', function(e){
-    var link = e.target.closest('a[href^="tel:"]');
-    if(link && typeof gtag === 'function'){
-      gtag('event', 'phone_call', {event_category: 'contact', event_label: link.href});
+    if(typeof gtag !== 'function') return;
+    var tel = e.target.closest('a[href^="tel:"]');
+    if(tel){
+      gtag('event', 'click', {link_url: tel.href, link_domain: 'tel', outbound: true});
+      return;
+    }
+    var email = e.target.closest('a[href^="mailto:"]');
+    if(email){
+      gtag('event', 'click', {link_url: email.href, link_domain: 'mailto', outbound: true});
     }
   });
 });
@@ -1649,6 +1657,10 @@ function tryPushChatLead(){
     _sb.from('leads').insert(chatLeadData)
       .then(function(){ _chatLeadPushed = true; _log('[Chat] Lead saved'); _pushToFUB(chatLeadData); })
       .catch(function(e){ _warn('[Chat] Lead push failed:', e); });
+    // GA4: fire generate_lead conversion
+    if(typeof gtag === 'function'){
+      gtag('event', 'generate_lead', {lead_source: 'chatbot', value: 1, currency: 'USD'});
+    }
   }
 }
 
@@ -9457,6 +9469,10 @@ async function submitShowingRequest() {
     });
     var form = document.getElementById('showingRequestForm');
     if(form) form.innerHTML = '<div class="showing-success"><svg viewBox="0 0 24 24" style="width:32px;height:32px;stroke:var(--gold);fill:none;stroke-width:2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg><h4>Request Sent!</h4><p>I\'ll get back to you shortly to confirm a time.</p></div>';
+    // GA4: fire generate_lead conversion (showing request is a strong lead signal)
+    if(typeof gtag === 'function'){
+      gtag('event', 'generate_lead', {lead_source: 'showing_request', value: 10, currency: 'USD'});
+    }
   } catch(e) { alert('Could not send request. Please try again.'); if(btn) { btn.textContent = 'Request Showing'; btn.disabled = false; } }
 }
 
