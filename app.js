@@ -1657,9 +1657,9 @@ function tryPushChatLead(){
     _sb.from('leads').insert(chatLeadData)
       .then(function(){ _chatLeadPushed = true; _log('[Chat] Lead saved'); _pushToFUB(chatLeadData); })
       .catch(function(e){ _warn('[Chat] Lead push failed:', e); });
-    // GA4: fire generate_lead conversion
+    // GA4: fire qualify_lead conversion (matches existing key event)
     if(typeof gtag === 'function'){
-      gtag('event', 'generate_lead', {lead_source: 'chatbot', value: 1, currency: 'USD'});
+      gtag('event', 'qualify_lead', {lead_source: 'chatbot', value: 1, currency: 'USD'});
     }
   }
 }
@@ -2317,7 +2317,7 @@ function submitSellForm(){
   btn.classList.add('sent');
   document.getElementById('hsfSuccess').style.display='flex';
   // GA4: track seller lead
-  if(typeof gtag==='function') gtag('event','generate_lead',{event_category:'contact',event_label:'sell_form'});
+  if(typeof gtag==='function') gtag('event','qualify_lead',{event_category:'contact',event_label:'sell_form'});
 
   // Disable inputs
   document.querySelectorAll('#heroSellForm .hsf-input').forEach(i=>i.disabled=true);
@@ -7564,7 +7564,7 @@ async function submitConsultation(btn) {
     btn.style.background = 'var(--green)';
   }
   // GA4: track lead submission
-  if(typeof gtag==='function') gtag('event','generate_lead',{event_category:'contact',event_label:'consultation_form'});
+  if(typeof gtag==='function') gtag('event','qualify_lead',{event_category:'contact',event_label:'consultation_form'});
   btn.disabled = false;
   setTimeout(function(){ btn.textContent='Send Message'; btn.style.background=''; }, 3000);
 }
@@ -9469,9 +9469,9 @@ async function submitShowingRequest() {
     });
     var form = document.getElementById('showingRequestForm');
     if(form) form.innerHTML = '<div class="showing-success"><svg viewBox="0 0 24 24" style="width:32px;height:32px;stroke:var(--gold);fill:none;stroke-width:2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg><h4>Request Sent!</h4><p>I\'ll get back to you shortly to confirm a time.</p></div>';
-    // GA4: fire generate_lead conversion (showing request is a strong lead signal)
+    // GA4: fire qualify_lead conversion (matches existing key event; showing request is a strong lead signal)
     if(typeof gtag === 'function'){
-      gtag('event', 'generate_lead', {lead_source: 'showing_request', value: 10, currency: 'USD'});
+      gtag('event', 'qualify_lead', {lead_source: 'showing_request', value: 10, currency: 'USD'});
     }
   } catch(e) { alert('Could not send request. Please try again.'); if(btn) { btn.textContent = 'Request Showing'; btn.disabled = false; } }
 }
