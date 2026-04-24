@@ -246,8 +246,11 @@ async function handleSubmit(
     return errorResponse("This review has already been submitted", 400);
   }
 
-  // Auto-publish 5-star reviews
-  const isPublished = rating === 5;
+  // All reviews land in the moderation queue (is_published: false) and only go
+  // live after admin approval. Auto-publishing based on star rating is a form
+  // of selective solicitation; moderating everything keeps the public site under
+  // Cory's control without creating a sentiment-based gate at submission time.
+  const isPublished = false;
 
   // Insert the review
   const { data: review, error: reviewErr } = await supabase

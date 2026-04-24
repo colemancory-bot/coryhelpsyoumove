@@ -31,24 +31,13 @@ body{background:var(--bg);color:var(--cream);font-family:'Outfit',sans-serif;min
 .rv-star.active{fill:var(--gold)}
 .rv-star:hover{transform:scale(1.15)}
 
-/* Steps */
-.rv-step{display:none}
-.rv-step.active{display:block}
-
 /* Form fields */
 .rv-field{margin-bottom:1.25rem}
 .rv-label{font-size:0.6rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold);margin-bottom:0.5rem;display:block}
-.rv-select,.rv-textarea,.rv-input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--cream);font-family:'Outfit',sans-serif;font-size:0.85rem;padding:0.75rem 1rem;border-radius:6px;outline:none;transition:border-color 0.3s}
-.rv-select:focus,.rv-textarea:focus,.rv-input:focus{border-color:var(--gold)}
-.rv-textarea{resize:vertical;min-height:120px;line-height:1.6}
-.rv-select option{background:var(--bg);color:var(--cream)}
+.rv-textarea{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--cream);font-family:'Outfit',sans-serif;font-size:0.9rem;padding:0.9rem 1rem;border-radius:6px;outline:none;transition:border-color 0.3s;resize:vertical;min-height:180px;line-height:1.6}
+.rv-textarea:focus{border-color:var(--gold)}
 .rv-charcount{font-size:0.65rem;color:var(--text-muted);text-align:right;margin-top:0.3rem}
-
-/* Generated review */
-.rv-generated{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:1.25rem;margin:1rem 0;position:relative}
-.rv-generated-label{font-size:0.55rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold);margin-bottom:0.5rem}
-.rv-generated-text{font-size:0.9rem;color:var(--cream);line-height:1.7;white-space:pre-wrap}
-.rv-edit-btn{font-size:0.65rem;color:var(--gold);background:none;border:none;cursor:pointer;text-decoration:underline;margin-top:0.5rem;font-family:'Outfit',sans-serif}
+.rv-helper{font-size:0.75rem;color:var(--text-body);line-height:1.55;margin-top:0.75rem}
 
 /* Buttons */
 .rv-btn{display:block;width:100%;padding:0.9rem;border:none;border-radius:6px;font-family:'Outfit',sans-serif;font-size:0.75rem;font-weight:600;letter-spacing:0.15em;text-transform:uppercase;cursor:pointer;transition:all 0.3s;margin-top:1rem}
@@ -62,7 +51,7 @@ body{background:var(--bg);color:var(--cream);font-family:'Outfit',sans-serif;min
 .rv-thankyou{text-align:center}
 .rv-thankyou h2{font-family:'Cormorant Garamond',serif;font-size:1.6rem;font-weight:300;color:var(--cream);margin-bottom:0.75rem}
 .rv-thankyou p{font-size:0.85rem;color:var(--text-body);margin-bottom:1.5rem;line-height:1.6}
-.rv-copy-box{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:1rem;margin:1rem 0;text-align:left;font-size:0.85rem;color:var(--cream);line-height:1.6;max-height:200px;overflow-y:auto}
+.rv-copy-box{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:1rem;margin:1rem 0;text-align:left;font-size:0.85rem;color:var(--cream);line-height:1.6;max-height:200px;overflow-y:auto;white-space:pre-wrap}
 .rv-copy-btn{display:flex;align-items:center;justify-content:center;gap:0.4rem;width:100%;padding:0.75rem;background:var(--surface);border:1px solid var(--gold);color:var(--gold);border-radius:6px;font-family:'Outfit',sans-serif;font-size:0.7rem;letter-spacing:0.12em;text-transform:uppercase;cursor:pointer;margin:0.75rem 0;transition:all 0.3s}
 .rv-copy-btn:hover{background:var(--gold);color:var(--bg)}
 .rv-copy-btn.copied{background:var(--green);border-color:var(--green);color:#fff}
@@ -74,18 +63,9 @@ body{background:var(--bg);color:var(--cream);font-family:'Outfit',sans-serif;min
 .rv-share-btn svg{width:20px;height:20px;flex-shrink:0}
 .rv-share-btn span{flex:1}
 .rv-share-btn .rv-arrow{color:var(--text-muted);font-size:0.7rem}
-.rv-share-btn .rv-check{color:var(--green);font-size:0.8rem;display:none}
-.rv-share-btn.clicked .rv-arrow{display:none}
-.rv-share-btn.clicked .rv-check{display:inline}
-.rv-share-btn.clicked{border-color:var(--green);opacity:0.7}
 .rv-toast{position:fixed;top:1.5rem;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:0.75rem 1.5rem;border-radius:8px;font-size:0.8rem;font-family:'Outfit',sans-serif;z-index:9999;opacity:0;transition:opacity 0.3s;pointer-events:none}
 .rv-toast.show{opacity:1}
 .rv-share-help{font-size:0.75rem;color:var(--text-body);line-height:1.5;margin-bottom:0.75rem;text-align:center}
-.rv-share-step{font-size:0.7rem;color:var(--text-muted);margin-top:0.25rem}
-
-/* Private feedback thank you */
-.rv-private{text-align:center}
-.rv-private h2{font-family:'Cormorant Garamond',serif;font-size:1.6rem;font-weight:300;color:var(--cream);margin-bottom:0.75rem}
 
 /* Loading/error */
 .rv-loading{text-align:center;padding:3rem;color:var(--text-muted)}
@@ -114,7 +94,7 @@ body{background:var(--bg);color:var(--cream);font-family:'Outfit',sans-serif;min
 var SUPABASE_URL = 'https://kzaabnnwjupjqvydiqlz.supabase.co';
 var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6YWFibm53anVwanF2eWRpcWx6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExMTE5NDMsImV4cCI6MjA4NjY4Nzk0M30.2B2sJnAuDim_yhn5UFKxXzdZw58ne4E20-ulW8pTwPA';
 
-// Review link placeholders - Cory will fill these in
+// Public review page links (shown to every reviewer regardless of rating)
 var GOOGLE_REVIEW_URL = 'https://search.google.com/local/writereview?placeid=ChIJiyLzaaxi6A0RaBEQSTh2okM';
 var FACEBOOK_REVIEW_URL = 'https://www.facebook.com/profile.php?id=61561909577942&sk=reviews';
 var YELP_REVIEW_URL = 'https://www.yelp.com/biz/YOUR_YELP_BIZ_HERE';
@@ -122,12 +102,15 @@ var YELP_REVIEW_URL = 'https://www.yelp.com/biz/YOUR_YELP_BIZ_HERE';
 var _token = new URLSearchParams(window.location.search).get('token');
 var _requestData = null;
 var _selectedRating = 0;
-var _generatedReview = '';
+var _reviewText = '';
 
 var container = document.getElementById('rvContainer');
 
-// Star SVG
 function starSVG(){ return '<svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>'; }
+
+function escapeHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 
 async function rvFetch(body){
   var resp = await fetch(SUPABASE_URL + '/functions/v1/review-request', {
@@ -149,16 +132,18 @@ async function init(){
 }
 
 function showError(msg){
-  container.innerHTML = '<div class="rv-error">'+msg+'</div>';
+  container.innerHTML = '<div class="rv-error">'+escapeHtml(msg)+'</div>';
 }
 
+// Step 1: star rating
 function showStep1(){
-  var addrHtml = _requestData.propertyAddress ? '<span class="rv-addr">'+_requestData.propertyAddress+'</span>' : 'your property';
+  var addrHtml = _requestData.propertyAddress ? '<span class="rv-addr">'+escapeHtml(_requestData.propertyAddress)+'</span>' : 'your property';
+  var nameLine = _requestData.clientName ? escapeHtml(_requestData.clientName)+', thank' : 'Thank';
   container.innerHTML =
     '<div class="rv-logo"><div class="rv-logo-name">Cory Coleman</div><div class="rv-logo-sub">Keller Williams Great Smokies</div></div>' +
-    '<div class="rv-greeting"><h1>How was your experience?</h1><p>'+(_requestData.clientName ? _requestData.clientName+', thank' : 'Thank')+' you for choosing me to help with '+addrHtml+'. Your feedback means a lot.</p></div>' +
+    '<div class="rv-greeting"><h1>How was your experience?</h1><p>'+nameLine+' you for choosing me to help with '+addrHtml+'. Your honest feedback means a lot.</p></div>' +
     '<div class="rv-stars" id="rvStars"></div>' +
-    '<button class="rv-btn rv-btn-primary" id="rvNextBtn" disabled onclick="onRatingNext()">Continue</button>';
+    '<button class="rv-btn rv-btn-primary" id="rvNextBtn" disabled onclick="showStep2()">Continue</button>';
 
   var starsEl = document.getElementById('rvStars');
   for(var i=1;i<=5;i++){
@@ -179,192 +164,26 @@ function selectRating(val){
   document.getElementById('rvNextBtn').disabled = false;
 }
 
-function onRatingNext(){
-  if(_selectedRating === 5) showStep2_FiveStar();
-  else showStep2_Private();
-}
-
-function showStep2_FiveStar(){
-  var towns = ['Waynesville','Sylva','Bryson City','Maggie Valley','Franklin','Cashiers','Highlands','Dillsboro','Cullowhee','Other'];
-  var townOpts = towns.map(function(t){ var sel = t===_requestData.town?' selected':''; return '<option value="'+t+'"'+sel+'>'+t+'</option>'; }).join('');
-
+// Step 2: write a review (same screen for every rating)
+function showStep2(){
   container.innerHTML =
     '<div class="rv-logo"><div class="rv-logo-name">Cory Coleman</div><div class="rv-logo-sub">Keller Williams Great Smokies</div></div>' +
-    '<div class="rv-greeting"><h1>Help us build your review</h1><p>Answer a few quick questions and we\'ll draft a review for you. You can edit it before posting.</p></div>' +
-    '<div class="rv-field"><label class="rv-label">What town?</label><select class="rv-select" id="rvTown">'+townOpts+'</select></div>' +
-    '<div class="rv-field"><label class="rv-label">Property Type</label><select class="rv-select" id="rvPropType"><option value="home">Home</option><option value="cabin">Cabin</option><option value="land">Land / Acreage</option><option value="investment">Investment Property</option><option value="multi-family">Multi-Family</option></select></div>' +
-    '<div class="rv-field"><label class="rv-label">Did you buy or sell?</label><select class="rv-select" id="rvAction"><option value="buy">Buy</option><option value="sell">Sell</option><option value="both">Both</option></select></div>' +
-    '<div class="rv-field"><label class="rv-label">What stood out most about working with Cory?</label>' +
-      '<div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.5rem" id="rvStandoutChips"></div>' +
-      '<textarea class="rv-textarea" id="rvStandout" rows="3" placeholder="Write in your own words, or tap a suggestion above to get started..." style="min-height:80px"></textarea>' +
+    '<div class="rv-greeting"><h1>Tell us about your experience</h1><p>Write in your own words. Honest feedback, positive or negative, is what\'s helpful.</p></div>' +
+    '<div class="rv-field">' +
+      '<textarea class="rv-textarea" id="rvReviewText" rows="7" maxlength="2000" placeholder="Share your experience..."></textarea>' +
+      '<div class="rv-charcount"><span id="rvCharCount">0</span> / 2,000</div>' +
+      '<p class="rv-helper">Reviews tend to be most useful when they describe what actually happened. The area you worked in, what the process was like, or specific details from the transaction are all worth mentioning. Write whatever feels right.</p>' +
     '</div>' +
-    '<button class="rv-btn rv-btn-primary" onclick="generateReview()">Generate My Review</button>';
+    '<button class="rv-btn rv-btn-primary" id="rvSubmitBtn" onclick="submitReview()" disabled>Submit Review</button>';
 
-  // Add clickable suggestion chips
-  var suggestions = ['Knew every neighborhood','Local mountain home expert','Explained the market clearly','Knew things other agents didn\'t','Honest and upfront','Great communication','Strong negotiator','Made the process easy'];
-  var chipsEl = document.getElementById('rvStandoutChips');
-  suggestions.forEach(function(s){
-    var chip = document.createElement('button');
-    chip.type = 'button';
-    chip.style.cssText = 'padding:0.4rem 0.7rem;border:1px solid var(--border);background:transparent;color:var(--text-body);font-family:Outfit,sans-serif;font-size:0.7rem;border-radius:20px;cursor:pointer;transition:all 0.2s';
-    chip.textContent = s;
-    chip.onclick = function(){
-      var ta = document.getElementById('rvStandout');
-      var current = ta.value.trim();
-      if(current && !current.endsWith('.') && !current.endsWith('!')) current += '. ';
-      else if(current) current += ' ';
-      ta.value = current + s.charAt(0).toLowerCase() + s.slice(1);
-      chip.style.borderColor = 'var(--gold)';
-      chip.style.color = 'var(--gold)';
-      chip.style.opacity = '0.5';
-      ta.focus();
-    };
-    chipsEl.appendChild(chip);
-  });
-}
-
-function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
-
-function generateReview(){
-  var town = document.getElementById('rvTown').value;
-  var propType = document.getElementById('rvPropType').value;
-  var action = document.getElementById('rvAction').value;
-  var standoutCustom = (document.getElementById('rvStandout').value || '').trim();
-
-  var propLabels = {home:['a home','our home','a house','our new home'],cabin:['a cabin','our cabin','a mountain cabin','a cabin in the mountains'],land:['land','acreage','a piece of land','a property','a lot'],'investment':['an investment property','a rental property','an investment cabin'],'multi-family':['a multi-family property','a duplex','a multi-unit property']};
-  var propOptions = propLabels[propType] || ['a property'];
-  var propLabel = pick(propOptions);
-
-  var countyMap = {Waynesville:'Haywood',Sylva:'Jackson','Bryson City':'Swain','Maggie Valley':'Haywood',Franklin:'Macon',Cashiers:'Jackson',Highlands:'Macon',Dillsboro:'Jackson',Cullowhee:'Jackson'};
-  var county = countyMap[town] || '';
-
-  // Standout: use their text, or pick a varied fallback
-  var standoutText = standoutCustom;
-  if (!standoutText) {
-    standoutText = pick([
-      'He made the whole process straightforward and stress-free.',
-      'Working with him was a great experience from start to finish.',
-      'He was professional, knowledgeable, and easy to work with.',
-      'He took the time to explain everything and never rushed us.',
-      'His attention to detail was impressive.',
-      'He genuinely cared about finding the right fit for us.',
-      'He was always a step ahead and kept things moving.',
-      'We never felt like just another transaction to him.'
-    ]);
-  }
-
-  // Randomized location phrasing
-  var locVariants = [town + ', NC', town + ', North Carolina'];
-  if (county) locVariants.push(town + ' in ' + county + ' County', town + ', ' + county + ' County, NC');
-  locVariants.push('the ' + town + ' area', town + ' in the Western NC mountains');
-  var loc = pick(locVariants);
-
-  // Randomized closing phrases
-  var closeBuy = pick([
-    'Highly recommend Cory and Keller Williams Great Smokies to anyone looking for real estate in Western North Carolina.',
-    'If you\'re searching for property in Western NC, Cory is the person to call.',
-    'Would absolutely recommend Cory Coleman to anyone looking for a home in the WNC mountains.',
-    'Can\'t say enough good things. If you\'re buying in Western North Carolina, talk to Cory first. His local knowledge is the real deal.',
-    'Five stars. Would recommend Cory to anyone moving to the Western NC mountains. Nobody knows these communities better.',
-    'If you want a broker who actually knows every mountain town from Waynesville to Murphy, Cory is your guy.',
-    'We tell everyone we know to call Cory Coleman at Keller Williams Great Smokies.'
-  ]);
-  var closeSell = pick([
-    'Highly recommend Cory and Keller Williams Great Smokies to anyone selling property in Western North Carolina.',
-    'If you need to sell real estate in Western NC, Cory Coleman is the broker to hire.',
-    'Would recommend Cory to any seller in the WNC mountains.',
-    'Great experience working with Keller Williams Great Smokies. Cory got it done.',
-    'If you want your property marketed the right way in Western NC, call Cory.'
-  ]);
-  var closeBoth = pick([
-    'Highly recommend Cory and Keller Williams Great Smokies for anyone buying or selling in Western North Carolina.',
-    'Whether you\'re buying or selling in WNC, Cory Coleman is the one to call.',
-    'Five stars across the board. Cory at Keller Williams Great Smokies made the whole process smooth.'
-  ]);
-
-  // Randomized middle phrases
-  var midBuy = pick([
-    'He walked us through every step, from the first showing all the way to closing.',
-    'From our very first conversation he understood what we were looking for and which areas would be the best fit.',
-    'He helped us navigate everything from well and septic to inspections to closing without any surprises.',
-    'He was patient with our search and showed us options in neighborhoods we never would have found on our own.',
-    'He knew the area inside and out and pointed out things about the property and the community that we would have missed completely.',
-    'Every question we had about the local market, the neighborhoods, the county regulations, he had the answer.',
-    'His knowledge of the different mountain communities helped us narrow down exactly where we wanted to be.',
-    'The whole experience from first call to closing day was seamless. He clearly knows Western NC better than anyone we talked to.'
-  ]);
-  var midSell = pick([
-    'He handled the pricing, photography, and marketing, and we had strong interest right away.',
-    'His marketing plan was thorough and he kept us updated with feedback after every showing.',
-    'From the professional photos to the closing table, he handled everything.',
-    'He priced it right, marketed it well, and negotiated a strong offer.',
-    'The photography and marketing he put together for our property were impressive.',
-    'He kept us in the loop the entire time and gave us honest feedback.',
-    'He had a clear plan from day one and executed it perfectly.'
-  ]);
-
-  // Randomized openers
-  var templates = [];
-
-  if (action === 'sell') {
-    var openers = [
-      'Cory Coleman helped us sell ' + propLabel + ' in ' + loc + '. ',
-      'We listed ' + propLabel + ' with Cory Coleman at Keller Williams Great Smokies in ' + loc + '. ',
-      'Cory sold ' + propLabel + ' for us in ' + loc + '. ',
-      'We chose Cory Coleman to sell ' + propLabel + ' in ' + loc + '. ',
-      'We hired Cory Coleman at Keller Williams Great Smokies to sell ' + propLabel + ' in ' + loc + '. ',
-      'When it was time to sell ' + propLabel + ' in ' + loc + ', we went with Cory Coleman. '
-    ];
-    _generatedReview = pick(openers) + standoutText + ' ' + midSell + ' ' + closeSell;
-  } else if (action === 'both') {
-    var openers = [
-      'Cory Coleman helped us sell our previous property and buy ' + propLabel + ' in ' + loc + '. ',
-      'We worked with Cory at Keller Williams Great Smokies for both selling our old place and buying ' + propLabel + ' in ' + loc + '. ',
-      'Cory handled both the sale of our home and the purchase of ' + propLabel + ' in ' + loc + '. '
-    ];
-    var midBoth = pick([
-      'Having one broker handle both sides made the whole transition so much easier.',
-      'He coordinated the timing of both transactions so we didn\'t have to scramble.',
-      'Managing both a sale and a purchase at the same time could have been stressful, but Cory made it smooth.'
-    ]);
-    _generatedReview = pick(openers) + standoutText + ' ' + midBoth + ' ' + closeBoth;
-  } else {
-    var openers = [
-      'Cory Coleman helped us buy ' + propLabel + ' in ' + loc + '. ',
-      'We worked with Cory Coleman at Keller Williams Great Smokies to find ' + propLabel + ' in ' + loc + '. ',
-      'Cory helped us purchase ' + propLabel + ' in ' + loc + '. ',
-      'We found ' + propLabel + ' in ' + loc + ' with Cory Coleman\'s help. ',
-      'After searching online for a while, we connected with Cory Coleman at Keller Williams Great Smokies. He helped us buy ' + propLabel + ' in ' + loc + '. ',
-      'We moved to ' + loc + ' and Cory Coleman at Keller Williams Great Smokies helped us find ' + propLabel + '. ',
-      'Cory Coleman was our broker for buying ' + propLabel + ' in ' + loc + '. ',
-      'We recently purchased ' + propLabel + ' in ' + loc + ' with Cory Coleman as our broker. '
-    ];
-    _generatedReview = pick(openers) + standoutText + ' ' + midBuy + ' ' + closeBuy;
-  }
-
-  showGeneratedReview();
-}
-
-function showGeneratedReview(){
-  container.innerHTML =
-    '<div class="rv-logo"><div class="rv-logo-name">Cory Coleman</div><div class="rv-logo-sub">Keller Williams Great Smokies</div></div>' +
-    '<div class="rv-greeting"><h1>Here\'s a draft for you</h1><p>This is just a starting point based on your answers. Feel free to edit it, rewrite it, or use it as-is. Make it yours.</p></div>' +
-    '<div class="rv-generated"><div class="rv-generated-label">Draft Review (tap edit to customize)</div><div id="rvReviewDisplay" class="rv-generated-text">'+_generatedReview+'</div><button class="rv-edit-btn" id="rvEditBtn" onclick="editReview()">Edit this review</button></div>' +
-    '<div id="rvEditArea" style="display:none"><div class="rv-field"><textarea class="rv-textarea" id="rvReviewText" rows="6" maxlength="2000">'+_generatedReview+'</textarea><div class="rv-charcount"><span id="rvCharCount">'+_generatedReview.length+'</span> / 2,000</div></div></div>' +
-    '<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:1rem;margin:1rem 0">' +
-      '<div style="font-size:0.7rem;color:var(--gold);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:0.5rem">Quick tip</div>' +
-      '<p style="font-size:0.8rem;color:var(--text-body);line-height:1.6;margin:0">Mentioning the <strong style="color:var(--cream)">town name</strong>, <strong style="color:var(--cream)">county</strong>, and whether you <strong style="color:var(--cream)">bought or sold</strong> helps search engines recommend Cory to other people looking for real estate in your area. The more specific your review, the more it helps other buyers and sellers find a great experience. No pressure to include everything, but it makes a real difference if you do.</p>' +
-    '</div>' +
-    '<button class="rv-btn rv-btn-primary" id="rvSubmitBtn" onclick="submitReview()">Submit Review</button>' +
-    '<button class="rv-btn rv-btn-secondary" onclick="showStep2_FiveStar()">Regenerate</button>';
-}
-
-function editReview(){
-  document.getElementById('rvReviewDisplay').style.display = 'none';
-  document.getElementById('rvEditBtn').style.display = 'none';
-  document.getElementById('rvEditArea').style.display = 'block';
   var ta = document.getElementById('rvReviewText');
-  ta.addEventListener('input', function(){ document.getElementById('rvCharCount').textContent = ta.value.length; _generatedReview = ta.value; });
+  var cc = document.getElementById('rvCharCount');
+  var btn = document.getElementById('rvSubmitBtn');
+  ta.addEventListener('input', function(){
+    cc.textContent = ta.value.length;
+    btn.disabled = ta.value.trim().length < 10;
+  });
+  ta.focus();
 }
 
 async function submitReview(){
@@ -372,45 +191,39 @@ async function submitReview(){
   btn.disabled = true;
   btn.textContent = 'Submitting...';
 
-  var reviewText = _generatedReview;
-  if(document.getElementById('rvReviewText')) reviewText = document.getElementById('rvReviewText').value;
+  var reviewText = document.getElementById('rvReviewText').value.trim();
+  _reviewText = reviewText;
 
   try {
     var data = await rvFetch({
       action:'submit', token:_token, rating:_selectedRating, reviewText:reviewText,
-      town: document.getElementById('rvTown') ? document.getElementById('rvTown').value : _requestData.town,
-      propertyType: document.getElementById('rvPropType') ? document.getElementById('rvPropType').value : '',
-      buyOrSell: document.getElementById('rvAction') ? document.getElementById('rvAction').value : ''
+      town: _requestData.town || '', propertyType: '', buyOrSell: ''
     });
     if(!data.ok){ btn.disabled=false; btn.textContent='Submit Review'; alert(data.error||'Error submitting. Please try again.'); return; }
-    showThankYou5Star(reviewText);
+    showThankYou();
   } catch(e){ btn.disabled=false; btn.textContent='Submit Review'; alert('Error submitting. Please try again.'); }
 }
 
-function showThankYou5Star(reviewText){
-  // Store for auto-copy
-  window._reviewTextForCopy = reviewText;
+// Step 3: thank you (same screen for every rating). Public review links shown to all.
+function showThankYou(){
   container.innerHTML =
     '<div class="rv-thankyou">' +
       '<div class="rv-logo"><div class="rv-logo-name">Cory Coleman</div><div class="rv-logo-sub">Keller Williams Great Smokies</div></div>' +
-      '<h2>Thank you!</h2>' +
-      '<p>Your review is now live on our website.</p>' +
-      '<div class="rv-copy-box" id="rvCopyText">'+reviewText+'</div>' +
-      '<button class="rv-copy-btn" id="rvCopyBtn" onclick="copyReview()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy Review to Clipboard</button>' +
+      '<h2>Thank you</h2>' +
+      '<p>Your review has been sent to Cory. It will appear on the website after a quick review.</p>' +
       '<div style="background:var(--bg);border:1px solid var(--gold);border-radius:10px;padding:1.25rem;margin-top:1.5rem">' +
-        '<div style="font-family:\'Cormorant Garamond\',serif;font-size:1.15rem;color:var(--cream);text-align:center;margin-bottom:0.5rem">Help others find a great experience</div>' +
-        '<p class="rv-share-help">Posting your review on other sites helps more buyers and sellers in Western NC find Cory. Tap a button below to go to that site. Your review will be copied automatically so you can just paste it.</p>' +
-        '<div class="rv-share-btns">' +
-          '<a class="rv-share-btn" href="'+GOOGLE_REVIEW_URL+'" target="_blank" rel="noopener" onclick="copyAndGo(this)"><svg viewBox="0 0 24 24" fill="#4285F4"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg><span>Post on Google</span><span class="rv-arrow">&rarr;</span><span class="rv-check">&#10003;</span></a>' +
-          '<div class="rv-share-step">Click the stars on Google, then paste your review</div>' +
-          '<a class="rv-share-btn" href="'+FACEBOOK_REVIEW_URL+'" target="_blank" rel="noopener" onclick="copyAndGo(this)"><svg viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg><span>Post on Facebook</span><span class="rv-arrow">&rarr;</span><span class="rv-check">&#10003;</span></a>' +
-          '<div class="rv-share-step">Click Reviews on the page, then Recommend and paste</div>' +
-          '<a class="rv-share-btn" href="'+YELP_REVIEW_URL+'" target="_blank" rel="noopener" onclick="copyAndGo(this)"><svg viewBox="0 0 24 24" fill="#D32323"><path d="M20.16 12.594l-4.995 1.433c-.96.276-1.74-.8-1.176-1.63l2.905-4.308a1.09 1.09 0 011.783-.1l3.174 3.034c.592.566.143 1.418-.69 1.57zm-7.042 5.836l1.065-5.09c.197-.94 1.504-1.11 1.937-.252l2.268 4.486c.304.6-.187 1.3-.856 1.22l-3.886-.516c-.747-.1-1.074-.94-.528-1.848zM6.2 17.074l4.455-2.563c.836-.48 1.764.4 1.38 1.312l-1.97 4.7c-.27.64-1.14.72-1.518.14l-2.486-3.837c-.42-.65.07-1.49.14-1.752zm-.84-5.36l5.15.152c.96.028 1.37 1.24.612 1.808L7.14 16.72c-.53.4-1.3.04-1.34-.62L5.36 12.4c-.04-.74.66-1.33 1-.686zM11.43 2.024l1.477 5.002c.276.934-.71 1.744-1.573 1.29L6.74 5.676c-.6-.316-.62-1.18-.04-1.53L10.4 1.9c.5-.3 1.15.02 1.03.124z"/></svg><span>Post on Yelp</span><span class="rv-arrow">&rarr;</span><span class="rv-check">&#10003;</span></a>' +
-          '<div class="rv-share-step">Click "Write a Review" on Yelp, then paste</div>' +
+        '<div style="font-family:\'Cormorant Garamond\',serif;font-size:1.15rem;color:var(--cream);text-align:center;margin-bottom:0.5rem">Want to share elsewhere?</div>' +
+        '<p class="rv-share-help">If you\'d like to also post on any of these sites, here are the links. Your text is below for reference. You can copy it and paste it, or write something different, whichever you prefer.</p>' +
+        '<div class="rv-copy-box" id="rvCopyText">'+escapeHtml(_reviewText)+'</div>' +
+        '<button class="rv-copy-btn" id="rvCopyBtn" onclick="copyReview()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy my review</button>' +
+        '<div class="rv-share-btns" style="margin-top:0.5rem">' +
+          '<a class="rv-share-btn" href="'+GOOGLE_REVIEW_URL+'" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="#4285F4"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg><span>Google</span><span class="rv-arrow">&rarr;</span></a>' +
+          '<a class="rv-share-btn" href="'+FACEBOOK_REVIEW_URL+'" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg><span>Facebook</span><span class="rv-arrow">&rarr;</span></a>' +
+          '<a class="rv-share-btn" href="'+YELP_REVIEW_URL+'" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="#D32323"><path d="M20.16 12.594l-4.995 1.433c-.96.276-1.74-.8-1.176-1.63l2.905-4.308a1.09 1.09 0 011.783-.1l3.174 3.034c.592.566.143 1.418-.69 1.57zm-7.042 5.836l1.065-5.09c.197-.94 1.504-1.11 1.937-.252l2.268 4.486c.304.6-.187 1.3-.856 1.22l-3.886-.516c-.747-.1-1.074-.94-.528-1.848zM6.2 17.074l4.455-2.563c.836-.48 1.764.4 1.38 1.312l-1.97 4.7c-.27.64-1.14.72-1.518.14l-2.486-3.837c-.42-.65.07-1.49.14-1.752zm-.84-5.36l5.15.152c.96.028 1.37 1.24.612 1.808L7.14 16.72c-.53.4-1.3.04-1.34-.62L5.36 12.4c-.04-.74.66-1.33 1-.686zM11.43 2.024l1.477 5.002c.276.934-.71 1.744-1.573 1.29L6.74 5.676c-.6-.316-.62-1.18-.04-1.53L10.4 1.9c.5-.3 1.15.02 1.03.124z"/></svg><span>Yelp</span><span class="rv-arrow">&rarr;</span></a>' +
         '</div>' +
       '</div>' +
+      '<p style="color:var(--text-muted);font-size:0.75rem;margin-top:2rem">(828) 506-6413 | coryhelpsyoumove@gmail.com</p>' +
     '</div>';
-  // Add toast element
   if (!document.getElementById('rvToast')) {
     var toast = document.createElement('div');
     toast.id = 'rvToast';
@@ -419,10 +232,14 @@ function showThankYou5Star(reviewText){
   }
 }
 
-function copyAndGo(el) {
-  navigator.clipboard.writeText(window._reviewTextForCopy || '').then(function(){
-    showToast('Review copied! Paste it on the site that just opened.');
-    el.classList.add('clicked');
+// Manual copy button (reviewer-initiated). No auto-copy on navigation.
+function copyReview(){
+  navigator.clipboard.writeText(_reviewText).then(function(){
+    var btn = document.getElementById('rvCopyBtn');
+    btn.classList.add('copied');
+    btn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg> Copied!';
+    showToast('Review copied to clipboard');
+    setTimeout(function(){ btn.classList.remove('copied'); btn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy my review'; }, 3000);
   });
 }
 
@@ -434,48 +251,6 @@ function showToast(msg) {
   setTimeout(function(){ t.classList.remove('show'); }, 4000);
 }
 
-function copyReview(){
-  var text = document.getElementById('rvCopyText').textContent;
-  navigator.clipboard.writeText(text).then(function(){
-    var btn = document.getElementById('rvCopyBtn');
-    btn.classList.add('copied');
-    btn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg> Copied!';
-    showToast('Review copied to clipboard!');
-    setTimeout(function(){ btn.classList.remove('copied'); btn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy Review to Clipboard'; }, 3000);
-  });
-}
-
-// Private feedback flow (4 stars or less)
-function showStep2_Private(){
-  container.innerHTML =
-    '<div class="rv-logo"><div class="rv-logo-name">Cory Coleman</div><div class="rv-logo-sub">Keller Williams Great Smokies</div></div>' +
-    '<div class="rv-greeting"><h1>We appreciate your honesty</h1><p>Your feedback helps me improve. This will be sent directly to me and will not be posted publicly.</p></div>' +
-    '<div class="rv-field"><label class="rv-label">What could I have done better?</label><textarea class="rv-textarea" id="rvPrivateText" rows="5" placeholder="Your feedback is private and goes directly to Cory..."></textarea></div>' +
-    '<button class="rv-btn rv-btn-primary" id="rvPrivateSubmit" onclick="submitPrivate()">Send Feedback</button>';
-}
-
-async function submitPrivate(){
-  var btn = document.getElementById('rvPrivateSubmit');
-  btn.disabled = true;
-  btn.textContent = 'Sending...';
-  var text = document.getElementById('rvPrivateText').value || '(No feedback provided)';
-  try {
-    await rvFetch({action:'submit',token:_token,rating:_selectedRating,reviewText:text,town:_requestData.town||'',propertyType:'',buyOrSell:''});
-    showThankYouPrivate();
-  } catch(e){ btn.disabled=false; btn.textContent='Send Feedback'; alert('Error sending. Please try again.'); }
-}
-
-function showThankYouPrivate(){
-  container.innerHTML =
-    '<div class="rv-private">' +
-      '<div class="rv-logo"><div class="rv-logo-name">Cory Coleman</div><div class="rv-logo-sub">Keller Williams Great Smokies</div></div>' +
-      '<h2>Thank you for your feedback</h2>' +
-      '<p>Your feedback has been sent directly to Cory. We take every response seriously and will use it to improve our service.</p>' +
-      '<p style="color:var(--text-muted);font-size:0.75rem;margin-top:2rem">(828) 506-6413 | coryhelpsyoumove@gmail.com</p>' +
-    '</div>';
-}
-
-// Init
 init();
 </script>
 </body>
