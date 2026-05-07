@@ -4113,10 +4113,15 @@ function cmaRecalcTotals(compIdx) {
     var weightedPrice = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : allPrices[Math.floor(allPrices.length / 2)];
     // Range: use lowest and highest adjusted prices (trimmed if 4+)
     var rangeSet = allPrices.length >= 4 ? allPrices.slice(1, -1) : allPrices;
+    // Preserve a manually edited range so going back to Step 3 doesn't clobber
+    // the agent's override. The center (suggested_price) always recomputes.
+    var prev = _cmaState.valuation || {};
+    var keepRange = prev.range_user_edited === true;
     _cmaState.valuation = {
-      suggested_low: rangeSet[0],
-      suggested_high: rangeSet[rangeSet.length - 1],
-      suggested_price: weightedPrice
+      suggested_low: keepRange ? prev.suggested_low : rangeSet[0],
+      suggested_high: keepRange ? prev.suggested_high : rangeSet[rangeSet.length - 1],
+      suggested_price: weightedPrice,
+      range_user_edited: keepRange
     };
   }
 }
@@ -4376,10 +4381,38 @@ function cmaRenderStep4() {
   html += '<div class="cma-val-subject">' + esc(s.full_address || '') + ', ' + esc(s.city || '') + '</div>';
   if (v.suggested_price) {
     html += '<div class="cma-val-big">$' + v.suggested_price.toLocaleString() + '</div>';
-    html += '<div class="cma-val-range-label">Range: $' + (v.suggested_low || 0).toLocaleString() + ' - $' + (v.suggested_high || 0).toLocaleString() + '</div>';
+    html += '<div class="cma-val-range-label">Estimated Market Value</div>';
   }
+
+  // Editable price range
+  html += '<div class="cma-range-edit">';
+  html += '<div class="cma-range-edit-grid">';
+  html += '<div class="cma-range-field">';
+  html += '<label class="cma-rec-label" for="cmaRangeLow">Low</label>';
+  html += '<input type="number" class="crm-input cma-rec-input" id="cmaRangeLow" value="' + (v.suggested_low || '') + '" step="1000" oninput="cmaUpdateRange()" />';
+  html += '</div>';
+  html += '<div class="cma-range-sep">to</div>';
+  html += '<div class="cma-range-field">';
+  html += '<label class="cma-rec-label" for="cmaRangeHigh">High</label>';
+  html += '<input type="number" class="crm-input cma-rec-input" id="cmaRangeHigh" value="' + (v.suggested_high || '') + '" step="1000" oninput="cmaUpdateRange()" />';
+  html += '</div>';
+  html += '</div>';
+  html += '<button type="button" class="cma-range-explain-toggle" onclick="cmaToggleRangeExplain()" aria-expanded="false">';
+  html += '<span class="cma-range-explain-icon">?</span> What does this range mean?';
+  html += '</button>';
+  html += '<div class="cma-range-explain" id="cmaRangeExplain" hidden>';
+  html += '<p>The price range shows a realistic spread for where this property could sell, given current market conditions and the comparable sales we used.</p>';
+  html += '<ul>';
+  html += '<li><strong>Low end:</strong> what the home is likely to bring if it needs to sell quickly, the market softens, or showings reveal condition issues that the comps did not have.</li>';
+  html += '<li><strong>Estimated market value (center):</strong> the most likely sale price under typical conditions, weighted toward the comps that needed the fewest adjustments.</li>';
+  html += '<li><strong>High end:</strong> the upper edge if listing timing, demand, and presentation all line up, or if a buyer specifically values this home\'s features over the comps.</li>';
+  html += '</ul>';
+  html += '<p class="cma-range-explain-note">A CMA is not a formal appraisal. Final sale price is determined by the market, the buyer, and how the home shows. Adjust the low and high here if you want to widen or narrow the range you discuss with the homeowner.</p>';
+  html += '</div>';
+  html += '</div>';
+
   html += '<div class="cma-rec-price-wrap">';
-  html += '<label class="cma-rec-label">Your Recommended Price</label>';
+  html += '<label class="cma-rec-label">Your Recommended List Price</label>';
   html += '<input type="number" class="crm-input cma-rec-input" id="cmaRecPrice" value="' + (v.suggested_price || '') + '" step="1000" placeholder="Enter your recommended list price" />';
   html += '</div>';
   html += '<div class="cma-rec-notes-wrap">';
@@ -4535,10 +4568,45 @@ function cmaRenderCharts() {
   }
 }
 
+// Reads the editable Low/High inputs in Step 4 and writes them back into
+// _cmaState.valuation so saveReport and the PDF generator pick up the edits.
+// Marks the range as user-overridden so cmaRecalcTotals won't clobber the
+// edits if the agent jumps back to Step 3 and tweaks adjustments.
+function cmaUpdateRange() {
+  if (!_cmaState.valuation) _cmaState.valuation = {};
+  var lowEl = document.getElementById('cmaRangeLow');
+  var highEl = document.getElementById('cmaRangeHigh');
+  if (lowEl) {
+    var lowVal = parseInt(lowEl.value, 10);
+    if (!isNaN(lowVal)) _cmaState.valuation.suggested_low = lowVal;
+  }
+  if (highEl) {
+    var highVal = parseInt(highEl.value, 10);
+    if (!isNaN(highVal)) _cmaState.valuation.suggested_high = highVal;
+  }
+  _cmaState.valuation.range_user_edited = true;
+}
+
+function cmaToggleRangeExplain() {
+  var box = document.getElementById('cmaRangeExplain');
+  var btn = box && box.previousElementSibling;
+  if (!box) return;
+  var isHidden = box.hasAttribute('hidden');
+  if (isHidden) {
+    box.removeAttribute('hidden');
+    if (btn) btn.setAttribute('aria-expanded', 'true');
+  } else {
+    box.setAttribute('hidden', '');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+  }
+}
+
 async function cmaSaveReport(status) {
   var s = _cmaState.subject.listing;
   var recPrice = parseInt(document.getElementById('cmaRecPrice')?.value) || null;
   var agentNotes = document.getElementById('cmaAgentNotes')?.value || '';
+  // Pull any pending Low/High edits from the DOM in case oninput hasn't fired yet
+  cmaUpdateRange();
 
   var report = {
     id: _cmaState.reportId || undefined,
@@ -4661,6 +4729,9 @@ function cmaGoToStep(step) {
 
 async function cmaGeneratePDF() {
   toast('Generating CMA report...', 'info');
+
+  // Flush any pending Low/High range edits into state before reading
+  if (typeof cmaUpdateRange === 'function') cmaUpdateRange();
 
   var s = _cmaState.subject.listing;
   var adjs = _cmaState.adjustments;

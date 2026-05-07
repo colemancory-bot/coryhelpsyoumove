@@ -337,6 +337,13 @@ function generateCMAHtml(data: ReportInput): string {
   .valuation-note { font-size: 0.65rem; color: var(--text-secondary); }
   .methodology { font-size: 0.65rem; color: var(--text-muted); line-height: 1.6; margin-top: 0.6rem; }
   .methodology p { margin-bottom: 0.3rem; }
+  .range-explain { font-size: 0.72rem; color: var(--text-secondary); line-height: 1.65; padding: 0.7rem 0.9rem; background: var(--bg-subtle); border-left: 3px solid var(--gold); border-radius: 4px; }
+  .range-explain p { margin-bottom: 0.45rem; }
+  .range-explain ul { margin: 0 0 0.45rem 1.1rem; padding: 0; }
+  .range-explain li { margin-bottom: 0.3rem; }
+  .range-explain li:last-child { margin-bottom: 0; }
+  .range-explain strong { color: var(--text); font-weight: 600; }
+  .range-explain-note { font-size: 0.65rem; color: var(--text-muted); font-style: italic; margin-bottom: 0 !important; }
   .disclaimers { margin-top: 1rem; padding-top: 0.6rem; border-top: 1px solid var(--border); font-size: 0.58rem; color: var(--text-muted); line-height: 1.6; }
   .disclaimers p { margin-bottom: 0.3rem; }
   .eho { font-weight: 600; color: var(--text-secondary); }
@@ -771,6 +778,17 @@ ${(() => {
     <div class="valuation-label">CMA Estimated Market Value</div>
     <div class="valuation-price" style="font-size:2rem;">${fmt(val.suggested_price)}</div>
     <div class="valuation-range" style="font-size:0.85rem;">${fmt(val.suggested_low)} &ndash; ${fmt(val.suggested_high)}</div>
+  </div>
+
+  <div class="subsection-title" style="margin-top:1.5rem;">Understanding the Price Range</div>
+  <div class="range-explain">
+    <p>The price range shows a realistic spread for where this property could sell, given current market conditions and the comparable sales we used.</p>
+    <ul>
+      <li><strong>Low end (${fmt(val.suggested_low)}):</strong> what the home is likely to bring if it needs to sell quickly, the market softens, or showings reveal condition issues that the comps did not have.</li>
+      <li><strong>Estimated market value (${fmt(val.suggested_price)}):</strong> the most likely sale price under typical conditions, weighted toward the comps that needed the fewest adjustments.</li>
+      <li><strong>High end (${fmt(val.suggested_high)}):</strong> the upper edge if listing timing, demand, and presentation all line up, or if a buyer specifically values this home's features over the comps.</li>
+    </ul>
+    <p class="range-explain-note">A CMA is not a formal appraisal. Final sale price is determined by the market, the buyer, and how the home shows.</p>
   </div>
 
   <div class="subsection-title" style="margin-top:1.5rem;">CMA Summary</div>
