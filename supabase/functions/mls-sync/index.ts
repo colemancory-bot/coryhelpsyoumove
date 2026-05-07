@@ -21,13 +21,15 @@ const R2_PUBLIC_URL = Deno.env.get("R2_PUBLIC_URL") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
-// MLS Grid rate limits (warning at 2 RPS, suspension at 6 RPS):
-//   - Max 4 requests/second at all times
-//   - Max 7,200 requests/hour (warning), 18,000/hour (suspension)
-//   - Max 40,000 requests/24h (warning), 60,000/24h (suspension)
-// 1200ms delay = ~0.83 RPS, well under the 2 RPS warning threshold.
+// MLS Grid rate limits (per email warning, May 2026):
+//   - Warning at 4 RPS / 7,200 req/hr / 40,000 req/24h / 3,072 MB/hr / 40 GB/24h
+//   - Suspension at 6 RPS / 18,000 req/hr / 60,000 req/24h / 4,096 MB/hr / 60 GB/24h
+//   - Hourly average over ~2 RPS also draws warnings
+// Both api.mlsgrid.com (OData) and media.mlsgrid.com (photo URLs) count toward
+// the same RPS budget, so the photo-download loops below need their own delay.
 // NEVER fire multiple invocations in parallel — always sequential via cron.
-const REQUEST_DELAY_MS = 1200;
+const REQUEST_DELAY_MS = 1200;          // OData page-to-page (~0.83 RPS)
+const MEDIA_DOWNLOAD_DELAY_MS = 400;    // Photo-to-photo (~2.5 RPS, leaves headroom)
 
 // Max records per OData page
 const PAGE_SIZE = 200;
@@ -989,6 +991,8 @@ Deno.serve(async (req) => {
           const m = media[i];
           const mediaUrl = m.MediaURL || "";
           const order = m.Order || i;
+          // Throttle photo downloads to stay under MLS Grid's 4 RPS cap.
+          if (i > 0) await sleep(MEDIA_DOWNLOAD_DELAY_MS);
           const uploadResult = await uploadMediaToR2(mediaUrl, listingId, i, slug);
           const deterministicUrl = R2_PUBLIC_URL
             ? `${R2_PUBLIC_URL}/listings/${slug || listingId}/photo-${i + 1}.jpg`
@@ -1450,6 +1454,10 @@ Deno.serve(async (req) => {
               const m = media[i];
               const mUrl = m.MediaURL || "";
               const order = m.Order || i;
+              // Throttle photo downloads. media.mlsgrid.com counts toward the
+              // same RPS budget as api.mlsgrid.com; bursting through 10-13
+              // photos per listing with no delay was tripping the 4 RPS cap.
+              if (i > 0) await sleep(MEDIA_DOWNLOAD_DELAY_MS);
               let localUrl = await uploadMediaToR2(mUrl, lid, i, bfSlug);
               // Reuse existing R2 URL if upload failed
               if (!localUrl && existingR2[order]) localUrl = existingR2[order];
@@ -1734,8 +1742,10 @@ Deno.serve(async (req) => {
         }
 
         bfUrl = data["@odata.nextLink"] || "";
-        // Brief delay between pages to respect MLS Grid rate limits
-        if (bfUrl && totalSynced < maxRecords) await sleep(500);
+        // Page-to-page delay matches the rest of the file. Earlier value (500ms)
+        // was 2 RPS, faster than every other path and a contributor to the May
+        // 2026 rate-limit warning.
+        if (bfUrl && totalSynced < maxRecords) await sleep(REQUEST_DELAY_MS);
       }
 
       const hasMore = !!bfUrl && totalSynced >= maxRecords;
