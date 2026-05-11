@@ -21,15 +21,22 @@ const R2_PUBLIC_URL = Deno.env.get("R2_PUBLIC_URL") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
-// MLS Grid rate limits (per email warning, May 2026):
-//   - Warning at 4 RPS / 7,200 req/hr / 40,000 req/24h / 3,072 MB/hr / 40 GB/24h
-//   - Suspension at 6 RPS / 18,000 req/hr / 60,000 req/24h / 4,096 MB/hr / 60 GB/24h
-//   - Hourly average over ~2 RPS also draws warnings
-// Both api.mlsgrid.com (OData) and media.mlsgrid.com (photo URLs) count toward
-// the same RPS budget, so the photo-download loops below need their own delay.
-// NEVER fire multiple invocations in parallel — always sequential via cron.
+// MLS Grid rate limits — official guidance from Best Practices Guide §9:
+// "DO NOT send more than 2 requests per second." Both warning emails we got
+// quoted this exact "2 requests per second limit" line. The 4 RPS / 6 RPS
+// thresholds in the warning email are the operational tripwires MLS Grid
+// measures; the documented ceiling is 2 RPS.
+//
+// Other hard caps:
+//   - Warning:    7,200 req/hr / 40,000 req/24h / 3,072 MB/hr / 40 GB/24h
+//   - Suspension: 18,000 req/hr / 60,000 req/24h / 4,096 MB/hr / 60 GB/24h
+//
+// Both api.mlsgrid.com (OData) and media.mlsgrid.com (photo URLs) count
+// toward the same RPS budget, so the photo-download loops below need their
+// own delay. Best Practice §7 also forbids parallel replication requests, so
+// NEVER run two crons firing the same action concurrently — sequential only.
 const REQUEST_DELAY_MS = 1200;          // OData page-to-page (~0.83 RPS)
-const MEDIA_DOWNLOAD_DELAY_MS = 400;    // Photo-to-photo (~2.5 RPS, leaves headroom)
+const MEDIA_DOWNLOAD_DELAY_MS = 600;    // Photo-to-photo (~1.67 RPS, under the 2 RPS ceiling)
 
 // Max records per OData page
 const PAGE_SIZE = 200;
