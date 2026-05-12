@@ -851,7 +851,7 @@ var MLS_GRID = {
   _readyResolve: null,
   _latestMod: '',
   _pollTimer: null,
-  _pollIntervalMs: 90000, // 90s — cheap max-timestamp probe, full refresh only on change
+  _pollIntervalMs: 60000, // 60s — cheap max-timestamp probe, full refresh only on change
   // Town slugs mapped from MLS city names
   cityMap: {
     'Waynesville': 'waynesville',
@@ -1253,6 +1253,20 @@ var MLS_GRID = {
     // people who leave the tab open overnight shouldn't see 18-hour-stale data.
     document.addEventListener('visibilitychange', function() {
       if (!document.hidden) tick();
+    });
+    // Window focus covers multi-monitor / multi-window setups where the tab
+    // isn't "hidden" but the OS suspended timer firing while the window was
+    // in the background. tick() is a single-row probe — cheap to over-fire.
+    window.addEventListener('focus', tick);
+    // bfcache (back-forward cache) restoration: when the user returns via
+    // the Back button after navigating away, modern browsers can restore the
+    // page from memory without re-running any JS. The 90s setInterval may
+    // have been frozen during that time, so listings would silently go stale.
+    // event.persisted === true signals a bfcache restore — re-init to pull
+    // a fresh snapshot. Was the most likely cause of the May 11 missing-
+    // listing report (228 Old Owl Ridge).
+    window.addEventListener('pageshow', function(e) {
+      if (e.persisted && MLS_GRID.enabled) MLS_GRID.init();
     });
   },
   // Load all photos for a specific listing (on-demand for property detail overlay)
@@ -8949,10 +8963,17 @@ openPage = function(id) {
 // ═══ LISTING DATA INIT ═══
 // MLS Grid (via Supabase) takes priority when enabled; falls back to SimplyRETS demo data
 if(MLS_GRID.enabled) {
-  // Restore cached listings for instant search while fresh data loads
+  // Restore cached listings for instant search while fresh data loads.
+  // Age-guarded at 15 minutes: if the cache is older than that, skip the
+  // restore so a stale snapshot can't fool a search before init() completes.
+  // This was the user-facing cause of "228 Old Owl Ridge isn't on my site"
+  // on May 11 — a tab opened hours earlier showed cached pre-sync results,
+  // and searches against ALL_LISTINGS missed the new row until hard refresh.
+  var CACHE_MAX_AGE_MS = 15 * 60 * 1000;
   try {
     var _cached = JSON.parse(localStorage.getItem('cc_listings_cache'));
-    if(_cached && _cached.listings && _cached.listings.length > 0) {
+    var _cacheAge = (_cached && typeof _cached.ts === 'number') ? Date.now() - _cached.ts : Infinity;
+    if(_cached && _cached.listings && _cached.listings.length > 0 && _cacheAge < CACHE_MAX_AGE_MS) {
       ALL_LISTINGS.length = 0;
       _cached.listings.forEach(function(l){
         // Recalculate DOM from list_date so it stays fresh across cache loads
