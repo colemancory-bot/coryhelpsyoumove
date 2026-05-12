@@ -197,7 +197,13 @@ async function uploadMediaToR2(
 ): Promise<string> {
   if (!r2Available()) return "";
   try {
-    const resp = await fetch(mediaUrl);
+    // MLS Grid docs (v2.0): "ALL requests to download the expanded media
+    // using the Media URL MUST include the HTTP header User-Agent. The
+    // User-Agent value MUST be the Oauth 2 access token you are provided
+    // by MLS Grid." Enforcement begins June 1, 2026.
+    const resp = await fetch(mediaUrl, {
+      headers: { "User-Agent": MLS_GRID_TOKEN },
+    });
     if (!resp.ok) return "";
     const contentType = resp.headers.get("content-type") || "image/jpeg";
     const ext = contentType.includes("png") ? "png" : "jpg";
@@ -265,10 +271,10 @@ async function syncProperties(
   const tsFilter = lastTimestamp ? ` and ModificationTimestamp gt ${normalizeTimestamp(lastTimestamp)}` : "";
   if (isInitial) {
     // Initial import: only Active listings + resume from saved timestamp if any
-    url = `${MLS_GRID_API}/Property?$filter=${baseFilter} and MlgCanView eq true and StandardStatus eq 'Active'${tsFilter}&$expand=Media&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
+    url = `${MLS_GRID_API}/Property?$filter=${baseFilter} and MlgCanView eq true and StandardStatus eq 'Active'${tsFilter}&$expand=Media&$top=${PAGE_SIZE}`;
   } else {
     // Incremental sync: get ALL changes (including status transitions) since last sync
-    url = `${MLS_GRID_API}/Property?$filter=${baseFilter}${tsFilter}&$expand=Media&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
+    url = `${MLS_GRID_API}/Property?$filter=${baseFilter}${tsFilter}&$expand=Media&$top=${PAGE_SIZE}`;
   }
 
   let totalSynced = 0;
@@ -656,7 +662,7 @@ async function syncMembers(
   maxRecords: number = DEFAULT_MAX_RECORDS
 ) {
   const mTsFilter = lastTimestamp ? ` and ModificationTimestamp gt ${normalizeTimestamp(lastTimestamp)}` : "";
-  let url = `${MLS_GRID_API}/Member?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true${mTsFilter}&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
+  let url = `${MLS_GRID_API}/Member?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true${mTsFilter}&$top=${PAGE_SIZE}`;
 
   let totalSynced = 0;
   let greatestTimestamp = lastTimestamp || "";
@@ -714,7 +720,7 @@ async function syncOffices(
   maxRecords: number = DEFAULT_MAX_RECORDS
 ) {
   const oTsFilter = lastTimestamp ? ` and ModificationTimestamp gt ${normalizeTimestamp(lastTimestamp)}` : "";
-  let url = `${MLS_GRID_API}/Office?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true${oTsFilter}&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
+  let url = `${MLS_GRID_API}/Office?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true${oTsFilter}&$top=${PAGE_SIZE}`;
 
   let totalSynced = 0;
   let greatestTimestamp = lastTimestamp || "";
@@ -772,7 +778,7 @@ async function syncOpenHouses(
   maxRecords: number = DEFAULT_MAX_RECORDS
 ) {
   const ohTsFilter = lastTimestamp ? ` and ModificationTimestamp gt ${normalizeTimestamp(lastTimestamp)}` : "";
-  let url = `${MLS_GRID_API}/OpenHouse?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true${ohTsFilter}&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
+  let url = `${MLS_GRID_API}/OpenHouse?$filter=OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true${ohTsFilter}&$top=${PAGE_SIZE}`;
 
   let totalSynced = 0;
   let greatestTimestamp = lastTimestamp || "";
@@ -1146,7 +1152,7 @@ Deno.serve(async (req) => {
 
         const baseFilter = `OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and StandardStatus eq 'Closed'`;
         const tsFilter = resumeTs ? ` and ModificationTimestamp gt ${normalizeTimestamp(resumeTs)}` : "";
-        const bfUrl = `${MLS_GRID_API}/Property?$filter=${baseFilter}${tsFilter}&$top=${bfPageSize}&$orderby=ModificationTimestamp asc`;
+        const bfUrl = `${MLS_GRID_API}/Property?$filter=${baseFilter}${tsFilter}&$top=${bfPageSize}`;
         steps.push("fetching...");
 
         const data = await mlsGridFetch(bfUrl, 20000);
@@ -1302,7 +1308,7 @@ Deno.serve(async (req) => {
 
       const baseFilter = `OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true and StandardStatus eq 'Active'`;
       const tsFilter = resumeTs ? ` and ModificationTimestamp gt ${normalizeTimestamp(resumeTs)}` : "";
-      let url = `${MLS_GRID_API}/Property?$filter=${baseFilter}${tsFilter}&$expand=Media&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
+      let url = `${MLS_GRID_API}/Property?$filter=${baseFilter}${tsFilter}&$expand=Media&$top=${PAGE_SIZE}`;
       let totalRefreshed = 0;
       let greatestTs = resumeTs || "";
 
@@ -1479,7 +1485,7 @@ Deno.serve(async (req) => {
 
       const baseFilter = `OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true and StandardStatus eq 'Active'`;
       const tsFilter = resumeTs ? ` and ModificationTimestamp gt ${normalizeTimestamp(resumeTs)}` : "";
-      let bfUrl = `${MLS_GRID_API}/Property?$filter=${baseFilter}${tsFilter}&$expand=Media&$top=${PAGE_SIZE}&$orderby=ModificationTimestamp asc`;
+      let bfUrl = `${MLS_GRID_API}/Property?$filter=${baseFilter}${tsFilter}&$expand=Media&$top=${PAGE_SIZE}`;
       let totalProcessed = 0;
       let greatestTs = resumeTs || "";
       let r2Uploaded = 0;
@@ -1526,53 +1532,69 @@ Deno.serve(async (req) => {
 
           const media = record.Media || [];
           if (media.length > 0) {
-            // Check if ALL photos already have R2 URLs (not just one)
+            // MLS Grid docs: "Media never updates; if changes occur, a new
+            // URL is issued. Never download the same media twice."
+            // Build a MediaKey -> local_url map of what we already have in
+            // R2 so we only fetch the photos we're actually missing.
             const { data: existingMedia } = await supabase
               .from("mls_media")
-              .select("order, local_url")
+              .select("media_key, order, local_url, media_url")
               .eq("listing_key", lk);
-            const existingCount = existingMedia ? existingMedia.length : 0;
-            const r2Count = existingMedia ? existingMedia.filter((m: any) => m.local_url).length : 0;
+            const existingByKey: Record<string, { local_url: string; order: number }> = {};
+            (existingMedia || []).forEach((m: any) => {
+              if (m.media_key) existingByKey[m.media_key] = { local_url: m.local_url || "", order: m.order };
+            });
 
-            if (existingCount >= media.length && r2Count >= media.length) {
-              // All photos have R2 URLs, skip
+            // Decide which incoming MediaKeys still need fetching.
+            const toFetch = media.filter((m: any) => {
+              const key = m.MediaKey || "";
+              if (!key) return true; // no key, treat as missing
+              const ex = existingByKey[key];
+              return !ex || !ex.local_url;
+            });
+
+            if (toFetch.length === 0) {
+              // Every MediaKey already has an R2 copy — skip without touching
+              // media.mlsgrid.com. Critical for compliance with the
+              // "never download twice" rule.
               totalProcessed++;
               continue;
             }
 
-            // Build map of existing R2 URLs to preserve on failure
-            const existingR2: Record<number, string> = {};
-            if (existingMedia) {
-              existingMedia.forEach((m: any) => {
-                if (m.local_url) existingR2[m.order] = m.local_url;
-              });
-            }
-
-            // Delete and re-insert with R2 URLs
+            // Rebuild the mls_media rows for this listing. Keep existing R2
+            // URLs for MediaKeys we already have; fetch only the missing ones.
             await supabase.from("mls_media").delete().eq("listing_key", lk);
             const mediaRows = [];
             const bfSlug = addressSlug(record.StreetNumber || "", record.StreetName || "", record.StreetSuffix || "", record.City || "", record.StateOrProvince || "");
+            let fetchedSoFar = 0;
             for (let i = 0; i < media.length; i++) {
               const m = media[i];
               const mUrl = m.MediaURL || "";
+              const key = m.MediaKey || `${lk}-${i}`;
               const order = m.Order || i;
-              // Throttle photo downloads. media.mlsgrid.com counts toward the
-              // same RPS budget as api.mlsgrid.com; bursting through 10-13
-              // photos per listing with no delay was tripping the 4 RPS cap.
-              if (i > 0) await sleep(MEDIA_DOWNLOAD_DELAY_MS);
-              let localUrl = await uploadMediaToR2(mUrl, lid, i, bfSlug);
-              // Reuse existing R2 URL if upload failed
-              if (!localUrl && existingR2[order]) localUrl = existingR2[order];
+
+              let localUrl = "";
+              const ex = existingByKey[key];
+              if (ex && ex.local_url) {
+                // Already have this MediaKey in R2 — reuse without re-downloading.
+                localUrl = ex.local_url;
+              } else {
+                // Throttle photo downloads (media.mlsgrid.com shares the same
+                // 2 RPS budget as api.mlsgrid.com).
+                if (fetchedSoFar > 0) await sleep(MEDIA_DOWNLOAD_DELAY_MS);
+                localUrl = await uploadMediaToR2(mUrl, lid, i, bfSlug);
+                fetchedSoFar++;
+              }
               if (localUrl) r2Uploaded++; else r2Failed++;
               mediaRows.push({
                 listing_key: lk,
-                media_key: m.MediaKey || `${lk}-${i}`,
+                media_key: key,
                 media_url: mUrl,
                 local_url: localUrl,
                 media_type: m.MimeType || "image/jpeg",
                 media_category: m.MediaCategory || "Photo",
                 short_description: m.ShortDescription || "",
-                order: m.Order || i,
+                order: order,
                 image_width: m.ImageWidth || null,
                 image_height: m.ImageHeight || null,
                 modification_timestamp: m.ModificationTimestamp || mTs,
@@ -1581,7 +1603,7 @@ Deno.serve(async (req) => {
             if (mediaRows.length > 0) {
               await supabase.from("mls_media").insert(mediaRows);
             }
-            console.log(`[Backfill] ${lid}: ${mediaRows.filter(r => r.local_url).length}/${mediaRows.length} photos to R2`);
+            console.log(`[Backfill] ${lid}: ${fetchedSoFar} new photos downloaded, ${mediaRows.length - fetchedSoFar} reused from R2`);
           }
           totalProcessed++;
         }
@@ -1653,7 +1675,7 @@ Deno.serve(async (req) => {
       const baseFilter = `OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and StandardStatus eq 'Closed'`;
       const tsFilter = resumeTs ? ` and ModificationTimestamp gt ${normalizeTimestamp(resumeTs)}` : "";
       const expandClause = includeMedia ? "&$expand=Media" : "";
-      let bfUrl = `${MLS_GRID_API}/Property?$filter=${baseFilter}${tsFilter}${expandClause}&$top=${bfPageSize}&$orderby=ModificationTimestamp asc`;
+      let bfUrl = `${MLS_GRID_API}/Property?$filter=${baseFilter}${tsFilter}${expandClause}&$top=${bfPageSize}`;
       let totalSynced = 0;
       let greatestTs = resumeTs || "";
       let skippedOld = 0;
