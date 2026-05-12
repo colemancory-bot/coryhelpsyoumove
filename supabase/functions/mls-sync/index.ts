@@ -59,6 +59,79 @@ function r2Available(): boolean {
   return !!(R2_WORKER_URL && R2_WORKER_SECRET);
 }
 
+// ── Single-flight lock for MLS Grid Best Practice §7 ─────────
+// "DO NOT send more than one replication request at a time."
+// Three crons hit api.mlsgrid.com (sync-properties, sync-full, backfill-
+// media) and they overlap during the same minute (e.g. :35 sync-full +
+// :36 backfill-media). Combined burst exceeds 2 RPS. This lock forces
+// sequential execution across cron invocations: only ONE mls-sync action
+// can hold it at a time. Stale locks auto-expire after 5 min so a crashed
+// invocation doesn't wedge the system.
+const LOCK_RESOURCE = "_mls_grid_lock";
+const LOCK_STALE_MS = 5 * 60 * 1000;
+
+async function tryAcquireMlsGridLock(supabase: any, action: string): Promise<boolean> {
+  const now = new Date().toISOString();
+  // Two-step acquire pattern. We tried .or('status.eq.idle,last_sync_at.lt.X')
+  // first but PostgREST's OR filter does not match through Supabase JS the way
+  // raw SQL does (suspect: dot-delimited ISO ms in the value confuses the
+  // PostgREST URL parser). Two simple UPDATEs are clearer anyway:
+  //   1. Common case: take the lock if currently idle.
+  //   2. Fallback: take over a stale lock (>5 min, previous run crashed).
+  // Both UPDATEs use row-level locks in Postgres so concurrent callers are
+  // serialized — exactly one returns a row from either step.
+  const { data: idleData, error: idleErr } = await supabase
+    .from("mls_sync_state")
+    .update({ status: "running", last_sync_at: now, error_message: `held by ${action}` })
+    .eq("resource_type", LOCK_RESOURCE)
+    .eq("status", "idle")
+    .select("resource_type");
+  if (idleErr) {
+    console.warn(`[Lock] idle-acquire error: ${idleErr.message}`);
+    return false;
+  }
+  if (Array.isArray(idleData) && idleData.length > 0) return true;
+
+  // Stale takeover. Strip milliseconds so the timestamp comparison doesn't
+  // collide with PostgREST's dot delimiter (precaution, not strictly needed
+  // for .lt() but consistent).
+  const staleBefore = new Date(Date.now() - LOCK_STALE_MS)
+    .toISOString()
+    .replace(/\.\d{3}Z$/, "Z");
+  const { data: staleData, error: staleErr } = await supabase
+    .from("mls_sync_state")
+    .update({ status: "running", last_sync_at: now, error_message: `held by ${action} (stale takeover)` })
+    .eq("resource_type", LOCK_RESOURCE)
+    .eq("status", "running")
+    .lt("last_sync_at", staleBefore)
+    .select("resource_type");
+  if (staleErr) {
+    console.warn(`[Lock] stale-takeover error: ${staleErr.message}`);
+    return false;
+  }
+  return Array.isArray(staleData) && staleData.length > 0;
+}
+
+async function releaseMlsGridLock(supabase: any) {
+  try {
+    await supabase
+      .from("mls_sync_state")
+      .update({ status: "idle", last_sync_at: new Date().toISOString(), error_message: "" })
+      .eq("resource_type", LOCK_RESOURCE);
+  } catch (err) {
+    console.warn("[Lock] release error:", err);
+  }
+}
+
+function lockedSkipResponse(action: string) {
+  return new Response(JSON.stringify({
+    ok: true, action, skipped: "locked",
+    reason: "Another mls-sync invocation holds the MLS Grid lock. Try again next cron tick.",
+  }), {
+    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+  });
+}
+
 // ── Helpers ────────────────────────────────────────────────────
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -789,6 +862,28 @@ Deno.serve(async (req) => {
     console.log(
       `[MLS Grid] Starting ${action} for resource: ${resource} (limit: ${maxRecords})`
     );
+
+    // Best Practice §7: only one replication request to MLS Grid at a time.
+    // Three crons hit api.mlsgrid.com on different schedules and used to
+    // overlap during the same minute, causing the 2 RPS guidance to break.
+    // Gate every action that touches api.mlsgrid.com or media.mlsgrid.com
+    // with a Postgres-side single-flight lock. If another invocation holds
+    // it we exit immediately — the cron will retry on its next tick.
+    const MLS_GRID_ACTIONS = new Set([
+      "sync", "initial-import", "sync-one", "mini-backfill",
+      "media-refresh", "backfill-media", "backfill-closed", "health",
+    ]);
+    const needsLock = MLS_GRID_ACTIONS.has(action);
+    let lockHeld = false;
+    if (needsLock) {
+      lockHeld = await tryAcquireMlsGridLock(supabase, action);
+      if (!lockHeld) {
+        console.log(`[Lock] ${action} skipped — another mls-sync invocation holds the MLS Grid lock`);
+        return lockedSkipResponse(action);
+      }
+    }
+
+    try {
 
     // Quick health check: test MLS Grid API connectivity
     if (action === "health") {
@@ -1867,6 +1962,12 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ ok: true, action, source: "Canopy MLS", results }), {
       headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
     });
+
+    } finally {
+      // Release the MLS Grid single-flight lock so the next cron tick can proceed.
+      // Runs regardless of which return path or exception was hit above.
+      if (lockHeld) await releaseMlsGridLock(supabase);
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[MLS Grid] Fatal error: ${msg}`);
