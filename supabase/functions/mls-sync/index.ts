@@ -155,9 +155,41 @@ function stripPrefix(value: string | null | undefined): string {
     : value;
 }
 
+// Module-scoped audit-log handle. Set once per request at the top of the
+// Deno.serve handler so every mlsGridFetch / uploadMediaToR2 call can write.
+let _auditSupabase: any = null;
+let _auditCaller = "mls-sync:unknown";
+function setMlsGridAudit(supabase: any, caller: string) {
+  _auditSupabase = supabase;
+  _auditCaller = caller;
+}
+async function logMlsGridCall(row: {
+  endpoint: string; url: string; status_code: number | null;
+  duration_ms: number; response_bytes: number | null; error_message: string | null;
+}) {
+  if (!_auditSupabase) return;
+  try {
+    await _auditSupabase.from("mls_grid_api_log").insert({
+      caller: _auditCaller,
+      endpoint: row.endpoint,
+      url: row.url,
+      status_code: row.status_code,
+      duration_ms: row.duration_ms,
+      response_bytes: row.response_bytes,
+      error_message: row.error_message,
+    });
+  } catch (_) {
+    // Audit log failure must NEVER break the sync.
+  }
+}
+
 async function mlsGridFetch(url: string, timeoutMs = 25000): Promise<any> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const t0 = Date.now();
+  let statusCode: number | null = null;
+  let respBytes: number | null = null;
+  let errMsg: string | null = null;
   try {
     const resp = await fetch(url, {
       headers: {
@@ -167,13 +199,29 @@ async function mlsGridFetch(url: string, timeoutMs = 25000): Promise<any> {
       },
       signal: controller.signal,
     });
+    statusCode = resp.status;
     if (!resp.ok) {
       const text = await resp.text();
-      throw new Error(`MLS Grid API ${resp.status}: ${text}`);
+      respBytes = text.length;
+      errMsg = `MLS Grid API ${resp.status}: ${text.slice(0, 200)}`;
+      throw new Error(errMsg);
     }
-    return resp.json();
+    const json = await resp.json();
+    respBytes = JSON.stringify(json).length;
+    return json;
+  } catch (e: any) {
+    if (!errMsg) errMsg = e.message || String(e);
+    throw e;
   } finally {
     clearTimeout(timer);
+    await logMlsGridCall({
+      endpoint: "api.mlsgrid.com",
+      url,
+      status_code: statusCode,
+      duration_ms: Date.now() - t0,
+      response_bytes: respBytes,
+      error_message: errMsg,
+    });
   }
 }
 
@@ -196,6 +244,9 @@ async function uploadMediaToR2(
   slug?: string
 ): Promise<string> {
   if (!r2Available()) return "";
+  const t0 = Date.now();
+  let statusCode: number | null = null;
+  let errMsg: string | null = null;
   try {
     // MLS Grid docs (v2.0): "ALL requests to download the expanded media
     // using the Media URL MUST include the HTTP header User-Agent. The
@@ -204,7 +255,16 @@ async function uploadMediaToR2(
     const resp = await fetch(mediaUrl, {
       headers: { "User-Agent": MLS_GRID_TOKEN },
     });
-    if (!resp.ok) return "";
+    statusCode = resp.status;
+    if (!resp.ok) {
+      errMsg = `media fetch ${resp.status}`;
+      await logMlsGridCall({
+        endpoint: "media.mlsgrid.com", url: mediaUrl,
+        status_code: statusCode, duration_ms: Date.now() - t0,
+        response_bytes: null, error_message: errMsg,
+      });
+      return "";
+    }
     const contentType = resp.headers.get("content-type") || "image/jpeg";
     const ext = contentType.includes("png") ? "png" : "jpg";
     // SEO-friendly path: listings/14-winter-woods-drive-asheville-nc/photo-1.jpg
@@ -221,12 +281,29 @@ async function uploadMediaToR2(
       body: resp.body,
     });
     if (uploadResp.ok) {
+      await logMlsGridCall({
+        endpoint: "media.mlsgrid.com", url: mediaUrl,
+        status_code: statusCode, duration_ms: Date.now() - t0,
+        response_bytes: parseInt(resp.headers.get("content-length") || "0", 10) || null,
+        error_message: null,
+      });
       return R2_PUBLIC_URL ? `${R2_PUBLIC_URL}/${key}` : key;
     }
     console.warn(`[R2] Upload failed for ${key}: ${uploadResp.status}`);
+    errMsg = `R2 upload ${uploadResp.status}`;
+    await logMlsGridCall({
+      endpoint: "media.mlsgrid.com", url: mediaUrl,
+      status_code: statusCode, duration_ms: Date.now() - t0,
+      response_bytes: null, error_message: errMsg,
+    });
     return "";
   } catch (err) {
     console.warn(`[R2] Upload error for ${listingId}/${order}:`, String(err));
+    await logMlsGridCall({
+      endpoint: "media.mlsgrid.com", url: mediaUrl,
+      status_code: statusCode, duration_ms: Date.now() - t0,
+      response_bytes: null, error_message: String(err).slice(0, 200),
+    });
     return "";
   }
 }
@@ -868,6 +945,10 @@ Deno.serve(async (req) => {
     console.log(
       `[MLS Grid] Starting ${action} for resource: ${resource} (limit: ${maxRecords})`
     );
+
+    // Bind the audit logger so every MLS Grid call below gets a row in
+    // mls_grid_api_log tagged with which action initiated it.
+    setMlsGridAudit(supabase, `mls-sync:${action}`);
 
     // Best Practice §7: only one replication request to MLS Grid at a time.
     // Three crons hit api.mlsgrid.com on different schedules and used to

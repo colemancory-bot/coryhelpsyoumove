@@ -1347,15 +1347,35 @@ Deno.serve(async (req: Request) => {
           const filter = `OriginatingSystemName eq '${mlsGridSystem}' and ListingId eq '${prefixedId}'`;
           console.log("[lookup] MLS Grid filter:", filter);
           const url = `https://api.mlsgrid.com/v2/Property?$filter=${filter}&$expand=Media&$top=5`;
+          const _t0 = Date.now();
+          let _statusCode: number | null = null;
+          let _respBytes: number | null = null;
+          let _errMsg: string | null = null;
           const resp = await fetch(url, {
             headers: { Authorization: `Bearer ${mlsGridToken}`, Accept: "application/json" },
           });
+          _statusCode = resp.status;
           if (!resp.ok) {
             const body = await resp.text().catch(() => "");
+            _respBytes = body.length;
+            _errMsg = `MLS Grid ${resp.status}: ${body.slice(0, 200)}`;
             console.log("[lookup] MLS Grid error:", resp.status, body.slice(0, 200));
             errors.push(`MLS Grid: ${resp.status}`);
+            // Audit log this call too — caller bypasses mls-sync's lock,
+            // so we need visibility into it from the rate-limit log.
+            await sb.from("mls_grid_api_log").insert({
+              caller: "cma-engine:lookup-listing", endpoint: "api.mlsgrid.com",
+              url, status_code: _statusCode, duration_ms: Date.now() - _t0,
+              response_bytes: _respBytes, error_message: _errMsg,
+            }).then(() => {}, () => {});
           } else {
           const data = await resp.json();
+          _respBytes = JSON.stringify(data).length;
+          await sb.from("mls_grid_api_log").insert({
+            caller: "cma-engine:lookup-listing", endpoint: "api.mlsgrid.com",
+            url, status_code: _statusCode, duration_ms: Date.now() - _t0,
+            response_bytes: _respBytes, error_message: null,
+          }).then(() => {}, () => {});
           const records = data.value || [];
           for (const r of records) {
             // Store to our DB for future use
