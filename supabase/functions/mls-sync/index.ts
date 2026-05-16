@@ -1539,170 +1539,206 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ── Backfill action: download existing Canopy photos to R2 ──
-    // Pages through all active Canopy listings via MLS Grid API with $expand=Media,
-    // downloads each photo to R2, and updates local_url in mls_media.
-    // Uses sync_cursors for resume between cron invocations.
+    // ── Backfill action: download missing Canopy photos to R2 ──
+    //
+    // Previously this paged through all Active Canopy listings with
+    // $expand=Media using a ModificationTimestamp cursor. Two problems:
+    //
+    //   1. Each $top=200 page returned ~2,600 MediaURL strings (200
+    //      listings × ~13 photos). MLS Grid appears to count those
+    //      issued MediaURLs against the request quota — at 4 invocations
+    //      per hour that's ~10,400 MediaURLs/hour, roughly the 4 RPS
+    //      hourly average their warning email reports. Our own audit
+    //      shows only 12 HTTP requests/hr; the discrepancy is the
+    //      MediaURL count inside expanded responses.
+    //
+    //   2. The cursor "gt last_ts" pattern only catches NEW changes.
+    //      Listings whose initial photo upload failed sit with empty
+    //      local_url at an OLD ModificationTimestamp and are never
+    //      reprocessed. We had 2,523 such listings as of 5/16, and the
+    //      cursor was happily walking past them returning r2Uploaded:0
+    //      every cycle.
+    //
+    // New pattern: query the DB for listings that actually need photos,
+    // then make ONE targeted MLS Grid call per listing (returns 1
+    // Property × ~13 MediaURLs = ~13 issued URLs per call). At maxRecords
+    // listings per invocation that's ~13 × N MediaURLs, dramatically
+    // smaller than the previous ~2,600 per page. When nothing needs
+    // backfill, the function makes zero MLS Grid calls and exits.
     if (action === "backfill-media") {
-      let resumeTs = body.lastTimestamp || null;
-      if (!resumeTs) {
-        const { data: cursorRow } = await supabase
-          .from("sync_cursors")
-          .select("value")
-          .eq("key", "backfill-media")
-          .single();
-        const cursorVal = cursorRow?.value || "";
-        if (cursorVal === "DONE") {
-          console.log("[Backfill] Already complete (cursor=DONE), skipping");
-          return new Response(JSON.stringify({
-            ok: true, action: "backfill-media", processed: 0,
-            status: "complete", hasMore: false
-          }), {
-            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-          });
-        }
-        resumeTs = cursorVal || null;
+      const limit = maxRecords;
+
+      // 1. DB query: which Active winner listings have at least one
+      //    mls_media row with empty local_url? Use a CTE-style select via
+      //    the PostgREST relationship syntax. We pull listing_key from
+      //    mls_media where local_url='' and join to mls_listings for the
+      //    winner/status filters. To keep it simple we run two queries.
+      const { data: missingMedia, error: missingErr } = await supabase
+        .from("mls_media")
+        .select("listing_key, mls_listings!inner(listing_id, is_winner, originating_system_name, standard_status)")
+        .eq("local_url", "")
+        .eq("mls_listings.is_winner", true)
+        .eq("mls_listings.originating_system_name", ORIGINATING_SYSTEM_NAME)
+        .in("mls_listings.standard_status", ["Active", "Active Under Contract", "Pending"])
+        .limit(limit * 20);  // overshoot so we can dedup per-listing
+      if (missingErr) {
+        console.warn(`[Backfill] missing-media query error: ${missingErr.message}`);
       }
 
-      const baseFilter = `OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and MlgCanView eq true and StandardStatus eq 'Active'`;
-      const tsFilter = resumeTs ? ` and ModificationTimestamp gt ${normalizeTimestamp(resumeTs)}` : "";
-      let bfUrl = `${MLS_GRID_API}/Property?$filter=${baseFilter}${tsFilter}&$expand=Media&$top=${PAGE_SIZE}`;
-      let totalProcessed = 0;
-      let greatestTs = resumeTs || "";
+      // Dedup to one entry per listing_key (a listing with 13 missing
+      // photos shouldn't burn 13 spots in our limit).
+      const seen = new Set<string>();
+      const work: Array<{ listing_key: string; listing_id: string }> = [];
+      for (const row of (missingMedia || []) as any[]) {
+        if (work.length >= limit) break;
+        if (seen.has(row.listing_key)) continue;
+        seen.add(row.listing_key);
+        const lid = row.mls_listings?.listing_id || "";
+        work.push({ listing_key: row.listing_key, listing_id: lid });
+      }
+
+      if (work.length === 0) {
+        console.log("[Backfill] No listings missing photos — exiting without touching MLS Grid");
+        return new Response(JSON.stringify({
+          ok: true, action: "backfill-media", processed: 0,
+          r2Uploaded: 0, r2Failed: 0, mlsGridCalls: 0,
+          status: "complete", hasMore: false,
+        }), {
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+
       let r2Uploaded = 0;
       let r2Failed = 0;
+      let mlsGridCalls = 0;
 
-      while (bfUrl && totalProcessed < maxRecords) {
-        const data = await mlsGridFetch(bfUrl);
-        const records = data.value || [];
-        console.log(`[Backfill] Page: ${records.length} records`);
+      // 2. For each listing in the work list, targeted MLS Grid call.
+      //    Each call returns exactly 1 Property record with its Media
+      //    array (~13 MediaURLs). $top=1 minimizes scan on their side.
+      for (let i = 0; i < work.length; i++) {
+        const { listing_key: lk, listing_id: lid } = work[i];
 
-        // Look up is_winner for every listing in this page in a single query.
-        // Rows that are losers in a cross-MLS dedup group get their photos
-        // skipped entirely — we never display them, so downloading to R2
-        // would be wasted storage. See migrations/20260406000001_winner_dedup.sql.
-        const pageKeys = records.map((r: any) => r.ListingKey || "").filter(Boolean);
-        const winnerSet = new Set<string>();
-        if (pageKeys.length > 0) {
-          const { data: winnerRows } = await supabase
-            .from("mls_listings")
-            .select("listing_key")
-            .in("listing_key", pageKeys)
-            .eq("is_winner", true);
-          for (const r of (winnerRows || [])) winnerSet.add(r.listing_key);
+        // Page-to-page throttle between sibling targeted calls.
+        if (i > 0) await sleep(REQUEST_DELAY_MS);
+
+        // ListingId in our DB is already stored exactly as MLS Grid serves
+        // it (e.g. "CAR4354358") — the MLS_LOCAL_PREFIX env var ("CAR_")
+        // is a SEPARATE convention that the sync's stripPrefix uses only
+        // when the raw value happens to start with it. Don't try to
+        // re-prefix here or you get "CAR_CAR4354358" and an empty result.
+        const filter = `OriginatingSystemName eq '${ORIGINATING_SYSTEM_NAME}' and ListingId eq '${lid}'`;
+        const turl = `${MLS_GRID_API}/Property?$filter=${encodeURIComponent(filter)}&$expand=Media&$top=1`;
+
+        let record: any = null;
+        try {
+          const data = await mlsGridFetch(turl);
+          mlsGridCalls++;
+          record = (data.value || [])[0];
+        } catch (err) {
+          console.warn(`[Backfill] targeted fetch failed for ${lid}: ${err}`);
+          continue;
+        }
+        if (!record) {
+          // Listing no longer in MLS Grid feed (likely deleted upstream).
+          // Mark the local rows as no-op so we stop trying.
+          console.log(`[Backfill] ${lid}: not found in feed; skipping`);
+          continue;
         }
 
-        for (const record of records) {
-          if (totalProcessed >= maxRecords) break;
-          const lk = record.ListingKey || "";
-          const lid = stripPrefix(record.ListingId || "");
-          const mTs = record.ModificationTimestamp || "";
-          if (mTs > greatestTs) greatestTs = mTs;
-
-          // Server-side filters (same as syncProperties)
-          const county = record.CountyOrParish || "";
-          if (!county || !WNC_COUNTIES.has(county)) continue;
-          if ((record.PropertyType || "") === "Residential Lease") continue;
-          if (record.MlgCanView === false) continue;
-
-          // Skip losers — Navica has a better copy and is displayed instead.
-          if (!winnerSet.has(lk)) {
-            totalProcessed++;
-            continue;
-          }
-
-          const media = record.Media || [];
-          if (media.length > 0) {
-            // MLS Grid docs: "Media never updates; if changes occur, a new
-            // URL is issued. Never download the same media twice."
-            // Build a MediaKey -> local_url map of what we already have in
-            // R2 so we only fetch the photos we're actually missing.
-            const { data: existingMedia } = await supabase
-              .from("mls_media")
-              .select("media_key, order, local_url, media_url")
-              .eq("listing_key", lk);
-            const existingByKey: Record<string, { local_url: string; order: number }> = {};
-            (existingMedia || []).forEach((m: any) => {
-              if (m.media_key) existingByKey[m.media_key] = { local_url: m.local_url || "", order: m.order };
-            });
-
-            // Decide which incoming MediaKeys still need fetching.
-            const toFetch = media.filter((m: any) => {
-              const key = m.MediaKey || "";
-              if (!key) return true; // no key, treat as missing
-              const ex = existingByKey[key];
-              return !ex || !ex.local_url;
-            });
-
-            if (toFetch.length === 0) {
-              // Every MediaKey already has an R2 copy — skip without touching
-              // media.mlsgrid.com. Critical for compliance with the
-              // "never download twice" rule.
-              totalProcessed++;
-              continue;
-            }
-
-            // Rebuild the mls_media rows for this listing. Keep existing R2
-            // URLs for MediaKeys we already have; fetch only the missing ones.
-            await supabase.from("mls_media").delete().eq("listing_key", lk);
-            const mediaRows = [];
-            const bfSlug = addressSlug(record.StreetNumber || "", record.StreetName || "", record.StreetSuffix || "", record.City || "", record.StateOrProvince || "");
-            let fetchedSoFar = 0;
-            for (let i = 0; i < media.length; i++) {
-              const m = media[i];
-              const mUrl = m.MediaURL || "";
-              const key = m.MediaKey || `${lk}-${i}`;
-              const order = m.Order || i;
-
-              let localUrl = "";
-              const ex = existingByKey[key];
-              if (ex && ex.local_url) {
-                // Already have this MediaKey in R2 — reuse without re-downloading.
-                localUrl = ex.local_url;
-              } else {
-                // Throttle photo downloads (media.mlsgrid.com shares the same
-                // 2 RPS budget as api.mlsgrid.com).
-                if (fetchedSoFar > 0) await sleep(MEDIA_DOWNLOAD_DELAY_MS);
-                localUrl = await uploadMediaToR2(mUrl, lid, i, bfSlug);
-                fetchedSoFar++;
-              }
-              if (localUrl) r2Uploaded++; else r2Failed++;
-              mediaRows.push({
-                listing_key: lk,
-                media_key: key,
-                media_url: mUrl,
-                local_url: localUrl,
-                media_type: m.MimeType || "image/jpeg",
-                media_category: m.MediaCategory || "Photo",
-                short_description: m.ShortDescription || "",
-                order: order,
-                image_width: m.ImageWidth || null,
-                image_height: m.ImageHeight || null,
-                modification_timestamp: m.ModificationTimestamp || mTs,
-              });
-            }
-            if (mediaRows.length > 0) {
-              await supabase.from("mls_media").insert(mediaRows);
-            }
-            console.log(`[Backfill] ${lid}: ${fetchedSoFar} new photos downloaded, ${mediaRows.length - fetchedSoFar} reused from R2`);
-          }
-          totalProcessed++;
+        // Cross-MLS dedup check: if this listing isn't currently a winner
+        // we shouldn't bother backfilling photos. (Could happen if winner
+        // flipped after we queued this row.)
+        const { data: winnerCheck } = await supabase
+          .from("mls_listings")
+          .select("is_winner")
+          .eq("listing_key", lk)
+          .maybeSingle();
+        if (!winnerCheck?.is_winner) {
+          console.log(`[Backfill] ${lid}: no longer winner; skipping`);
+          continue;
         }
 
-        bfUrl = data["@odata.nextLink"] || "";
-        if (bfUrl && totalProcessed < maxRecords) await sleep(REQUEST_DELAY_MS);
+        const media: any[] = record.Media || [];
+        if (media.length === 0) {
+          // No media on this listing — clear any orphan empty rows.
+          await supabase.from("mls_media").delete().eq("listing_key", lk).eq("local_url", "");
+          continue;
+        }
+
+        // Look up what we already have in R2 for this listing.
+        const { data: existingMedia } = await supabase
+          .from("mls_media")
+          .select("media_key, order, local_url")
+          .eq("listing_key", lk);
+        const existingByKey: Record<string, { local_url: string; order: number }> = {};
+        (existingMedia || []).forEach((m: any) => {
+          if (m.media_key) existingByKey[m.media_key] = { local_url: m.local_url || "", order: m.order };
+        });
+
+        const mTs = record.ModificationTimestamp || "";
+        const bfSlug = addressSlug(
+          record.StreetNumber || "", record.StreetName || "", record.StreetSuffix || "",
+          record.City || "", record.StateOrProvince || "",
+        );
+
+        // Rebuild rows; reuse R2 URL when MediaKey already has one,
+        // download only the genuinely missing keys.
+        await supabase.from("mls_media").delete().eq("listing_key", lk);
+        const mediaRows: any[] = [];
+        let fetchedSoFar = 0;
+        for (let j = 0; j < media.length; j++) {
+          const m = media[j];
+          const mUrl = m.MediaURL || "";
+          const key = m.MediaKey || `${lk}-${j}`;
+          const order = m.Order || j;
+
+          let localUrl = "";
+          const ex = existingByKey[key];
+          if (ex && ex.local_url) {
+            localUrl = ex.local_url;
+          } else {
+            if (fetchedSoFar > 0) await sleep(MEDIA_DOWNLOAD_DELAY_MS);
+            localUrl = await uploadMediaToR2(mUrl, lid, j, bfSlug);
+            fetchedSoFar++;
+          }
+          if (localUrl) r2Uploaded++; else r2Failed++;
+          mediaRows.push({
+            listing_key: lk,
+            media_key: key,
+            media_url: mUrl,
+            local_url: localUrl,
+            media_type: m.MimeType || "image/jpeg",
+            media_category: m.MediaCategory || "Photo",
+            short_description: m.ShortDescription || "",
+            order: order,
+            image_width: m.ImageWidth || null,
+            image_height: m.ImageHeight || null,
+            modification_timestamp: m.ModificationTimestamp || mTs,
+          });
+        }
+        if (mediaRows.length > 0) {
+          await supabase.from("mls_media").insert(mediaRows);
+        }
+        console.log(`[Backfill] ${lid}: ${fetchedSoFar} new photos downloaded, ${mediaRows.length - fetchedSoFar} reused from R2`);
       }
 
-      const hasMore = !!bfUrl && totalProcessed >= maxRecords;
-      const cursorValue = hasMore ? greatestTs : "DONE";
-      await supabase.from("sync_cursors")
-        .upsert({ key: "backfill-media", value: cursorValue, updated_at: new Date().toISOString() });
-      console.log(`[Backfill] Saved cursor: ${cursorValue} (processed ${totalProcessed}, R2: ${r2Uploaded} ok, ${r2Failed} failed)`);
+      // Surface remaining-work count so cron tuning is observable. Same
+      // join filters as the work-list query above — count of Canopy winner
+      // Active/AUC/Pending listings still missing at least one R2 URL.
+      const { data: remainingRows } = await supabase
+        .from("mls_media")
+        .select("listing_key, mls_listings!inner(is_winner, originating_system_name, standard_status)")
+        .eq("local_url", "")
+        .eq("mls_listings.is_winner", true)
+        .eq("mls_listings.originating_system_name", ORIGINATING_SYSTEM_NAME)
+        .in("mls_listings.standard_status", ["Active", "Active Under Contract", "Pending"]);
+      const remainingListings = new Set((remainingRows || []).map((r: any) => r.listing_key)).size;
 
       return new Response(JSON.stringify({
         ok: true, action: "backfill-media",
-        processed: totalProcessed, r2Uploaded, r2Failed,
-        lastTimestamp: greatestTs, hasMore
+        processed: work.length, r2Uploaded, r2Failed,
+        mlsGridCalls,
+        remainingListings,
       }), {
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
       });
