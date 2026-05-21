@@ -990,6 +990,89 @@ var MLS_GRID = {
     });
     return winners;
   },
+  // Fast-paint loader. Calls the home_featured() Postgres RPC for just the
+  // 6 visible cards + their loser-sibling attribution + latest_mod_timestamp.
+  // One round-trip, ~10 KB, paints the homepage before the bulk init() fetch
+  // finishes. Safe to call alongside init() — they write to the same LISTINGS
+  // array but in idempotent fashion (renderFeatured is order-independent).
+  //
+  // Does NOT flip MLS_GRID.ready or resolve readyPromise. Search still gates
+  // on the full ALL_LISTINGS population that init() handles. Sets _latestMod
+  // as a courtesy so the freshness poller (started by init() later) reads a
+  // reasonable starting timestamp.
+  _loadFeatured: function() {
+    if(!MLS_GRID.enabled || !_sb) return Promise.resolve();
+    _log('[MLS Grid] Fast-paint: calling home_featured RPC');
+    var t0 = Date.now();
+    return _sb.rpc('home_featured', { limit_count: 6 }).then(function(res) {
+      if(res.error) throw new Error(res.error.message);
+      var payload = res.data || {};
+      var rows = payload.listings || [];
+      _log('[MLS Grid] home_featured returned ' + rows.length + ' rows in ' + (Date.now()-t0) + 'ms');
+      if(!rows.length) return; // init() will report the empty-state UI
+
+      // Map each row into the site listing shape. The RPC piggybacks the
+      // primary_photo URL and the loser-sibling list onto each row, so we
+      // assemble mlsSources here without needing the parallel siblings query.
+      var mapped = rows.map(function(row) {
+        var l = MLS_GRID.mapListing(row);
+        l.photo = row.primary_photo || null;
+        l.photos = l.photo ? [l.photo] : [];
+        var sources = [{
+          system: MLS_GRID._mlsLabel(l.originatingSystem),
+          mlsId: l.mlsId,
+          attributionContact: l.attributionContact
+        }];
+        (row.siblings || []).forEach(function(s) {
+          sources.push({
+            system: MLS_GRID._mlsLabel(s.originating_system_name),
+            mlsId: s.listing_id,
+            attributionContact: s.attribution_contact || ''
+          });
+        });
+        l.mlsSources = sources;
+        return l;
+      });
+
+      // Drop anything that still lacks a photo (defensive — RPC already filters).
+      var withPhoto = mapped.filter(function(l){ return !!l.photo; });
+      if(!withPhoto.length) return;
+
+      LISTINGS.length = 0;
+      withPhoto.slice(0, 6).forEach(function(l, i) {
+        LISTINGS.push({
+          id: i+1, price: l.price, address: l.address, city: l.city, type: l.type,
+          beds: l.beds, baths: l.baths, sqft: l.sqft, sqftRange: l.sqftRange || '', lot: l.lot,
+          photo: l.photo, photos: l.photos, days: l.daysOnMarket,
+          mlsId: l.mlsId, restrictions: l.restrictions, status: l.status,
+          listingKey: l.listingKey, listDate: l.listDate,
+          listAgent: l.listAgent, listOffice: l.listOffice, listOfficePhone: l.listOfficePhone,
+          attributionContact: l.attributionContact,
+          originatingSystem: l.originatingSystem, mlsSources: l.mlsSources,
+          description: l.description, lat: l.lat, lng: l.lng
+        });
+      });
+
+      // Update freshness anchor + timestamp UI so users see something current
+      // before init() finishes.
+      if(payload.latest_modification) MLS_GRID._latestMod = payload.latest_modification;
+      var _tsNow = new Date();
+      var _tsFormatted = _tsNow.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) + ' at ' + _tsNow.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+      var tsEl = document.getElementById('idxTimestamp');
+      if(tsEl) tsEl.textContent = 'Data last updated: ' + _tsFormatted;
+      var gridTsEl = document.getElementById('idxGridTimestamp');
+      if(gridTsEl) gridTsEl.textContent = _tsFormatted;
+      var demoBanner = document.getElementById('demoBanner');
+      if(demoBanner) demoBanner.remove();
+      var demoNote = document.querySelector('.idx-demo-note');
+      if(demoNote) demoNote.style.display = 'none';
+
+      renderFeatured();
+      _log('[MLS Grid] Fast-paint rendered in ' + (Date.now()-t0) + 'ms');
+    }).catch(function(err) {
+      _warn('[MLS Grid] home_featured failed (init() will still paint):', err.message || err);
+    });
+  },
   // Paginated fetch helper — Supabase caps at 1000 rows per request
   _fetchAll: function(table, selectCols, filters, orderCol) {
     var PAGE = 1000;
@@ -8970,10 +9053,12 @@ if(MLS_GRID.enabled) {
   // on May 11 — a tab opened hours earlier showed cached pre-sync results,
   // and searches against ALL_LISTINGS missed the new row until hard refresh.
   var CACHE_MAX_AGE_MS = 15 * 60 * 1000;
+  var _cacheHit = false;
   try {
     var _cached = JSON.parse(localStorage.getItem('cc_listings_cache'));
     var _cacheAge = (_cached && typeof _cached.ts === 'number') ? Date.now() - _cached.ts : Infinity;
     if(_cached && _cached.listings && _cached.listings.length > 0 && _cacheAge < CACHE_MAX_AGE_MS) {
+      _cacheHit = true;
       ALL_LISTINGS.length = 0;
       _cached.listings.forEach(function(l){
         // Recalculate DOM from list_date so it stays fresh across cache loads
@@ -9015,6 +9100,11 @@ if(MLS_GRID.enabled) {
       if(!_checkCollectionDeepLink()) _checkPropDeepLink();
     }
   } catch(e) { _warn('[MLS Grid] Cache restore failed:', e.message); }
+
+  // Cold start (no fresh cache): fire the home_featured RPC so the visible
+  // grid paints in <1s instead of waiting for init()'s ~9-page bulk fetch.
+  // Runs in parallel with init() — both write to LISTINGS in idempotent ways.
+  if(!_cacheHit) MLS_GRID._loadFeatured();
 
   // Fetch fresh data from Supabase (overwrites cache when done)
   MLS_GRID.init().then(function(){
