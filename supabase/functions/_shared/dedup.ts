@@ -24,6 +24,20 @@ const SUFFIX_MAP: Record<string, string> = {
   ne: "northeast", nw: "northwest", se: "southeast", sw: "southwest",
 };
 
+// Generic street-type suffix words to strip from the END of the cleaned token
+// list. MLS feeds disagree on where the suffix lives — some put "Rd" inside
+// street_name, others fill street_suffix="Road" and leave street_name as the
+// stem. After we've concatenated everything and expanded abbreviations,
+// dropping a trailing generic suffix lets both shapes collapse onto the same
+// key. The list is intentionally conservative: words like "ridge", "hollow",
+// "creek", "spring" are NOT included because they appear inside street names
+// (e.g. "Old Mill Creek Road" must NOT become "Old Mill Sylva").
+const STRIPPABLE_TRAILING_SUFFIXES = new Set([
+  "road", "drive", "street", "avenue", "boulevard", "court", "lane",
+  "circle", "place", "terrace", "trail", "parkway", "highway", "way",
+  "loop", "alley", "path", "row", "pike", "plaza", "square",
+]);
+
 /**
  * Produce the address_group_key for an mls_listings row. Rows for the same
  * physical property across feeds should hash to the same key.
@@ -43,15 +57,33 @@ const SUFFIX_MAP: Record<string, string> = {
 export function computeAddressGroupKey(
   streetNumber: string,
   streetName: string,
-  _streetSuffix: string, // signature preserved for callers; value ignored
+  streetSuffix: string,
   city: string,
 ): string {
-  const street = [streetNumber, streetName].filter(Boolean).join(" ");
-  const combined = (street + " " + (city || "")).toLowerCase();
-  const cleaned = combined.replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
-  if (!cleaned) return "";
-  const expanded = cleaned.split(" ").map((word) => SUFFIX_MAP[word] || word).join("");
-  return expanded;
+  // Pull in EVERY street field — some feeds stash the suffix inside
+  // street_name, some put it in street_suffix. After we expand abbreviations
+  // we strip trailing generic suffix words from whichever bucket they ended
+  // up in.
+  const street = [streetNumber, streetName, streetSuffix].filter(Boolean).join(" ");
+  const cityStr = (city || "").toLowerCase();
+  const streetLower = street.toLowerCase();
+  const streetCleaned = streetLower.replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
+  if (!streetCleaned) {
+    // No street info at all — fall back to just the city to keep the key non-empty.
+    return cityStr.replace(/[^a-z0-9]/g, "");
+  }
+  // Expand "rd"→"road", "dr"→"drive", etc. against the street tokens only,
+  // then drop trailing generic-suffix words. City tokens are handled separately
+  // so we don't accidentally strip "Drive" out of a town named "Drive Springs".
+  const streetTokens = streetCleaned.split(" ").map((w) => SUFFIX_MAP[w] || w);
+  while (
+    streetTokens.length > 1 &&
+    STRIPPABLE_TRAILING_SUFFIXES.has(streetTokens[streetTokens.length - 1])
+  ) {
+    streetTokens.pop();
+  }
+  const cityCleaned = cityStr.replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
+  return [...streetTokens, ...cityCleaned.split(" ").filter(Boolean)].join("");
 }
 
 /**
