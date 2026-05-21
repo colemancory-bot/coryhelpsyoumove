@@ -1106,6 +1106,54 @@ var MLS_GRID = {
       });
     });
   },
+  // Lazy photo hydration for a single town overlay. init() no longer
+  // bulk-fetches all 43k primary photo rows on cold load, so when the user
+  // opens an SPA-style town overlay we fetch just that town's top-N photos
+  // via one small REST call and re-render the cards. Idempotent — safe to
+  // call multiple times; already-hydrated towns skip the network.
+  _townPhotosHydrated: {},
+  hydrateTownPhotos: function(townSlug, count) {
+    if(!MLS_GRID.enabled || !_sb) return Promise.resolve();
+    if(MLS_GRID._townPhotosHydrated[townSlug]) return Promise.resolve();
+    var td = TOWN_LISTINGS[townSlug];
+    if(!td || !td.listings || !td.listings.length) return Promise.resolve();
+    var n = count || 6;
+    var targets = td.listings.slice(0, n).filter(function(l){ return l.listingKey && !l.photo; });
+    if(!targets.length) {
+      MLS_GRID._townPhotosHydrated[townSlug] = true;
+      return Promise.resolve();
+    }
+    var keys = targets.map(function(l){ return l.listingKey; });
+    var t0 = Date.now();
+    return _sb.from('mls_media')
+      .select('listing_key, local_url, media_url, "order"')
+      .in('listing_key', keys)
+      .in('"order"', [0, 1])
+      .then(function(res){
+        if(res.error) throw new Error(res.error.message);
+        var rows = res.data || [];
+        // Pick the best photo per listing — prefer order=0, R2-hosted over MLS Grid
+        var byKey = {};
+        rows.forEach(function(m){
+          var existing = byKey[m.listing_key];
+          var url = m.local_url && m.local_url !== '' ? m.local_url
+                  : (m.media_url && m.media_url.indexOf('mlsgrid.com') === -1 ? m.media_url : '');
+          if(!url) return;
+          // Prefer order=0 over order=1
+          if(!existing || (m.order === 0 && existing.order !== 0)) {
+            byKey[m.listing_key] = { url: url, order: m.order };
+          }
+        });
+        // Apply to the listing objects (live references in TOWN_LISTINGS + ALL_LISTINGS)
+        targets.forEach(function(l){
+          var entry = byKey[l.listingKey];
+          if(entry) { l.photo = entry.url; l.photos = [entry.url]; }
+        });
+        MLS_GRID._townPhotosHydrated[townSlug] = true;
+        _log('[MLS Grid] Hydrated ' + Object.keys(byKey).length + '/' + keys.length + ' photos for ' + townSlug + ' in ' + (Date.now()-t0) + 'ms');
+      })
+      .catch(function(err){ _warn('[MLS Grid] hydrateTownPhotos(' + townSlug + ') failed:', err.message || err); });
+  },
   // Paginated fetch helper — Supabase caps at 1000 rows per request
   _fetchAll: function(table, selectCols, filters, orderCol) {
     var PAGE = 1000;
@@ -1149,10 +1197,18 @@ var MLS_GRID = {
       });
     }
 
-    // Fetch listings (paginated) and all primary photos (paginated) in parallel.
-    // Dedup is server-side now — we only load rows where is_winner=true.
-    // A parallel sibling query picks up loser rows so we can still show the
-    // mlsSources attribution block for listings that appear in both MLSes.
+    // Cold-load budget: the bulk mls_media fetch used to run ~43 paginated
+    // requests over ~36 seconds, just to populate l.photo for listings most
+    // visitors never see. On the homepage we skip it — home_featured() and
+    // search_listings() RPCs carry their own photos, and the SPA-style town
+    // overlay calls MLS_GRID.hydrateTownPhotos(slug) on open to fill its 3
+    // featured cards. Dedicated town pages (/towns/sylva.html etc.) keep the
+    // full media fetch because their filtered grid can display 100s of cards.
+    //
+    // Dedup is server-side — we only load rows where is_winner=true. A
+    // parallel sibling query picks up loser rows so the mlsSources
+    // attribution block still works for properties carried by both MLSes.
+    var _needsBulkMedia = (typeof _isTownPage !== 'undefined') && _isTownPage;
     var listingsPromise = MLS_GRID._fetchAll('mls_listings',
       'listing_id,listing_key,address_group_key,list_price,full_address,city,property_type,property_sub_type,' +
       'bedrooms_total,bathrooms_total_integer,living_area,living_area_range,lot_size_acres,lot_size_square_feet,' +
@@ -1163,9 +1219,11 @@ var MLS_GRID = {
       { method: 'in', args: ['standard_status', ['Active','Active Under Contract','Pending']] },
       { method: 'neq', args: ['property_type', 'Residential Lease'] }
     ], 'listing_key');
-    var mediaPromise = MLS_GRID._fetchAll('mls_media', 'listing_key, local_url, media_url, "order"', [
-      { method: 'in', args: ['"order"', [0, 1]] }
-    ], 'listing_key');
+    var mediaPromise = _needsBulkMedia
+      ? MLS_GRID._fetchAll('mls_media', 'listing_key, local_url, media_url, "order"', [
+          { method: 'in', args: ['"order"', [0, 1]] }
+        ], 'listing_key')
+      : Promise.resolve([]);
     // Loser rows — tiny projection for mlsSources attribution only.
     var siblingsPromise = MLS_GRID._fetchAll('mls_listings',
       'listing_key,address_group_key,listing_id,originating_system_name,attribution_contact', [
@@ -1187,18 +1245,28 @@ var MLS_GRID = {
         _log('[MLS Grid] Received ' + listingRows.length + ' listings');
         var mapped = listingRows.map(MLS_GRID.mapListing);
 
-        // Build photo lookup from paginated media results
-        // Canopy (MLS Grid) uses 0-indexed order, CSAR uses 1-indexed — prefer lowest order
+        // Build photo lookup from any media rows present + any photos already
+        // attached to ALL_LISTINGS (cache restore, home_featured paint, or
+        // earlier hydrateTownPhotos call). This way we don't nullify photos
+        // that arrived via a faster path just because init()'s bulk media
+        // fetch is gone.
         var mediaMap = {};
+        ALL_LISTINGS.forEach(function(l){
+          if(l.photo && l.listingKey) mediaMap[l.listingKey] = l.photo;
+        });
+        LISTINGS.forEach(function(l){
+          if(l.photo && l.listingKey && !mediaMap[l.listingKey]) mediaMap[l.listingKey] = l.photo;
+        });
+        // Canopy uses 0-indexed order, CSAR uses 1-indexed — prefer lowest order
         mediaRows.forEach(function(m) {
           if(!mediaMap[m.listing_key] || m.order === 0) {
             // Prefer R2 local_url; fall back to non-MLS Grid media_url (CSAR CDN etc)
             var url = m.local_url || '';
             if (!url && m.media_url && m.media_url.indexOf('mlsgrid.com') === -1) url = m.media_url;
-            mediaMap[m.listing_key] = url;
+            if (url) mediaMap[m.listing_key] = url;
           }
         });
-        _log('[MLS Grid] Primary photos loaded: ' + mediaRows.length + ' rows, ' + Object.keys(mediaMap).length + ' unique listings');
+        _log('[MLS Grid] Photo map size: ' + Object.keys(mediaMap).length + ' (mediaRows: ' + mediaRows.length + ')');
 
         // Assign primary photo to listings
         var withPhoto = 0, noPhoto = 0;
@@ -1227,25 +1295,32 @@ var MLS_GRID = {
         Object.keys(TOWN_LISTINGS).forEach(function(k){ delete TOWN_LISTINGS[k]; });
         Object.keys(newTowns).forEach(function(k){ TOWN_LISTINGS[k] = newTowns[k]; });
 
-        // Populate LISTINGS (featured) — 6 newest listings with photos (by days on market)
+        // Populate LISTINGS (featured) — 6 newest listings with photos (by days on market).
+        // Skip rebuild when we have fewer photographed listings than what's already
+        // in LISTINGS — that means home_featured() already painted a stronger set
+        // and we'd regress the visible grid by stomping it.
         var sorted = mapped.filter(function(l){return l.photo}).sort(function(a,b){
           var aDays = (typeof a.daysOnMarket === 'number') ? a.daysOnMarket : 9999;
           var bDays = (typeof b.daysOnMarket === 'number') ? b.daysOnMarket : 9999;
           return aDays - bDays; // lowest days on market = newest listing
         });
-        LISTINGS.length = 0;
-        sorted.slice(0,6).forEach(function(l,i){
-          LISTINGS.push({
-            id:i+1, price:l.price, address:l.address, city:l.city, type:l.type,
-            beds:l.beds, baths:l.baths, sqft:l.sqft, sqftRange:l.sqftRange||'', lot:l.lot,
-            photo:l.photo, photos:l.photos, days:l.daysOnMarket,
-            mlsId:l.mlsId, restrictions:l.restrictions, status:l.status,
-            listingKey:l.listingKey, listDate:l.listDate,
-            listAgent:l.listAgent, listOffice:l.listOffice, listOfficePhone:l.listOfficePhone,
-            attributionContact:l.attributionContact,
-            originatingSystem:l.originatingSystem, mlsSources:l.mlsSources
+        if(sorted.length >= LISTINGS.length || sorted.length >= 6) {
+          LISTINGS.length = 0;
+          sorted.slice(0,6).forEach(function(l,i){
+            LISTINGS.push({
+              id:i+1, price:l.price, address:l.address, city:l.city, type:l.type,
+              beds:l.beds, baths:l.baths, sqft:l.sqft, sqftRange:l.sqftRange||'', lot:l.lot,
+              photo:l.photo, photos:l.photos, days:l.daysOnMarket,
+              mlsId:l.mlsId, restrictions:l.restrictions, status:l.status,
+              listingKey:l.listingKey, listDate:l.listDate,
+              listAgent:l.listAgent, listOffice:l.listOffice, listOfficePhone:l.listOfficePhone,
+              attributionContact:l.attributionContact,
+              originatingSystem:l.originatingSystem, mlsSources:l.mlsSources
+            });
           });
-        });
+        } else {
+          _log('[MLS Grid] Keeping ' + LISTINGS.length + ' home_featured cards (init had only ' + sorted.length + ' photographed)');
+        }
 
         // Rebuild ALL_LISTINGS
         ALL_LISTINGS.length = 0;
@@ -2899,13 +2974,19 @@ function _wireFeaturedCards(containerEl, townSlug){
     }
   });
 }
-// Call on SPA navigation from homepage
+// Call on SPA navigation from homepage. The town overlay shows up to 3
+// featured listings via renderTownFeatured(); init() no longer bulk-loads
+// every primary photo so we hydrate just this town's photos in a follow-up
+// fetch and re-render to swap placeholders for images.
 (function(){
   var origOpen=openPage;
   openPage=function(id){
     origOpen(id);
     setTimeout(function(){
       renderTownFeatured(id);
+      if(MLS_GRID.enabled && typeof MLS_GRID.hydrateTownPhotos === 'function' && TOWN_LISTINGS[id]) {
+        MLS_GRID.hydrateTownPhotos(id, 3).then(function(){ renderTownFeatured(id); });
+      }
     },100);
   };
 })();
@@ -9120,10 +9201,11 @@ if(MLS_GRID.enabled) {
     }
   } catch(e) { _warn('[MLS Grid] Cache restore failed:', e.message); }
 
-  // Cold start (no fresh cache): fire the home_featured RPC so the visible
-  // grid paints in <1s instead of waiting for init()'s ~9-page bulk fetch.
-  // Runs in parallel with init() — both write to LISTINGS in idempotent ways.
-  if(!_cacheHit) MLS_GRID._loadFeatured();
+  // Always fire home_featured so the featured grid stays fresh — cache may
+  // restore stale top-6, and init() no longer bulk-loads media so it can't
+  // refresh photos for new listings. The RPC returns in ~500ms and is the
+  // authoritative source for which 6 cards to show.
+  MLS_GRID._loadFeatured();
 
   // Fetch fresh data from Supabase (overwrites cache when done)
   MLS_GRID.init().then(function(){
