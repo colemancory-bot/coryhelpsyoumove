@@ -2474,23 +2474,12 @@ function heroSearch(){
     query: ((document.getElementById('hsTextQuery')||{}).value||'').trim()
   };
 
-  // Gate: if the MLS feed hasn't finished loading yet, swap the button icon
-  // for a spinner and wait for MLS_GRID.readyPromise before proceeding.
-  // Without this gate, clicks during the initial fetch would open an empty
-  // search results overlay, which is what made Cory's property appear
-  // missing this morning until a second search.
-  var gridReady = !(typeof MLS_GRID !== 'undefined' && MLS_GRID.enabled && !MLS_GRID.ready);
-  if (gridReady) {
-    openSearchResults(filters);
-    return;
-  }
-
-  var btn = document.getElementById('hsSearchBtn');
-  if (btn) btn.classList.add('is-loading');
-  MLS_GRID.readyPromise.then(function(){
-    if (btn) btn.classList.remove('is-loading');
-    openSearchResults(filters);
-  });
+  // The MLS_GRID.ready gate is obsolete — search runs via the search_listings
+  // RPC now and doesn't depend on the bulk ALL_LISTINGS fetch being done. With
+  // lazy init on the homepage, MLS_GRID.readyPromise is null until something
+  // explicitly calls ensureInit(), so the old gate would hang the button
+  // forever. Just open the overlay and let srApplyFilters() hit the RPC.
+  openSearchResults(filters);
 }
 
 function toggleSellPw(){
