@@ -1053,6 +1053,18 @@ var MLS_GRID = {
         });
       });
 
+      // Slim featured cache for instant warm-load paint. Tiny (~6 KB) compared
+      // to the old 4 MB ALL_LISTINGS cache — both write and parse-on-restore
+      // are now negligible. Cache restore code at the bottom of app.js reads
+      // this back and calls renderFeatured() before this RPC even fires on
+      // the next visit.
+      try {
+        localStorage.setItem('cc_home_cache', JSON.stringify({
+          ts: Date.now(),
+          featured: LISTINGS.slice()
+        }));
+      } catch(e) { _warn('[MLS Grid] Slim cache write failed:', e.message); }
+
       // Update freshness anchor + timestamp UI so users see something current
       // before init() finishes.
       if(payload.latest_modification) MLS_GRID._latestMod = payload.latest_modification;
@@ -1176,6 +1188,18 @@ var MLS_GRID = {
       });
     }
     return fetchPage(0);
+  },
+  // Lazy entrypoint to init(). Returns the existing init promise if one is
+  // in flight or already resolved; fires init() otherwise. Lets callers that
+  // need ALL_LISTINGS / TOWN_LISTINGS (openProp insights, collection deep
+  // links, SPA-style town overlays) wait for the bulk fetch without forcing
+  // every page load to fire it eagerly.
+  _initPromise: null,
+  ensureInit: function() {
+    if(!MLS_GRID.enabled) return Promise.resolve();
+    if(MLS_GRID._initPromise) return MLS_GRID._initPromise;
+    MLS_GRID._initPromise = MLS_GRID.init();
+    return MLS_GRID._initPromise;
   },
   init: function() {
     if(!MLS_GRID.enabled) return Promise.resolve();
@@ -1338,25 +1362,13 @@ var MLS_GRID = {
           });
         });
 
-        // Cache listings for instant load on next visit
-        // Store only essential fields to stay within ~5MB localStorage limit
-        try {
-          var _slimListings = ALL_LISTINGS.map(function(l){
-            return {
-              price:l.price, address:l.address, city:l.city, type:l.type,
-              beds:l.beds, baths:l.baths, sqft:l.sqft, sqftRange:l.sqftRange||'', lot:l.lot,
-              photo:l.photo, status:l.status, restrictions:l.restrictions,
-              lat:l.lat, lng:l.lng, mlsId:l.mlsId, daysOnMarket:l.daysOnMarket, listDate:l.listDate,
-              listingKey:l.listingKey, listAgent:l.listAgent, listOffice:l.listOffice,
-              originatingSystem:l.originatingSystem, _src:'mlsgrid'
-            };
-          });
-          localStorage.setItem('cc_listings_cache', JSON.stringify({
-            ts: Date.now(),
-            listings: _slimListings
-          }));
-          _log('[MLS Grid] Cached ' + _slimListings.length + ' listings to localStorage');
-        } catch(e) { _warn('[MLS Grid] Cache write failed:', e.message); }
+        // The old cc_listings_cache (a 4 MB blob of every listing) is gone.
+        // It was paying for an ALL_LISTINGS warm-restore that nothing on the
+        // homepage actually needs — search runs server-side, featured comes
+        // from _loadFeatured. The slim cc_home_cache (6 featured cards, set
+        // by _loadFeatured) gives the same instant-paint feel for 1/600th
+        // the JSON-parse cost. Any old cc_listings_cache entries in users'
+        // browsers are simply ignored now.
 
         // Update timestamps
         var _tsNow = new Date();
@@ -1457,7 +1469,11 @@ var MLS_GRID = {
     // a fresh snapshot. Was the most likely cause of the May 11 missing-
     // listing report (228 Old Owl Ridge).
     window.addEventListener('pageshow', function(e) {
-      if (e.persisted && MLS_GRID.enabled) MLS_GRID.init();
+      if (!e.persisted || !MLS_GRID.enabled) return;
+      // Refresh the visible featured grid first — small, fast, always wanted.
+      MLS_GRID._loadFeatured();
+      // Town pages also need TOWN_LISTINGS refreshed; init() is in-place.
+      if (typeof _isTownPage !== 'undefined' && _isTownPage) MLS_GRID.init();
     });
   },
   // Load all photos for a specific listing (on-demand for property detail overlay)
@@ -2975,17 +2991,29 @@ function _wireFeaturedCards(containerEl, townSlug){
   });
 }
 // Call on SPA navigation from homepage. The town overlay shows up to 3
-// featured listings via renderTownFeatured(); init() no longer bulk-loads
-// every primary photo so we hydrate just this town's photos in a follow-up
-// fetch and re-render to swap placeholders for images.
+// featured listings via renderTownFeatured(). On the homepage we don't
+// eagerly fire init() any more, so the first town-overlay click triggers
+// ensureInit() and we re-render once the bulk listings land. Photos for
+// those listings come from hydrateTownPhotos() — a small targeted REST
+// call that swaps placeholders for R2 URLs in ~200 ms.
 (function(){
   var origOpen=openPage;
   openPage=function(id){
     origOpen(id);
     setTimeout(function(){
+      // Render now with whatever we have (likely empty on first homepage open).
       renderTownFeatured(id);
-      if(MLS_GRID.enabled && typeof MLS_GRID.hydrateTownPhotos === 'function' && TOWN_LISTINGS[id]) {
-        MLS_GRID.hydrateTownPhotos(id, 3).then(function(){ renderTownFeatured(id); });
+      if(!MLS_GRID.enabled) return;
+      var hydrateAndRender = function(){
+        renderTownFeatured(id);
+        if(typeof MLS_GRID.hydrateTownPhotos === 'function' && TOWN_LISTINGS[id]) {
+          MLS_GRID.hydrateTownPhotos(id, 3).then(function(){ renderTownFeatured(id); });
+        }
+      };
+      if(TOWN_LISTINGS[id] && TOWN_LISTINGS[id].listings && TOWN_LISTINGS[id].listings.length) {
+        hydrateAndRender();
+      } else if(typeof MLS_GRID.ensureInit === 'function') {
+        MLS_GRID.ensureInit().then(hydrateAndRender);
       }
     },100);
   };
@@ -3052,6 +3080,11 @@ var PROP_DESCRIPTIONS = {
 var RESTRICT_LABELS = {'unrestricted':'Unrestricted — No HOA','restricted':'Has Restrictions','light':'Has Restrictions','hoa':'Has Restrictions'};
 
 function openProp(listing, townName, sourceCardEl) {
+  // Kick off the bulk listing fetch if it hasn't started yet — the insights
+  // section in the panel reads TOWN_LISTINGS for area-median comparisons.
+  // Lazy, no await: insights will populate when init() finishes; the rest
+  // of the panel renders immediately with the listing object we already have.
+  if(MLS_GRID.enabled && typeof MLS_GRID.ensureInit === 'function') MLS_GRID.ensureInit();
   // GA4: track property detail view
   if(typeof gtag==='function') gtag('event','view_item',{currency:'USD',value:listing.price||0,items:[{item_id:listing.mlsId||'',item_name:(listing.address||'')+'  '+(listing.city||''),item_category:listing.type||'',price:listing.price||0}]});
   // Registration gate — allow 3 free previews, gate on 4th view
@@ -9146,92 +9179,72 @@ openPage = function(id) {
 // ═══ LISTING DATA INIT ═══
 // MLS Grid (via Supabase) takes priority when enabled; falls back to SimplyRETS demo data
 if(MLS_GRID.enabled) {
-  // Restore cached listings for instant search while fresh data loads.
-  // Age-guarded at 15 minutes: if the cache is older than that, skip the
-  // restore so a stale snapshot can't fool a search before init() completes.
-  // This was the user-facing cause of "228 Old Owl Ridge isn't on my site"
-  // on May 11 — a tab opened hours earlier showed cached pre-sync results,
-  // and searches against ALL_LISTINGS missed the new row until hard refresh.
+  // Slim warm-load cache: just the 6 featured cards _loadFeatured wrote on
+  // the previous visit. Restoring this is effectively free (~6 KB JSON.parse).
+  // Stale entries are tolerated for 15 min — the _loadFeatured() call below
+  // overwrites with fresh top-6 the moment its RPC returns.
   var CACHE_MAX_AGE_MS = 15 * 60 * 1000;
-  var _cacheHit = false;
   try {
-    var _cached = JSON.parse(localStorage.getItem('cc_listings_cache'));
-    var _cacheAge = (_cached && typeof _cached.ts === 'number') ? Date.now() - _cached.ts : Infinity;
-    if(_cached && _cached.listings && _cached.listings.length > 0 && _cacheAge < CACHE_MAX_AGE_MS) {
-      _cacheHit = true;
-      ALL_LISTINGS.length = 0;
-      _cached.listings.forEach(function(l){
-        // Recalculate DOM from list_date so it stays fresh across cache loads
-        if(l.listDate) l.daysOnMarket = Math.max(0, Math.floor((Date.now() - new Date(l.listDate+'T00:00:00').getTime()) / 86400000));
-        ALL_LISTINGS.push(l);
-      });
-      // Rebuild TOWN_LISTINGS from cache
-      var _cachedTowns = {};
-      ALL_LISTINGS.forEach(function(l){
-        var slug = MLS_GRID.resolveTown(l.city);
-        if(!_cachedTowns[slug]) _cachedTowns[slug] = { display: l.city, listings: [] };
-        _cachedTowns[slug].listings.push(l);
-      });
-      Object.keys(TOWN_LISTINGS).forEach(function(k){ delete TOWN_LISTINGS[k]; });
-      Object.keys(_cachedTowns).forEach(function(k){ TOWN_LISTINGS[k] = _cachedTowns[k]; });
-      // Rebuild LISTINGS (featured) from cache — 6 newest listings with photos
-      var _cachedSorted = ALL_LISTINGS.filter(function(l){return l.photo}).sort(function(a,b){
-        var aDays = (typeof a.daysOnMarket === 'number') ? a.daysOnMarket : 9999;
-        var bDays = (typeof b.daysOnMarket === 'number') ? b.daysOnMarket : 9999;
-        return aDays - bDays;
-      });
+    var _slim = JSON.parse(localStorage.getItem('cc_home_cache') || 'null');
+    if(_slim && _slim.featured && _slim.featured.length && _slim.ts && (Date.now() - _slim.ts) < CACHE_MAX_AGE_MS) {
       LISTINGS.length = 0;
-      _cachedSorted.slice(0,6).forEach(function(l,i){
-        LISTINGS.push({ id:i+1, price:l.price, address:l.address, city:l.city, type:l.type,
-          beds:l.beds, baths:l.baths, sqft:l.sqft, sqftRange:l.sqftRange||'', lot:l.lot,
-          photo:l.photo, photos:l.photos, days:l.daysOnMarket,
-          mlsId:l.mlsId, restrictions:l.restrictions, status:l.status,
-          listingKey:l.listingKey, listAgent:l.listAgent, listOffice:l.listOffice, listOfficePhone:l.listOfficePhone, attributionContact:l.attributionContact, originatingSystem:l.originatingSystem, mlsSources:l.mlsSources });
+      _slim.featured.forEach(function(l,i){
+        if(l.listDate) l.daysOnMarket = Math.max(0, Math.floor((Date.now() - new Date(l.listDate+'T00:00:00').getTime()) / 86400000));
+        l.id = i+1;
+        LISTINGS.push(l);
       });
       renderFeatured();
-      // Also populate town featured grid from cache
-      if(_isTownPage) {
-        var _cPathMatch = window.location.pathname.match(/\/towns\/([a-z-]+)\.html/i);
-        var _cTownSlug = _cPathMatch ? _cPathMatch[1].toLowerCase() : '';
-        if(_cTownSlug && TOWN_LISTINGS[_cTownSlug]) { renderTownFeatured(_cTownSlug); townSearch(_cTownSlug); }
-      }
-      _log('[MLS Grid] Loaded ' + ALL_LISTINGS.length + ' cached listings (fresh fetch in background)');
-      // Check collection deep link immediately with cached data
-      if(!_checkCollectionDeepLink()) _checkPropDeepLink();
+      _log('[MLS Grid] Warm paint from slim cache (' + LISTINGS.length + ' cards, ' + Math.round((Date.now()-_slim.ts)/1000) + 's old)');
     }
-  } catch(e) { _warn('[MLS Grid] Cache restore failed:', e.message); }
+    // Best-effort cleanup of the old 4 MB blob if it's still sitting in users' browsers
+    if(localStorage.getItem('cc_listings_cache')) localStorage.removeItem('cc_listings_cache');
+  } catch(e) { _warn('[MLS Grid] Slim cache restore failed:', e.message); }
 
-  // Always fire home_featured so the featured grid stays fresh — cache may
-  // restore stale top-6, and init() no longer bulk-loads media so it can't
-  // refresh photos for new listings. The RPC returns in ~500ms and is the
-  // authoritative source for which 6 cards to show.
+  // Authoritative refresh of the featured 6 (always fires; ~500ms RPC).
   MLS_GRID._loadFeatured();
 
-  // Fetch fresh data from Supabase (overwrites cache when done)
-  MLS_GRID.init().then(function(){
-    if(typeof updateAcctUI === 'function') updateAcctUI();
-    if(!_checkCollectionDeepLink()) _checkPropDeepLink();
-    // Re-render town page listings now that live data is loaded
-    if(_isTownPage) {
+  // Bulk init() — populates ALL_LISTINGS / TOWN_LISTINGS for callers that
+  // genuinely need them. Town pages fire it eagerly because their visible
+  // grid renders from TOWN_LISTINGS. On the homepage init() is lazy; it
+  // runs only when openProp / a town overlay / a deep-link resolver calls
+  // MLS_GRID.ensureInit(). That saves ~9-15s of background paginated
+  // listings + siblings fetches on every homepage cold load.
+  if(_isTownPage) {
+    // Town page: bulk fetch needed for the visible filtered grid + featured trio.
+    MLS_GRID.ensureInit().then(function(){
+      if(typeof updateAcctUI === 'function') updateAcctUI();
+      if(!_checkCollectionDeepLink()) _checkPropDeepLink();
       var pathMatch = window.location.pathname.match(/\/towns\/([a-z-]+)\.html/i);
       var townSlug = pathMatch ? pathMatch[1].toLowerCase() : '';
       if(townSlug && TOWN_LISTINGS[townSlug]) {
         townSearch(townSlug);
-        // Populate featured grid with real MLS listings
         renderTownFeatured(townSlug);
         _log('[MLS Grid] Town page refreshed: ' + townSlug + ' with ' + TOWN_LISTINGS[townSlug].listings.length + ' listings');
       }
+      var srOverlay = document.getElementById('searchOverlay');
+      if(srOverlay && srOverlay.classList.contains('active') && typeof srApplyFilters === 'function') {
+        _srSkipMapFit = true;
+        srApplyFilters();
+        _srSkipMapFit = false;
+      }
+    });
+  } else {
+    // Homepage: skip the eager bulk fetch. Account UI doesn't need ALL_LISTINGS.
+    // Deep links (#property/... or #collection/...) trigger ensureInit() so the
+    // resolver can find the listing once init lands.
+    if(typeof updateAcctUI === 'function') updateAcctUI();
+    var _hash = window.location.hash || '';
+    var _needsInit = _hash.indexOf('#property/') === 0 || _hash.indexOf('#collection/') === 0;
+    if(_needsInit) {
+      MLS_GRID.ensureInit().then(function(){
+        if(!_checkCollectionDeepLink()) _checkPropDeepLink();
+      });
+    } else {
+      // Try prop deep link with whatever's in LISTINGS (set by cache or RPC).
+      // _checkPropDeepLink handles "data not ready" gracefully by retrying.
+      if(!_checkCollectionDeepLink()) _checkPropDeepLink();
     }
-    // If search overlay is already open, refresh results with live data
-    // Skip map fit to preserve user's current zoom/pan position
-    var srOverlay = document.getElementById('searchOverlay');
-    if(srOverlay && srOverlay.classList.contains('active') && typeof srApplyFilters === 'function') {
-      _srSkipMapFit = true;
-      srApplyFilters();
-      _srSkipMapFit = false;
-      _log('[MLS Grid] Search results refreshed with live data');
-    }
-  });
+  }
   EVENTS.init();
 } else if(SIMPLYRETS.enabled) {
   var isLocal = (window.location.protocol === 'file:');
