@@ -31,14 +31,22 @@ const SUFFIX_MAP: Record<string, string> = {
  * Strategy: lowercase, strip punctuation, expand suffix abbreviations
  * (st → street, etc.), concat with city, strip whitespace. Mirrors the SQL
  * `mls_normalize_key` function.
+ *
+ * NOTE: street_suffix is intentionally NOT included in the key. Different
+ * MLSes spell the suffix differently for the same property — CSAR may write
+ * "1124 Skyland" with an empty suffix while Canopy carries "1124 Skyland
+ * Drive". Excluding the suffix collapses those onto one group. The rare
+ * case where two physical streets share a number + root name + town is a
+ * tolerable false-positive vs. the routine false-negative we'd have
+ * otherwise.
  */
 export function computeAddressGroupKey(
   streetNumber: string,
   streetName: string,
-  streetSuffix: string,
+  _streetSuffix: string, // signature preserved for callers; value ignored
   city: string,
 ): string {
-  const street = [streetNumber, streetName, streetSuffix].filter(Boolean).join(" ");
+  const street = [streetNumber, streetName].filter(Boolean).join(" ");
   const combined = (street + " " + (city || "")).toLowerCase();
   const cleaned = combined.replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
   if (!cleaned) return "";
