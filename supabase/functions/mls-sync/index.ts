@@ -38,6 +38,27 @@ const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const REQUEST_DELAY_MS = 1200;          // OData page-to-page (~0.83 RPS)
 const MEDIA_DOWNLOAD_DELAY_MS = 600;    // Photo-to-photo (~1.67 RPS, under the 2 RPS ceiling)
 
+// ── Global rate limiter ──────────────────────────────────────────
+// Per-loop sleep() calls weren't enough. MLS Grid measures peak RPS on
+// 1-second sliding windows and we kept tripping 4 RPS at two seams:
+//   (1) sync-full iterates Property → Member → Office → OpenHouse with no
+//       delay between resources (~120-300ms gaps, 4 calls in 645ms).
+//   (2) backfill-media's OData call → first photo download has no throttle
+//       between them (~300-450ms gaps).
+// This module-level timestamp + mustWait() helper guarantees AT LEAST
+// MLS_GRID_MIN_GAP_MS between ANY two calls to api.mlsgrid.com or
+// media.mlsgrid.com, regardless of which function or action initiated them.
+// 750ms = 1.33 RPS sustained, comfortably under the 2 RPS guidance.
+const MLS_GRID_MIN_GAP_MS = 750;
+let _lastMlsGridCallAt = 0;
+async function mustWaitMlsGrid(): Promise<void> {
+  const elapsed = Date.now() - _lastMlsGridCallAt;
+  if (elapsed < MLS_GRID_MIN_GAP_MS) {
+    await new Promise((r) => setTimeout(r, MLS_GRID_MIN_GAP_MS - elapsed));
+  }
+  _lastMlsGridCallAt = Date.now();
+}
+
 // Max records per OData page
 const PAGE_SIZE = 200;
 
@@ -184,6 +205,10 @@ async function logMlsGridCall(row: {
 }
 
 async function mlsGridFetch(url: string, timeoutMs = 25000): Promise<any> {
+  // Global throttle — ensures ≥750ms gap from the prior MLS Grid call,
+  // whether it was an OData fetch, a photo download, or a call made by
+  // another action in the same invocation. See MLS_GRID_MIN_GAP_MS.
+  await mustWaitMlsGrid();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const t0 = Date.now();
@@ -244,6 +269,9 @@ async function uploadMediaToR2(
   slug?: string
 ): Promise<string> {
   if (!r2Available()) return "";
+  // Global throttle — same shared timestamp as mlsGridFetch so an OData
+  // call followed immediately by a photo download still respects ≥750ms.
+  await mustWaitMlsGrid();
   const t0 = Date.now();
   let statusCode: number | null = null;
   let errMsg: string | null = null;
