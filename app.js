@@ -1073,6 +1073,39 @@ var MLS_GRID = {
       _warn('[MLS Grid] home_featured failed (init() will still paint):', err.message || err);
     });
   },
+  // Server-side search via search_listings() RPC. Lets srApplyFilters
+  // hit Postgres directly instead of filtering the 8,697-row ALL_LISTINGS
+  // array in memory after init() resolves. Returns a Promise of mapped
+  // site-listing objects (same shape as ALL_LISTINGS entries), ready to be
+  // handed to srRenderMarkers / srRenderCards.
+  //
+  // Caller is expected to pass already-translated values: area slugs
+  // resolved to city names via AREA_CITIES, price split into min/max.
+  // Spatial-shape filtering still happens client-side after the RPC
+  // returns — the shapes are runtime functions, not server-evaluable.
+  searchListings: function(params) {
+    if(!MLS_GRID.enabled || !_sb) return Promise.resolve([]);
+    var t0 = Date.now();
+    return _sb.rpc('search_listings', params).then(function(res) {
+      if(res.error) throw new Error(res.error.message);
+      var rows = (res.data && res.data.listings) || [];
+      _log('[MLS Grid] search_listings → ' + rows.length + ' rows in ' + (Date.now()-t0) + 'ms');
+      return rows.map(function(row) {
+        var l = MLS_GRID.mapListing(row);
+        l.photo = row.primary_photo || null;
+        l.photos = l.photo ? [l.photo] : [];
+        // Server-side dedup means the returned set is already winners only;
+        // mlsSources defaults to the single primary attribution. The detail
+        // view will reach back to ALL_LISTINGS for full sibling info if needed.
+        l.mlsSources = [{
+          system: MLS_GRID._mlsLabel(l.originatingSystem),
+          mlsId: l.mlsId,
+          attributionContact: l.attributionContact
+        }];
+        return l;
+      });
+    });
+  },
   // Paginated fetch helper — Supabase caps at 1000 rows per request
   _fetchAll: function(table, selectCols, filters, orderCol) {
     var PAGE = 1000;
@@ -4253,6 +4286,7 @@ var _srMapLayersReady = false;   // true once _srAddMapLayers() has run (source 
 var _srActiveCard = null;
 var _srMobileView = 'list';      // 'list' or 'map'
 var _srAllFilteredResults = [];  // Full dropdown-filtered results (before viewport/spatial)
+var _srSearchSeq = 0;            // Monotonic counter; stale RPC responses ignored if seq advanced
 var _srViewportDebounce = null;
 var _srProgrammaticMove = false;  // true during flyTo/fitBounds — suppresses "Search this area" button
 var _srSkipMapFit = false;        // true when refreshing data silently — skips fitBounds/flyTo
@@ -5055,97 +5089,13 @@ function srApplyFilters(){
     document.getElementById('srRegion').innerHTML = 'Western NC';
   }
 
-  // Filter — when a text query is present, skip area filter so address/MLS searches
-  // always find the property regardless of which location checkboxes are active
-  var skipAreaFilter = textQuery.length > 0;
-  var results = ALL_LISTINGS.filter(function(l){
-    if(!skipAreaFilter && selectedAreas.length > 0){
-      var locMatch = false;
-      for(var i=0; i<selectedAreas.length; i++){
-        if(cityMatchesArea(l.city, selectedAreas[i])){ locMatch = true; break; }
-      }
-      if(!locMatch) return false;
-    }
-    if(type && l.type !== type) return false;
-    if(price){
-      var parts = price.split('-');
-      var lo = parseInt(parts[0]), hi = parseInt(parts[1]);
-      if(l.price < lo || l.price > hi) return false;
-    }
-    if(beds && l.beds < parseInt(beds)) return false;
-    if(baths && l.baths < parseInt(baths)) return false;
-    if(restrict === 'unrestricted' && l.restrictions !== 'unrestricted') return false;
-    if(restrict === 'restricted' && l.restrictions === 'unrestricted') return false;
-    return true;
-  });
-
-  // Fuzzy text search (address, city, mlsId, description)
-  if(textQuery && typeof Fuse !== 'undefined') {
-    var fuse = new Fuse(results, {
-      keys: [
-        { name: 'address', weight: 3 },
-        { name: 'city', weight: 2 },
-        { name: 'mlsId', weight: 2 },
-        { name: 'description', weight: 1 }
-      ],
-      threshold: 0.35,       // 0=exact, 1=match anything — 0.35 is good for typos
-      distance: 300,          // how far into the string to search
-      ignoreLocation: true,   // match anywhere in the string
-      minMatchCharLength: 2,
-      includeScore: true,
-      useExtendedSearch: false
-    });
-    var fuseResults = fuse.search(textQuery);
-    results = fuseResults.map(function(r){ return r.item; });
-  } else if(textQuery) {
-    // Fallback if Fuse.js not loaded: exact substring match
-    var words = textQuery.split(/\s+/).filter(function(w){return w.length > 0});
-    results = results.filter(function(l){
-      var haystack = ((l.address||'') + ' ' + (l.city||'') + ' ' + (l.mlsId||'') + ' ' + (l.description||'')).toLowerCase();
-      return words.every(function(w){ return haystack.indexOf(w) !== -1; });
-    });
-  }
-
-  // Sort (skip when "relevance" — preserve Fuse.js best-match order)
-  if(sort !== 'relevance') {
-    var sortParts = sort.split('-');
-    var sortKey = sortParts[0], sortDir = sortParts[1];
-    results.sort(function(a,b){
-      var va, vb;
-      if(sortKey === 'priceSqft') {
-        // Price per sqft — compute on the fly; listings without sqft go to end
-        var aSqft = a.sqft || 0;
-        var bSqft = b.sqft || 0;
-        va = (aSqft > 0 && a.price) ? a.price / aSqft : 999999;
-        vb = (bSqft > 0 && b.price) ? b.price / bSqft : 999999;
-      } else if(sortKey === 'priceAcre') {
-        // Price per acre — parse lot string; listings without lot go to end
-        var aAcre = _parseLotAcres(a.lot);
-        var bAcre = _parseLotAcres(b.lot);
-        va = (aAcre > 0 && a.price) ? a.price / aAcre : 999999999;
-        vb = (bAcre > 0 && b.price) ? b.price / bAcre : 999999999;
-      } else {
-        va = a[sortKey]||0; vb = b[sortKey]||0;
-      }
-      return sortDir === 'asc' ? va - vb : vb - va;
-    });
-  }
-
-  // Apply spatial filters if shapes are drawn (listing passes if inside ANY shape)
-  if(_srSpatialFilters.length > 0) {
-    results = results.filter(function(l){
-      if(!l.lat || !l.lng) return false;
-      return _srSpatialFilters.some(function(fn){ return fn(l.lat, l.lng); });
-    });
-  }
-
-  // Update region title
+  // ── Synchronous UI updates before the RPC fires ──
+  // Region title + URL hash reflect filter intent immediately, not response.
   var region = 'Western NC';
   if(selectedAreas.length === 1) region = AREA_LABELS[selectedAreas[0]] || selectedAreas[0];
   else if(selectedAreas.length > 1) region = selectedAreas.length + ' Areas';
   document.getElementById('srRegion').textContent = region;
 
-  // Update URL
   var params = new URLSearchParams();
   if(selectedAreas.length > 0) params.set('location', selectedAreas.join(','));
   if(type) params.set('type',type);
@@ -5156,9 +5106,72 @@ function srApplyFilters(){
   var hashStr = '#search' + (params.toString() ? '?' + params.toString() : '');
   history.replaceState({page:'search'},'',hashStr);
 
-  // Store full filtered results (before viewport filtering)
-  _srAllFilteredResults = results;
-  _srCurrentResults = results;
+  // Show a searching indicator while the RPC is in flight. The render
+  // pipeline will overwrite this with the actual count.
+  var _countEl = document.getElementById('srCount');
+  if(_countEl) _countEl.textContent = 'Searching…';
+
+  // ── Build the search_listings RPC parameter object ──
+  // When a text query is present, skip area filter so address/MLS searches
+  // always find the property regardless of which location chips are active
+  // (mirrors the old client-side behavior).
+  var skipAreaFilter = textQuery.length > 0;
+  var rpcCities = null;
+  if(!skipAreaFilter && selectedAreas.length > 0) {
+    rpcCities = [];
+    selectedAreas.forEach(function(a){
+      var mapped = AREA_CITIES[a] || [a];
+      mapped.forEach(function(c){ if(rpcCities.indexOf(c) === -1) rpcCities.push(c); });
+    });
+  }
+  var rpcMinPrice = null, rpcMaxPrice = null;
+  if(price) {
+    var _pp = price.split('-');
+    rpcMinPrice = parseInt(_pp[0], 10);
+    rpcMaxPrice = parseInt(_pp[1], 10);
+  }
+  // 'daysOnMarket-asc' → {key:'daysOnMarket', dir:'asc'}; 'relevance' → relevance
+  var rpcSortKey = 'daysOnMarket', rpcSortDir = 'asc';
+  if(sort === 'relevance') {
+    rpcSortKey = 'relevance'; rpcSortDir = 'desc';
+  } else if(sort) {
+    var _sp = sort.split('-');
+    rpcSortKey = _sp[0]; rpcSortDir = _sp[1] || 'asc';
+  }
+
+  var rpcParams = {
+    p_cities:        rpcCities,
+    p_property_type: type || null,
+    p_min_price:     rpcMinPrice,
+    p_max_price:     rpcMaxPrice,
+    p_min_beds:      beds  ? parseInt(beds,  10) : null,
+    p_min_baths:     baths ? parseInt(baths, 10) : null,
+    p_restrict:      restrict || null,
+    p_text_query:    textQuery || null,
+    p_sort_key:      rpcSortKey,
+    p_sort_dir:      rpcSortDir,
+    p_limit:         1000
+  };
+
+  // Sequence guard — fast typing in the text input fires srApplyFilters per
+  // keystroke. The seq counter ensures only the latest RPC's response renders.
+  var seq = ++_srSearchSeq;
+
+  MLS_GRID.searchListings(rpcParams).then(function(results) {
+    if(seq !== _srSearchSeq) return; // a newer call superseded us
+
+    // Spatial-shape filter stays client-side — the shape predicates are
+    // runtime functions, not server-evaluable.
+    if(_srSpatialFilters.length > 0) {
+      results = results.filter(function(l){
+        if(!l.lat || !l.lng) return false;
+        return _srSpatialFilters.some(function(fn){ return fn(l.lat, l.lng); });
+      });
+    }
+
+    // Store full filtered results (before viewport filtering)
+    _srAllFilteredResults = results;
+    _srCurrentResults = results;
 
   // Render map markers (all filtered results — GPU collision detection handles label visibility)
   srRenderMarkers(results);
@@ -5233,6 +5246,12 @@ function srApplyFilters(){
     }
     var _saBtn = document.getElementById('srSearchAreaBtn');
     if(_saBtn) _saBtn.classList.remove('visible');
+  });
+  }).catch(function(err){
+    if(seq !== _srSearchSeq) return; // stale call's failure — ignore
+    _warn('[search] RPC failed:', err && (err.message || err));
+    var _countEl2 = document.getElementById('srCount');
+    if(_countEl2) _countEl2.textContent = 'Search unavailable. Please retry.';
   });
 }
 
