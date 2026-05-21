@@ -1595,20 +1595,30 @@ Deno.serve(async (req) => {
     // backfill, the function makes zero MLS Grid calls and exits.
     if (action === "backfill-media") {
       const limit = maxRecords;
+      // maxPhotos caps how many photos per listing get downloaded in this
+      // invocation. The front-end card display only uses photo 0 (with
+      // photo 1 as a backup). The property detail page loads photos 2-N
+      // lazily on-demand. So a 2-photo "priority pass" gets cards looking
+      // right ~6x faster than downloading the full ~30 photos per listing.
+      // Remaining photos for the same listing land in the next pass since
+      // their mls_media rows still have local_url=''.
+      const maxPhotos = typeof body.maxPhotos === "number" && body.maxPhotos > 0
+        ? body.maxPhotos
+        : null;  // null = all photos
 
       // 1. DB query: which Active winner listings have at least one
-      //    mls_media row with empty local_url? Use a CTE-style select via
-      //    the PostgREST relationship syntax. We pull listing_key from
-      //    mls_media where local_url='' and join to mls_listings for the
-      //    winner/status filters. To keep it simple we run two queries.
+      //    mls_media row with empty local_url? Newest mls_media first so a
+      //    brand-new listing posted at 11pm doesn't sit behind a 6-week
+      //    backlog of older incomplete listings.
       const { data: missingMedia, error: missingErr } = await supabase
         .from("mls_media")
-        .select("listing_key, mls_listings!inner(listing_id, is_winner, originating_system_name, standard_status)")
+        .select("listing_key, modification_timestamp, mls_listings!inner(listing_id, is_winner, originating_system_name, standard_status)")
         .eq("local_url", "")
         .eq("mls_listings.is_winner", true)
         .eq("mls_listings.originating_system_name", ORIGINATING_SYSTEM_NAME)
         .in("mls_listings.standard_status", ["Active", "Active Under Contract", "Pending"])
-        .limit(limit * 20);  // overshoot so we can dedup per-listing
+        .order("modification_timestamp", { ascending: false })
+        .limit(limit * 40);  // overshoot — each listing has many rows; dedup per-listing below
       if (missingErr) {
         console.warn(`[Backfill] missing-media query error: ${missingErr.message}`);
       }
@@ -1638,6 +1648,7 @@ Deno.serve(async (req) => {
 
       let r2Uploaded = 0;
       let r2Failed = 0;
+      let r2Deferred = 0;  // photos intentionally not fetched this pass (maxPhotos budget)
       let mlsGridCalls = 0;
 
       // 2. For each listing in the work list, targeted MLS Grid call.
@@ -1709,27 +1720,46 @@ Deno.serve(async (req) => {
           record.City || "", record.StateOrProvince || "",
         );
 
+        // Sort by Order so the lowest-numbered photos (the card-display
+        // ones) get fetched first in priority mode.
+        const mediaSorted = [...media].sort((a, b) =>
+          ((a.Order ?? 0) as number) - ((b.Order ?? 0) as number)
+        );
+
         // Rebuild rows; reuse R2 URL when MediaKey already has one,
-        // download only the genuinely missing keys.
+        // download only the genuinely missing keys. When maxPhotos is set,
+        // we only fetch up to that many *missing* keys this invocation —
+        // remaining ones stay with local_url='' and get picked up next cycle.
         await supabase.from("mls_media").delete().eq("listing_key", lk);
         const mediaRows: any[] = [];
         let fetchedSoFar = 0;
-        for (let j = 0; j < media.length; j++) {
-          const m = media[j];
+        for (let j = 0; j < mediaSorted.length; j++) {
+          const m = mediaSorted[j];
           const mUrl = m.MediaURL || "";
           const key = m.MediaKey || `${lk}-${j}`;
-          const order = m.Order || j;
+          const order = m.Order ?? j;
 
           let localUrl = "";
+          let outcome: "reused" | "uploaded" | "failed" | "deferred";
           const ex = existingByKey[key];
           if (ex && ex.local_url) {
             localUrl = ex.local_url;
+            outcome = "reused";
+          } else if (maxPhotos !== null && fetchedSoFar >= maxPhotos) {
+            // Priority mode: budget spent for this listing. Row goes back
+            // with local_url='' so the next pass (or fill pass) handles it.
+            localUrl = "";
+            outcome = "deferred";
           } else {
             if (fetchedSoFar > 0) await sleep(MEDIA_DOWNLOAD_DELAY_MS);
             localUrl = await uploadMediaToR2(mUrl, lid, j, bfSlug);
             fetchedSoFar++;
+            outcome = localUrl ? "uploaded" : "failed";
           }
-          if (localUrl) r2Uploaded++; else r2Failed++;
+          if (outcome === "uploaded") r2Uploaded++;
+          else if (outcome === "failed") r2Failed++;
+          else if (outcome === "deferred") r2Deferred++;
+          // "reused" doesn't increment any counter — it was already in R2.
           mediaRows.push({
             listing_key: lk,
             media_key: key,
@@ -1747,26 +1777,29 @@ Deno.serve(async (req) => {
         if (mediaRows.length > 0) {
           await supabase.from("mls_media").insert(mediaRows);
         }
-        console.log(`[Backfill] ${lid}: ${fetchedSoFar} new photos downloaded, ${mediaRows.length - fetchedSoFar} reused from R2`);
+        const deferredCount = mediaRows.filter((r) => !r.local_url).length;
+        const reusedCount = mediaRows.length - fetchedSoFar - deferredCount;
+        console.log(`[Backfill] ${lid}: ${fetchedSoFar} new -> R2, ${reusedCount} reused, ${deferredCount} deferred`);
       }
 
-      // Surface remaining-work count so cron tuning is observable. Same
-      // join filters as the work-list query above — count of Canopy winner
-      // Active/AUC/Pending listings still missing at least one R2 URL.
-      const { data: remainingRows } = await supabase
+      // Surface remaining-work count. PostgREST defaults to a 1000-row
+      // cap on .select(); using { count: 'exact', head: true } returns the
+      // true total without fetching the rows. Counts mls_media rows (not
+      // listings) — useful as a relative-progress metric across runs.
+      const { count: remainingMediaRows } = await supabase
         .from("mls_media")
-        .select("listing_key, mls_listings!inner(is_winner, originating_system_name, standard_status)")
+        .select("listing_key, mls_listings!inner(is_winner, originating_system_name, standard_status)", { count: "exact", head: true })
         .eq("local_url", "")
         .eq("mls_listings.is_winner", true)
         .eq("mls_listings.originating_system_name", ORIGINATING_SYSTEM_NAME)
         .in("mls_listings.standard_status", ["Active", "Active Under Contract", "Pending"]);
-      const remainingListings = new Set((remainingRows || []).map((r: any) => r.listing_key)).size;
 
       return new Response(JSON.stringify({
         ok: true, action: "backfill-media",
-        processed: work.length, r2Uploaded, r2Failed,
+        processed: work.length, r2Uploaded, r2Failed, r2Deferred,
         mlsGridCalls,
-        remainingListings,
+        remainingMediaRows: remainingMediaRows ?? null,
+        mode: maxPhotos !== null ? `priority(maxPhotos=${maxPhotos})` : "fill",
       }), {
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
       });
