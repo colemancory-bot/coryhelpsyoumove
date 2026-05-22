@@ -1298,7 +1298,11 @@ async function loadListings() {
       var from = 0;
       var pageSize = 1000;
       while (true) {
-        var resp = await _sb.from('mls_listings').select('listing_key,listing_id,full_address,city,county_or_parish,property_type,property_sub_type,standard_status,list_price,close_price,close_date,living_area,living_area_range,lot_size_acres,bedrooms_total,bathrooms_total_integer,year_built,garage_spaces,stories,days_on_market,list_agent_full_name,list_agent_email,list_office_name,feed_type,mlg_can_view,latitude,longitude,public_remarks,private_remarks,showing_instructions,directions,photo_urls,modification_timestamp').range(from, from + pageSize - 1);
+        // photo_urls is not a column on mls_listings — photos live in the
+        // separate mls_media table. Nothing in the listings tab actually
+        // consumed it; the bad SELECT was just throwing 400 and breaking
+        // the entire CMA tab.
+        var resp = await _sb.from('mls_listings').select('listing_key,listing_id,full_address,city,county_or_parish,property_type,property_sub_type,standard_status,list_price,close_price,close_date,living_area,living_area_range,lot_size_acres,bedrooms_total,bathrooms_total_integer,year_built,garage_spaces,stories,days_on_market,list_agent_full_name,list_agent_email,list_office_name,feed_type,mlg_can_view,latitude,longitude,public_remarks,private_remarks,showing_instructions,directions,modification_timestamp').range(from, from + pageSize - 1);
         if (resp.error) throw resp.error;
         if (!resp.data || !resp.data.length) break;
         data = data.concat(resp.data);
