@@ -4496,7 +4496,9 @@ async function cmaAddCompFromMls(listingKey) {
     features = features || {};
 
     // Mirror the shape of comps returned by find-comps so downstream code
-    // (cmaGoStep3, cmaRenderStep3) can use this row interchangeably.
+    // (cmaGoStep3, cmaRenderStep3) can use this row interchangeably. The
+    // similarity score comes from the cma-engine score-comp action so the
+    // % match badge isn't 0 for manually-added comps.
     var comp = {
       listing: listing,
       features: features,
@@ -4508,11 +4510,43 @@ async function cmaAddCompFromMls(listingKey) {
     _cmaState.comps = _cmaState.comps || [];
     _cmaState.comps.unshift(comp); // prepend so it's visible
 
-    // Close modal + re-render Step 2
+    // Close modal + re-render Step 2 immediately (similarity arrives later)
     var overlay = document.querySelector('.cma-comp-search-overlay');
     if (overlay) overlay.remove();
     toast('Added ' + (listing.full_address || 'comp'), 'success');
     cmaRenderStep2();
+
+    // Compute similarity in the background. Subject overrides are passed so
+    // the score reflects whatever the user edited on Step 1, just like
+    // find-comps does.
+    var subj = _cmaState.subject && _cmaState.subject.listing;
+    if (subj && subj.listing_key) {
+      var scorePayload = {
+        subject_listing_key: subj.listing_key,
+        comp_listing_key: listingKey,
+        subject_overrides: {
+          living_area: subj.living_area, bedrooms_total: subj.bedrooms_total,
+          bathrooms_total_integer: subj.bathrooms_total_integer,
+          year_built: subj.year_built, garage_spaces: subj.garage_spaces,
+          lot_size_acres: subj.lot_size_acres,
+          property_type: subj.property_type, property_sub_type: subj.property_sub_type,
+          list_price: subj.list_price, latitude: subj.latitude, longitude: subj.longitude
+        },
+        feature_overrides: (_cmaState.subject.features && Object.keys(_cmaState.subject.features).length > 0)
+          ? _cmaState.subject.features : undefined
+      };
+      cmaFetch('score-comp', scorePayload).then(function(res){
+        if (res && res.similarity) {
+          var c = (_cmaState.comps || []).find(function(x){ return x.listing && x.listing.listing_key === listingKey; });
+          if (c) {
+            c.similarity = res.similarity;
+            c.distance = res.distance;
+            // Only re-render if we're still on Step 2
+            if (_cmaState.step === 2) cmaRenderStep2();
+          }
+        }
+      });
+    }
   } catch(e) {
     toast('Add comp failed: ' + (e.message || e), 'error');
   }

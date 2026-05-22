@@ -1772,6 +1772,82 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // ═══ ACTION: score-comp ═══
+    // Score a single comp against a subject. Used when the client adds an
+    // MLS listing as a comp manually — find-comps already filters by
+    // status/date/distance, so the manually-added row never went through
+    // that pipeline and needs its similarity computed here.
+    //
+    // Body: { subject_listing_key, comp_listing_key, subject_overrides?,
+    //         feature_overrides? }
+    // Returns: { similarity: {...}, distance: number|null }
+    if (action === "score-comp") {
+      const subjectKey = body.subject_listing_key;
+      const compKey = body.comp_listing_key;
+      if (!subjectKey || !compKey) {
+        return jsonResp(
+          { error: "subject_listing_key and comp_listing_key required" },
+          400,
+        );
+      }
+      const { data: subjRow, error: subErr } = await sb
+        .from("mls_listings")
+        .select("*")
+        .eq("listing_key", subjectKey)
+        .maybeSingle();
+      if (subErr || !subjRow) {
+        return jsonResp({ error: "Subject not found" }, 404);
+      }
+      const { data: compRow, error: compErr } = await sb
+        .from("mls_listings")
+        .select("*")
+        .eq("listing_key", compKey)
+        .maybeSingle();
+      if (compErr || !compRow) {
+        return jsonResp({ error: "Comp not found" }, 404);
+      }
+      // Apply client overrides to the subject so the score reflects the
+      // user's edits (sqft, beds, year, etc.) just like find-comps does.
+      const subject = { ...subjRow } as Record<string, unknown>;
+      if (body.subject_overrides) {
+        for (const [k, v] of Object.entries(body.subject_overrides)) {
+          if (v != null) subject[k] = v;
+        }
+      }
+      const [{ data: subjTags }, { data: compTags }] = await Promise.all([
+        sb.from("cma_feature_tags").select("*").eq("listing_key", subjectKey).is(
+          "agent_id",
+          null,
+        ).maybeSingle(),
+        sb.from("cma_feature_tags").select("*").eq("listing_key", compKey).is(
+          "agent_id",
+          null,
+        ).maybeSingle(),
+      ]);
+      const mergedSubjTags = body.feature_overrides
+        ? { ...(subjTags || {}), ...body.feature_overrides }
+        : subjTags;
+      const similarity = scoreComp(
+        subject as ListingData,
+        compRow as ListingData,
+        (mergedSubjTags as FeatureTags) || null,
+        (compTags as FeatureTags) || null,
+      );
+      const distance =
+        subject.latitude && subject.longitude && compRow.latitude &&
+          compRow.longitude
+          ? Math.round(
+            distanceMiles(
+              subject.latitude as number,
+              subject.longitude as number,
+              compRow.latitude as number,
+              compRow.longitude as number,
+            ) * 10,
+          ) / 10
+          : null;
+      return jsonResp({ ok: true, similarity, distance });
+    }
+
     // ═══ ACTION: find-comps ═══
     if (action === "find-comps") {
       const listingKey = body.listing_key;
