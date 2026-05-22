@@ -245,8 +245,19 @@ async function runGlobalSearch(query) {
     if (listingsResp.data && listingsResp.data.length) {
       html += '<div class="crm-search-category">Listings</div>';
       listingsResp.data.forEach(function(l) {
-        html += '<div class="crm-search-item" onclick="_listingsFilters.search=\'' + esc(l.full_address || l.listing_id) + '\';switchTab(\'listings\')">' +
-          '<span>' + esc(l.full_address || '') + '</span><span class="crm-badge" style="font-size:0.65rem">' + (l.list_price ? '$' + l.list_price.toLocaleString() : '') + '</span></div>';
+        // Two click targets per row: tapping the address goes to Listings
+        // (current expected behavior), tapping "Start CMA" jumps straight
+        // into the CMA wizard with this row as the subject.
+        var addrEsc = esc(l.full_address || l.listing_id);
+        var addrJs  = addrEsc.replace(/'/g, "\\'");
+        var keyJs   = esc(l.listing_key);
+        html += '<div class="crm-search-item" style="display:flex;align-items:center;gap:0.5rem">' +
+          '<span onclick="_listingsFilters.search=\'' + addrJs + '\';switchTab(\'listings\')" style="flex:1;cursor:pointer">' +
+            '<span>' + esc(l.full_address || '') + '</span>' +
+            '<span class="crm-badge" style="font-size:0.65rem;margin-left:0.5rem">' + (l.list_price ? '$' + l.list_price.toLocaleString() : '') + '</span>' +
+          '</span>' +
+          '<button class="crm-btn crm-btn-secondary" style="padding:0.25rem 0.6rem;font-size:0.75rem" onclick="event.stopPropagation();cmaStartFromListing(\'' + keyJs + '\')">Start CMA</button>' +
+          '</div>';
       });
     }
     if (contactsResp.data && contactsResp.data.length) {
