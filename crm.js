@@ -1468,6 +1468,14 @@ function toggleListingDetail(listingKey) {
 function renderListingDetail(l) {
   var html = '<div class="listings-detail">';
 
+  // Action row — start a CMA on this property with the subject pre-filled.
+  // Saves the click-through-CMA-tab-then-search-the-address dance.
+  html += '<div class="listings-detail-actions" style="display:flex;gap:0.5rem;margin-bottom:0.8rem">';
+  html += '<button class="crm-btn crm-btn-primary" onclick="event.stopPropagation();cmaStartFromListing(\'' + esc(l.listing_key) + '\')">';
+  html += '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:0.4rem;vertical-align:middle"><path d="M18 20V10M12 20V4M6 20v-6"/><rect x="1" y="1" width="22" height="22" rx="3"/></svg>';
+  html += 'Start CMA on this property</button>';
+  html += '</div>';
+
   // Two column layout
   html += '<div class="listings-detail-grid">';
 
@@ -2078,6 +2086,17 @@ function cmaNewReport() {
   _cmaState = { step: 1, subject: null, comps: [], selectedComps: [], adjustments: [], valuation: null, aiAdvice: null, aiSelection: null, reportId: null, reports: _cmaState.reports, charts: {}, filters: {} };
   crmPushState({ tab: 'cma', sub: 'step1' });
   cmaRenderStep1();
+}
+
+// Entry point from the Listings tab's "Start CMA on this property" button.
+// Resets CMA state, jumps to the CMA tab, then calls cmaSelectSubject which
+// pulls the full row + tags and lands the user on the editable subject form.
+function cmaStartFromListing(listingKey) {
+  _cmaState = { step: 1, subject: null, comps: [], selectedComps: [], adjustments: [], valuation: null, aiAdvice: null, aiSelection: null, reportId: null, reports: (_cmaState && _cmaState.reports) || [], charts: {}, filters: {} };
+  switchTab('cma');
+  // Let switchTab → loadCMA finish painting before we override the dashboard
+  // with the subject form. cmaSelectSubject will render the editable form.
+  setTimeout(function(){ cmaSelectSubject(listingKey); }, 80);
 }
 
 // ── Quick CMA: auto-runs all steps after subject is confirmed ──
