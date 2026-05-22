@@ -3076,7 +3076,12 @@ function cmaRenderStep2() {
   html += '</div>';
 
   var selectedCount = _cmaState.comps.filter(function(c) { return c.selected; }).length;
+  html += '<div class="cma-comp-count-row" style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;margin:0.8rem 0">';
   html += '<div class="cma-comp-count">' + selectedCount + ' of ' + _cmaState.comps.length + ' comps selected (max 6)</div>';
+  html += '<button class="crm-btn crm-btn-secondary" onclick="cmaShowAddMlsCompModal()" style="font-size:0.8rem;padding:0.35rem 0.7rem">';
+  html += '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:0.3rem"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+  html += 'Add MLS comp by address</button>';
+  html += '</div>';
 
   html += '<div class="cma-comps-list">';
   _cmaState.comps.forEach(function(c, i) {
@@ -4378,6 +4383,139 @@ async function cmaReplaceComp(compIdx, newCompKey) {
 
   toast('Comp ' + (compIdx + 1) + ' replaced!', 'success');
   cmaRenderStep3();
+}
+
+// ── Manually add a comp by searching MLS ──
+// Opens a modal in Step 2 that searches mls_listings by address or MLS id.
+// Picks up listings the AI ranker filtered out (wrong city, too far, sold
+// > 12mo ago) and lets the agent add them as comps anyway. Loads the row
+// and any existing cma_feature_tags, then pushes onto _cmaState.comps
+// already selected so the next "Calculate Adjustments" includes it.
+function cmaShowAddMlsCompModal() {
+  // Close any prior modal
+  var prior = document.querySelector('.cma-comp-search-overlay');
+  if (prior) prior.remove();
+
+  var overlay = document.createElement('div');
+  overlay.className = 'cma-comp-search-overlay';
+  overlay.innerHTML = (
+    '<div class="cma-comp-search-modal">' +
+      '<div class="cma-comp-search-header">' +
+        '<h3 class="fd" style="margin:0">Add MLS comp</h3>' +
+        '<button class="cma-comp-search-close" onclick="this.closest(\'.cma-comp-search-overlay\').remove()">' +
+          '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+        '</button>' +
+      '</div>' +
+      '<p style="color:var(--crm-text-muted);margin:0 0 0.8rem">Search the full MLS by address or MLS#. Any listing — active, pending, sold — can be added as a comp.</p>' +
+      '<input class="crm-input" id="cmaAddCompInput" placeholder="e.g. 1124 Skyland or CAR4342310" autocomplete="off" />' +
+      '<div class="cma-comp-search-results" id="cmaAddCompResults"><p class="cma-comp-search-empty">Start typing to search…</p></div>' +
+    '</div>'
+  );
+  document.body.appendChild(overlay);
+
+  var input = document.getElementById('cmaAddCompInput');
+  var resultsEl = document.getElementById('cmaAddCompResults');
+  var seq = 0;
+  var debounceTimer = null;
+
+  function runSearch(q) {
+    var mySeq = ++seq;
+    if (!q || q.length < 2) {
+      resultsEl.innerHTML = '<p class="cma-comp-search-empty">Start typing to search…</p>';
+      return;
+    }
+    resultsEl.innerHTML = '<p class="cma-comp-search-empty">Searching…</p>';
+    var qPat = '%' + q + '%';
+    _sb.from('mls_listings')
+      .select('listing_key,listing_id,full_address,city,standard_status,property_type,list_price,close_price,close_date,living_area,lot_size_acres,bedrooms_total,bathrooms_total_integer,year_built,modification_timestamp')
+      .or('full_address.ilike.' + qPat + ',listing_id.ilike.' + qPat)
+      .eq('is_winner', true)
+      .limit(20)
+      .then(function(res){
+        if (mySeq !== seq) return; // superseded
+        if (res.error) { resultsEl.innerHTML = '<p class="cma-comp-search-error">Search error: ' + esc(res.error.message) + '</p>'; return; }
+        var rows = res.data || [];
+        // Exclude listings already added
+        var existingKeys = (_cmaState.comps || []).map(function(c){ return c.listing && c.listing.listing_key; });
+        rows = rows.filter(function(r){ return existingKeys.indexOf(r.listing_key) === -1; });
+        if (!rows.length) {
+          resultsEl.innerHTML = '<p class="cma-comp-search-empty">No matching listings.</p>';
+          return;
+        }
+        var html = '';
+        rows.forEach(function(l){
+          var price = l.close_price || l.list_price;
+          var statusBadge = l.standard_status === 'Closed' ? 'Sold' : (l.standard_status || '');
+          html += '<div class="cma-comp-search-card" data-key="' + esc(l.listing_key) + '">';
+          html += '<div class="cma-comp-search-card-top">';
+          html += '<div class="cma-comp-search-addr">' + esc(l.full_address || 'Unknown') + ', ' + esc(l.city || '') + '</div>';
+          html += '<div class="cma-comp-search-score">' + esc(statusBadge) + '</div>';
+          html += '</div>';
+          html += '<div class="cma-comp-search-meta">';
+          html += '<span>$' + (price || 0).toLocaleString() + '</span>';
+          html += '<span>' + (l.close_date || '--') + '</span>';
+          html += '<span>' + (l.living_area ? l.living_area.toLocaleString() + ' sqft' : '--') + '</span>';
+          html += '<span>' + (l.lot_size_acres || '--') + ' ac</span>';
+          html += '<span>' + (l.bedrooms_total || '--') + 'bd/' + (l.bathrooms_total_integer || '--') + 'ba</span>';
+          html += '<span>Built ' + (l.year_built || '--') + '</span>';
+          html += '<span class="crm-table-muted">' + esc(l.listing_id || '') + '</span>';
+          html += '</div>';
+          html += '<button class="crm-btn crm-btn-primary cma-comp-search-select" onclick="cmaAddCompFromMls(\'' + esc(l.listing_key) + '\')">Add as comp</button>';
+          html += '</div>';
+        });
+        resultsEl.innerHTML = html;
+      });
+  }
+
+  input.addEventListener('input', function(){
+    clearTimeout(debounceTimer);
+    var v = this.value.trim();
+    debounceTimer = setTimeout(function(){ runSearch(v); }, 200);
+  });
+  setTimeout(function(){ input.focus(); }, 50);
+}
+
+async function cmaAddCompFromMls(listingKey) {
+  toast('Loading comp…', 'info');
+  try {
+    var listingResp = await _sb.from('mls_listings').select('*').eq('listing_key', listingKey).maybeSingle();
+    if (listingResp.error || !listingResp.data) {
+      toast('Listing not found: ' + ((listingResp.error && listingResp.error.message) || ''), 'error');
+      return;
+    }
+    var listing = listingResp.data;
+    var tagsResp = await _sb.from('cma_feature_tags').select('*').eq('listing_key', listingKey).is('agent_id', null).maybeSingle();
+    var features = (tagsResp && tagsResp.data) || null;
+    if (!features) {
+      // Try the AI extractor; if it fails, fall through with empty features.
+      try {
+        var ext = await cmaExtractFetch('extract-single', { listing_key: listingKey });
+        if (ext && ext.features) features = ext.features;
+      } catch(e) { /* non-fatal */ }
+    }
+    features = features || {};
+
+    // Mirror the shape of comps returned by find-comps so downstream code
+    // (cmaGoStep3, cmaRenderStep3) can use this row interchangeably.
+    var comp = {
+      listing: listing,
+      features: features,
+      selected: true,
+      similarity: null,
+      distance: null,
+      is_manual: true
+    };
+    _cmaState.comps = _cmaState.comps || [];
+    _cmaState.comps.unshift(comp); // prepend so it's visible
+
+    // Close modal + re-render Step 2
+    var overlay = document.querySelector('.cma-comp-search-overlay');
+    if (overlay) overlay.remove();
+    toast('Added ' + (listing.full_address || 'comp'), 'success');
+    cmaRenderStep2();
+  } catch(e) {
+    toast('Add comp failed: ' + (e.message || e), 'error');
+  }
 }
 
 // ── Step 4: Review & Export ──
