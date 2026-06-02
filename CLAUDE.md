@@ -345,6 +345,9 @@ Zillow, Redfin, Homes.com, Realtor.com dominate head terms like "waynesville nc 
 ## Local SEO Checklist (Manual Tasks for Cory)
 
 ### Google Business Profile (HIGHEST PRIORITY)
+
+> **2026 ranking-factors update (full detail in `docs/seo-geo-action-plan-2026.md`).** Verified research (Whitespark/BrightLocal 2026 plus controlled Sterling Sky tests) reprioritizes this list. The factors that actually move the Local Pack are the **primary category** (the single #1 factor, already set), **NAP consistency**, profile **completeness** (Services, Opening Date, secondary categories), and **genuine review velocity** (the #2 factor, for both Local Pack and AI search). Several items below have **little-to-no measured ranking impact** and should be kept only for their UX/conversion value, not pursued as ranking levers: geo-tagging photos (Google strips EXIF on upload), keyword-stuffing the description (Google confirmed it is NOT a ranking field), keywords in review responses, high post volume, and Q&A volume. Do them if they help a real buyer. Do not expect ranking lift.
+
 - [x] Claim profile at business.google.com (CLAIMED AND VERIFIED — confirmed 2026-04-23 via business.google.com/dashboard)
 - [x] Primary category: Real Estate Agent (confirmed set)
 - [ ] Secondary: Real Estate Consultant, Real Estate Service (verify in profile edit)
