@@ -1409,6 +1409,12 @@ if(!MLS_GRID.enabled) {
   // Also show loading on town page grids (search + featured)
   document.querySelectorAll('[id^="tps-grid-"]').forEach(function(el){ el.innerHTML = _loadingHtml; });
   document.querySelectorAll('[id^="tp-featured-"]').forEach(function(el){ el.innerHTML = _loadingHtml; });
+  // Watchdog: if MLS listings never arrive (timeout/error), swap the spinner for a usable fallback + CTA
+  setTimeout(function(){
+    document.querySelectorAll('[id^="tp-featured-"]').forEach(function(el){
+      if(el.querySelector('.idx-loading') && typeof _townFeaturedFallback==='function'){ _townFeaturedFallback(el, el.id.replace('tp-featured-','')); }
+    });
+  }, 12000);
 }
 
 // ═══ IDX DISCLAIMER INJECTION (for town pages) ═══
@@ -2691,12 +2697,18 @@ function openPropFromTown(lid){
   var data=window[lid];
   if(data)openProp(data.l,data.t);
 }
+// Fallback when a town featured grid has no MLS listings (load failed, timed out, or none available)
+function _townFeaturedFallback(grid, slug){
+  if(!grid) return;
+  var name = (window.TOWN_LISTINGS && TOWN_LISTINGS[slug] && TOWN_LISTINGS[slug].display) || slug.replace(/-/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase()});
+  grid.innerHTML = '<div class="idx-fallback" style="grid-column:1/-1;text-align:center;padding:2.5rem 1rem;color:var(--text-muted)"><p style="max-width:32rem;margin:0 auto 1.25rem">Live listings for '+name+' aren\'t loading right now. Browse all area properties, or call <a href="tel:8285066413">(828) 506-6413</a> for current inventory.</p><button onclick="openSearchResults({location:\''+name+'\'})" class="btn-primary" style="cursor:pointer;border:none"><span>Browse '+name+' Listings</span></button></div>';
+}
 // Render top 3 MLS listings into the town page featured grid
 function renderTownFeatured(townSlug){
   var grid = document.getElementById('tp-featured-'+townSlug);
   if(!grid) return;
   var data = TOWN_LISTINGS[townSlug];
-  if(!data || !data.listings || !data.listings.length){ grid.innerHTML=''; return; }
+  if(!data || !data.listings || !data.listings.length){ _townFeaturedFallback(grid, townSlug); return; }
   var townName = data.display;
   grid.innerHTML = '';
   data.listings.slice(0,3).forEach(function(l){

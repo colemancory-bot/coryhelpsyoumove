@@ -213,3 +213,8 @@ Audited the conversion paths for the AIO-insulated, click-winnable queries from 
 | E | **"Unrestricted/restricted" filter is gated behind account creation.** "unrestricted land [town]" is a high-intent query in the strategy; gating that exact filter adds friction for those searchers. Trade-off (lead capture vs. friction) worth a conscious choice, e.g. let it run once free, then gate. | Low–Med | Low |
 
 **Net:** the conversion foundation is solid and now has a non-phone path on every town page. The highest-leverage remaining move is **A** (indexable price-band/feature pages), because those are exactly the queries §8 flagged as winnable and AIO-insulated.
+
+**Progress update (2026-06-02, cont.):**
+- ✅ **D done.** `app.js` now degrades gracefully when the MLS load fails/times out: `_townFeaturedFallback` renders a "Browse [Town] Listings" CTA, a 12s watchdog swaps a stuck loading spinner, and the empty-listings path shows the fallback instead of a bare section.
+- 🚧 **A in progress.** Reference page built and verified: `mountain-cabins-bryson-city-nc.html` (~965 words unique content, CollectionPage/BreadcrumbList/FAQPage schema, pre-filtered search CTA). Rolling out 6 more (Waynesville under $400k, Maggie Valley cabins, Franklin unrestricted land, Sylva under $300k, Cashiers under $500k, Waynesville acreage). "Bryson City log cabins" dropped to avoid duplicating the cabins reference page.
+- 🔎 Investigating the intermittent MLS **statement timeout** (root cause of the empty grids D now covers).
