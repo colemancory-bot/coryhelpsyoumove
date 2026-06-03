@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Google Analytics 4 -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-FRXENGTEZF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-FRXENGTEZF');</script>
+<title>What's My Home Worth in Western NC? Free Local Valuation | Cory Coleman</title>
+<meta name="description" content="Find out what your Western NC mountain home is really worth. Get a free, accurate home valuation from a local expert, not an algorithm. No obligation.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://coryhelpsyoumove.com/what-is-my-home-worth-western-nc.html">
+<meta property="og:title" content="What's My Home Worth in Western NC?">
+<meta property="og:description" content="Zillow's estimate is an algorithm. Get a real valuation from someone who knows these mountains. Free, no obligation.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://coryhelpsyoumove.com/what-is-my-home-worth-western-nc.html">
+<meta property="og:image" content="https://coryhelpsyoumove.com/images/area-waynesville.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="What's My Home Worth in Western NC?">
+<meta name="twitter:description" content="Zillow's estimate is an algorithm. Get a real valuation from someone who knows these mountains. Free, no obligation.">
+<meta name="twitter:image" content="https://coryhelpsyoumove.com/images/area-waynesville.jpg">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": "What's My Home Worth in Western NC?",
+  "description": "Request a free, expert home valuation (CMA) for a Western North Carolina home from local agent Cory Coleman.",
+  "url": "https://coryhelpsyoumove.com/what-is-my-home-worth-western-nc.html",
+  "isPartOf": {"@type": "WebSite", "name": "Cory Coleman Real Estate", "url": "https://coryhelpsyoumove.com"},
+  "about": {"@type": "Place", "name": "Western North Carolina", "containedInPlace": {"@type": "State", "name": "North Carolina"}},
+  "provider": {"@type": "RealEstateAgent", "name": "Cory Coleman - Keller Williams Great Smokies", "telephone": "+1-828-506-6413"}
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://coryhelpsyoumove.com/"},
+    {"@type": "ListItem", "position": 2, "name": "What's My Home Worth", "item": "https://coryhelpsyoumove.com/what-is-my-home-worth-western-nc.html"}
+  ]
+}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Outfit:wght@200;300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=103">
+<link rel="icon" href="images/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="images/apple-touch-icon.png">
+<meta name="theme-color" content="#0C0B09" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F8F6F1" media="(prefers-color-scheme: light)">
+<style>
+/* ====== Home Valuation tool (self-contained) ====== */
+.hv-wrap{max-width:760px;margin:0 auto;padding:0 1.25rem}
+.hv-intro{text-align:center;padding-top:5rem;margin-bottom:2.5rem}
+.hv-intro .section-label{justify-content:center}
+.hv-intro h1{font-family:'Cormorant Garamond',Georgia,serif;font-size:clamp(2.1rem,5vw,3.2rem);font-weight:300;color:var(--cream);line-height:1.12;margin:0.5rem 0 1rem}
+.hv-intro h1 em{font-style:italic;color:var(--gold)}
+.hv-lead{color:var(--text-muted);font-size:1rem;line-height:1.7;max-width:38rem;margin:0 auto}
+.hv-card{border:1px solid var(--border);background:var(--bg-warm);border-radius:14px;padding:1.75rem 1.5rem;margin-bottom:1.5rem}
+.hv-card-title{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.5rem;font-weight:400;color:var(--cream);margin:0 0 0.35rem}
+.hv-card-sub{color:var(--text-muted);font-size:0.85rem;margin:0 0 1.25rem}
+.hv-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.hv-field{display:flex;flex-direction:column;gap:0.35rem}
+.hv-field.full{grid-column:1/-1}
+.hv-field label{font-size:0.72rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-muted)}
+.hv-field .opt{text-transform:none;letter-spacing:normal;opacity:0.6;font-size:0.7rem}
+.hv-field input,.hv-field select,.hv-field textarea{background:var(--bg);border:1px solid var(--border);color:var(--cream);font-family:'Outfit',sans-serif;font-size:0.95rem;padding:0.7rem 0.8rem;border-radius:8px;width:100%}
+.hv-field textarea{resize:vertical;line-height:1.55;min-height:96px}
+.hv-field input:focus,.hv-field select:focus,.hv-field textarea:focus{outline:none;border-color:var(--gold)}
+.hv-field input::placeholder,.hv-field textarea::placeholder{color:var(--text-muted);opacity:0.55}
+/* sliders */
+.hv-slider{padding:1rem 0;border-bottom:1px solid var(--border)}
+.hv-slider:last-child{border-bottom:none}
+.hv-slider-q{color:var(--cream);font-size:0.98rem;margin-bottom:0.75rem}
+.hv-scale{display:flex;align-items:center;gap:0.85rem}
+.hv-anchor{flex:0 0 84px;width:84px}
+.hv-anchor-img{position:relative;width:84px;height:64px;border-radius:7px;border:1px solid var(--border);background-color:var(--bg);background-size:cover;background-position:center;background-image:linear-gradient(135deg,rgba(196,176,140,0.10),rgba(12,11,9,0.5));overflow:hidden}
+.hv-anchor-img span{position:absolute;left:0;right:0;bottom:0;background:rgba(12,11,9,0.72);color:var(--cream);font-size:0.58rem;line-height:1.15;text-align:center;padding:2px 3px}
+.hv-slide-mid{flex:1;display:flex;flex-direction:column;align-items:center;gap:0.4rem}
+.hv-range{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:4px;background:linear-gradient(90deg,#6e5c39,var(--gold));outline:none}
+.hv-range::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:22px;border-radius:50%;background:var(--gold);border:3px solid var(--bg);cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.5)}
+.hv-range::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--gold);border:3px solid var(--bg);cursor:pointer}
+.hv-val{font-size:0.82rem;color:var(--gold);font-weight:500;min-height:1.1em}
+.hv-error{display:none;color:#e0a3a3;background:rgba(180,80,80,0.12);border:1px solid rgba(180,80,80,0.3);border-radius:8px;padding:0.7rem 0.9rem;font-size:0.85rem;margin-bottom:1rem}
+.hv-submit{display:block;width:100%;background:var(--gold);color:var(--bg);font-family:'Outfit',sans-serif;font-size:0.72rem;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;padding:1rem;border:none;border-radius:9px;cursor:pointer;transition:background 0.3s}
+.hv-submit:hover{background:var(--gold-light)}
+.hv-fineprint{color:var(--text-muted);font-size:0.78rem;text-align:center;margin-top:0.9rem;line-height:1.6}
+.hv-perks{display:flex;flex-wrap:wrap;gap:1rem;justify-content:center;margin:1.25rem 0 0;list-style:none;padding:0}
+.hv-perks li{color:var(--text-muted);font-size:0.82rem;display:flex;align-items:center;gap:0.4rem}
+.hv-perks svg{width:15px;height:15px;stroke:var(--gold);fill:none;stroke-width:2}
+.hv-thanks{display:none;text-align:center;border:1px solid var(--border);background:var(--bg-warm);border-radius:14px;padding:3rem 1.5rem}
+.hv-thanks h2{font-family:'Cormorant Garamond',Georgia,serif;font-weight:400;color:var(--cream);font-size:2rem;margin:0 0 0.75rem}
+.hv-thanks p{color:var(--text-muted);line-height:1.7;max-width:30rem;margin:0 auto 0.5rem}
+.hv-disc{font-size:0.72rem;color:var(--text-muted);line-height:1.6;margin-top:1.5rem}
+@media(max-width:560px){.hv-grid{grid-template-columns:1fr}.hv-anchor{flex-basis:64px;width:64px}.hv-anchor-img{width:64px;height:50px}}
+</style>
+</head>
+<body>
+<div class="grain"></div>
+
+<header>
+<nav class="nav" id="nav">
+  <a href="index.html" class="nav-logo"><div class="nav-logo-text"><div class="nav-logo-name"><span>C</span>ory <span>C</span>oleman</div><div class="nav-logo-sub">Real Estate</div></div> <div class="nav-divider"></div> <img src="keller-williams-great-smokies-western-nc-real-estate.png" alt="Keller Williams Great Smokies - Western NC Real Estate Brokerage" class="nav-kw"></a>
+  <div class="nav-center">
+    <a href="index.html#about">About</a>
+    <a href="index.html#areas">Areas</a>
+    <a href="index.html#listings">Properties</a>
+    <a href="blog/">Blog</a>
+    <a href="index.html#contact">Contact</a>
+  </div>
+  <div class="nav-right">
+    <div class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark mode">
+      <span class="t-sun">☀</span>
+      <span class="t-moon">☽</span>
+    </div>
+    <a href="tel:8285066413" class="nav-phone">
+      <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+      (828) 506-6413
+    </a>
+  </div>
+</nav>
+</header>
+
+<main>
+<div class="hv-wrap">
+
+  <div class="hv-intro">
+    <div class="section-label">Free Home Valuation</div>
+    <h1>What's Your <em>Western NC</em> Home Worth?</h1>
+    <p class="hv-lead">Zillow's estimate is an algorithm. It cannot see your view, your road, or what you have put into your home, and on mountain properties there often are not enough comparable sales for it to get close. Get a real valuation from someone who actually works these markets.</p>
+    <ul class="hv-perks">
+      <li><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> A real market analysis, not a guess</li>
+      <li><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> Based on recent local sales</li>
+      <li><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> No cost, no obligation</li>
+    </ul>
+  </div>
+
+  <!--
+    IMAGE SHOT LIST (drop real photos in to replace the placeholders).
+    Path pattern: images/valuation/<category>-1.jpg  and  -5.jpg  (approx 84x64, will be cover-cropped)
+      condition-1  worn / deferred upkeep        condition-5  meticulously kept
+      finish-1     builder-grade / dated          finish-5     high-end / luxury
+      kitchen-1    original / dated kitchen        kitchen-5   renovated / chef's kitchen
+      view-1       no view / trees                view-5       long-range mountain view
+      outdoor-1    no outdoor living              outdoor-5    wraparound deck / firepit
+      privacy-1    close neighbors                privacy-5    secluded setting
+      waterfront-1 none                           waterfront-5 lake / river frontage
+    With no image present, each box shows a labeled gold-tinted placeholder (graceful).
+  -->
+
+  <div id="hvFormWrap">
+  <form id="hvForm" onsubmit="return hvSubmit(event)" novalidate>
+
+    <div class="hv-card">
+      <h3 class="hv-card-title">Tell me about your home</h3>
+      <p class="hv-card-sub">Everything here is optional. The more you share, the more accurate I can be.</p>
+      <div class="hv-grid">
+        <div class="hv-field full"><label>Property address <span class="opt">(optional)</span></label><input type="text" name="address" placeholder="123 Mountain View Rd, Waynesville"></div>
+        <div class="hv-field"><label>Bedrooms <span class="opt">(optional)</span></label><select name="beds"><option value="">Select</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6+</option></select></div>
+        <div class="hv-field"><label>Bathrooms <span class="opt">(optional)</span></label><select name="baths"><option value="">Select</option><option>1</option><option>1.5</option><option>2</option><option>2.5</option><option>3</option><option>3.5</option><option>4+</option></select></div>
+        <div class="hv-field"><label>Stories <span class="opt">(optional)</span></label><select name="stories"><option value="">Select</option><option>1</option><option>1.5</option><option>2</option><option>3+</option></select></div>
+        <div class="hv-field"><label>Basement <span class="opt">(optional)</span></label><select name="basement"><option value="">Select</option><option>None</option><option>Unfinished</option><option>Partially finished</option><option>Finished</option></select></div>
+        <div class="hv-field full"><label>Acreage <span class="opt">(optional)</span></label><input type="text" name="acres" inputmode="decimal" placeholder="e.g. 0.5, 2, 10"></div>
+      </div>
+    </div>
+
+    <div class="hv-card">
+      <h3 class="hv-card-title">How would you rate your home?</h3>
+      <p class="hv-card-sub">Slide each one. There are no wrong answers, this just helps me understand your home before we talk.</p>
+
+      <div class="hv-slider">
+        <div class="hv-slider-q">Overall condition</div>
+        <div class="hv-scale">
+          <div class="hv-anchor"><div class="hv-anchor-img" style="background-image:url('images/valuation/condition-1.jpg')"><span>1 · Needs work</span></div></div>
+          <div class="hv-slide-mid"><input type="range" class="hv-range" min="1" max="5" step="1" value="3" data-cat="condition" oninput="hvUpdate(this)"><div class="hv-val" id="val-condition">3 · Average</div></div>
+          <div class="hv-anchor"><div class="hv-anchor-img" style="background-image:url('images/valuation/condition-5.jpg')"><span>5 · Like new</span></div></div>
+        </div>
+      </div>
+
+      <div class="hv-slider">
+        <div class="hv-slider-q">Fit and finish</div>
+        <div class="hv-scale">
+          <div class="hv-anchor"><div class="hv-anchor-img" style="background-image:url('images/valuation/finish-1.jpg')"><span>1 · Builder basic</span></div></div>
+          <div class="hv-slide-mid"><input type="range" class="hv-range" min="1" max="5" step="1" value="3" data-cat="finish" oninput="hvUpdate(this)"><div class="hv-val" id="val-finish">3 · Average</div></div>
+          <div class="hv-anchor"><div class="hv-anchor-img" style="background-image:url('images/valuation/finish-5.jpg')"><span>5 · Luxury</span></div></div>
+        </div>
+      </div>
+
+      <div class="hv-slider">
+        <div class="hv-slider-q">Kitchen</div>
+        <div class="hv-scale">
+          <div class="hv-anchor"><div class="hv-anchor-img" style="background-image:url('images/valuation/kitchen-1.jpg')"><span>1 · Original</span></div></div>
+          <div class="hv-slide-mid"><input type="range" class="hv-range" min="1" max="5" step="1" value="3" data-cat="kitchen" oninput="hvUpdate(this)"><div class="hv-val" id="val-kitchen">3 · Average</div></div>
+          <div class="hv-anchor"><div class="hv-anchor-img" style="background-image:url('images/valuation/kitchen-5.jpg')"><span>5 · Renovated</span></div></div>
+        </div>
+      </div>
+
+      <div class="hv-slider">
+        <div class="hv-slider-q">View</div>
+        <div class="hv-scale">
+          <div class="hv-anchor"><div class="hv-anchor-img" style="background-image:url('images/valuation/view-1.jpg')"><span>1 · None</span></div></div>
+          <div class="hv-slide-mid"><input type="range" class="hv-range" min="1" max="5" step="1" value="3" data-cat="view" oninput="hvUpdate(this)"><div class="hv-val" id="val-view">3 · Partial</div></div>
+          <div class="hv-anchor"><div class="hv-anchor-img" style="background-image:url('images/valuation/view-5.jpg')"><span>5 · Long-range</span></div></div>
+        </div>
+      </div>
+
+      <div class="hv-slider">
+        <div class="hv-slider-q">Outdoor living</div>
+        <div class="hv-scale">
+          <div class="hv-anchor"><div class="hv-anchor-img" style="background-image:url('images/valuation/outdoor-1.jpg')"><span>1 · None</span></div></div>
+          <div class="hv-slide-mid"><input type="range" class="hv-range" min="1" max="5" step="1" value="3" data-cat="outdoor" oninput="hvUpdate(this)"><div class="hv-val" id="val-outdoor">3 · Average</div></div>
+          <div class="hv-anchor"><div class="hv-anchor-img" style="background-image:url('images/valuation/outdoor-5.jpg')"><span>5 · Resort-style</span></div></div>
+        </div>
+      </div>
+
+      <div class="hv-slider">
+        <div class="hv-slider-q">Privacy and setting</div>
+        <div class="hv-scale">
+          <div class="hv-anchor"><div class="hv-anchor-img" style="background-image:url('images/valuation/privacy-1.jpg')"><span>1 · Close neighbors</span></div></div>
+          <div class="hv-slide-mid"><input type="range" class="hv-range" min="1" max="5" step="1" value="3" data-cat="privacy" oninput="hvUpdate(this)"><div class="hv-val" id="val-privacy">3 · Average</div></div>
+          <div class="hv-anchor"><div class="hv-anchor-img" style="background-image:url('images/valuation/privacy-5.jpg')"><span>5 · Secluded</span></div></div>
+        </div>
+      </div>
+
+      <div class="hv-slider">
+        <div class="hv-slider-q">Waterfront</div>
+        <div class="hv-scale">
+          <div class="hv-anchor"><div class="hv-anchor-img" style="background-image:url('images/valuation/waterfront-1.jpg')"><span>1 · None</span></div></div>
+          <div class="hv-slide-mid"><input type="range" class="hv-range" min="1" max="5" step="1" value="1" data-cat="waterfront" oninput="hvUpdate(this)"><div class="hv-val" id="val-waterfront">1 · None</div></div>
+          <div class="hv-anchor"><div class="hv-anchor-img" style="background-image:url('images/valuation/waterfront-5.jpg')"><span>5 · Lake / river</span></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="hv-card">
+      <h3 class="hv-card-title">Anything else I should know?</h3>
+      <p class="hv-card-sub">Optional. The details a website never captures are often what matter most.</p>
+      <div class="hv-field full"><label>Other important details <span class="opt">(optional)</span></label><textarea name="details" rows="4" placeholder="Recent updates like a new roof, HVAC, or windows. Special features. Anything you think affects the value that a website would never know about."></textarea></div>
+    </div>
+
+    <div class="hv-card">
+      <h3 class="hv-card-title">Where should I send it?</h3>
+      <p class="hv-card-sub">I'll review your home and send your valuation, usually within one business day.</p>
+      <div id="hvError" class="hv-error"></div>
+      <div class="hv-grid">
+        <div class="hv-field"><label>Name</label><input type="text" name="name" placeholder="Jane Smith" required></div>
+        <div class="hv-field"><label>Email</label><input type="email" name="email" placeholder="jane@example.com" required></div>
+        <div class="hv-field full"><label>Phone <span class="opt">(optional)</span></label><input type="tel" name="phone" placeholder="(828) 555-0123"></div>
+      </div>
+      <button type="submit" class="hv-submit">Get My Free Valuation</button>
+      <p class="hv-fineprint">Your information stays with Cory and is never sold or shared. This is a comparative market analysis (an opinion of value), not a formal appraisal.</p>
+    </div>
+
+  </form>
+  </div>
+
+  <div id="hvThankYou" class="hv-thanks">
+    <h2>Thank you, <span data-name>there</span>.</h2>
+    <p>Cory will review your home details and send your valuation to <strong data-email>your email</strong>, usually within one business day.</p>
+    <p>Have questions in the meantime, or want to talk through it sooner? Call or text <a href="tel:8285066413">(828) 506-6413</a>.</p>
+  </div>
+
+  <p class="hv-disc"><em>This valuation is a comparative market analysis (an opinion of value) prepared by a licensed North Carolina real estate broker. It is not a formal appraisal and is provided for informational purposes only. Actual market value depends on a full review of the property and current market conditions.</em></p>
+  <p class="hv-disc"><em><strong>Equal Housing Opportunity.</strong> Cory Coleman and Keller Williams Great Smokies fully support the principles of the Fair Housing Act. All real estate services are provided without regard to race, color, religion, national origin, sex, disability, or familial status.</em></p>
+
+</div>
+</main>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <div class="nav-logo"><div class="nav-logo-text"><div class="nav-logo-name"><span>C</span>ory <span>C</span>oleman</div><div class="nav-logo-sub">Real Estate</div></div> <div class="nav-divider"></div> <img src="keller-williams-great-smokies-western-nc-real-estate.png" alt="Keller Williams Great Smokies Mountain Real Estate" class="nav-kw"></div>
+      <p>Your trusted guide to real estate across Western North Carolina. From mountain homes to peaceful acreage, honest guidance and real results.</p>
+    </div>
+    <div class="footer-col"><h4>Quick Links</h4><a href="index.html#about">About</a><a href="index.html#areas">Communities</a><a href="index.html#listings">Properties</a><a href="index.html#contact">Contact</a></div>
+    <div class="footer-col"><h4>Communities</h4><a href="towns/waynesville.html">Waynesville</a><a href="towns/sylva.html">Sylva</a><a href="towns/bryson-city.html">Bryson City</a><a href="towns/cashiers-highlands.html">Cashiers / Highlands</a></div>
+  </div>
+  <div class="footer-bottom"><p>&copy; 2026 Cory Coleman | <img src="keller-williams-great-smokies-western-nc-real-estate.png" alt="Keller Williams Great Smokies WNC" class="footer-bottom-logo"> Keller Williams Great Smokies. All rights reserved.</p></div>
+</footer>
+
+<script>
+// Minimal self-contained behavior (no app.js/MLS needed on this page).
+(function(){ try{ var s=localStorage.getItem('cc-theme'); if(s) document.documentElement.setAttribute('data-theme', s); }catch(e){} })();
+function toggleTheme(){ var d=document.documentElement; var n=d.getAttribute('data-theme')==='dark'?'light':'dark'; d.setAttribute('data-theme', n); try{localStorage.setItem('cc-theme', n);}catch(e){} }
+
+var HV_DESC = {
+  condition:['Needs work','Below average','Average','Well maintained','Like new'],
+  finish:['Builder basic','Modest','Average','Upgraded','Luxury'],
+  kitchen:['Original / dated','Minor updates','Average','Updated','Renovated'],
+  view:['None','Filtered / trees','Partial','Good','Long-range'],
+  outdoor:['None','Basic','Average','Nice deck / porch','Resort-style'],
+  privacy:['Close neighbors','Suburban','Average','Private','Secluded'],
+  waterfront:['None','Seasonal creek','Pond / small','Creek / stream','Lake / river']
+};
+function hvUpdate(el){
+  var c=el.getAttribute('data-cat'), v=parseInt(el.value,10);
+  var d=(HV_DESC[c]||[])[v-1]||'';
+  var out=document.getElementById('val-'+c);
+  if(out) out.textContent=v+' · '+d;
+}
+
+// Backend: save the lead and push to Follow Up Boss, the same pipeline every
+// other form on the site uses. The anon key is public by design (RLS-gated).
+var HV_SB_URL='https://kzaabnnwjupjqvydiqlz.supabase.co';
+var HV_SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6YWFibm53anVwanF2eWRpcWx6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExMTE5NDMsImV4cCI6MjA4NjY4Nzk0M30.2B2sJnAuDim_yhn5UFKxXzdZw58ne4E20-ulW8pTwPA';
+var HV_LABELS={condition:'Condition',finish:'Fit & finish',kitchen:'Kitchen',view:'View',outdoor:'Outdoor living',privacy:'Privacy / setting',waterfront:'Waterfront'};
+function hvBuildMessage(p){
+  var L=['HOME VALUATION REQUEST',''];
+  if(p.address) L.push('Address: '+p.address);
+  var facts=[];
+  if(p.beds) facts.push('Beds '+p.beds);
+  if(p.baths) facts.push('Baths '+p.baths);
+  if(p.stories) facts.push('Stories '+p.stories);
+  if(p.basement) facts.push('Basement '+p.basement);
+  if(p.acres) facts.push('Acres '+p.acres);
+  if(facts.length) L.push(facts.join('  |  '));
+  if(p.details){ L.push(''); L.push('Their notes: '+p.details); }
+  L.push('', 'Self-ratings (1 to 5):');
+  ['condition','finish','kitchen','view','outdoor','privacy','waterfront'].forEach(function(c){
+    if(p.ratings[c]!=null) L.push('  '+HV_LABELS[c]+': '+p.ratings[c]+' ('+((HV_DESC[c]||[])[p.ratings[c]-1]||'')+')');
+  });
+  L.push('  Overall average: '+p.ratingAvg);
+  var subj=['condition','finish','kitchen','view'].map(function(c){return p.ratings[c]||0;});
+  var subjAvg=Math.round((subj.reduce(function(a,b){return a+b;},0)/subj.length)*10)/10;
+  if(subjAvg>=4.5) L.push('', '** HEADS-UP: they rated condition, finish, kitchen, and view very high (avg '+subjAvg+'). They see their home well above average, so set expectations early. **');
+  return L.join('\n');
+}
+function hvSubmit(e){
+  e.preventDefault();
+  var f=e.target, err=document.getElementById('hvError');
+  var g=function(n){ var el=f.elements[n]; return (el && el.value!=null) ? String(el.value) : ''; };
+  var name=g('name').trim(), email=g('email').trim();
+  if(!name || !email || email.indexOf('@')<1){
+    err.textContent='Please add your name and a valid email so Cory can send your valuation.';
+    err.style.display='block'; err.scrollIntoView({behavior:'smooth',block:'center'}); return false;
+  }
+  err.style.display='none';
+  var ratings={};
+  ['condition','finish','kitchen','view','outdoor','privacy','waterfront'].forEach(function(c){
+    var s=f.querySelector('[data-cat="'+c+'"]'); if(s) ratings[c]=parseInt(s.value,10);
+  });
+  var avg=Object.keys(ratings).reduce(function(a,k){return a+ratings[k];},0)/(Object.keys(ratings).length||1);
+  var payload={
+    name:name, email:email, phone:g('phone').trim(),
+    address:g('address').trim(),
+    beds:g('beds'), baths:g('baths'), stories:g('stories'),
+    basement:g('basement'), acres:g('acres').trim(),
+    details:g('details').trim(),
+    ratings:ratings, ratingAvg:Math.round(avg*10)/10
+  };
+  // Save the lead + push to Follow Up Boss (same path as the consultation form).
+  var parts=name.split(/\s+/);
+  var lead={ first_name:parts[0]||name, last_name:parts.slice(1).join(' '), email:email, phone:payload.phone, message:hvBuildMessage(payload), source:'home_valuation' };
+  var h={'Content-Type':'application/json','apikey':HV_SB_KEY,'Authorization':'Bearer '+HV_SB_KEY};
+  try{
+    fetch(HV_SB_URL+'/rest/v1/leads',{method:'POST',headers:Object.assign({'Prefer':'return=minimal'},h),body:JSON.stringify(lead)}).catch(function(){});
+    fetch(HV_SB_URL+'/functions/v1/fub-push',{method:'POST',headers:h,body:JSON.stringify(lead)}).catch(function(){});
+  }catch(_e){}
+  if(typeof gtag==='function') gtag('event','qualify_lead',{event_category:'valuation',event_label:'home_valuation'});
+  console.log('[Home Valuation] lead submitted ('+lead.source+', avg '+payload.ratingAvg+')');
+  document.getElementById('hvFormWrap').style.display='none';
+  var ty=document.getElementById('hvThankYou');
+  ty.querySelector('[data-name]').textContent=parts[0]||name;
+  ty.querySelector('[data-email]').textContent=email;
+  ty.style.display='block';
+  ty.scrollIntoView({behavior:'smooth',block:'start'});
+  return false;
+}
+</script>
+</body>
+</html>
