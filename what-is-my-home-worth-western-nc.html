@@ -89,6 +89,20 @@
 .hv-perks{display:flex;flex-wrap:wrap;gap:1rem;justify-content:center;margin:1.25rem 0 0;list-style:none;padding:0}
 .hv-perks li{color:var(--text-muted);font-size:0.82rem;display:flex;align-items:center;gap:0.4rem}
 .hv-perks svg{width:15px;height:15px;stroke:var(--gold);fill:none;stroke-width:2}
+.hv-cta-btn{display:inline-block;margin-top:1.5rem;background:var(--gold);color:var(--bg);font-family:'Outfit',sans-serif;font-size:0.72rem;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;padding:0.9rem 2rem;border-radius:9px;text-decoration:none;transition:background 0.3s}
+.hv-cta-btn:hover{background:var(--gold-light)}
+.hv-content{max-width:680px;margin:0 auto 1rem;text-align:left}
+.hv-content h2{font-family:'Cormorant Garamond',Georgia,serif;font-size:clamp(1.5rem,3.5vw,2rem);font-weight:400;color:var(--cream);line-height:1.2;margin:2.5rem 0 0.85rem}
+.hv-content h2 em{font-style:italic;color:var(--gold)}
+.hv-content p{color:var(--text-body);font-size:0.95rem;line-height:1.8;margin-bottom:1rem}
+.hv-content ul{color:var(--text-body);font-size:0.95rem;line-height:1.8;margin:0 0 1.25rem 1.25rem}
+.hv-content li{margin-bottom:0.5rem}
+.hv-content strong{color:var(--cream)}
+.hv-content a{color:var(--gold);text-decoration:underline}
+.hv-formhead{max-width:680px;margin:3rem auto 1.5rem;text-align:center;padding-top:2.5rem;border-top:1px solid var(--border)}
+.hv-formhead h2{font-family:'Cormorant Garamond',Georgia,serif;font-size:clamp(1.6rem,4vw,2.3rem);font-weight:300;color:var(--cream);margin-bottom:0.6rem}
+.hv-formhead h2 em{font-style:italic;color:var(--gold)}
+.hv-formhead p{color:var(--text-muted);font-size:0.92rem;line-height:1.7;max-width:34rem;margin:0 auto}
 .hv-thanks{display:none;text-align:center;border:1px solid var(--border);background:var(--bg-warm);border-radius:14px;padding:3rem 1.5rem}
 .hv-thanks h2{font-family:'Cormorant Garamond',Georgia,serif;font-weight:400;color:var(--cream);font-size:2rem;margin:0 0 0.75rem}
 .hv-thanks p{color:var(--text-muted);line-height:1.7;max-width:30rem;margin:0 auto 0.5rem}
@@ -128,12 +142,45 @@
   <div class="hv-intro">
     <div class="section-label">Free Home Valuation</div>
     <h1>What's Your <em>Western NC</em> Home Worth?</h1>
-    <p class="hv-lead">Zillow's estimate is an algorithm. It cannot see your view, your road, or what you have put into your home, and on mountain properties there often are not enough comparable sales for it to get close. Get a real valuation from someone who actually works these markets.</p>
+    <p class="hv-lead">Zillow's estimate is an algorithm. It cannot see your view, your road, or what you have put into your home, and on mountain properties there often are not enough comparable sales for it to get close. Here is how home values actually work in these mountains, and how to get a real number for yours.</p>
     <ul class="hv-perks">
       <li><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> A real market analysis, not a guess</li>
       <li><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> Based on recent local sales</li>
       <li><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> No cost, no obligation</li>
     </ul>
+    <a href="#valuation-form" class="hv-cta-btn">Get my free valuation</a>
+  </div>
+
+  <div class="hv-content">
+    <h2>How to Find Out What Your Home Is <em>Really Worth</em></h2>
+    <p>There are three ways to put a number on your home, and they are not equal.</p>
+    <ul>
+      <li><strong>An online estimate</strong> (Zillow's Zestimate, Redfin, and the like). Free and instant, but it is an algorithm guessing from public records and nearby sales. On mountain property it is often off by tens of thousands in either direction, for the reasons below.</li>
+      <li><strong>A licensed appraisal.</strong> The most formal option, usually $400 to $600, and typically ordered by a lender during a refinance or purchase. Accurate, but it costs money and it is built for the lender, not for setting your list price.</li>
+      <li><strong>A comparative market analysis, or CMA,</strong> from a local agent. A broker's opinion of value based on recent comparable sales, adjusted for your home's specific features. It is free, it is what most sellers actually use to price a home, and it is what you can request at the bottom of this page.</li>
+    </ul>
+
+    <h2>Why Online Estimates <em>Miss Mountain Homes</em></h2>
+    <p>Automated estimates work reasonably well in a subdivision where every third house is nearly identical and sells often. They fall apart in the mountains, and it is worth knowing why before you trust a number.</p>
+    <p>These tools lean on two things: recent sales of comparable homes nearby, and public data about your property. In rural Western NC, both are thin. There may be only a handful of truly comparable sales in your area in the past year, and the algorithm cannot see the things that move a mountain home's value the most. It does not know whether you have a long-range view or look into the trees, whether your road is paved or a steep gravel climb, the quality of your finishes, or how usable your acreage actually is. Zillow itself reports a higher error rate on rural and unique homes than on cookie-cutter suburban ones. The result is a number that can be confidently wrong.</p>
+
+    <h2>What Actually <em>Drives the Value</em></h2>
+    <p>When I price a home up here, these are the factors that move the needle, and they are exactly what an algorithm cannot weigh:</p>
+    <ul>
+      <li><strong>The view.</strong> A long-range, unobstructed mountain view can add real value over an otherwise identical home that looks into the woods.</li>
+      <li><strong>Access and road.</strong> Paved, county-maintained access is worth more than a steep private gravel road, and it changes the buyer pool.</li>
+      <li><strong>Land and usability.</strong> Acreage matters, but so does whether it is flat and usable or steep and wooded.</li>
+      <li><strong>Condition and finish.</strong> Updated kitchens and baths, newer roofs and systems, and quality finishes all read in the price.</li>
+      <li><strong>Elevation and setting.</strong> Higher-elevation and more private properties appeal to a particular buyer and price differently.</li>
+      <li><strong>The current market.</strong> What is selling, how fast, and at what price, right now, in your specific area.</li>
+    </ul>
+
+    <h2>What Western NC Homes Are <em>Selling For Now</em></h2>
+    <p>For context, the spring 2026 market puts the median sale price in Haywood County around $398,000 and Jackson County higher at roughly $430,000, according to Canopy MLS regional data. Homes are taking 60 to 80 days on market in many price ranges, longer than the pandemic-era peak, which means accurate pricing matters more than it has in years. For the latest figures, see my <a href="blog/western-nc-real-estate-market-update-june-2026.html">Western NC market update</a>.</p>
+    <p>But a county median tells you almost nothing about <em>your</em> home. A creek-front cabin, an in-town bungalow, and a ridge-top house with a long-range view can all sit in the same county and be worth very different amounts.</p>
+
+    <h2>How a Real Valuation <em>Works</em></h2>
+    <p>When you request a valuation below, here is what happens. I look at what has actually sold near you recently, adjust those sales for how your home compares (the view, the acreage, the condition, the access), and give you an honest range along with what I would suggest for strategy. It is free, there is no obligation, and there is no pressure to list. Plenty of people just want to know where they stand.</p>
   </div>
 
   <!--
@@ -148,6 +195,11 @@
       waterfront-1 none                           waterfront-5 lake / river frontage
     With no image present, each box shows a labeled gold-tinted placeholder (graceful).
   -->
+
+  <div class="hv-formhead" id="valuation-form">
+    <h2>Get Your <em>Free Valuation</em></h2>
+    <p>Now you know how it works. Tell me about your home below and I will send you an honest range. Only your name and email are required, and there is no obligation.</p>
+  </div>
 
   <div id="hvFormWrap">
   <form id="hvForm" onsubmit="return hvSubmit(event)" novalidate>
