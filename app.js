@@ -1118,6 +1118,26 @@ var MLS_GRID = {
       });
     });
   },
+  // Per-town server-side load. Replaces the eager ~9k-row bulk init() for town
+  // pages: fetches just this town's listings via the search_listings RPC and
+  // parks them on TOWN_LISTINGS[slug] so the existing renderTownFeatured() and
+  // townSearch() render unchanged. Landing pages (root URL, no /towns/ slug)
+  // call this with nothing and load nothing.
+  loadTownListings: function(townSlug) {
+    if(!MLS_GRID.enabled || !_sb) return Promise.resolve([]);
+    var area = (typeof TOWN_AREA !== 'undefined') ? TOWN_AREA[townSlug] : null;
+    var cities = (area && typeof AREA_CITIES !== 'undefined' && AREA_CITIES[area]) ? AREA_CITIES[area]
+               : (TOWN_LISTINGS[townSlug] ? [TOWN_LISTINGS[townSlug].display] : [townSlug]);
+    return MLS_GRID.searchListings({ p_cities: cities, p_limit: 400 }).then(function(listings){
+      if(!TOWN_LISTINGS[townSlug]) TOWN_LISTINGS[townSlug] = { display: townSlug, listings: [] };
+      TOWN_LISTINGS[townSlug].listings = listings;
+      _log('[MLS Grid] loadTownListings(' + townSlug + ') -> ' + listings.length + ' listings');
+      return listings;
+    }).catch(function(err){
+      _warn('[MLS Grid] loadTownListings(' + townSlug + ') failed:', err.message || err);
+      return [];
+    });
+  },
   // Lazy photo hydration for a single town overlay. init() no longer
   // bulk-fetches all 43k primary photo rows on cold load, so when the user
   // opens an SPA-style town overlay we fetch just that town's top-N photos
@@ -1470,10 +1490,16 @@ var MLS_GRID = {
     // listing report (228 Old Owl Ridge).
     window.addEventListener('pageshow', function(e) {
       if (!e.persisted || !MLS_GRID.enabled) return;
-      // Refresh the visible featured grid first — small, fast, always wanted.
+      // Refresh the visible featured grid first (small, fast, always wanted).
       MLS_GRID._loadFeatured();
-      // Town pages also need TOWN_LISTINGS refreshed; init() is in-place.
-      if (typeof _isTownPage !== 'undefined' && _isTownPage) MLS_GRID.init();
+      // Town pages: refresh just this town's listings server-side (no bulk init).
+      if (typeof _isTownPage !== 'undefined' && _isTownPage) {
+        var _pm = window.location.pathname.match(/\/towns\/([a-z-]+)\.html/i);
+        var _ts = _pm ? _pm[1].toLowerCase() : '';
+        if(_ts && TOWN_LISTINGS[_ts] && typeof MLS_GRID.loadTownListings === 'function') {
+          MLS_GRID.loadTownListings(_ts).then(function(){ townSearch(_ts); renderTownFeatured(_ts); });
+        }
+      }
     });
   },
   // Load all photos for a specific listing (on-demand for property detail overlay)
@@ -4443,6 +4469,12 @@ var AREA_CITIES = {
   'Dillsboro': ['Dillsboro'],
   'Cullowhee': ['Cullowhee','Webster','Tuckasegee'],
   'Asheville': ['Asheville','Arden','Black Mountain','Candler','Enka','Fairview','Fletcher','Leicester','Mars Hill','Montreat','Swannanoa','Weaverville','Woodfin']
+};
+// Town-page slug -> AREA_CITIES key, for per-town server-side loads (loadTownListings)
+var TOWN_AREA = {
+  'waynesville':'Waynesville','sylva':'Sylva','maggie-valley':'Maggie Valley',
+  'bryson-city':'Bryson City','cashiers-highlands':'Cashiers','franklin':'Franklin',
+  'dillsboro':'Dillsboro','cullowhee':'Cullowhee'
 };
 // Display labels for area chip
 var AREA_LABELS = {
@@ -9211,24 +9243,34 @@ if(MLS_GRID.enabled) {
   // MLS_GRID.ensureInit(). That saves ~9-15s of background paginated
   // listings + siblings fetches on every homepage cold load.
   if(_isTownPage) {
-    // Town page: bulk fetch needed for the visible filtered grid + featured trio.
-    MLS_GRID.ensureInit().then(function(){
-      if(typeof updateAcctUI === 'function') updateAcctUI();
+    if(typeof updateAcctUI === 'function') updateAcctUI();
+    var _townPathMatch = window.location.pathname.match(/\/towns\/([a-z-]+)\.html/i);
+    var _townSlug = _townPathMatch ? _townPathMatch[1].toLowerCase() : '';
+    if(_townSlug && TOWN_LISTINGS[_townSlug]) {
+      // Per-town server-side load (replaces the eager ~9k-row bulk init that
+      // timed out). Fetches only this town's listings via search_listings.
+      MLS_GRID.loadTownListings(_townSlug).then(function(){
+        townSearch(_townSlug);
+        renderTownFeatured(_townSlug);
+        _log('[MLS Grid] Town page loaded: ' + _townSlug + ' with ' + TOWN_LISTINGS[_townSlug].listings.length + ' listings');
+        var srOverlay = document.getElementById('searchOverlay');
+        if(srOverlay && srOverlay.classList.contains('active') && typeof srApplyFilters === 'function') {
+          _srSkipMapFit = true;
+          srApplyFilters();
+          _srSkipMapFit = false;
+        }
+      });
+    }
+    // Deep links (#property/... or #collection/...) still need the full
+    // ALL_LISTINGS set to resolve, so fire the lazy bulk init only then.
+    var _townHash = window.location.hash || '';
+    if(_townHash.indexOf('#property/') === 0 || _townHash.indexOf('#collection/') === 0) {
+      MLS_GRID.ensureInit().then(function(){
+        if(!_checkCollectionDeepLink()) _checkPropDeepLink();
+      });
+    } else {
       if(!_checkCollectionDeepLink()) _checkPropDeepLink();
-      var pathMatch = window.location.pathname.match(/\/towns\/([a-z-]+)\.html/i);
-      var townSlug = pathMatch ? pathMatch[1].toLowerCase() : '';
-      if(townSlug && TOWN_LISTINGS[townSlug]) {
-        townSearch(townSlug);
-        renderTownFeatured(townSlug);
-        _log('[MLS Grid] Town page refreshed: ' + townSlug + ' with ' + TOWN_LISTINGS[townSlug].listings.length + ' listings');
-      }
-      var srOverlay = document.getElementById('searchOverlay');
-      if(srOverlay && srOverlay.classList.contains('active') && typeof srApplyFilters === 'function') {
-        _srSkipMapFit = true;
-        srApplyFilters();
-        _srSkipMapFit = false;
-      }
-    });
+    }
   } else {
     // Homepage: skip the eager bulk fetch. Account UI doesn't need ALL_LISTINGS.
     // Deep links (#property/... or #collection/...) trigger ensureInit() so the
