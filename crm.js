@@ -1783,9 +1783,11 @@ var CMA_RATES = {
   fireplace_stone_premium: 5000,
   covered_outdoor_per_sqft: 30,
   outbuilding_tier_values: [0, 5000, 15000, 30000],
-  // Construction type: % of improvement value (sale price minus estimated lot value)
-  // Positive = premium over site-built, negative = discount
-  construction_pct: { site_built: 0, manufactured: -0.25, modular: -0.10, log: 0.10, mobile_home: -0.35, unknown: 0 }
+  // Construction type: % of STRUCTURE value (living area x price_per_sqft), NOT price.
+  // Basing it on price double-counts land (a cabin on 15ac vs a house on 0.5ac).
+  // Positive = premium over site-built, negative = discount. Modular ~= site-built
+  // (same building codes/financing) so only a token discount; manufactured/mobile differ materially.
+  construction_pct: { site_built: 0, manufactured: -0.25, modular: -0.03, log: 0.05, mobile_home: -0.35, unknown: 0 }
 };
 
 function cmaCalcLotValue(acres) {
@@ -1840,15 +1842,13 @@ function cmaRecalcAdjFromValue(ci, adjKey) {
       var subCT = sf.construction_type || 'site_built';
       var compCT = cmaGetCompVal(ci, 'construction_type') || 'site_built';
       if (subCT === compCT) return 0;
-      // % of improvement value (sale price minus estimated lot value)
-      var c = _cmaState.selectedComps[ci];
-      var compPrice = c.listing.close_price || c.listing.list_price || 0;
-      var compLot = cmaGetCompVal(ci, 'lot_size_acres') || c.listing.lot_size_acres || 0;
-      var lotVal = cmaCalcLotValue(compLot);
-      var improvementVal = Math.max(compPrice - lotVal, compPrice * 0.3); // floor at 30% of price
+      // Structure-based: premium attaches to the building (living area), never to land.
+      var compSqft = cmaGetCompVal(ci, 'living_area') || _cmaState.selectedComps[ci].listing.living_area || 0;
+      if (!compSqft) return 0; // no sqft -> can't size a structure premium
+      var structureVal = compSqft * r.price_per_sqft;
       var subPct = r.construction_pct[subCT] || 0;
       var compPct = r.construction_pct[compCT] || 0;
-      return Math.round(improvementVal * (subPct - compPct));
+      return Math.round(structureVal * (subPct - compPct));
     }
     case 'adj_view': {
       var sv = sf.view_quality || 0, cv = cmaGetCompVal(ci, 'view_quality') || 0;
@@ -1981,11 +1981,12 @@ function cmaInitConstructionAdj() {
     }
     var adj = 0;
     if (subCT !== compCT) {
-      var compPrice = c.listing.close_price || c.listing.list_price || 0;
-      var compLot = c.listing.lot_size_acres || 0;
-      var lotVal = cmaCalcLotValue(compLot);
-      var improvementVal = Math.max(compPrice - lotVal, compPrice * 0.3);
-      adj = Math.round(improvementVal * ((cp[subCT] || 0) - (cp[compCT] || 0)));
+      // Structure-based: premium attaches to living area, never to land/price.
+      var compSqft = c.listing.living_area || 0;
+      if (compSqft) {
+        var structureVal = compSqft * CMA_RATES.price_per_sqft;
+        adj = Math.round(structureVal * ((cp[subCT] || 0) - (cp[compCT] || 0)));
+      }
     }
     if (a.adjustments.adj_construction_type !== adj) {
       a.adjustments.adj_construction_type = adj;
@@ -3326,7 +3327,7 @@ async function cmaGoStep3() {
   _cmaState.compOverrides = {};
   _cmaState.selectedComps.forEach(function(c, i) {
     var cf = c.features || {};
-    _cmaState.compConditions[i] = cf.condition_rating || 3; // Default to 3 (Fair for Age)
+    _cmaState.compConditions[i] = cf.condition_rating || 0; // Unrated -> "Unknown", no condition adj until the agent rates it
     _cmaState.compOverrides[i] = {};
   });
   // Calculate construction type adjustment (not in engine, client-side only)
@@ -3569,7 +3570,7 @@ function cmaRenderStep3() {
   html += '<tr><td>Condition</td><td class="cma-grid-subject-val">' + (subCond > 0 ? condLabels[subCond] || subCond + '/5' : '--') + '</td>';
   adjs.forEach(function(a, ci) {
     var cf = comps[ci].features || {};
-    var compCond = (_cmaState.compConditions && _cmaState.compConditions[ci] != null) ? _cmaState.compConditions[ci] : (cf.condition_rating || 3);
+    var compCond = (_cmaState.compConditions && _cmaState.compConditions[ci] != null) ? _cmaState.compConditions[ci] : (cf.condition_rating || 0);
     if (!_cmaState.compConditions) _cmaState.compConditions = {};
     if (_cmaState.compConditions[ci] == null) _cmaState.compConditions[ci] = compCond;
     var adjVal = a.adjustments.adj_condition || 0;
@@ -4368,7 +4369,7 @@ async function cmaReplaceComp(compIdx, newCompKey) {
   // Update comp condition and clear overrides for the replaced comp
   if (_cmaState.compConditions) {
     var cf = newComp.features || {};
-    _cmaState.compConditions[compIdx] = cf.condition_rating || 3;
+    _cmaState.compConditions[compIdx] = cf.condition_rating || 0;
   }
   if (_cmaState.compOverrides) {
     _cmaState.compOverrides[compIdx] = {};

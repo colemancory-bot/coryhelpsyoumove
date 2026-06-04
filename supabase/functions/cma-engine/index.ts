@@ -107,6 +107,40 @@ function distanceMiles(
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// ── Construction type resolution (shared by scoreComp and comp selection) ──
+function isFactoryConstruction(t: string): boolean { return ["manufactured", "modular", "mobile_home"].includes(t); }
+function isMobileHomeConstruction(t: string): boolean { return t === "mobile_home"; }
+function isModularConstruction(t: string): boolean { return t === "modular"; }
+function isLogConstruction(t: string): boolean { return t === "log"; }
+
+// Resolve construction type from feature tags, then MLS sub-type / materials / raw_data.
+// "Log Siding" is NOT log construction (exterior veneer); only standalone "Log" counts.
+function resolveConstruction(features: Record<string, unknown> | null, listing: Record<string, unknown>): string {
+  const tagged = (features?.construction_type as string) || "unknown";
+  if (tagged !== "unknown") return tagged;
+  const subType = ((listing.property_sub_type || "") as string).toLowerCase();
+  if (subType.includes("manufactured") || subType.includes("mobile")) return "manufactured";
+  if (subType.includes("modular")) return "modular";
+  const raw = (listing.raw_data || {}) as Record<string, unknown>;
+  const carConst = ((raw.CAR_ConstructionType || "") as string).toLowerCase();
+  const bodyType = (Array.isArray(raw.BodyType) ? raw.BodyType.join(" ") : ((raw.BodyType || "") as string)).toLowerCase();
+  if (carConst.includes("manufactured") || carConst.includes("mobile") ||
+      bodyType.includes("double wide") || bodyType.includes("single wide") ||
+      bodyType.includes("manufactured")) {
+    const yr = (listing.year_built || 0) as number;
+    return (yr > 0 && yr < 1976) ? "mobile_home" : "manufactured";
+  }
+  if (carConst.includes("modular") || bodyType.includes("modular")) return "modular";
+  const constMats = Array.isArray(raw.ConstructionMaterials) ? raw.ConstructionMaterials : [];
+  const hasLogMaterial = constMats.some((m: unknown) => ((m || "") as string).toLowerCase().trim() === "log");
+  const colMats = Array.isArray(listing.construction_materials) ? listing.construction_materials : [];
+  const hasLogCol = colMats.some((m: unknown) => ((m || "") as string).toLowerCase().trim() === "log");
+  const archStyle = (Array.isArray(raw.ArchitecturalStyle) ? raw.ArchitecturalStyle.join(" ") : ((raw.ArchitecturalStyle || "") as string)).toLowerCase();
+  const structType = (Array.isArray(raw.StructureType) ? raw.StructureType.join(" ") : ((raw.StructureType || "") as string)).toLowerCase();
+  if (hasLogMaterial || hasLogCol || carConst.includes("log") || bodyType.includes("log") || archStyle.includes("log") || structType.includes("log")) return "log";
+  return "site_built";
+}
+
 // Score how similar a comp is to the subject (0-1, higher = more similar)
 function scoreComp(
   subject: ListingData,
@@ -144,54 +178,6 @@ function scoreComp(
   // - Post-1976 manufactured homes (HUD code) appreciate similarly on owned land (moderate penalty)
   // - Pre-1976 mobile homes are unfinanceable via FHA/VA/USDA/conventional (severe penalty)
   {
-    const isFactory = (t: string) => ["manufactured", "modular", "mobile_home"].includes(t);
-    const isMobileHome = (t: string) => t === "mobile_home";
-    const isModular = (t: string) => t === "modular";
-    const isLog = (t: string) => t === "log";
-
-    // Resolve construction type with fallback inference from MLS data
-    const resolveConstruction = (features: Record<string, unknown> | null, listing: Record<string, unknown>): string => {
-      // Check feature tags first
-      const tagged = (features?.construction_type as string) || "unknown";
-      if (tagged !== "unknown") return tagged;
-      // Infer from property_sub_type (MLS explicitly flags manufactured/modular)
-      const subType = ((listing.property_sub_type || "") as string).toLowerCase();
-      if (subType.includes("manufactured") || subType.includes("mobile")) return "manufactured";
-      if (subType.includes("modular")) return "modular";
-      // Infer from raw_data if available
-      const raw = (listing.raw_data || {}) as Record<string, unknown>;
-      const carConst = ((raw.CAR_ConstructionType || "") as string).toLowerCase();
-      const bodyType = (Array.isArray(raw.BodyType) ? raw.BodyType.join(" ") : ((raw.BodyType || "") as string)).toLowerCase();
-      if (carConst.includes("manufactured") || carConst.includes("mobile") ||
-          bodyType.includes("double wide") || bodyType.includes("single wide") ||
-          bodyType.includes("manufactured")) {
-        const yr = (listing.year_built || 0) as number;
-        return (yr > 0 && yr < 1976) ? "mobile_home" : "manufactured";
-      }
-      if (carConst.includes("modular") || bodyType.includes("modular")) return "modular";
-      // Log detection: check ConstructionMaterials (Canopy's "Exterior Covering" maps here),
-      // ArchitecturalStyle, StructureType, and CAR_ConstructionType.
-      // IMPORTANT: "Log Siding" is NOT log construction (just exterior veneer on stick-frame).
-      // Only "Log" as a standalone value indicates true log construction.
-      const constMats = Array.isArray(raw.ConstructionMaterials) ? raw.ConstructionMaterials : [];
-      const hasLogMaterial = constMats.some((m: unknown) => {
-        const ms = ((m || "") as string).toLowerCase().trim();
-        return ms === "log"; // Exact match: "Log" but NOT "Log Siding"
-      });
-      // Also check the DB column (RESO standard field)
-      const colMats = Array.isArray(listing.construction_materials) ? listing.construction_materials : [];
-      const hasLogCol = colMats.some((m: unknown) => {
-        const ms = ((m || "") as string).toLowerCase().trim();
-        return ms === "log";
-      });
-      const archStyle = (Array.isArray(raw.ArchitecturalStyle) ? raw.ArchitecturalStyle.join(" ") : ((raw.ArchitecturalStyle || "") as string)).toLowerCase();
-      const structType = (Array.isArray(raw.StructureType) ? raw.StructureType.join(" ") : ((raw.StructureType || "") as string)).toLowerCase();
-      if (hasLogMaterial || hasLogCol || carConst.includes("log") || bodyType.includes("log") || archStyle.includes("log") || structType.includes("log")) return "log";
-      // Default: if subject has known type and we can't determine comp, assume site_built
-      // Rationale: MLS data explicitly flags manufactured/modular; absence implies site-built
-      return "site_built";
-    };
-
     const subConstruction = subjectFeatures
       ? resolveConstruction(subjectFeatures, subject)
       : "unknown";
@@ -203,25 +189,25 @@ function scoreComp(
       if (subConstruction === compConstruction) {
         // Exact construction type match bonus
         scores.type_match = Math.min(1.0, scores.type_match * 1.1);
-      } else if (isLog(subConstruction) || isLog(compConstruction)) {
+      } else if (isLogConstruction(subConstruction) || isLogConstruction(compConstruction)) {
         // Log home vs non-log: moderate penalty (different market segment, buyers seek log specifically)
         // Log-to-site_built is more acceptable than log-to-manufactured
-        if (isFactory(subConstruction) || isFactory(compConstruction)) {
+        if (isFactoryConstruction(subConstruction) || isFactoryConstruction(compConstruction)) {
           scores.type_match *= 0.2; // Log vs manufactured/modular: very different markets
         } else {
           scores.type_match *= 0.5; // Log vs site-built: same financing, different aesthetic/premium
         }
-      } else if (isModular(subConstruction) && !isFactory(compConstruction) ||
-                 isModular(compConstruction) && !isFactory(subConstruction)) {
+      } else if (isModularConstruction(subConstruction) && !isFactoryConstruction(compConstruction) ||
+                 isModularConstruction(compConstruction) && !isFactoryConstruction(subConstruction)) {
         // Modular vs site-built: mild penalty (same building codes, same financing)
         scores.type_match *= 0.7;
-      } else if (isMobileHome(subConstruction) || isMobileHome(compConstruction)) {
+      } else if (isMobileHomeConstruction(subConstruction) || isMobileHomeConstruction(compConstruction)) {
         // Pre-1976 mobile home involved: severe penalty (unfinanceable, different market)
         scores.type_match *= 0.15;
-      } else if (isFactory(subConstruction) !== isFactory(compConstruction)) {
+      } else if (isFactoryConstruction(subConstruction) !== isFactoryConstruction(compConstruction)) {
         // Post-1976 manufactured vs site-built: moderate penalty
         scores.type_match *= 0.3;
-      } else if (isFactory(subConstruction) && isFactory(compConstruction)) {
+      } else if (isFactoryConstruction(subConstruction) && isFactoryConstruction(compConstruction)) {
         // Both factory-built but different sub-types (e.g., manufactured vs modular)
         scores.type_match *= 0.8;
       }
@@ -1905,16 +1891,21 @@ Deno.serve(async (req: Request) => {
         subjectTags = { ...(subjectTags || {}), ...body.feature_overrides };
       }
 
+      // Resolve subject construction; log subjects search a wider radius (scarce log sales)
+      let subConstr = resolveConstruction(subjectTags, subject);
+      if (subConstr === "unknown") subConstr = "site_built";
+      const isLogSubject = subConstr === "log";
+
       // Build comp query
       const dateFloor =
         filters.min_close_date ||
         new Date(Date.now() - 365 * 86400000).toISOString().split("T")[0];
-      const maxDistance = filters.max_distance_miles || 15;
+      const maxDistance = filters.max_distance_miles || (isLogSubject ? 40 : 15);
 
       let compQuery = sb
         .from("mls_listings")
         .select(
-          "listing_key, full_address, city, county_or_parish, property_type, property_sub_type, living_area, lot_size_acres, bedrooms_total, bathrooms_total_integer, year_built, garage_spaces, close_price, close_date, list_price, latitude, longitude, standard_status, stories, public_remarks"
+          "listing_key, full_address, city, county_or_parish, property_type, property_sub_type, living_area, lot_size_acres, bedrooms_total, bathrooms_total_integer, year_built, garage_spaces, close_price, close_date, list_price, latitude, longitude, standard_status, stories, public_remarks, construction_materials"
         )
         .eq("standard_status", "Closed")
         .not("close_price", "is", null)
@@ -2107,14 +2098,20 @@ Deno.serve(async (req: Request) => {
         subjectTags = { ...(subjectTags || {}), ...body.feature_overrides };
       }
 
+      // Resolve subject construction up front (drives radius + comp pooling below)
+      let subConstr = resolveConstruction(subjectTags, subject);
+      if (subConstr === "unknown") subConstr = "site_built";
+      const isLogSubject = subConstr === "log";
+
       // Find comps (same logic as find-comps action)
       const dateFloor = filters.min_close_date ||
         new Date(Date.now() - 365 * 86400000).toISOString().split("T")[0];
-      const maxDistance = filters.max_distance_miles || 15;
+      // Log subjects: widen radius to surface scarce log sales (appraisal practice: 10-40mi).
+      const maxDistance = filters.max_distance_miles || (isLogSubject ? 40 : 15);
 
       let compQuery = sb
         .from("mls_listings")
-        .select("listing_key, full_address, city, county_or_parish, property_type, property_sub_type, living_area, lot_size_acres, bedrooms_total, bathrooms_total_integer, year_built, garage_spaces, close_price, close_date, list_price, latitude, longitude, standard_status, stories, public_remarks")
+        .select("listing_key, full_address, city, county_or_parish, property_type, property_sub_type, living_area, lot_size_acres, bedrooms_total, bathrooms_total_integer, year_built, garage_spaces, close_price, close_date, list_price, latitude, longitude, standard_status, stories, public_remarks, construction_materials")
         .eq("standard_status", "Closed")
         .not("close_price", "is", null)
         .gte("close_date", dateFloor)
@@ -2196,7 +2193,18 @@ Deno.serve(async (req: Request) => {
         cleanScored = scored.filter((c) => !outlierKeys.has(c.listing.listing_key));
       }
 
-      const top10 = cleanScored.slice(0, 10);
+      // For a log subject, surface same-construction comps to the selector first
+      // (each group is already score-sorted). Backfill with non-log only as needed.
+      let pooled = cleanScored;
+      let logCompCount = 0;
+      if (isLogSubject) {
+        const logComps = cleanScored.filter((c) => resolveConstruction(c.features, c.listing) === "log");
+        const otherComps = cleanScored.filter((c) => resolveConstruction(c.features, c.listing) !== "log");
+        logCompCount = logComps.length;
+        pooled = [...logComps, ...otherComps];
+      }
+      const top10 = pooled.slice(0, 10);
+      const constructionFallback = isLogSubject && logCompCount < targetCount;
 
       if (top10.length <= targetCount) {
         // Not enough to be selective, return all
@@ -2207,6 +2215,8 @@ Deno.serve(async (req: Request) => {
           excluded_outliers: excludedOutliers.length > 0 ? excludedOutliers : undefined,
           ai_reasoning: "Not enough candidates to be selective. All available comps included.",
           total_candidates: filteredComps.length,
+          log_comp_count: isLogSubject ? logCompCount : undefined,
+          construction_fallback: isLogSubject ? constructionFallback : undefined,
         });
       }
 
@@ -2357,6 +2367,8 @@ Return JSON:
           excluded_outliers: excludedOutliers.length > 0 ? excludedOutliers : undefined,
           ai_selection: aiSelection,
           total_candidates: filteredComps.length,
+          log_comp_count: isLogSubject ? logCompCount : undefined,
+          construction_fallback: isLogSubject ? constructionFallback : undefined,
         });
       } catch (e) {
         console.error("AI comp selection error:", e);
