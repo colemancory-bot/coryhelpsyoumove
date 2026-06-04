@@ -265,6 +265,17 @@ function generateCMAHtml(data: ReportInput): string {
     ? `<p><strong>Construction note:</strong> No log-home sales were available within the search area, so comparables are site-built with a structure-based construction adjustment. Log-home valuations are most reliable when supported by log-to-log sales.</p>`
     : "";
 
+  // Photos: an agent-uploaded photo leads as the hero; MLS photos follow. The hero
+  // renders on the cover (page 1); any photos beyond it go to a 3-up grid page.
+  const _mlsPhotos = (sub.photos as string[]) || [];
+  const _photoUrlSingle = (sub.photo_url as string) || "";
+  const _uploadedPhoto = (sub.uploaded_photo_url as string) || "";
+  let _allPhotos = _mlsPhotos.length ? [..._mlsPhotos] : (_photoUrlSingle ? [_photoUrlSingle] : []);
+  if (_uploadedPhoto) _allPhotos = [_uploadedPhoto, ..._allPhotos.filter((p: string) => p !== _uploadedPhoto)];
+  const heroPhoto = _allPhotos[0] || "";
+  const heroIsUploaded = !!_uploadedPhoto;
+  const extraPhotos = _allPhotos.slice(1);
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -364,6 +375,11 @@ function generateCMAHtml(data: ReportInput): string {
   .photo-grid .hero img { max-height: 3.2in; object-fit: cover; }
   .photo-grid .small img { height: 1.5in; }
   .photo-note { font-size: 0.55rem; color: var(--text-muted); text-align: center; margin-top: 0.4rem; }
+  .cover-photo { width: 4.6in; max-width: 100%; margin-bottom: 1.4rem; }
+  .cover-photo img { width: 100%; height: 2.4in; object-fit: cover; border-radius: 6px; display: block; box-shadow: 0 2px 12px rgba(0,0,0,0.12); }
+  .cover-photo-credit { font-size: 0.5rem; color: var(--text-muted); text-align: center; margin-top: 0.25rem; }
+  .photo-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.4rem; margin-top: 0.5rem; }
+  .photo-grid-3 .photo-cell img { width: 100%; height: 1.55in; object-fit: cover; border-radius: 4px; display: block; }
   .activity-table { width: 100%; border-collapse: collapse; font-size: 0.65rem; margin-bottom: 0.8rem; }
   .activity-table th { padding: 0.35rem 0.3rem; font-size: 0.58rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; border-bottom: 2px solid var(--gold-border); background: var(--bg-subtle); text-align: center; color: var(--text-secondary); }
   .activity-table th:first-child { text-align: left; }
@@ -412,6 +428,7 @@ function generateCMAHtml(data: ReportInput): string {
     <div class="cover-label">Comparative Market Analysis</div>
     <div class="cover-address">${sub.full_address || "Property Address"}</div>
     <div class="cover-city">${sub.city || ""}, NC ${sub.postal_code || ""} &nbsp;|&nbsp; ${sub.county_or_parish || ""} County</div>
+    ${heroPhoto ? `<div class="cover-photo"><img src="${heroPhoto}" alt="${(sub.full_address as string) || "Subject property"}" onerror="this.parentElement.style.display='none'">${heroIsUploaded ? "" : `<div class="cover-photo-credit">Photo from MLS listing.</div>`}</div>` : ""}
     <div class="cover-value-box">
       <div class="cover-value-label">Estimated Market Value</div>
       <div class="cover-value">${fmt(val.suggested_price)}</div>
@@ -491,43 +508,23 @@ function generateCMAHtml(data: ReportInput): string {
   ${aiSection}
 </div>
 
-<!-- PAGES 3-4: PROPERTY PHOTOS (up to 2 pages) -->
+<!-- PROPERTY PHOTOS PAGE (only when there are photos beyond the cover hero) -->
 ${(() => {
-  const photos = (sub.photos as string[]) || [];
-  const photoUrl = sub.photo_url as string || "";
-  const uploaded = (sub.uploaded_photo_url as string) || "";
-  let allPhotos = photos.length ? photos : (photoUrl ? [photoUrl] : []);
-  // Agent-uploaded photo leads as the hero; MLS photos follow.
-  if (uploaded) allPhotos = [uploaded, ...allPhotos.filter((p: string) => p !== uploaded)];
-  if (allPhotos.length === 0) return "";
-  const heroPhoto = allPhotos[0];
-  const page1Photos = allPhotos.slice(1, 7);
-  const page2Photos = allPhotos.slice(7, 13);
-  let html = `<div class="page">
+  if (extraPhotos.length === 0) return ""; // single photo lives on the cover; no separate page
+  const gridPhotos = extraPhotos.slice(0, 12);
+  const anyMls = gridPhotos.some((p: string) => p !== _uploadedPhoto);
+  const cells = gridPhotos.map((p: string) => `<div class="photo-cell"><img src="${p}" alt="Property photo" onerror="this.parentElement.style.display='none'"></div>`).join("\n    ");
+  return `<div class="page">
   <div class="subject-header">
     <div class="section-label">Property Photos</div>
     <h2 style="font-size: 1.2rem; margin-top: 0.2rem;">${sub.full_address || ""}</h2>
   </div>
   <hr class="gold-rule-wide">
-  <div class="photo-grid">
-    <div class="hero"><img src="${heroPhoto}" alt="Primary property photo" onerror="this.style.display='none'"></div>
-    ${page1Photos.map((p: string) => `<div class="small"><img src="${p}" alt="Property photo" onerror="this.parentElement.style.display='none'"></div>`).join("\n    ")}
+  <div class="photo-grid-3">
+    ${cells}
   </div>
-  <div class="photo-note">Photos from MLS listing. Contact agent for current property photos.</div>
+  ${anyMls ? `<div class="photo-note">Photos from MLS listing. Contact agent for current property photos.</div>` : ""}
 </div>`;
-  if (page2Photos.length > 0) {
-    html += `\n<div class="page">
-  <div class="subject-header">
-    <div class="section-label">Property Photos (continued)</div>
-    <h2 style="font-size: 1.2rem; margin-top: 0.2rem;">${sub.full_address || ""}</h2>
-  </div>
-  <hr class="gold-rule-wide">
-  <div class="photo-grid">
-    ${page2Photos.map((p: string) => `<div class="small"><img src="${p}" alt="Property photo" onerror="this.parentElement.style.display='none'"></div>`).join("\n    ")}
-  </div>
-</div>`;
-  }
-  return html;
 })()}
 
 <!-- PAGE: MARKET OVERVIEW (conditional) -->
