@@ -3326,7 +3326,7 @@ async function cmaGoStep3() {
   _cmaState.compOverrides = {};
   _cmaState.selectedComps.forEach(function(c, i) {
     var cf = c.features || {};
-    _cmaState.compConditions[i] = cf.condition_rating || 3; // Default to 3 (Fair for Age)
+    _cmaState.compConditions[i] = cf.condition_rating || 0; // Unrated -> "Unknown", no condition adj until the agent rates it
     _cmaState.compOverrides[i] = {};
   });
   // Calculate construction type adjustment (not in engine, client-side only)
@@ -3569,7 +3569,7 @@ function cmaRenderStep3() {
   html += '<tr><td>Condition</td><td class="cma-grid-subject-val">' + (subCond > 0 ? condLabels[subCond] || subCond + '/5' : '--') + '</td>';
   adjs.forEach(function(a, ci) {
     var cf = comps[ci].features || {};
-    var compCond = (_cmaState.compConditions && _cmaState.compConditions[ci] != null) ? _cmaState.compConditions[ci] : (cf.condition_rating || 3);
+    var compCond = (_cmaState.compConditions && _cmaState.compConditions[ci] != null) ? _cmaState.compConditions[ci] : (cf.condition_rating || 0);
     if (!_cmaState.compConditions) _cmaState.compConditions = {};
     if (_cmaState.compConditions[ci] == null) _cmaState.compConditions[ci] = compCond;
     var adjVal = a.adjustments.adj_condition || 0;
@@ -4368,7 +4368,7 @@ async function cmaReplaceComp(compIdx, newCompKey) {
   // Update comp condition and clear overrides for the replaced comp
   if (_cmaState.compConditions) {
     var cf = newComp.features || {};
-    _cmaState.compConditions[compIdx] = cf.condition_rating || 3;
+    _cmaState.compConditions[compIdx] = cf.condition_rating || 0;
   }
   if (_cmaState.compOverrides) {
     _cmaState.compOverrides[compIdx] = {};
