@@ -4628,8 +4628,7 @@ function cmaRenderStep4() {
   html += '</div>';
   html += '<div class="cma-rec-notes-wrap">';
   html += '<label class="cma-rec-label">Subject Photo (optional)</label>';
-  var cmaExistingPhoto = (_cmaState.subject && _cmaState.subject.listing && _cmaState.subject.listing.uploaded_photo_url) || '';
-  html += '<div id="cmaSubjectPhotoWrap">' + cmaSubjectPhotoInner(cmaExistingPhoto) + '</div>';
+  html += '<div id="cmaSubjectPhotoWrap">' + cmaSubjectPhotosInner() + '</div>';
   html += '</div>';
   html += '</div>';
 
@@ -4813,42 +4812,88 @@ function cmaToggleRangeExplain() {
   }
 }
 
-// ── Subject photo upload (becomes the CMA report's hero image) ──
-function cmaSubjectPhotoInner(url) {
-  var input = '<input type="file" id="cmaSubjectPhotoInput" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="cmaUploadSubjectPhoto(this.files)" />';
-  if (url) {
-    return '<img src="' + esc(url) + '" alt="Subject photo" style="max-width:220px;max-height:150px;border-radius:6px;object-fit:cover;display:block;margin-bottom:0.5rem" />' +
-      '<button class="crm-btn crm-btn-secondary" type="button" onclick="cmaRemoveSubjectPhoto()">Remove photo</button>' + input;
+// ── Subject photos (first = report cover/hero; the rest fill the photo grid page) ──
+function cmaGetSubjectPhotos() {
+  var l = _cmaState.subject && _cmaState.subject.listing;
+  if (!l) return [];
+  if (!Array.isArray(l.uploaded_photos)) {
+    l.uploaded_photos = l.uploaded_photo_url ? [l.uploaded_photo_url] : []; // seed from legacy single field
   }
-  return '<button class="crm-btn crm-btn-secondary" type="button" onclick="document.getElementById(\'cmaSubjectPhotoInput\').click()">Upload a photo</button>' +
-    '<span style="font-size:0.75rem;color:#888;margin-left:0.6rem">JPG or PNG, shown as the lead image on the report.</span>' + input;
+  return l.uploaded_photos;
+}
+
+function cmaSyncSubjectPhotoLegacy() {
+  var l = _cmaState.subject && _cmaState.subject.listing;
+  if (!l) return;
+  var arr = cmaGetSubjectPhotos();
+  if (arr.length) { l.uploaded_photo_url = arr[0]; } else { delete l.uploaded_photo_url; }
+}
+
+function cmaSubjectPhotosInner() {
+  var photos = cmaGetSubjectPhotos();
+  var input = '<input type="file" id="cmaSubjectPhotoInput" accept="image/jpeg,image/png,image/webp" multiple style="display:none" onchange="cmaUploadSubjectPhoto(this.files)" />';
+  var html = '';
+  if (photos.length) {
+    html += '<div style="display:flex;flex-wrap:wrap;gap:0.6rem;margin-bottom:0.6rem">';
+    photos.forEach(function(u, i) {
+      var border = i === 0 ? '2px solid var(--gold,#8B7748)' : '1px solid #ddd';
+      html += '<div style="position:relative;width:150px">';
+      html += '<img src="' + esc(u) + '" alt="Subject photo ' + (i + 1) + '" style="width:150px;height:100px;border-radius:6px;object-fit:cover;display:block;border:' + border + '" />';
+      if (i === 0) html += '<span style="position:absolute;top:4px;left:4px;background:rgba(0,0,0,0.65);color:#fff;font-size:0.6rem;padding:1px 6px;border-radius:3px">Cover</span>';
+      html += '<button class="crm-btn crm-btn-secondary" type="button" title="Remove" onclick="cmaRemoveSubjectPhoto(' + i + ')" style="position:absolute;top:2px;right:2px;padding:0 7px;font-size:0.9rem;line-height:1.5">&times;</button>';
+      if (i !== 0) html += '<button class="crm-btn crm-btn-secondary" type="button" onclick="cmaMakeSubjectCover(' + i + ')" style="position:absolute;bottom:3px;left:3px;padding:1px 6px;font-size:0.6rem">Make cover</button>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+  html += '<button class="crm-btn crm-btn-secondary" type="button" onclick="document.getElementById(\'cmaSubjectPhotoInput\').click()">' + (photos.length ? 'Add more photos' : 'Upload photo(s)') + '</button>';
+  html += '<span style="font-size:0.75rem;color:#888;margin-left:0.6rem">JPG or PNG. First photo is the report cover; the rest appear on a photo page.</span>';
+  return html + input;
+}
+
+function cmaRefreshSubjectPhotos() {
+  var wrap = document.getElementById('cmaSubjectPhotoWrap');
+  if (wrap) wrap.innerHTML = cmaSubjectPhotosInner();
 }
 
 async function cmaUploadSubjectPhoto(files) {
   if (!files || !files.length) return;
-  var file = files[0];
-  if (!/^image\//.test(file.type)) { toast('Please choose an image file', 'error'); return; }
-  if (file.size > 10 * 1024 * 1024) { toast('Image too large (max 10MB)', 'error'); return; }
   if (!_cmaState.subject || !_cmaState.subject.listing) { toast('Select a subject property first', 'error'); return; }
-  toast('Uploading photo...', 'info');
-  try {
-    var ext = ((file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')) || 'jpg';
-    var base = _cmaState.subject.listing.listing_key || _cmaState.reportId || 'subject';
-    var path = 'subject/' + base + '-' + Date.now() + '.' + ext;
-    var up = await _sb.storage.from('cma-photos').upload(path, file, { upsert: true, contentType: file.type });
-    if (up.error) { toast('Upload failed: ' + up.error.message, 'error'); return; }
-    var url = _sb.storage.from('cma-photos').getPublicUrl(path).data.publicUrl;
-    _cmaState.subject.listing.uploaded_photo_url = url;
-    var wrap = document.getElementById('cmaSubjectPhotoWrap');
-    if (wrap) wrap.innerHTML = cmaSubjectPhotoInner(url);
-    toast('Photo added', 'success');
-  } catch (e) { console.error('Subject photo upload error', e); toast('Upload error', 'error'); }
+  var list = Array.prototype.slice.call(files);
+  var arr = cmaGetSubjectPhotos();
+  toast('Uploading ' + list.length + ' photo' + (list.length > 1 ? 's' : '') + '...', 'info');
+  var ok = 0;
+  for (var k = 0; k < list.length; k++) {
+    var file = list[k];
+    if (!/^image\//.test(file.type)) { toast('Skipped a non-image file', 'error'); continue; }
+    if (file.size > 10 * 1024 * 1024) { toast('Skipped an image over 10MB', 'error'); continue; }
+    try {
+      var ext = ((file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')) || 'jpg';
+      var base = _cmaState.subject.listing.listing_key || _cmaState.reportId || 'subject';
+      var path = 'subject/' + base + '-' + Date.now() + '-' + k + '.' + ext;
+      var up = await _sb.storage.from('cma-photos').upload(path, file, { upsert: true, contentType: file.type });
+      if (up.error) { toast('Upload failed: ' + up.error.message, 'error'); continue; }
+      arr.push(_sb.storage.from('cma-photos').getPublicUrl(path).data.publicUrl);
+      ok++;
+    } catch (e) { console.error('Subject photo upload error', e); toast('Upload error', 'error'); }
+  }
+  cmaSyncSubjectPhotoLegacy();
+  cmaRefreshSubjectPhotos();
+  if (ok) toast(ok + ' photo' + (ok > 1 ? 's' : '') + ' added', 'success');
 }
 
-function cmaRemoveSubjectPhoto() {
-  if (_cmaState.subject && _cmaState.subject.listing) delete _cmaState.subject.listing.uploaded_photo_url;
-  var wrap = document.getElementById('cmaSubjectPhotoWrap');
-  if (wrap) wrap.innerHTML = cmaSubjectPhotoInner('');
+function cmaRemoveSubjectPhoto(idx) {
+  var arr = cmaGetSubjectPhotos();
+  if (idx >= 0 && idx < arr.length) arr.splice(idx, 1);
+  cmaSyncSubjectPhotoLegacy();
+  cmaRefreshSubjectPhotos();
+}
+
+function cmaMakeSubjectCover(idx) {
+  var arr = cmaGetSubjectPhotos();
+  if (idx > 0 && idx < arr.length) arr.unshift(arr.splice(idx, 1)[0]);
+  cmaSyncSubjectPhotoLegacy();
+  cmaRefreshSubjectPhotos();
 }
 
 async function cmaSaveReport(status) {
