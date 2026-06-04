@@ -169,6 +169,9 @@ function generateCMAHtml(data: ReportInput): string {
     gridRows += adjRow("Adj @ $15K/space", "adj_garage");
     gridRows += dataRow("Condition", `${subFeats.condition_rating || "?"}/5`, comps.map(c => `${c.features?.condition_rating || "?"}/5`));
     gridRows += adjRow("Adj @ $20K/pt", "adj_condition");
+    const ctLabel = (v: unknown) => { const s = (v || "").toString().replace(/_/g, "-"); return s ? s.charAt(0).toUpperCase() + s.slice(1) : "—"; };
+    gridRows += dataRow("Construction", ctLabel(subFeats.construction_type), comps.map(c => ctLabel(c.features?.construction_type)));
+    gridRows += adjRow("Construction Adj (5%/sqft)", "adj_construction_type");
   }
 
   // Structural Features section
@@ -227,6 +230,8 @@ function generateCMAHtml(data: ReportInput): string {
 
   gridRows += dataRow("Privacy", `${subFeats.privacy_rating || "?"}/5`, comps.map(c => `${c.features?.privacy_rating || "?"}/5`));
   gridRows += adjRow(isLand ? "Adj @ $8K/pt" : "Adj @ $6K/pt", "adj_privacy");
+  gridRows += dataRow("Elevation (ft)", subFeats.elevation_ft ? `${subFeats.elevation_ft}` : "—", comps.map(c => c.features?.elevation_ft ? `${c.features.elevation_ft}` : "—"));
+  gridRows += adjRow("Adj @ $2K/100ft", "adj_elevation");
 
   // Market section
   gridRows += `<tr class="section-row"><td colspan="${colSpan}">Market</td></tr>\n`;
@@ -253,6 +258,12 @@ function generateCMAHtml(data: ReportInput): string {
   </div>` : "";
 
   const methodNote = data.methodology_note || `This ${numComps}-comp analysis uses WNC-calibrated adjustment rates. ${isLand ? "Land valuations weight lot size, views, water features, and usability above structural factors." : "Adjustments reflect local market conditions in Western North Carolina."} Values are estimates based on comparable sales and should not be considered an appraisal.`;
+
+  const subIsLog = (subFeats.construction_type || "") === "log";
+  const anyLogComp = comps.some(c => (c.features?.construction_type || "") === "log");
+  const logCaveat = (subIsLog && !anyLogComp)
+    ? `<p><strong>Construction note:</strong> No log-home sales were available within the search area, so comparables are site-built with a structure-based construction adjustment. Log-home valuations are most reliable when supported by log-to-log sales.</p>`
+    : "";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -730,7 +741,7 @@ ${comps.map((c, i) => {
   </div>
 
   <div class="methodology">
-    <p><strong>Methodology:</strong> ${methodNote}</p>
+    <p><strong>Methodology:</strong> ${methodNote}</p>${logCaveat}
 ${(() => {
   // Detect comps with large gross adjustments (>25% of sale price)
   const largeAdjComps: string[] = [];
@@ -816,7 +827,7 @@ ${(() => {
   <div class="market-narrative"><p>${esc(data.agent_notes)}</p></div>` : ""}
 
   <div class="methodology" style="margin-top:1.5rem;">
-    <p><strong>Methodology:</strong> ${methodNote}</p>
+    <p><strong>Methodology:</strong> ${methodNote}</p>${logCaveat}
   </div>
 
   <div class="disclaimers" style="margin-top:auto; position:absolute; bottom:0.6in; left:0.65in; right:0.65in;">
