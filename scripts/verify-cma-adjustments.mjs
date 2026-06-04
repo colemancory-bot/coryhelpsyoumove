@@ -2,7 +2,7 @@
 // 571 One Feather Rd (log home) comps. Mirrors crm.js logic — keep in sync.
 // Run: node scripts/verify-cma-adjustments.mjs
 const PRICE_PER_SQFT = 175;
-const CONSTRUCTION_PCT = { site_built: 0, manufactured: -0.25, modular: -0.10, log: 0.05, mobile_home: -0.35, unknown: 0 };
+const CONSTRUCTION_PCT = { site_built: 0, manufactured: -0.25, modular: -0.03, log: 0.05, mobile_home: -0.35, unknown: 0 };
 const CONDITION_PER_POINT = 20000;
 
 // Structure-based construction adjustment (Task 1)
@@ -35,6 +35,7 @@ comps.forEach((c, i) => {
   check(`construction[${c.name}]`, constructionAdj('log', 'site_built', c.sqft), expectedConstruction[i]);
 });
 check('construction log-to-log = 0', constructionAdj('log', 'log', 1200), 0);
+check('modular vs site-built (token 3%)', constructionAdj('site_built', 'modular', 1200), 6300);
 check('condition unrated (0) = 0', conditionAdj(5, 0), 0);
 check('condition rated 4 vs 5 = 20000', conditionAdj(5, 4), 20000);
 

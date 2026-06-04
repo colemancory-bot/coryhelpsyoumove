@@ -1785,8 +1785,9 @@ var CMA_RATES = {
   outbuilding_tier_values: [0, 5000, 15000, 30000],
   // Construction type: % of STRUCTURE value (living area x price_per_sqft), NOT price.
   // Basing it on price double-counts land (a cabin on 15ac vs a house on 0.5ac).
-  // Positive = premium over site-built, negative = discount.
-  construction_pct: { site_built: 0, manufactured: -0.25, modular: -0.10, log: 0.05, mobile_home: -0.35, unknown: 0 }
+  // Positive = premium over site-built, negative = discount. Modular ~= site-built
+  // (same building codes/financing) so only a token discount; manufactured/mobile differ materially.
+  construction_pct: { site_built: 0, manufactured: -0.25, modular: -0.03, log: 0.05, mobile_home: -0.35, unknown: 0 }
 };
 
 function cmaCalcLotValue(acres) {
