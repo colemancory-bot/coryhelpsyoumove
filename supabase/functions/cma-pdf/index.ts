@@ -495,7 +495,10 @@ function generateCMAHtml(data: ReportInput): string {
 ${(() => {
   const photos = (sub.photos as string[]) || [];
   const photoUrl = sub.photo_url as string || "";
-  const allPhotos = photos.length ? photos : (photoUrl ? [photoUrl] : []);
+  const uploaded = (sub.uploaded_photo_url as string) || "";
+  let allPhotos = photos.length ? photos : (photoUrl ? [photoUrl] : []);
+  // Agent-uploaded photo leads as the hero; MLS photos follow.
+  if (uploaded) allPhotos = [uploaded, ...allPhotos.filter((p: string) => p !== uploaded)];
   if (allPhotos.length === 0) return "";
   const heroPhoto = allPhotos[0];
   const page1Photos = allPhotos.slice(1, 7);
