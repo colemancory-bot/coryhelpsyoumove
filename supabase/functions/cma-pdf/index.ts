@@ -267,13 +267,15 @@ function generateCMAHtml(data: ReportInput): string {
 
   // Photos: an agent-uploaded photo leads as the hero; MLS photos follow. The hero
   // renders on the cover (page 1); any photos beyond it go to a 3-up grid page.
+  const _uploadedPhotos = Array.isArray(sub.uploaded_photos)
+    ? (sub.uploaded_photos as string[])
+    : ((sub.uploaded_photo_url as string) ? [sub.uploaded_photo_url as string] : []);
   const _mlsPhotos = (sub.photos as string[]) || [];
   const _photoUrlSingle = (sub.photo_url as string) || "";
-  const _uploadedPhoto = (sub.uploaded_photo_url as string) || "";
   let _allPhotos = _mlsPhotos.length ? [..._mlsPhotos] : (_photoUrlSingle ? [_photoUrlSingle] : []);
-  if (_uploadedPhoto) _allPhotos = [_uploadedPhoto, ..._allPhotos.filter((p: string) => p !== _uploadedPhoto)];
+  _allPhotos = [..._uploadedPhotos, ..._allPhotos.filter((p: string) => !_uploadedPhotos.includes(p))];
   const heroPhoto = _allPhotos[0] || "";
-  const heroIsUploaded = !!_uploadedPhoto;
+  const heroIsUploaded = _uploadedPhotos.includes(heroPhoto);
   const extraPhotos = _allPhotos.slice(1);
 
   return `<!DOCTYPE html>
@@ -512,7 +514,7 @@ function generateCMAHtml(data: ReportInput): string {
 ${(() => {
   if (extraPhotos.length === 0) return ""; // single photo lives on the cover; no separate page
   const gridPhotos = extraPhotos.slice(0, 12);
-  const anyMls = gridPhotos.some((p: string) => p !== _uploadedPhoto);
+  const anyMls = gridPhotos.some((p: string) => !_uploadedPhotos.includes(p));
   const cells = gridPhotos.map((p: string) => `<div class="photo-cell"><img src="${p}" alt="Property photo" onerror="this.parentElement.style.display='none'"></div>`).join("\n    ");
   return `<div class="page">
   <div class="subject-header">
