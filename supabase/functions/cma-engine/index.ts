@@ -2193,17 +2193,13 @@ Deno.serve(async (req: Request) => {
         cleanScored = scored.filter((c) => !outlierKeys.has(c.listing.listing_key));
       }
 
-      // For a log subject, surface same-construction comps to the selector first
-      // (each group is already score-sorted). Backfill with non-log only as needed.
-      let pooled = cleanScored;
-      let logCompCount = 0;
-      if (isLogSubject) {
-        const logComps = cleanScored.filter((c) => resolveConstruction(c.features, c.listing) === "log");
-        const otherComps = cleanScored.filter((c) => resolveConstruction(c.features, c.listing) !== "log");
-        logCompCount = logComps.length;
-        pooled = [...logComps, ...otherComps];
-      }
-      const top10 = pooled.slice(0, 10);
+      // Candidate pool is ranked purely by overall similarity (scoreComp already gives
+      // log-to-log a mild edge). We do NOT front-load log comps — size/price similarity
+      // must dominate, so a similar site-built home beats a much larger/pricier log home.
+      const top10 = cleanScored.slice(0, 10);
+      const logCompCount = isLogSubject
+        ? cleanScored.filter((c) => resolveConstruction(c.features, c.listing) === "log").length
+        : 0;
       const constructionFallback = isLogSubject && logCompCount < targetCount;
 
       if (top10.length <= targetCount) {
@@ -2290,8 +2286,8 @@ Select the best ${targetCount} comps for this CMA. Consider:
     2. FALLBACK: If fewer than ${targetCount} manufactured comps are available in the top 10, you MAY use site-built comps to fill remaining slots. When doing so, note in your reasoning that the comp is site-built and the value estimate should be adjusted downward to account for the construction type difference.
     3. Never leave comp slots empty just because no manufactured comps exist. A site-built comp with a noted adjustment is better than no comp.
   * For log homes/cabins as the SUBJECT:
-    1. BEST: Select other log home sales. Log buyers specifically seek log construction and pay a premium for it, so log-to-log comps are the most reliable.
-    2. FALLBACK: If fewer than ${targetCount} log comps are available, use site-built comps to fill remaining slots. Note the construction difference; the adjustment grid will apply a +10% improvement value premium.
+    1. SIZE and PRICE similarity come FIRST. A site-built home close in square footage and sale price is a BETTER comp than a log home that is much larger or pricier. Never select a comp that needs huge size adjustments (e.g. living area >25% different) just because it is log.
+    2. Among comps of SIMILAR size and price, prefer log-to-log (log buyers seek log construction). Fill remaining slots with similar site-built comps; the grid applies a small structure-based construction adjustment.
     3. NEVER use manufactured or mobile home comps for a log home subject.
   * For site-built homes as the SUBJECT: strongly prefer site-built or modular comps. Only use manufactured comps as a last resort, and note the value should be adjusted upward.
   * This is the most common CMA error in WNC where manufactured/mobile homes are prevalent.
