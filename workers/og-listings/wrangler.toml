@@ -1,0 +1,16 @@
+name = "og-listings"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+[vars]
+SUPABASE_URL = "https://kzaabnnwjupjqvydiqlz.supabase.co"
+FALLBACK_IMAGE = "https://coryhelpsyoumove.com/images/hero-bg.jpg"
+# SUPABASE_ANON_KEY is the site's PUBLIC anon key — already shipped in app.js and
+# served to every visitor, RLS-gated, so it is safe to keep here in plaintext.
+SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6YWFibm53anVwanF2eWRpcWx6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExMTE5NDMsImV4cCI6MjA4NjY4Nzk0M30.2B2sJnAuDim_yhn5UFKxXzdZw58ne4E20-ulW8pTwPA"
+
+# Route every apex request through the Worker. Non-?listing= requests pass straight
+# through to the GitHub Pages origin; only /?listing= URLs get their og tags rewritten.
+[[routes]]
+pattern = "coryhelpsyoumove.com/*"
+zone_name = "coryhelpsyoumove.com"
