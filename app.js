@@ -3869,15 +3869,15 @@ function closeProp(fromPopstate) {
 function _propShareUrl() {
   var listing = window._currentListing;
   if(!listing) return 'https://coryhelpsyoumove.com';
-  // Share via the listing-share edge function so Facebook / iMessage / etc.
-  // previews show the property's photo, address, and price. It redirects real
-  // visitors to the live listing. Prefer the stable MLS id, fall back to slug.
+  // Clean property URL. A Cloudflare Worker (og-listings) rewrites the Open Graph
+  // tags on /?listing= requests so Facebook / iMessage / etc. previews show the
+  // property's photo, address, and price. Prefer the stable MLS id, fall back to slug.
   var id = listing.mlsId || listing.listingId || '';
   if(!id){
     var city = listing.city || window._currentTownName || '';
     id = ((listing.address||'') + ' ' + city + ' nc').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   }
-  return 'https://kzaabnnwjupjqvydiqlz.supabase.co/functions/v1/listing-share?id=' + encodeURIComponent(id);
+  return 'https://coryhelpsyoumove.com/?listing=' + encodeURIComponent(id);
 }
 
 function propShare(type) {
