@@ -80,18 +80,23 @@ async function lookup(id: string): Promise<Record<string, unknown> | null> {
   if (!rows.length) return null;
   const l = rows[0];
 
-  // Primary photo: lowest-order R2 (permanent) image. NOTE: "order" is a
-  // reserved word in PostgREST, so sort BY it (order=order.asc) instead of
-  // trying to filter order=eq.0, which the REST API rejects.
+  // Primary photo. Prefer the permanent R2 copy (local_url), then fall back to
+  // a CDN media_url (e.g. CSAR / CloudFront listings that are not stored in R2),
+  // but skip MLS Grid signed URLs since those expire in ~24h and would break the
+  // card. ("order" is reserved in PostgREST, so sort BY it, not filter order=eq.0.)
   try {
     const mres = await fetch(
       SUPABASE_URL + "/rest/v1/mls_media?listing_key=eq." + encodeURIComponent(String(l.listing_key)) +
-        "&local_url=not.is.null&select=local_url&order=order.asc&limit=1",
+        "&select=local_url,media_url&order=order.asc&limit=8",
       { headers }
     );
     if (mres.ok) {
-      const m = (await mres.json()) as { local_url?: string }[];
-      if (m.length && m[0].local_url) (l as Record<string, unknown>)._photo = m[0].local_url;
+      const m = (await mres.json()) as { local_url?: string; media_url?: string }[];
+      for (const row of m) {
+        const photo = row.local_url ||
+          (row.media_url && !String(row.media_url).includes("mlsgrid") ? row.media_url : "");
+        if (photo) { (l as Record<string, unknown>)._photo = photo; break; }
+      }
     }
   } catch (_e) {
     /* photo is optional */
