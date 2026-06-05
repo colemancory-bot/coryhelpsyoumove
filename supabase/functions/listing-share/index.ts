@@ -30,6 +30,9 @@ Deno.serve(async (req: Request) => {
   const url = new URL(req.url);
   const id = url.searchParams.get("id") || url.searchParams.get("listing") || "";
   const dest = SITE + "/?listing=" + encodeURIComponent(id); // where humans land
+  // Canonical = the public function URL (the shared link). req.url cannot be
+  // used: Supabase strips the /functions/v1/ prefix and presents http internally.
+  const selfUrl = SUPABASE_URL + "/functions/v1/listing-share?id=" + encodeURIComponent(id);
 
   let og = {
     title: "Western NC Real Estate | Cory Coleman",
@@ -47,7 +50,7 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  return new Response(renderHtml(og, dest, req.url), {
+  return new Response(renderHtml(og, dest, selfUrl), {
     headers: {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "public, max-age=300",
