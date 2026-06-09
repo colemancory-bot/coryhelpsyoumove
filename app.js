@@ -1859,10 +1859,29 @@ function buildChatTranscript(){
   return '--- Chat Transcript ---\n' + lines.join('\n');
 }
 
-// --- Push lead to Follow Up Boss via edge function ---
+// --- Push lead to the CRM via edge function (AFK Broker, falls back to Follow Up Boss) ---
+// Enriches every lead with its session journey (how they arrived, the pages and
+// properties they viewed) so the CRM receives the full story, then forwards it
+// server-side. Name kept as _pushToFUB so existing call sites stay untouched.
 function _pushToFUB(leadData){
-  if(_isAdmin){ _log('[FUB] Skipping push for admin user'); return; }
+  if(_isAdmin){ _log('[CRM] Skipping push for admin user'); return; }
   try {
+    var payload = {};
+    for(var k in leadData){ if(Object.prototype.hasOwnProperty.call(leadData, k)) payload[k] = leadData[k]; }
+    // Stable id so the CRM can dedupe retries
+    if(!payload.external_id){
+      try { payload.external_id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('lead_' + Date.now() + '_' + Math.round(Math.random() * 1e9)); }
+      catch(e){ payload.external_id = 'lead_' + Date.now() + '_' + Math.round(Math.random() * 1e9); }
+    }
+    if(!payload.created_at){ try { payload.created_at = new Date().toISOString(); } catch(e){} }
+    // Attach the session journey (referrer/channel, landing page, pages, properties)
+    if(window._leadJourney){
+      try {
+        var jf = window._leadJourney.fields();
+        for(var f in jf){ if(Object.prototype.hasOwnProperty.call(jf, f)) payload[f] = jf[f]; }
+        if(jf.journey_summary){ payload.message = (payload.message ? payload.message + '\n\n' : '') + '--- How they found you ---\n' + jf.journey_summary; }
+      } catch(e){}
+    }
     fetch(SUPABASE_URL + '/functions/v1/fub-push', {
       method: 'POST',
       headers: {
@@ -1870,14 +1889,14 @@ function _pushToFUB(leadData){
         'Authorization': 'Bearer ' + SUPABASE_KEY,
         'apikey': SUPABASE_KEY
       },
-      body: JSON.stringify(leadData)
+      body: JSON.stringify(payload)
     }).then(function(r){ return r.json(); })
       .then(function(d){
-        if(d.success) _log('[FUB] Lead pushed successfully');
-        else _warn('[FUB] Push response:', d);
+        if(d.success || d.ok) _log('[CRM] Lead forwarded');
+        else _warn('[CRM] Forward response:', d);
       })
-      .catch(function(e){ _warn('[FUB] Push failed:', e); });
-  } catch(e){ _warn('[FUB] Push error:', e); }
+      .catch(function(e){ _warn('[CRM] Forward failed:', e); });
+  } catch(e){ _warn('[CRM] Forward error:', e); }
 }
 
 // --- FUB lead capture from chat ---
@@ -3114,6 +3133,8 @@ function openProp(listing, townName, sourceCardEl) {
   if(MLS_GRID.enabled && typeof MLS_GRID.ensureInit === 'function') MLS_GRID.ensureInit();
   // GA4: track property detail view
   if(typeof gtag==='function') gtag('event','view_item',{currency:'USD',value:listing.price||0,items:[{item_id:listing.mlsId||'',item_name:(listing.address||'')+'  '+(listing.city||''),item_category:listing.type||'',price:listing.price||0}]});
+  // Lead journey: record which property they looked at (rides along to the CRM with any lead)
+  if(window._leadJourney){ try { window._leadJourney.addProperty((listing.address||'') + (listing.city ? ', ' + listing.city : ''), listing.price ? '$' + Number(listing.price).toLocaleString('en-US') : '', listing.mlsId || ''); } catch(e){} }
   // Registration gate — allow 3 free previews, gate on 4th view
   if(!_acctLoggedIn){
     _guestViewCount++;
