@@ -5397,10 +5397,18 @@ function srApplyFilters(){
       return;
     }
     var _mapVisible = _srMap && !document.getElementById('srBody').classList.contains('map-hidden');
+    // Only narrow the card list to the map viewport once the map's layers are
+    // actually loaded. On the very first overlay open the search RPC can resolve
+    // before the map finishes loading, so fitBounds is skipped and getBounds()
+    // still returns the default pre-fit view — which excludes the results. That
+    // produced an empty "0 of N in view" list on the first search until the user
+    // closed the overlay and searched again (the map was ready the second time).
+    // Until the map is ready, render the full result set instead of viewport-filtering.
+    var _mapReady = _mapVisible && _srMapLayersReady;
     if(_srSpatialFilters.length > 0) {
       document.getElementById('srCount').textContent = _cardResults.length + ' listing' + (_cardResults.length!==1?'s':'');
       srRenderCards(_cardResults);
-    } else if(_mapVisible) {
+    } else if(_mapReady) {
       var bounds = _srMap.getBounds();
       var inView = _cardResults.filter(function(l){
         return l.lat && l.lng && bounds.contains(new maplibregl.LngLat(l.lng, l.lat));
