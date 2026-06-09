@@ -1903,26 +1903,20 @@ function _pushToFUB(leadData){
 var _chatLeadPushed = (_savedChatState && _savedChatState.leadPushed) || false;
 function tryPushChatLead(){
   if(_chatLeadPushed || !_sb) return;
-  var fullText = convHistory.map(function(m){ return m.content }).join(' ');
-  var emailMatch = fullText.match(/[\w.+-]+@[\w-]+\.[\w.]+/);
-  var phoneMatch = fullText.match(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
-  var nameFromConv = '';
-  for(var i=0; i<Math.min(convHistory.length, 10); i++){
-    if(convHistory[i].role === 'user'){
-      var txt = convHistory[i].content;
-      var nameMatch = txt.match(/(?:i'm|im|i am|my name is|name's|it's|its|this is|call me)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i);
-      if(nameMatch) { nameFromConv = nameMatch[1]; break; }
-      if(txt.length < 30 && /^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?$/.test(txt.trim())){ nameFromConv = txt.trim(); break; }
-    }
-  }
-  if(nameFromConv && (emailMatch || phoneMatch)){
-    var parts = nameFromConv.split(/\s+/);
+  // Pure, tested extractor (lead-extract.js). Replaces the old whole-transcript
+  // regex that mistook a parcel/Map number for a phone and "I am interested" for
+  // a name. A number is only treated as a phone when the bot asked or the user
+  // gave phone context; 7-digit numbers assume the 828 area code.
+  var lead = (typeof extractLeadFromConversation === 'function')
+    ? extractLeadFromConversation(convHistory)
+    : { first_name:'', last_name:'', email:'', phone:'' };
+  if((lead.first_name || lead.last_name) && (lead.email || lead.phone)){
     var transcript = buildChatTranscript();
     var chatLeadData = {
-      first_name: parts[0] || '',
-      last_name: parts.slice(1).join(' ') || '',
-      email: emailMatch ? emailMatch[0] : '',
-      phone: phoneMatch ? phoneMatch[0] : '',
+      first_name: lead.first_name || '',
+      last_name: lead.last_name || '',
+      email: lead.email || '',
+      phone: lead.phone || '',
       message: transcript || 'Captured via chatbot conversation',
       source: 'chatbot'
     };
