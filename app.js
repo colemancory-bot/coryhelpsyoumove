@@ -14,6 +14,97 @@ var _profileCache = null;
 function _getProfile(){ if(_profileCache) return _profileCache; try{ _profileCache=JSON.parse(localStorage.getItem('cc_profile')||'{}'); }catch(e){ _profileCache={}; } return _profileCache; }
 function _clearProfileCache(){ _profileCache=null; }
 
+// ═══ LEAD JOURNEY TRACKER ═══
+// Mirrored from shared.js because the homepage loads app.js, NOT shared.js
+// (app.js re-implements shared.js's homepage utilities — theme, sliders, nav —
+// but this tracker was the one piece missing). Without it, window._leadJourney
+// is undefined on index.html and _pushToFUB silently drops the "how they found
+// you" journey from every homepage lead. Keep in sync with shared.js.
+// Best-effort record of how a visitor arrived and what they viewed, kept in
+// sessionStorage so a captured lead can carry its full story to the CRM.
+(function(){
+  var KEY = 'cc_journey';
+  function iso(){ try { return new Date().toISOString(); } catch(e){ return ''; } }
+  function read(){ try { return JSON.parse(sessionStorage.getItem(KEY)); } catch(e){ return null; } }
+  function write(j){ try { sessionStorage.setItem(KEY, JSON.stringify(j)); } catch(e){} }
+  function path(){ try { return location.pathname + (location.search || ''); } catch(e){ return ''; } }
+  function title(){ try { return (document.title || '').slice(0, 120); } catch(e){ return ''; } }
+  function utm(){
+    var o = {};
+    try {
+      var p = new URLSearchParams(location.search || '');
+      ['utm_source','utm_medium','utm_campaign','utm_term','utm_content','gclid','fbclid'].forEach(function(k){
+        var v = p.get(k); if(v) o[k] = v;
+      });
+    } catch(e){}
+    return o;
+  }
+  function channel(j){
+    if(j.utm && j.utm.utm_source) return j.utm.utm_source + (j.utm.utm_medium ? ' / ' + j.utm.utm_medium : '') + (j.utm.utm_campaign ? ' (' + j.utm.utm_campaign + ')' : '');
+    var r = j.referrer || '';
+    if(!r) return 'Direct (typed in or bookmarked)';
+    if(/google\./i.test(r)) return 'Google search';
+    if(/bing\./i.test(r)) return 'Bing search';
+    if(/duckduckgo\./i.test(r)) return 'DuckDuckGo search';
+    if(/facebook\.|fb\.com|fb\.me|fbclid/i.test(r)) return 'Facebook';
+    if(/instagram\./i.test(r)) return 'Instagram';
+    if(/youtube\./i.test(r)) return 'YouTube';
+    if(/coryhelpsyoumove\.com/i.test(r)) return 'Direct (typed in or bookmarked)';
+    return r;
+  }
+  function summary(j){
+    var L = [];
+    L.push('Found via: ' + channel(j));
+    L.push('Landed on: ' + (j.landing_title || j.landing_page) + '  [' + j.landing_page + ']');
+    var props = j.properties || [];
+    if(props.length) L.push('Properties viewed (' + props.length + '): ' + props.map(function(p){ return p.address + (p.price ? ' ' + p.price : ''); }).join('; '));
+    var pgs = (j.pages || []).map(function(p){ return p.title || p.path; }).filter(function(v, i, a){ return a.indexOf(v) === i; });
+    if(pgs.length) L.push('Pages this visit (' + pgs.length + '): ' + pgs.slice(0, 15).join(' -> '));
+    return L.join('\n');
+  }
+
+  var j = read();
+  if(!j){
+    var ref = ''; try { ref = document.referrer || ''; } catch(e){}
+    j = { landing_page: path(), landing_title: title(), referrer: ref, utm: utm(), started_at: iso(), pages: [], properties: [] };
+  }
+  var cur = path(), lastPage = j.pages.length ? j.pages[j.pages.length - 1] : null;
+  if(!lastPage || lastPage.path !== cur){
+    j.pages.push({ path: cur, title: title(), at: iso() });
+    if(j.pages.length > 40) j.pages = j.pages.slice(-40);
+  }
+  write(j);
+
+  window._leadJourney = {
+    get: function(){ return read() || j; },
+    addProperty: function(address, price, id){
+      if(!address) return;
+      var c = read() || j;
+      if(!c.properties) c.properties = [];
+      if(!c.properties.some(function(p){ return p.address === address; })){
+        c.properties.push({ address: address, price: price || '', id: id || '', at: iso() });
+        if(c.properties.length > 30) c.properties = c.properties.slice(-30);
+        write(c);
+      }
+    },
+    summary: function(){ return summary(read() || j); },
+    fields: function(){
+      var c = read() || j;
+      return {
+        referrer: c.referrer || '',
+        channel: channel(c),
+        landing_page: c.landing_page || '',
+        utm_source: (c.utm && c.utm.utm_source) || '',
+        utm_medium: (c.utm && c.utm.utm_medium) || '',
+        utm_campaign: (c.utm && c.utm.utm_campaign) || '',
+        pages_viewed: (c.pages || []).map(function(p){ return p.path; }),
+        properties_viewed: (c.properties || []).map(function(p){ return { address: p.address, price: p.price, id: p.id }; }),
+        journey_summary: summary(c)
+      };
+    }
+  };
+})();
+
 // ═══ GRAIN — generate static noise texture once (replaces GPU-intensive SVG filter) ═══
 (function(){
   var g = document.querySelector('.grain');
