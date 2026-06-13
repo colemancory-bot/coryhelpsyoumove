@@ -408,13 +408,37 @@ function hvSubmit(e){
     details:g('details').trim(),
     ratings:ratings, ratingAvg:Math.round(avg*10)/10
   };
-  // Save the lead + push to Follow Up Boss (same path as the consultation form).
+  // Save the lead, then forward it to the CRM (AFK Broker via the fub-push fn).
   var parts=name.split(/\s+/);
   var lead={ first_name:parts[0]||name, last_name:parts.slice(1).join(' '), email:email, phone:payload.phone, message:hvBuildMessage(payload), source:'home_valuation' };
+  // Enriched copy for the CRM only — how the visitor found the site. The leads
+  // table has no journey columns, so these fields go to fub-push, not the insert.
+  var leadCrm={}; for(var _k in lead){ if(Object.prototype.hasOwnProperty.call(lead,_k)) leadCrm[_k]=lead[_k]; }
+  try{
+    var _ref=document.referrer||'';
+    var _q=new URLSearchParams(location.search||'');
+    var _us=_q.get('utm_source')||'', _um=_q.get('utm_medium')||'', _uc=_q.get('utm_campaign')||'';
+    var _chan=_us?(_us+(_um?' / '+_um:'')+(_uc?' ('+_uc+')':''))
+      :!_ref?'Direct (typed in or bookmarked)'
+      :/google\./i.test(_ref)?'Google search'
+      :/bing\./i.test(_ref)?'Bing search'
+      :/duckduckgo\./i.test(_ref)?'DuckDuckGo search'
+      :/facebook\.|fb\.com|fb\.me|fbclid/i.test(_ref)?'Facebook'
+      :/instagram\./i.test(_ref)?'Instagram'
+      :/youtube\./i.test(_ref)?'YouTube'
+      :/coryhelpsyoumove\.com/i.test(_ref)?'Direct (typed in or bookmarked)'
+      :_ref;
+    var _land=location.pathname+(location.search||'');
+    var _sum='Found via: '+_chan+'\nLanded on: '+(document.title||_land)+'  ['+_land+']';
+    leadCrm.referrer=_ref; leadCrm.channel=_chan; leadCrm.landing_page=_land;
+    leadCrm.utm_source=_us; leadCrm.utm_medium=_um; leadCrm.utm_campaign=_uc;
+    leadCrm.journey_summary=_sum;
+    leadCrm.message=(leadCrm.message?leadCrm.message+'\n\n':'')+'--- How they found you ---\n'+_sum;
+  }catch(_j){}
   var h={'Content-Type':'application/json','apikey':HV_SB_KEY,'Authorization':'Bearer '+HV_SB_KEY};
   try{
     fetch(HV_SB_URL+'/rest/v1/leads',{method:'POST',headers:Object.assign({'Prefer':'return=minimal'},h),body:JSON.stringify(lead)}).catch(function(){});
-    fetch(HV_SB_URL+'/functions/v1/fub-push',{method:'POST',headers:h,body:JSON.stringify(lead)}).catch(function(){});
+    fetch(HV_SB_URL+'/functions/v1/fub-push',{method:'POST',headers:h,body:JSON.stringify(leadCrm)}).catch(function(){});
   }catch(_e){}
   if(typeof gtag==='function') gtag('event','qualify_lead',{event_category:'valuation',event_label:'home_valuation'});
   console.log('[Home Valuation] lead submitted ('+lead.source+', avg '+payload.ratingAvg+')');
