@@ -2288,6 +2288,18 @@ function cmaRenderStep1() {
   html += '<div class="cma-man-source-wrap" id="cmaManSourceWrap" style="display:none"><span class="cma-man-source" id="cmaManSource"></span></div>';
   html += '</div>';
 
+  // Property type toggle - picking Land hides the house-only questions below
+  html += '<div class="cma-type-toggle" id="cmaTypeToggle">';
+  html += '<span class="cma-type-toggle-label">Property type</span>';
+  html += '<div class="cma-type-btns">';
+  html += '<button type="button" class="cma-type-btn cma-type-primary cma-type-active" data-type="Residential" onclick="cmaSetSubjectType(\'Residential\')">Residential</button>';
+  html += '<button type="button" class="cma-type-btn cma-type-primary" data-type="Land" onclick="cmaSetSubjectType(\'Land\')">Land</button>';
+  html += '<button type="button" class="cma-type-btn cma-type-minor" data-type="Residential Income" onclick="cmaSetSubjectType(\'Residential Income\')">Multi-Family</button>';
+  html += '<button type="button" class="cma-type-btn cma-type-minor" data-type="Commercial" onclick="cmaSetSubjectType(\'Commercial\')">Commercial</button>';
+  html += '</div>';
+  html += '<input type="hidden" id="cmaManType" value="Residential" />';
+  html += '</div>';
+
   // County lookup row
   html += '<div class="cma-county-lookup" id="cmaCountyLookupRow">';
   html += '<input class="crm-input" id="cmaLookupAddr" placeholder="Look up by address..." style="flex:1" />';
@@ -2302,7 +2314,6 @@ function cmaRenderStep1() {
   html += cmaFactsRow('Street Address *', 'cmaManAddr', 'text', '35 Coweeta Ridge Rd', true);
   html += cmaFactsRow('City *', 'cmaManCity', 'text', 'Franklin', true);
   html += cmaFactsRow('County', 'cmaManCounty', 'text', 'Macon', false);
-  html += cmaFactsSelectRow('Property Type', 'cmaManType', [['Residential','Residential'],['Land','Land'],['Residential Income','Multi-Family'],['Commercial','Commercial']], true);
   html += cmaFactsSelectRow('Subtype', 'cmaManSubtype', [['Single Family Residence','Single Family'],['Cabin','Cabin'],['Manufactured Home','Manufactured'],['Condo','Condo'],['Townhouse','Townhouse'],['','Other']], false);
   html += cmaFactsSelectRow('Construction', 'cmaManConstruction', [['auto','Auto-detect'],['site_built','Site-Built'],['manufactured','Manufactured (post-1976)'],['modular','Modular'],['mobile_home','Mobile Home (pre-1976)'],['log','Log']], false);
   html += '<tr class="cma-facts-divider"><td colspan="3"></td></tr>';
@@ -2310,6 +2321,12 @@ function cmaRenderStep1() {
   html += cmaFactsRow('Bathrooms *', 'cmaManBaths', 'number', '2', true, '0.5');
   html += cmaFactsRow('Living Area (sqft) *', 'cmaManSqft', 'number', '1800', true);
   html += cmaFactsRow('Lot Size (acres)', 'cmaManLot', 'number', '1.5', false, '0.01');
+  // Land-only questions (shown when Property type = Land; see cmaApplyTypeVisibility)
+  html += cmaFactsSelectRow('View', 'cmaManView', [['0','None / Wooded'],['1','Minimal'],['2','Seasonal'],['3','Partial'],['4','Long-range'],['5','Panoramic']], false);
+  html += cmaFactsSelectRow('Water', 'cmaManWaterFeat', [['0','None / Dry'],['1','Drainage'],['2','Seasonal creek'],['3','Small creek'],['4','Year-round creek'],['5','River / Pond / Spring']], false);
+  html += cmaFactsSelectRow('Road access', 'cmaManRoad', [['','Unknown'],['paved_state','Paved, state-maintained'],['gravel_state','Gravel, state-maintained'],['private_gravel','Private gravel (shared)'],['fourwd','4WD / seasonal'],['landlocked','Landlocked']], false);
+  html += cmaUtilitiesRow();
+  html += cmaFactsSelectRow('Restrictions', 'cmaManRestrict', [['unknown','Unknown'],['unrestricted','Unrestricted'],['restricted','Restricted / HOA']], false);
   html += cmaFactsRow('Garage Spaces', 'cmaManGarage', 'number', '0', false);
   html += cmaFactsRow('Year Built', 'cmaManYear', 'number', '2005', false);
   html += cmaFactsSelectRow('Condition', 'cmaManCondition', [['0','Unknown'],['1','1 - Tear Down / Major Reno'],['2','2 - Below Average'],['3','3 - Fair for Age'],['4','4 - Above Average'],['5','5 - Pristine']], false);
@@ -2327,6 +2344,9 @@ function cmaRenderStep1() {
   }
   html += '</div></div>';
   main.innerHTML = html;
+
+  // Default the subject form to Residential (all fields visible)
+  cmaSetSubjectType('Residential');
 
   var searchInput = document.getElementById('cmaSubjectSearch');
   var debounce = null;
@@ -2357,6 +2377,76 @@ function cmaFactsSelectRow(label, id, options, starred) {
     '<td class="cma-facts-label">' + (starred ? '<span class="cma-facts-star">*</span> ' : '') + label + '</td>' +
     '<td class="cma-facts-record" id="' + id + '_record">&ndash;</td>' +
     '<td class="cma-facts-change"><select class="cma-facts-select" id="' + id + '">' + optHtml + '</select></td></tr>';
+}
+
+// House-only rows hidden when the subject is Land, so a land CMA only asks what matters.
+var CMA_HOUSE_ONLY_FIELDS = ['cmaManSubtype','cmaManConstruction','cmaManBeds','cmaManBaths','cmaManSqft','cmaManGarage','cmaManYear','cmaManCondition'];
+// Land-only rows (shown only when the subject is Land). View/Water/Restrictions map to
+// feature tags the engine already values; Road access + Utilities are captured land facts.
+var CMA_LAND_ONLY_FIELDS = ['cmaManView','cmaManWaterFeat','cmaManRoad','cmaManRestrict'];
+
+// Utilities checkbox row for the Land facts form.
+function cmaUtilitiesRow() {
+  var utils = [['power','Power at road'],['public_water','Public water'],['well','Well'],['septic_permit','Septic permit'],['public_sewer','Public sewer']];
+  var boxes = utils.map(function(u) {
+    return '<label class="cma-util-check"><input type="checkbox" class="cma-util-box" value="' + u[0] + '" /> ' + u[1] + '</label>';
+  }).join('');
+  return '<tr class="cma-facts-row" id="cmaManUtilsRow">' +
+    '<td class="cma-facts-label">Utilities</td>' +
+    '<td class="cma-facts-record" id="cmaManUtils_record">&ndash;</td>' +
+    '<td class="cma-facts-change"><div class="cma-util-checks" id="cmaManUtils">' + boxes + '</div></td></tr>';
+}
+
+// Set the subject property type (Residential/Land/etc). Writes the value into the
+// hidden #cmaManType that cmaSubmitManual and the cma-engine already read, updates
+// the toggle buttons, and shows/hides the house-only rows accordingly.
+function cmaSetSubjectType(type) {
+  if (!type) type = 'Residential';
+  var canon = String(type).toLowerCase();
+  var holder = document.getElementById('cmaManType');
+  if (holder) holder.value = type;
+  var toggle = document.getElementById('cmaTypeToggle');
+  if (toggle) {
+    toggle.querySelectorAll('.cma-type-btn').forEach(function(b) {
+      b.classList.toggle('cma-type-active', b.getAttribute('data-type').toLowerCase() === canon);
+    });
+  }
+  cmaApplyTypeVisibility(type);
+}
+
+// Hide house-only rows for Land and star Lot Size (its primary value driver).
+// Case-insensitive, matching the cma-engine's own isLand check.
+function cmaApplyTypeVisibility(type) {
+  var land = (String(type).toLowerCase() === 'land');
+  CMA_HOUSE_ONLY_FIELDS.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var row = el.closest('tr');
+    if (row) row.style.display = land ? 'none' : '';
+  });
+  CMA_LAND_ONLY_FIELDS.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var row = el.closest('tr');
+    if (row) row.style.display = land ? '' : 'none';
+  });
+  var utilsRow = document.getElementById('cmaManUtilsRow');
+  if (utilsRow) utilsRow.style.display = land ? '' : 'none';
+  var lot = document.getElementById('cmaManLot');
+  if (lot) {
+    var lotRow = lot.closest('tr');
+    if (lotRow) {
+      lotRow.classList.toggle('cma-facts-starred', land);
+      var lbl = lotRow.querySelector('.cma-facts-label');
+      if (lbl) {
+        if (!lbl.hasAttribute('data-base-label')) {
+          lbl.setAttribute('data-base-label', lbl.textContent.replace(/^\*\s*/, '').trim());
+        }
+        var base = lbl.getAttribute('data-base-label');
+        lbl.innerHTML = (land ? '<span class="cma-facts-star">*</span> ' : '') + base;
+      }
+    }
+  }
 }
 
 // Use county GIS record as subject - pre-fills the manual entry form with county data
@@ -2400,6 +2490,8 @@ function cmaShowManualEntry(prefillAddress) {
     var lookupField = document.getElementById('cmaLookupAddr');
     if (lookupField && !lookupField.value) lookupField.value = prefillAddress;
   }
+  // Fresh manual entry defaults to Residential
+  cmaSetSubjectType('Residential');
 }
 
 function cmaHideManualEntry() {
@@ -2442,6 +2534,11 @@ function cmaSubmitManual() {
   var addr = (document.getElementById('cmaManAddr').value || '').trim();
   var city = (document.getElementById('cmaManCity').value || '').trim();
   if (!addr || !city) { toast('Address and city are required', 'error'); return; }
+  var ptype = document.getElementById('cmaManType').value || 'Residential';
+  if (ptype === 'Land') {
+    var lotAcres = parseFloat(document.getElementById('cmaManLot').value);
+    if (!lotAcres || lotAcres <= 0) { toast('Lot size (acres) is required for a land CMA', 'error'); return; }
+  }
   var notes = (document.getElementById('cmaManNotes') ? document.getElementById('cmaManNotes').value : '') || '';
   var listing = {
     listing_key: window._cmaPrefilledKey || ('manual_' + Date.now()),
@@ -2470,6 +2567,19 @@ function cmaSubmitManual() {
   var conditionVal = parseInt(document.getElementById('cmaManCondition').value) || 0;
   if (conditionVal > 0) {
     features.condition_rating = conditionVal;
+  }
+  if (ptype === 'Land') {
+    var viewQ = parseInt(document.getElementById('cmaManView').value) || 0;
+    if (viewQ > 0) features.view_quality = viewQ; else delete features.view_quality;
+    var waterQ = parseInt(document.getElementById('cmaManWaterFeat').value) || 0;
+    if (waterQ > 0) features.water_quality = waterQ; else delete features.water_quality;
+    var roadAcc = document.getElementById('cmaManRoad').value;
+    if (roadAcc) features.road_access = roadAcc; else delete features.road_access;
+    var restrict = document.getElementById('cmaManRestrict').value;
+    features.restriction_status = restrict || 'unknown';
+    var utils = {};
+    document.querySelectorAll('#cmaManUtils .cma-util-box').forEach(function(b) { if (b.checked) utils[b.value] = true; });
+    if (Object.keys(utils).length) features.utilities = utils; else delete features.utilities;
   }
   _cmaState.subject = { listing: listing, features: features };
   window._cmaPrefilledKey = null;
@@ -2752,7 +2862,7 @@ function cmaShowEditableSubject(data, tags, source) {
   setVal('cmaManYear', data.year_built || '');
   setVal('cmaManGarage', data.garage_spaces || '0');
   setVal('cmaManPrice', data.list_price || data.close_price || data.last_sale_price || '');
-  if (data.property_type) setVal('cmaManType', data.property_type);
+  cmaSetSubjectType(data.property_type || 'Residential');
   if (data.property_sub_type) setVal('cmaManSubtype', data.property_sub_type);
 
   // Construction type from feature tags
@@ -2770,6 +2880,19 @@ function cmaShowEditableSubject(data, tags, source) {
   var condLabels = { 1: '1 - Tear Down', 2: '2 - Below Average', 3: '3 - Fair', 4: '4 - Above Average', 5: '5 - Pristine' };
   setRecord('cmaManCondition', conditionRating > 0 ? condLabels[conditionRating] || conditionRating + '/5' : 'Unknown');
   setVal('cmaManCondition', String(conditionRating || 0));
+
+  // Land feature tags -> land question controls
+  var lf = tags || {};
+  setVal('cmaManView', lf.view_quality != null ? String(lf.view_quality) : '0');
+  setVal('cmaManWaterFeat', lf.water_quality != null ? String(lf.water_quality) : '0');
+  if (lf.road_access) setVal('cmaManRoad', lf.road_access);
+  setVal('cmaManRestrict', lf.restriction_status || 'unknown');
+  if (lf.utilities) {
+    Object.keys(lf.utilities).forEach(function(k) {
+      var b = document.querySelector('#cmaManUtils .cma-util-box[value="' + k + '"]');
+      if (b) b.checked = !!lf.utilities[k];
+    });
+  }
 
   // Show source badge
   var sourceEl = document.getElementById('cmaManSource');
@@ -2796,6 +2919,7 @@ function cmaSubjectCard(subject, opts) {
   opts = opts || {};
   var l = subject.listing;
   var f = subject.features || {};
+  var isLand = String((l.property_type) || '').toLowerCase() === 'land';
   var editable = !opts.readonly;
   var html = '<div class="cma-subject-card" id="cmaSubjectCardEl">';
 
@@ -2812,19 +2936,22 @@ function cmaSubjectCard(subject, opts) {
 
   // Editable detail rows
   if (editable) {
-    html += cmaInlineDetail('Sqft', l.living_area, 'living_area', 'number', '', function(v) { return v ? Number(v).toLocaleString() : '--'; });
+    if (!isLand) html += cmaInlineDetail('Sqft', l.living_area, 'living_area', 'number', '', function(v) { return v ? Number(v).toLocaleString() : '--'; });
     html += cmaInlineDetail('Lot (acres)', l.lot_size_acres, 'lot_size_acres', 'number', '0.01', function(v) { return v ? v + ' ac' : '--'; });
-    html += cmaInlineDetail('Beds', l.bedrooms_total, 'bedrooms_total', 'number', '1', function(v) { return v || '--'; });
-    html += cmaInlineDetail('Baths', l.bathrooms_total_integer, 'bathrooms_total_integer', 'number', '0.5', function(v) { return v || '--'; });
-    html += cmaInlineDetail('Year Built', l.year_built, 'year_built', 'number', '1', function(v) { return v || '--'; });
+    if (!isLand) {
+      html += cmaInlineDetail('Beds', l.bedrooms_total, 'bedrooms_total', 'number', '1', function(v) { return v || '--'; });
+      html += cmaInlineDetail('Baths', l.bathrooms_total_integer, 'bathrooms_total_integer', 'number', '0.5', function(v) { return v || '--'; });
+      html += cmaInlineDetail('Year Built', l.year_built, 'year_built', 'number', '1', function(v) { return v || '--'; });
+    }
     html += cmaInlineDetail('List Price', l.list_price, 'list_price', 'number', '1000', function(v) { return v ? '$' + Number(v).toLocaleString() : '--'; });
   } else {
-    html += '<div class="cma-detail-row"><span>Sqft</span><span>' + (l.living_area ? l.living_area.toLocaleString() : '--') + '</span></div>';
+    if (!isLand) html += '<div class="cma-detail-row"><span>Sqft</span><span>' + (l.living_area ? l.living_area.toLocaleString() : '--') + '</span></div>';
     html += '<div class="cma-detail-row"><span>Lot</span><span>' + (l.lot_size_acres ? l.lot_size_acres + ' ac' : '--') + '</span></div>';
-    html += '<div class="cma-detail-row"><span>Bed/Bath</span><span>' + (l.bedrooms_total || '?') + '/' + (l.bathrooms_total_integer || '?') + '</span></div>';
-    html += '<div class="cma-detail-row"><span>Year Built</span><span>' + (l.year_built || '--') + '</span></div>';
+    if (!isLand) html += '<div class="cma-detail-row"><span>Bed/Bath</span><span>' + (l.bedrooms_total || '?') + '/' + (l.bathrooms_total_integer || '?') + '</span></div>';
+    if (!isLand) html += '<div class="cma-detail-row"><span>Year Built</span><span>' + (l.year_built || '--') + '</span></div>';
     html += '<div class="cma-detail-row"><span>List Price</span><span>$' + (l.list_price ? l.list_price.toLocaleString() : '--') + '</span></div>';
   }
+  if (isLand) html += cmaLandDetailRows(f);
   html += '</div>';
 
   // Mountain features: sliders if editable, static bars if readonly
@@ -2838,14 +2965,14 @@ function cmaSubjectCard(subject, opts) {
       html += cmaFeatureSlider('Land', 'land_usability', f.land_usability || 0);
       html += cmaFeatureSlider('Quiet', 'road_noise', f.road_noise || 0);
       html += cmaFeatureSlider('Privacy', 'privacy_rating', f.privacy_rating || 0);
-      html += cmaFeatureSlider('Condition', 'condition_rating', f.condition_rating || 0);
+      if (!isLand) html += cmaFeatureSlider('Condition', 'condition_rating', f.condition_rating || 0);
     } else {
       html += cmaFeatureBar('View', f.view_quality);
       html += cmaFeatureBar('Water', f.water_quality);
       html += cmaFeatureBar('Land', f.land_usability);
       html += cmaFeatureBar('Quiet', f.road_noise);
       html += cmaFeatureBar('Privacy', f.privacy_rating);
-      html += cmaFeatureBar('Condition', f.condition_rating);
+      if (!isLand) html += cmaFeatureBar('Condition', f.condition_rating);
     }
     html += '</div>';
     if (f.elevation_ft) html += '<div class="cma-feature-elev">Elevation: ' + f.elevation_ft.toLocaleString() + ' ft</div>';
@@ -2853,6 +2980,23 @@ function cmaSubjectCard(subject, opts) {
   }
   html += '</div>';
   return html;
+}
+
+// Read-only land facts shown on the subject card (Land mode).
+function cmaLandDetailRows(f) {
+  f = f || {};
+  var roadLabels = { paved_state: 'Paved, state', gravel_state: 'Gravel, state', private_gravel: 'Private gravel', fourwd: '4WD / seasonal', landlocked: 'Landlocked' };
+  var rows = '';
+  if (f.road_access) rows += '<div class="cma-detail-row"><span>Road</span><span>' + esc(roadLabels[f.road_access] || f.road_access) + '</span></div>';
+  if (f.restriction_status && f.restriction_status !== 'unknown') {
+    rows += '<div class="cma-detail-row"><span>Restrictions</span><span>' + (f.restriction_status === 'unrestricted' ? 'Unrestricted' : 'Restricted') + '</span></div>';
+  }
+  if (f.utilities && Object.keys(f.utilities).length) {
+    var utilLabels = { power: 'Power', public_water: 'Public water', well: 'Well', septic_permit: 'Septic permit', public_sewer: 'Public sewer' };
+    var on = Object.keys(f.utilities).filter(function(k) { return f.utilities[k]; }).map(function(k) { return utilLabels[k] || k; });
+    if (on.length) rows += '<div class="cma-detail-row"><span>Utilities</span><span>' + esc(on.join(', ')) + '</span></div>';
+  }
+  return rows;
 }
 
 // Inline-editable detail row: shows formatted value, click to edit
@@ -3344,6 +3488,7 @@ function cmaRenderStep3() {
   var sf = _cmaState.subject.features || {};
   var adjs = _cmaState.adjustments;
   var comps = _cmaState.selectedComps;
+  var isLand = String((s.property_type) || '').toLowerCase() === 'land';
 
   var html = '<div class="cma-wizard">';
   html += cmaStepIndicator(3);
@@ -3394,7 +3539,9 @@ function cmaRenderStep3() {
     { value: 'mobile_home', label: 'Mobile Home' }
   ];
 
-  var stdRows = [
+  var stdRows = isLand ? [
+    { key: 'adj_lot_size', label: 'Lot Size', subVal: s.lot_size_acres ? s.lot_size_acres + ' ac' : '--', field: 'lot_size_acres', unit: 'ac', step: 0.1 },
+  ] : [
     { key: 'adj_living_area', label: 'Living Area', subVal: s.living_area ? s.living_area.toLocaleString() + ' sqft' : '--', field: 'living_area', unit: 'sqft', step: 10 },
     { key: 'adj_lot_size', label: 'Lot Size', subVal: s.lot_size_acres ? s.lot_size_acres + ' ac' : '--', field: 'lot_size_acres', unit: 'ac', step: 0.1 },
     { key: 'adj_bedrooms', label: 'Bedrooms', subVal: s.bedrooms_total || '--', field: 'bedrooms_total', unit: '', step: 1 },
@@ -3430,7 +3577,8 @@ function cmaRenderStep3() {
   });
   html += '</tr>';
 
-  // Construction type row (dropdown)
+  // Construction type row (dropdown) - residential only
+  if (!isLand) {
   html += '<tr><td>Construction</td><td class="cma-grid-subject-val">' + (ctLabels[subCT] || subCT) + '</td>';
   adjs.forEach(function(a, ci) {
     var cf = comps[ci].features || {};
@@ -3448,6 +3596,7 @@ function cmaRenderStep3() {
     html += '</td>';
   });
   html += '</tr>';
+  }
 
   // Structural feature rows with editable inputs
   var basementOpts = [
@@ -3469,6 +3618,8 @@ function cmaRenderStep3() {
     { value: '3', label: 'Tier 3 (large)' }
   ];
 
+  // Structural Features - residential only
+  if (!isLand) {
   html += '<tr class="cma-grid-section"><td colspan="' + (comps.length + 2) + '">Structural Features</td></tr>';
 
   // Pool row
@@ -3533,6 +3684,7 @@ function cmaRenderStep3() {
     html += '</td>';
   });
   html += '</tr>';
+  }
 
   // Mountain adjustment rows with editable comp ratings + sliders
   var mtnRows = [
@@ -3564,7 +3716,8 @@ function cmaRenderStep3() {
     html += '</tr>';
   });
 
-  // Condition row with explicit 1-5 dropdown per comp
+  // Condition row with explicit 1-5 dropdown per comp - residential only
+  if (!isLand) {
   var subCond = sf.condition_rating || 0;
   var condLabels = { 0: 'Unknown', 1: '1 - Tear Down', 2: '2 - Below Avg', 3: '3 - Fair', 4: '4 - Above Avg', 5: '5 - Pristine' };
   html += '<tr><td>Condition</td><td class="cma-grid-subject-val">' + (subCond > 0 ? condLabels[subCond] || subCond + '/5' : '--') + '</td>';
@@ -3586,6 +3739,7 @@ function cmaRenderStep3() {
     html += '</td>';
   });
   html += '</tr>';
+  }
 
   // Market adjustments
   html += '<tr class="cma-grid-section"><td colspan="' + (comps.length + 2) + '">Market Adjustments</td></tr>';
