@@ -27,5 +27,14 @@ desktop.ini
 # Build scripts (not needed in production)
 _generate-pages.js
 
+# Generated CMA + presentation artifacts (regenerate from source)
+/CMA-*.pdf
+/cma-report-*.html
+/doc.html
+/generate-pdf.mjs
+/images/cma/
+marketing/*.pptx
+marketing/*-print.pdf
+
 # Node (if added later)
 node_modules/

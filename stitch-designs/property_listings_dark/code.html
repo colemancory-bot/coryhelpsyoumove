@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>The Serene Professional - Property Listings</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-container-lowest": "#ffffff",
+              "surface-container-low": "#f0f4f7",
+              "secondary-container": "#d6eab5",
+              "on-error": "#fff7f6",
+              "primary-fixed": "#cce6fb",
+              "inverse-on-surface": "#9a9d9f",
+              "on-tertiary-container": "#40456c",
+              "surface-container": "#eaeff2",
+              "tertiary-fixed-dim": "#bcc1ef",
+              "on-tertiary-fixed-variant": "#494e76",
+              "tertiary-container": "#cacefe",
+              "secondary-fixed": "#d6eab5",
+              "outline": "#747c80",
+              "secondary": "#54653b",
+              "background": "#0b0f10",
+              "surface": "#0b0f10",
+              "on-tertiary-fixed": "#2c3157",
+              "on-primary-fixed": "#2a4253",
+              "outline-variant": "#acb3b7",
+              "surface-bright": "#f7f9fb",
+              "on-surface": "#f7f9fb",
+              "inverse-surface": "#0b0f10",
+              "surface-variant": "#dce4e8",
+              "primary-container": "#cce6fb",
+              "error": "#a83836",
+              "primary": "#bed8ed",
+              "on-background": "#f7f9fb",
+              "on-tertiary": "#fbf8ff",
+              "primary-dim": "#3e5667",
+              "primary-fixed-dim": "#bed8ed",
+              "on-primary-container": "#3d5466",
+              "error-dim": "#67040d",
+              "on-secondary-fixed": "#35441e",
+              "tertiary-dim": "#4b5078",
+              "on-secondary-container": "#47572f",
+              "on-surface-variant": "#acb3b7",
+              "surface-container-high": "#2c3437",
+              "error-container": "#fa746f",
+              "on-error-container": "#6e0a12",
+              "tertiary": "#575c85",
+              "inverse-primary": "#cce6fb",
+              "secondary-fixed-dim": "#c8dca8",
+              "on-secondary-fixed-variant": "#506138",
+              "on-primary-fixed-variant": "#465e70",
+              "surface-dim": "#d4dbdf",
+              "tertiary-fixed": "#cacefe",
+              "secondary-dim": "#485830",
+              "surface-container-highest": "#1c2124",
+              "surface-tint": "#4a6274",
+              "on-primary": "#2a4253",
+              "on-secondary": "#efffd2"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b0f10;
+            color: #f7f9fb;
+        }
+        h1, h2, h3 {
+            font-family: 'Manrope', sans-serif;
+        }
+        .editorial-shadow {
+            box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.4);
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+</head>
+<body class="min-h-screen pb-24">
+<!-- TopAppBar -->
+<header class="bg-[#0b0f10] dark:bg-[#0b0f10] flex justify-between items-center w-full px-6 py-4 fixed top-0 z-50">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-container-highest overflow-hidden">
+<img alt="Agent Profile" class="w-full h-full object-cover" data-alt="Professional real estate agent headshot, confident expression, soft natural office lighting, blurred modern background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCzsDsbU2gFhlHMe0Zt9u9AnG0R2KG_SbE1DHHQ66cE-offRHBh33DFEK9Ff80lX97ySJ_bcpr1jv5kivdytUgRVNokQ06dfScK6l0pTr5T_i5-Lr4aq8oOsnAGrjhlCw-eZqa1OsAcD3LnlfHxXRyOpf6IFuxKyBbeRDso7l8ZwZK9S7GIaTOnaMiuzusK8usi9H9aZshFyO66zOAQuu2w_zwK2A-0mCO5x_9SMU0uzsLMLRVcHb0dS3YASvfuVF1LAXGtYt4_gf1r"/>
+</div>
+<span class="text-xl font-extrabold text-[#bed8ed] dark:text-[#bed8ed] tracking-tight">The Serene Professional</span>
+</div>
+<button class="text-[#f7f9fb] dark:text-[#f7f9fb] hover:bg-[#bed8ed]/10 transition-colors p-2 rounded-full active:scale-95 duration-200">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+</header>
+<main class="pt-24 px-6 max-w-2xl mx-auto">
+<!-- Editorial Header -->
+<section class="mb-8">
+<h1 class="text-4xl font-extrabold text-on-surface leading-tight tracking-tight mb-2">Curated<br/>Collections</h1>
+<p class="text-on-surface-variant font-medium">128 Properties currently active in your region.</p>
+</section>
+<!-- Search & Filter Bar -->
+<section class="mb-10 flex flex-col gap-4">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-primary" data-icon="search">search</span>
+<input class="w-full pl-12 pr-4 py-4 bg-surface-container-highest border-none rounded-xl focus:ring-2 focus:ring-primary/20 text-on-surface placeholder:text-outline-variant font-medium editorial-shadow" placeholder="Search locations..." type="text"/>
+</div>
+<div class="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+<button class="flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 rounded-full font-semibold text-sm whitespace-nowrap active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-sm" data-icon="tune">tune</span>
+                    Price Range
+                </button>
+<button class="flex items-center gap-2 bg-surface-container-highest text-on-surface-variant px-5 py-2.5 rounded-full font-semibold text-sm whitespace-nowrap border border-surface-container-high active:scale-95 transition-transform">
+                    Property Type
+                </button>
+<button class="flex items-center gap-2 bg-surface-container-highest text-on-surface-variant px-5 py-2.5 rounded-full font-semibold text-sm whitespace-nowrap border border-surface-container-high active:scale-95 transition-transform">
+                    Beds &amp; Baths
+                </button>
+</div>
+</section>
+<!-- Listings Gallery -->
+<div class="space-y-12">
+<!-- Listing Card 1 -->
+<article class="group">
+<div class="relative aspect-[4/5] w-full rounded-3xl overflow-hidden editorial-shadow mb-5">
+<img alt="Luxury Property" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="Modern luxury villa with large glass windows at dusk, warm interior lighting, sleek architectural lines, infinity pool reflections" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCT0POEHC1MED3FW709wy-rwTJmttKHZKl-IgEWVruDSTdgNAcNLzyemhD62FohsfzKYdpovYDs6OP0qi7qBMauV81kMR-Z8tNcQBrkk_rpw7PEabwfQV0DoDXTJdBb6BV3WybyPWn6Ccjf6c6Z7JxkWDAGpIRha68QTLqPKdVe19supVS37m48pnqSxGCaPHs7dwMT85dq1o9EJ4cUhYAaWmQjmmsyR4DxV1rxEwwlh1vSIl628xh12-g0dhx5F6W9KFjlRjWJxaR5"/>
+<!-- Floating Badges -->
+<div class="absolute top-5 left-5">
+<span class="bg-secondary-container text-on-secondary-container px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-widest">Active</span>
+</div>
+<div class="absolute top-5 right-5 flex flex-col gap-3">
+<button class="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/60 transition-colors">
+<span class="material-symbols-outlined" data-icon="favorite">favorite</span>
+</button>
+<button class="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/60 transition-colors">
+<span class="material-symbols-outlined" data-icon="share">share</span>
+</button>
+</div>
+<div class="absolute bottom-5 left-5 right-5">
+<div class="bg-black/40 backdrop-blur-2xl p-4 rounded-2xl flex justify-between items-center border border-white/10">
+<span class="text-2xl font-extrabold text-white">$2,450,000</span>
+<span class="text-[10px] font-bold text-primary-fixed-dim uppercase tracking-tighter opacity-80">24 Days on Market</span>
+</div>
+</div>
+</div>
+<div class="px-2">
+<h2 class="text-2xl font-bold text-on-surface mb-1">882 Highline Terrace</h2>
+<p class="text-on-surface-variant font-medium mb-4 flex items-center gap-1">
+<span class="material-symbols-outlined text-sm" data-icon="location_on">location_on</span>
+                        West Hollywood, CA 90069
+                    </p>
+<div class="flex items-center gap-6 py-4 border-t border-surface-container-high">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" data-icon="bed">bed</span>
+<span class="text-sm font-bold">4 <span class="text-on-surface-variant font-normal">Beds</span></span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" data-icon="bathtub">bathtub</span>
+<span class="text-sm font-bold">3.5 <span class="text-on-surface-variant font-normal">Baths</span></span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" data-icon="straighten">straighten</span>
+<span class="text-sm font-bold">3,850 <span class="text-on-surface-variant font-normal">Sqft</span></span>
+</div>
+</div>
+</div>
+</article>
+<!-- Listing Card 2 -->
+<article class="group">
+<div class="relative aspect-[4/5] w-full rounded-3xl overflow-hidden editorial-shadow mb-5">
+<img alt="Premium Listing" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="Stunning contemporary mansion exterior, clean white walls, tropical landscaping, blue sky background, bright daylight" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDfwJGjmGUehFuTkiQwBSqxLPJf6vDa28IbvWahxINnjZpP7-15YkULkQ2bfG4iimDcbO71lqzDqx-1k0lY-G1V8LNxcBihGS4sTe_5h5wUhrFP7WwwlhfvdXBAkLkw0diWVy9NdLoFG22oHO31KFGvaCSn_USGMsK016JiZ_P-OH6b6BUAspb-RsI-tLVkuumhi-FRppY_DvgYq4xLwsf2R7fZQjLGaORR_C_q4eRkqBP-hqzLWBYLTGvbqkEur_cJQeW0LNStpUdt"/>
+<div class="absolute top-5 left-5">
+<span class="bg-tertiary-container text-on-tertiary-container px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-widest">Pending</span>
+</div>
+<div class="absolute bottom-5 left-5 right-5">
+<div class="bg-black/40 backdrop-blur-2xl p-4 rounded-2xl flex justify-between items-center border border-white/10">
+<span class="text-2xl font-extrabold text-white">$1,895,000</span>
+<span class="text-[10px] font-bold text-primary-fixed-dim uppercase tracking-tighter opacity-80">8 Days on Market</span>
+</div>
+</div>
+</div>
+<div class="px-2">
+<h2 class="text-2xl font-bold text-on-surface mb-1">The Glass House Reserve</h2>
+<p class="text-on-surface-variant font-medium mb-4 flex items-center gap-1">
+<span class="material-symbols-outlined text-sm" data-icon="location_on">location_on</span>
+                        Malibu, CA 90265
+                    </p>
+<div class="flex items-center gap-6 py-4 border-t border-surface-container-high">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" data-icon="bed">bed</span>
+<span class="text-sm font-bold">3 <span class="text-on-surface-variant font-normal">Beds</span></span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" data-icon="bathtub">bathtub</span>
+<span class="text-sm font-bold">2.0 <span class="text-on-surface-variant font-normal">Baths</span></span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" data-icon="straighten">straighten</span>
+<span class="text-sm font-bold">2,100 <span class="text-on-surface-variant font-normal">Sqft</span></span>
+</div>
+</div>
+</div>
+</article>
+<!-- Listing Card 3 (Sold Variation) -->
+<article class="group opacity-80">
+<div class="relative aspect-[4/5] w-full rounded-3xl overflow-hidden editorial-shadow mb-5 grayscale-[30%]">
+<img alt="Sold Property" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="Minimalist architectural residence with sharp corners, concrete textures, morning light casting soft shadows, drought-tolerant garden" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCICOMtO4eby-SXIgzJXnnKST_8Kc_vAoKJio3e04V3-ogRF-n-qQW0PDx5I6o64JW1yiVXMGlcAhIj-gJUVBdI_IhWTKwVb0qk7sjs7vNOB9IhKptHlVPkyr2CThZfXnqEbikpyPVFeMzwo6AIu0JNpXuzZaZkdqyk652_MKUCxSe80Sel9njoMqxRE9opvMyUwAKgozbL3X20Nj2fSevmjXzySbkq1G88Sqb9x9PGZgswWrjWNzGYZZaLv8ITKqvbnqbOawfpCQyj"/>
+<div class="absolute inset-0 bg-black/20 pointer-events-none"></div>
+<div class="absolute top-5 left-5">
+<span class="bg-primary text-on-primary px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-widest">Sold</span>
+</div>
+<div class="absolute bottom-5 left-5 right-5">
+<div class="bg-black/40 backdrop-blur-2xl p-4 rounded-2xl flex justify-between items-center border border-white/10">
+<span class="text-2xl font-extrabold text-white">$3,120,000</span>
+<span class="text-[10px] font-bold text-primary-fixed-dim uppercase tracking-tighter opacity-80">Closed Mar 24</span>
+</div>
+</div>
+</div>
+<div class="px-2">
+<h2 class="text-2xl font-bold text-on-surface mb-1">Oak Crest Manor</h2>
+<p class="text-on-surface-variant font-medium mb-4 flex items-center gap-1">
+<span class="material-symbols-outlined text-sm" data-icon="location_on">location_on</span>
+                        Beverly Hills, CA 90210
+                    </p>
+</div>
+</article>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-6 pt-3 bg-[#0b0f10]/80 backdrop-blur-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.5)] z-50 rounded-t-3xl border-t border-white/5">
+<a class="flex flex-col items-center justify-center text-[#acb3b7] px-5 py-2 hover:opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="text-[11px] font-semibold uppercase tracking-wider mt-1">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#acb3b7] px-5 py-2 hover:opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="text-[11px] font-semibold uppercase tracking-wider mt-1">Leads</span>
+</a>
+<!-- Active Tab: Listings -->
+<a class="flex flex-col items-center justify-center bg-surface-container-high text-white rounded-2xl px-5 py-2 transform scale-95 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="domain" style="font-variation-settings: 'FILL' 1;">domain</span>
+<span class="text-[11px] font-semibold uppercase tracking-wider mt-1">Listings</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#acb3b7] px-5 py-2 hover:opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="text-[11px] font-semibold uppercase tracking-wider mt-1">Settings</span>
+</a>
+</nav>
+<!-- Contextual FAB -->
+<button class="fixed right-6 bottom-28 w-14 h-14 bg-primary text-on-primary rounded-full editorial-shadow flex items-center justify-center active:scale-95 duration-200 z-40">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+</button>
+</body></html>
