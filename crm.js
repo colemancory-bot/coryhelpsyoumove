@@ -2288,6 +2288,18 @@ function cmaRenderStep1() {
   html += '<div class="cma-man-source-wrap" id="cmaManSourceWrap" style="display:none"><span class="cma-man-source" id="cmaManSource"></span></div>';
   html += '</div>';
 
+  // Property type toggle - picking Land hides the house-only questions below
+  html += '<div class="cma-type-toggle" id="cmaTypeToggle">';
+  html += '<span class="cma-type-toggle-label">Property type</span>';
+  html += '<div class="cma-type-btns">';
+  html += '<button type="button" class="cma-type-btn cma-type-primary cma-type-active" data-type="Residential" onclick="cmaSetSubjectType(\'Residential\')">Residential</button>';
+  html += '<button type="button" class="cma-type-btn cma-type-primary" data-type="Land" onclick="cmaSetSubjectType(\'Land\')">Land</button>';
+  html += '<button type="button" class="cma-type-btn cma-type-minor" data-type="Residential Income" onclick="cmaSetSubjectType(\'Residential Income\')">Multi-Family</button>';
+  html += '<button type="button" class="cma-type-btn cma-type-minor" data-type="Commercial" onclick="cmaSetSubjectType(\'Commercial\')">Commercial</button>';
+  html += '</div>';
+  html += '<input type="hidden" id="cmaManType" value="Residential" />';
+  html += '</div>';
+
   // County lookup row
   html += '<div class="cma-county-lookup" id="cmaCountyLookupRow">';
   html += '<input class="crm-input" id="cmaLookupAddr" placeholder="Look up by address..." style="flex:1" />';
@@ -2302,7 +2314,6 @@ function cmaRenderStep1() {
   html += cmaFactsRow('Street Address *', 'cmaManAddr', 'text', '35 Coweeta Ridge Rd', true);
   html += cmaFactsRow('City *', 'cmaManCity', 'text', 'Franklin', true);
   html += cmaFactsRow('County', 'cmaManCounty', 'text', 'Macon', false);
-  html += cmaFactsSelectRow('Property Type', 'cmaManType', [['Residential','Residential'],['Land','Land'],['Residential Income','Multi-Family'],['Commercial','Commercial']], true);
   html += cmaFactsSelectRow('Subtype', 'cmaManSubtype', [['Single Family Residence','Single Family'],['Cabin','Cabin'],['Manufactured Home','Manufactured'],['Condo','Condo'],['Townhouse','Townhouse'],['','Other']], false);
   html += cmaFactsSelectRow('Construction', 'cmaManConstruction', [['auto','Auto-detect'],['site_built','Site-Built'],['manufactured','Manufactured (post-1976)'],['modular','Modular'],['mobile_home','Mobile Home (pre-1976)'],['log','Log']], false);
   html += '<tr class="cma-facts-divider"><td colspan="3"></td></tr>';
@@ -2327,6 +2338,9 @@ function cmaRenderStep1() {
   }
   html += '</div></div>';
   main.innerHTML = html;
+
+  // Default the subject form to Residential (all fields visible)
+  cmaSetSubjectType('Residential');
 
   var searchInput = document.getElementById('cmaSubjectSearch');
   var debounce = null;
@@ -2357,6 +2371,53 @@ function cmaFactsSelectRow(label, id, options, starred) {
     '<td class="cma-facts-label">' + (starred ? '<span class="cma-facts-star">*</span> ' : '') + label + '</td>' +
     '<td class="cma-facts-record" id="' + id + '_record">&ndash;</td>' +
     '<td class="cma-facts-change"><select class="cma-facts-select" id="' + id + '">' + optHtml + '</select></td></tr>';
+}
+
+// House-only rows hidden when the subject is Land, so a land CMA only asks what matters.
+var CMA_HOUSE_ONLY_FIELDS = ['cmaManSubtype','cmaManConstruction','cmaManBeds','cmaManBaths','cmaManSqft','cmaManGarage','cmaManYear','cmaManCondition'];
+
+// Set the subject property type (Residential/Land/etc). Writes the value into the
+// hidden #cmaManType that cmaSubmitManual and the cma-engine already read, updates
+// the toggle buttons, and shows/hides the house-only rows accordingly.
+function cmaSetSubjectType(type) {
+  if (!type) type = 'Residential';
+  var canon = String(type).toLowerCase();
+  var holder = document.getElementById('cmaManType');
+  if (holder) holder.value = type;
+  var toggle = document.getElementById('cmaTypeToggle');
+  if (toggle) {
+    toggle.querySelectorAll('.cma-type-btn').forEach(function(b) {
+      b.classList.toggle('cma-type-active', b.getAttribute('data-type').toLowerCase() === canon);
+    });
+  }
+  cmaApplyTypeVisibility(type);
+}
+
+// Hide house-only rows for Land and star Lot Size (its primary value driver).
+// Case-insensitive, matching the cma-engine's own isLand check.
+function cmaApplyTypeVisibility(type) {
+  var land = (String(type).toLowerCase() === 'land');
+  CMA_HOUSE_ONLY_FIELDS.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var row = el.closest('tr');
+    if (row) row.style.display = land ? 'none' : '';
+  });
+  var lot = document.getElementById('cmaManLot');
+  if (lot) {
+    var lotRow = lot.closest('tr');
+    if (lotRow) {
+      lotRow.classList.toggle('cma-facts-starred', land);
+      var lbl = lotRow.querySelector('.cma-facts-label');
+      if (lbl) {
+        if (!lbl.hasAttribute('data-base-label')) {
+          lbl.setAttribute('data-base-label', lbl.textContent.replace(/^\*\s*/, '').trim());
+        }
+        var base = lbl.getAttribute('data-base-label');
+        lbl.innerHTML = (land ? '<span class="cma-facts-star">*</span> ' : '') + base;
+      }
+    }
+  }
 }
 
 // Use county GIS record as subject - pre-fills the manual entry form with county data
@@ -2400,6 +2461,8 @@ function cmaShowManualEntry(prefillAddress) {
     var lookupField = document.getElementById('cmaLookupAddr');
     if (lookupField && !lookupField.value) lookupField.value = prefillAddress;
   }
+  // Fresh manual entry defaults to Residential
+  cmaSetSubjectType('Residential');
 }
 
 function cmaHideManualEntry() {
@@ -2442,6 +2505,11 @@ function cmaSubmitManual() {
   var addr = (document.getElementById('cmaManAddr').value || '').trim();
   var city = (document.getElementById('cmaManCity').value || '').trim();
   if (!addr || !city) { toast('Address and city are required', 'error'); return; }
+  var ptype = document.getElementById('cmaManType').value || 'Residential';
+  if (ptype === 'Land') {
+    var lotAcres = parseFloat(document.getElementById('cmaManLot').value);
+    if (!lotAcres || lotAcres <= 0) { toast('Lot size (acres) is required for a land CMA', 'error'); return; }
+  }
   var notes = (document.getElementById('cmaManNotes') ? document.getElementById('cmaManNotes').value : '') || '';
   var listing = {
     listing_key: window._cmaPrefilledKey || ('manual_' + Date.now()),
@@ -2752,7 +2820,7 @@ function cmaShowEditableSubject(data, tags, source) {
   setVal('cmaManYear', data.year_built || '');
   setVal('cmaManGarage', data.garage_spaces || '0');
   setVal('cmaManPrice', data.list_price || data.close_price || data.last_sale_price || '');
-  if (data.property_type) setVal('cmaManType', data.property_type);
+  cmaSetSubjectType(data.property_type || 'Residential');
   if (data.property_sub_type) setVal('cmaManSubtype', data.property_sub_type);
 
   // Construction type from feature tags
