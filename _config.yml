@@ -1,0 +1,20 @@
+# GitHub Pages (Jekyll) config.
+# The site is served from the repo root, so without this Jekyll would publish
+# everything in the repo. These paths are source / schema / docs / infra that
+# belong in git but must NOT be web-accessible at coryhelpsyoumove.com.
+# They stay tracked; they just 404 on the published site.
+exclude:
+  - docs/
+  - supabase/
+  - marketing/
+  - stitch-designs/
+  - workers/
+  - index.ts
+  - package.json
+  - package-lock.json
+  - README.md
+  # Jekyll build defaults (kept so overriding `exclude` doesn't republish them):
+  - node_modules/
+  - vendor/
+  - Gemfile
+  - Gemfile.lock
