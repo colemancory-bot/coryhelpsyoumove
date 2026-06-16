@@ -2303,7 +2303,8 @@ function cmaRenderStep1() {
   // County lookup row
   html += '<div class="cma-county-lookup" id="cmaCountyLookupRow">';
   html += '<input class="crm-input" id="cmaLookupAddr" placeholder="Look up by address..." style="flex:1" />';
-  html += '<input class="crm-input" id="cmaLookupCounty" placeholder="County" style="width:120px" />';
+  html += '<input class="crm-input" id="cmaLookupPin" placeholder="or PIN (vacant land)" style="width:150px" />';
+  html += '<input class="crm-input" id="cmaLookupCounty" placeholder="County" style="width:110px" />';
   html += '<button class="crm-btn crm-btn-secondary" onclick="cmaCountyLookup()">Look Up</button>';
   html += '</div>';
 
@@ -2501,11 +2502,13 @@ function cmaHideManualEntry() {
 
 async function cmaCountyLookup() {
   var addr = (document.getElementById('cmaLookupAddr').value || '').trim();
+  var pinEl = document.getElementById('cmaLookupPin');
+  var pin = ((pinEl && pinEl.value) || '').trim();
   var county = (document.getElementById('cmaLookupCounty').value || '').trim();
-  if (!addr || addr.length < 3) { toast('Enter an address to look up (at least 3 characters)', 'error'); return; }
-  toast('Looking up property records...', 'info');
+  if (!pin && (!addr || addr.length < 3)) { toast('Enter an address (3+ characters) or a PIN to look up', 'error'); return; }
+  toast(pin ? 'Looking up parcel by PIN...' : 'Looking up property records...', 'info');
   try {
-    var result = await cmaFetch('property-lookup', { address: addr, county: county });
+    var result = await cmaFetch('property-lookup', pin ? { pin: pin, county: county } : { address: addr, county: county });
     if (result.error) { toast('Lookup error: ' + result.error, 'error'); return; }
 
     // Check MLS matches first (best data)
@@ -2518,8 +2521,10 @@ async function cmaCountyLookup() {
     // Fall back to county records
     if (result.county_record) {
       var cr = result.county_record;
-      cr.full_address = cr.full_address || addr;
+      cr.full_address = cr.full_address || addr || (pin ? 'PIN ' + pin : '');
       cr.county_or_parish = cr.county_or_parish || county;
+      // A parcel with no building/structure value found by PIN is vacant land
+      if (pin && !cr.building_value && !cr.living_area) cr.property_type = 'Land';
       var countySource = (result.county_source || 'County Records') + (cr.owner ? ' | Owner: ' + cr.owner : '') + (cr.assessed_value ? ' | Assessed: $' + Number(cr.assessed_value).toLocaleString() : '');
       cmaShowEditableSubject(cr, null, countySource);
       toast('Found in ' + (result.county_source || 'county records') + '. Review and edit as needed.', 'success');

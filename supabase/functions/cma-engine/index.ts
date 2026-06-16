@@ -2735,19 +2735,25 @@ Return JSON:
     // Query county tax/GIS records to pre-fill property data
     if (action === "property-lookup") {
       const address = body.address || "";
+      const pin = (body.pin || "").trim();
       const county = (body.county || "").toLowerCase();
 
-      if (!address || address.length < 3) {
-        return jsonResp({ error: "Address required (min 3 chars)" }, 400);
+      if (!pin && (!address || address.length < 3)) {
+        return jsonResp({ error: "Address (min 3 chars) or PIN required" }, 400);
       }
 
-      // Also search MLS for any previous listing at this address
-      const { data: mlsMatches } = await sb
-        .from("mls_listings")
-        .select("listing_key, full_address, city, county_or_parish, property_type, property_sub_type, living_area, lot_size_acres, bedrooms_total, bathrooms_total_integer, year_built, garage_spaces, close_price, close_date, list_price, standard_status, latitude, longitude, stories, public_remarks")
-        .ilike("full_address", `%${address}%`)
-        .order("modification_timestamp", { ascending: false })
-        .limit(5);
+      // Also search MLS for any previous listing at this address. Skipped for a
+      // PIN-only lookup (no address to match -> the ilike would match everything).
+      let mlsMatches: Record<string, unknown>[] = [];
+      if (!pin && address) {
+        const { data } = await sb
+          .from("mls_listings")
+          .select("listing_key, full_address, city, county_or_parish, property_type, property_sub_type, living_area, lot_size_acres, bedrooms_total, bathrooms_total_integer, year_built, garage_spaces, close_price, close_date, list_price, standard_status, latitude, longitude, stories, public_remarks")
+          .ilike("full_address", `%${address}%`)
+          .order("modification_timestamp", { ascending: false })
+          .limit(5);
+        mlsMatches = (data as Record<string, unknown>[]) || [];
+      }
 
       // County GIS lookup
       let countyData: Record<string, unknown> | null = null;
@@ -2756,7 +2762,8 @@ Return JSON:
       try {
         if (county === "jackson" || county.includes("jackson")) {
           // Jackson County: Two-step - parcels then building details
-          const parcelUrl = `https://gis.jacksonnc.org/jcgis/rest/services/Tax_Admin/Parcels/MapServer/0/query?where=PropAddr+LIKE+'%25${encodeURIComponent(address.toUpperCase())}%25'&outFields=PIN,PropAddr,AssessedAcres,TotBldgValue,TotLandValue,TaxableValue,SalePrice,SaleDate,CurrentOwner1&f=json&resultRecordCount=5`;
+          const where = pin ? `PIN='${pin}'` : `PropAddr LIKE '%${address.toUpperCase()}%'`;
+          const parcelUrl = `https://gis.jacksonnc.org/jcgis/rest/services/Tax_Admin/Parcels/MapServer/0/query?where=${encodeURIComponent(where)}&outFields=PIN,PropAddr,AssessedAcres,TotBldgValue,TotLandValue,TaxableValue,SalePrice,SaleDate,CurrentOwner1&f=json&resultRecordCount=5`;
           const pRes = await fetch(parcelUrl);
           const pData = await pRes.json();
 
@@ -2799,7 +2806,8 @@ Return JSON:
           }
         } else if (county === "haywood" || county.includes("haywood")) {
           // Haywood County: Single query with heated area + year built
-          const url = `https://maps.haywoodcountync.gov/arcgis/rest/services/Land_Records/Open_Data/MapServer/3/query?where=Prop_Addr+LIKE+'%25${encodeURIComponent(address.toUpperCase())}%25'&outFields=ALPHA,Prop_Addr,Calc_Acres,Heated_Area,Yr_Built,Land_Value,Bldg_Value,Assd_Value,Sale_Price,Sale_Date,Owner_1,SubDivName&f=json&resultRecordCount=5`;
+          const where = pin ? `ALPHA='${pin}'` : `Prop_Addr LIKE '%${address.toUpperCase()}%'`;
+          const url = `https://maps.haywoodcountync.gov/arcgis/rest/services/Land_Records/Open_Data/MapServer/3/query?where=${encodeURIComponent(where)}&outFields=ALPHA,Prop_Addr,Calc_Acres,Heated_Area,Yr_Built,Land_Value,Bldg_Value,Assd_Value,Sale_Price,Sale_Date,Owner_1,SubDivName&f=json&resultRecordCount=5`;
           const hRes = await fetch(url);
           const hData = await hRes.json();
 
@@ -2822,7 +2830,8 @@ Return JSON:
           }
         } else if (county === "swain" || county.includes("swain")) {
           // Swain County: Basic parcel data (no beds/baths/sqft)
-          const url = `https://maps.swaincountync.gov/server/rest/services/ParcelsForDownload/FeatureServer/0/query?where=ParcelAddr+LIKE+'%25${encodeURIComponent(address.toUpperCase())}%25'&outFields=PIN,ParcelAddr,DEED_ACRE,TotalAssessedValue,ParcelBuildingValue,ParcelLandValue,Name1&f=json&resultRecordCount=5`;
+          const where = pin ? `PIN='${pin}'` : `ParcelAddr LIKE '%${address.toUpperCase()}%'`;
+          const url = `https://maps.swaincountync.gov/server/rest/services/ParcelsForDownload/FeatureServer/0/query?where=${encodeURIComponent(where)}&outFields=PIN,ParcelAddr,DEED_ACRE,TotalAssessedValue,ParcelBuildingValue,ParcelLandValue,Name1&f=json&resultRecordCount=5`;
           const sRes = await fetch(url);
           const sData = await sRes.json();
 
@@ -2843,7 +2852,8 @@ Return JSON:
         } else {
           // Fallback: NC OneMap statewide parcels (basic data for any county)
           const countyName = county.charAt(0).toUpperCase() + county.slice(1);
-          const url = `https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/FeatureServer/1/query?where=siteadd+LIKE+'%25${encodeURIComponent(address.toUpperCase())}%25'${countyName ? `+AND+cntyname='${countyName}'` : ""}&outFields=parno,siteadd,ownname,gisacres,parval,landval,improvval,structyear,parusedesc,cntyname&f=json&resultRecordCount=5`;
+          const where = (pin ? `parno='${pin}'` : `siteadd LIKE '%${address.toUpperCase()}%'`) + (countyName ? ` AND cntyname='${countyName}'` : "");
+          const url = `https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/FeatureServer/1/query?where=${encodeURIComponent(where)}&outFields=parno,siteadd,ownname,gisacres,parval,landval,improvval,structyear,parusedesc,cntyname&f=json&resultRecordCount=5`;
           const nRes = await fetch(url);
           const nData = await nRes.json();
 
