@@ -1090,6 +1090,11 @@ a:hover { color: var(--crm-accent-light); }
 .cma-type-btn.cma-type-active { background: var(--crm-accent); color: var(--crm-text-inverse); border-color: var(--crm-accent); }
 .cma-type-minor.cma-type-active { color: var(--crm-text-inverse); }
 
+/* Utilities checkbox row in the Land facts form */
+.cma-util-checks { display: flex; flex-wrap: wrap; gap: 0.3rem 0.8rem; }
+.cma-util-check { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; color: var(--crm-text); white-space: nowrap; cursor: pointer; }
+.cma-util-check input { margin: 0; cursor: pointer; }
+
 .cma-status-active { background: var(--crm-green-bg); color: var(--crm-green); }
 .cma-status-closed { background: var(--crm-text-muted); color: white; opacity: 0.7; }
 .cma-status-pending { background: var(--crm-amber-bg); color: var(--crm-amber); }
