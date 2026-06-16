@@ -1901,9 +1901,10 @@ Deno.serve(async (req: Request) => {
       const isLogSubject = subConstr === "log";
 
       // Build comp query
+      const isLandSubject = String(subject.property_type || "").toLowerCase() === "land";
       const dateFloor =
         filters.min_close_date ||
-        new Date(Date.now() - 365 * 86400000).toISOString().split("T")[0];
+        new Date(Date.now() - (isLandSubject ? 1095 : 365) * 86400000).toISOString().split("T")[0];
       const maxDistance = filters.max_distance_miles || (isLogSubject ? 40 : 15);
 
       let compQuery = sb
@@ -1911,10 +1912,20 @@ Deno.serve(async (req: Request) => {
         .select(
           "listing_key, full_address, city, county_or_parish, property_type, property_sub_type, living_area, lot_size_acres, bedrooms_total, bathrooms_total_integer, year_built, garage_spaces, close_price, close_date, list_price, latitude, longitude, standard_status, stories, public_remarks, construction_materials"
         )
-        .eq("standard_status", "Closed")
-        .not("close_price", "is", null)
-        .gte("close_date", dateFloor)
         .limit(100);
+      // Land: sales are sparse and comparable parcels sit as listings for years, so
+      // closed-only biases toward the few better-located lots that actually sold.
+      // Include active/pending listings (priced via list_price downstream).
+      if (isLandSubject) {
+        compQuery = compQuery
+          .in("standard_status", ["Closed", "Active", "Active Under Contract", "Pending"])
+          .or(`standard_status.neq.Closed,close_date.gte.${dateFloor}`);
+      } else {
+        compQuery = compQuery
+          .eq("standard_status", "Closed")
+          .not("close_price", "is", null)
+          .gte("close_date", dateFloor);
+      }
 
       // Exclude subject if it's from DB
       if (listingKey) {
@@ -1981,6 +1992,16 @@ Deno.serve(async (req: Request) => {
             ) <= maxDistance
           );
         });
+      }
+
+      // Land: drop gross $/acre outliers (dev tracts, bulk lots) so they don't sit among rural lots
+      if (isLandSubject && filteredComps.length >= 4) {
+        const ppa = filteredComps.map((c) => { const p = (c.close_price || c.list_price || 0); const a = (c.lot_size_acres || 0); return a > 0 ? p / a : 0; }).filter((x) => x > 0).sort((a, b) => a - b);
+        const med = ppa.length ? ppa[Math.floor(ppa.length / 2)] : 0;
+        if (med > 0) {
+          const pruned = filteredComps.filter((c) => { const a = (c.lot_size_acres || 0); const p = (c.close_price || c.list_price || 0); const x = a > 0 ? p / a : med; return x <= med * 5 && x >= med * 0.2; });
+          if (pruned.length >= 3) filteredComps = pruned;
+        }
       }
 
       // Fetch feature tags for all potential comps
@@ -2108,18 +2129,27 @@ Deno.serve(async (req: Request) => {
       const isLogSubject = subConstr === "log";
 
       // Find comps (same logic as find-comps action)
+      const isLandSubject = String(subject.property_type || "").toLowerCase() === "land";
       const dateFloor = filters.min_close_date ||
-        new Date(Date.now() - 365 * 86400000).toISOString().split("T")[0];
+        new Date(Date.now() - (isLandSubject ? 1095 : 365) * 86400000).toISOString().split("T")[0];
       // Log subjects: widen radius to surface scarce log sales (appraisal practice: 10-40mi).
       const maxDistance = filters.max_distance_miles || (isLogSubject ? 40 : 15);
 
       let compQuery = sb
         .from("mls_listings")
         .select("listing_key, full_address, city, county_or_parish, property_type, property_sub_type, living_area, lot_size_acres, bedrooms_total, bathrooms_total_integer, year_built, garage_spaces, close_price, close_date, list_price, latitude, longitude, standard_status, stories, public_remarks, construction_materials")
-        .eq("standard_status", "Closed")
-        .not("close_price", "is", null)
-        .gte("close_date", dateFloor)
         .limit(100);
+      // Land: include active/pending listings, not just closed sales (see find-comps).
+      if (isLandSubject) {
+        compQuery = compQuery
+          .in("standard_status", ["Closed", "Active", "Active Under Contract", "Pending"])
+          .or(`standard_status.neq.Closed,close_date.gte.${dateFloor}`);
+      } else {
+        compQuery = compQuery
+          .eq("standard_status", "Closed")
+          .not("close_price", "is", null)
+          .gte("close_date", dateFloor);
+      }
 
       if (listingKey) compQuery = compQuery.neq("listing_key", listingKey);
       if (filters.county) {
@@ -2149,6 +2179,16 @@ Deno.serve(async (req: Request) => {
           if (!c.latitude || !c.longitude) return true;
           return distanceMiles(subject.latitude!, subject.longitude!, c.latitude!, c.longitude!) <= maxDistance;
         });
+      }
+
+      // Land: drop gross $/acre outliers (dev tracts, bulk lots) so they don't sit among rural lots
+      if (isLandSubject && filteredComps.length >= 4) {
+        const ppa = filteredComps.map((c) => { const p = (c.close_price || c.list_price || 0); const a = (c.lot_size_acres || 0); return a > 0 ? p / a : 0; }).filter((x) => x > 0).sort((a, b) => a - b);
+        const med = ppa.length ? ppa[Math.floor(ppa.length / 2)] : 0;
+        if (med > 0) {
+          const pruned = filteredComps.filter((c) => { const a = (c.lot_size_acres || 0); const p = (c.close_price || c.list_price || 0); const x = a > 0 ? p / a : med; return x <= med * 5 && x >= med * 0.2; });
+          if (pruned.length >= 3) filteredComps = pruned;
+        }
       }
 
       // Fetch feature tags for comps
@@ -2461,11 +2501,13 @@ Return JSON:
         suggestedHigh = rangeSet[rangeSet.length - 1];
 
         // Weighted mean: comps with fewer gross adjustments weigh more
-        // Weight = 1 / (1 + gross_adj_pct/100)
+        // Weight = 1 / (1 + gross_adj_pct/100). Only the comps INSIDE the trimmed
+        // range count, so a single outlier the range already trimmed (e.g. a
+        // development tract among rural lots) can't balloon the suggested price.
         let totalWeight = 0;
         let weightedSum = 0;
         for (const r of results) {
-          if (r.adjusted_price > 0) {
+          if (r.adjusted_price >= suggestedLow && r.adjusted_price <= suggestedHigh) {
             const w = 1 / (1 + (r.gross_adjustment_pct || 0) / 100);
             totalWeight += w;
             weightedSum += r.adjusted_price * w;
