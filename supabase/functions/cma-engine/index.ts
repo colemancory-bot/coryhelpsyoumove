@@ -2737,6 +2737,12 @@ Return JSON:
       const address = body.address || "";
       const pin = (body.pin || "").trim();
       const county = (body.county || "").toLowerCase();
+      // Tolerate PINs typed without dashes/spaces — NC standard parcel IDs are NNNN-NN-NNNN,
+      // and the GIS PIN field is exact-match, so "7569724345" must become "7569-72-4345".
+      const pinDigits = pin.replace(/\D/g, "");
+      const normPin = /^\d{10}$/.test(pinDigits)
+        ? `${pinDigits.slice(0, 4)}-${pinDigits.slice(4, 6)}-${pinDigits.slice(6)}`
+        : pin;
 
       if (!pin && (!address || address.length < 3)) {
         return jsonResp({ error: "Address (min 3 chars) or PIN required" }, 400);
@@ -2762,7 +2768,7 @@ Return JSON:
       try {
         if (county === "jackson" || county.includes("jackson")) {
           // Jackson County: Two-step - parcels then building details
-          const where = pin ? `PIN='${pin}'` : `PropAddr LIKE '%${address.toUpperCase()}%'`;
+          const where = pin ? `PIN='${normPin}'` : `PropAddr LIKE '%${address.toUpperCase()}%'`;
           const parcelUrl = `https://gis.jacksonnc.org/jcgis/rest/services/Tax_Admin/Parcels/MapServer/0/query?where=${encodeURIComponent(where)}&outFields=PIN,PropAddr,AssessedAcres,TotBldgValue,TotLandValue,TaxableValue,SalePrice,SaleDate,CurrentOwner1&f=json&resultRecordCount=5`;
           const pRes = await fetch(parcelUrl);
           const pData = await pRes.json();
@@ -2830,7 +2836,7 @@ Return JSON:
           }
         } else if (county === "swain" || county.includes("swain")) {
           // Swain County: Basic parcel data (no beds/baths/sqft)
-          const where = pin ? `PIN='${pin}'` : `ParcelAddr LIKE '%${address.toUpperCase()}%'`;
+          const where = pin ? `PIN='${normPin}'` : `ParcelAddr LIKE '%${address.toUpperCase()}%'`;
           const url = `https://maps.swaincountync.gov/server/rest/services/ParcelsForDownload/FeatureServer/0/query?where=${encodeURIComponent(where)}&outFields=PIN,ParcelAddr,DEED_ACRE,TotalAssessedValue,ParcelBuildingValue,ParcelLandValue,Name1&f=json&resultRecordCount=5`;
           const sRes = await fetch(url);
           const sData = await sRes.json();
@@ -2852,7 +2858,7 @@ Return JSON:
         } else {
           // Fallback: NC OneMap statewide parcels (basic data for any county)
           const countyName = county.charAt(0).toUpperCase() + county.slice(1);
-          const where = (pin ? `parno='${pin}'` : `siteadd LIKE '%${address.toUpperCase()}%'`) + (countyName ? ` AND cntyname='${countyName}'` : "");
+          const where = (pin ? `parno='${normPin}'` : `siteadd LIKE '%${address.toUpperCase()}%'`) + (countyName ? ` AND cntyname='${countyName}'` : "");
           const url = `https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/FeatureServer/1/query?where=${encodeURIComponent(where)}&outFields=parno,siteadd,ownname,gisacres,parval,landval,improvval,structyear,parusedesc,cntyname&f=json&resultRecordCount=5`;
           const nRes = await fetch(url);
           const nData = await nRes.json();
