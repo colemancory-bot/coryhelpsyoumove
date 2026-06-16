@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "@supabase/supabase-js": "^2.99.1",
+    "pdf-parse": "^2.4.5"
+  },
+  "devDependencies": {
+    "puppeteer": "^24.39.0"
+  }
+}

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-container-lowest": "#ffffff",
+              "surface-container-low": "#f0f4f7",
+              "secondary-container": "#d6eab5",
+              "on-error": "#fff7f6",
+              "primary-fixed": "#cce6fb",
+              "inverse-on-surface": "#9a9d9f",
+              "on-tertiary-container": "#40456c",
+              "surface-container": "#eaeff2",
+              "tertiary-fixed-dim": "#bcc1ef",
+              "on-tertiary-fixed-variant": "#494e76",
+              "tertiary-container": "#cacefe",
+              "secondary-fixed": "#d6eab5",
+              "outline": "#747c80",
+              "secondary": "#54653b",
+              "background": "#f7f9fb",
+              "surface": "#f7f9fb",
+              "on-tertiary-fixed": "#2c3157",
+              "on-primary-fixed": "#2a4253",
+              "outline-variant": "#acb3b7",
+              "surface-bright": "#f7f9fb",
+              "on-surface": "#2c3437",
+              "inverse-surface": "#0b0f10",
+              "surface-variant": "#dce4e8",
+              "primary-container": "#cce6fb",
+              "error": "#a83836",
+              "primary": "#4a6274",
+              "on-background": "#2c3437",
+              "on-tertiary": "#fbf8ff",
+              "primary-dim": "#3e5667",
+              "primary-fixed-dim": "#bed8ed",
+              "on-primary-container": "#3d5466",
+              "error-dim": "#67040d",
+              "on-secondary-fixed": "#35441e",
+              "tertiary-dim": "#4b5078",
+              "on-secondary-container": "#47572f",
+              "on-surface-variant": "#596064",
+              "surface-container-high": "#e3e9ed",
+              "error-container": "#fa746f",
+              "on-error-container": "#6e0a12",
+              "tertiary": "#575c85",
+              "inverse-primary": "#cce6fb",
+              "secondary-fixed-dim": "#c8dca8",
+              "on-secondary-fixed-variant": "#506138",
+              "on-primary-fixed-variant": "#465e70",
+              "surface-dim": "#d4dbdf",
+              "tertiary-fixed": "#cacefe",
+              "secondary-dim": "#485830",
+              "surface-container-highest": "#dce4e8",
+              "surface-tint": "#4a6274",
+              "on-primary": "#f5f9ff",
+              "on-secondary": "#efffd2"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3 { font-family: 'Manrope', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<style>
+        body {
+          min-height: max(884px, 100dvh);
+        }
+    </style>
+</head>
+<body class="bg-surface dark:bg-[#111416] text-on-surface dark:text-[#e1e2e4] min-h-screen pb-32">
+<!-- TopAppBar -->
+<header class="bg-[#f7f9fb] dark:bg-[#1a1c1e] flex justify-between items-center w-full px-6 py-4 sticky top-0 z-40">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-variant dark:bg-[#44474a] flex items-center justify-center overflow-hidden">
+<img alt="Agent Profile" class="w-full h-full object-cover" data-alt="Professional headshot of a real estate agent in a navy suit against a clean architectural office background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAWdb9I3IMa99aw_WARnfghn-hlIMYQzy83OhuYT8TNCERFyvUc8eNDDGoKa_MeRK9csjIAL7bU1ecZ5uaDvMfYcbPJbmaoHvbAOR8_HOHW626EmJQdF6EyK_Z3T1tW0AOt8WQ7wY8QcH4FPKNhc8a1Q3gX4Rt6xSknGrmr3FkrXlnzj1b1I45iWblf7b2kDyvTw-nzpPBTflagXrO-7sa95v8nkLnclSHNqUml4reo9a1Vo8XT12XFj-EeGRY03HWVHcefRgp_Y3Ih"/>
+</div>
+<span class="text-xl font-extrabold text-[#4A6274] dark:text-[#a0c9e8] tracking-tight">The Serene Professional</span>
+</div>
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#dce4e8]/50 dark:hover:bg-[#44474a]/50 transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined text-[#4A6274] dark:text-[#a0c9e8]">notifications</span>
+</button>
+</header>
+<main class="px-6 space-y-8 max-w-2xl mx-auto">
+<!-- Lead Header & Identity -->
+<section class="mt-4">
+<div class="flex flex-col items-center text-center space-y-4">
+<div class="relative">
+<div class="w-32 h-32 rounded-3xl overflow-hidden shadow-xl ring-4 ring-surface-container-low dark:ring-[#1a1c1e]">
+<img alt="Lead Contact" class="w-full h-full object-cover" data-alt="Close-up portrait of a friendly-looking man in a beige linen shirt, natural outdoor lighting, professional atmosphere" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBdS13tSbFps470qmP4T4FPPy8Te4f-vrByiMQAO-i0_jh-idCo1eEAzvTd-DV9ptuFehfNBhwl9AG0GaO4W8pIoW3eUuVX2a8Txot3AhmFfcbAvm5tlJlowuIuNbQt77M3YEegML4mFDZ4dg3hRBVtTrumHkuO4VN9vtrvzXOwThKc5WKkYfVSiSK2CAeeQ0g0vLhxa5RYeVwojgmFb851lQdhTH8Gjqetg-Fy_uJJ_OXyc6eI678ckAl5eyJAqET2FTM9BEQ7faRw"/>
+</div>
+<div class="absolute -bottom-2 right-0 left-0 flex justify-center">
+<span class="bg-secondary-container dark:bg-[#3d4d26] text-on-secondary-container dark:text-[#d6eab5] px-4 py-1 rounded-full text-xs font-bold tracking-widest uppercase shadow-sm">Hot Lead</span>
+</div>
+</div>
+<div class="pt-2">
+<h1 class="text-3xl font-extrabold tracking-tight text-on-surface dark:text-[#e1e2e4]">Eleanor Sterling</h1>
+<p class="text-on-surface-variant dark:text-[#bfc8cc] font-medium">Looking for Modern Townhomes in Chelsea</p>
+</div>
+</div>
+</section>
+<!-- Primary Action Bar (Tonal Layering Cards) -->
+<section class="grid grid-cols-4 gap-3">
+<button class="flex flex-col items-center justify-center gap-2 p-4 bg-primary dark:bg-[#a0c9e8] text-on-primary dark:text-[#0b344a] rounded-xl shadow-lg active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined">call</span>
+<span class="text-[10px] font-bold uppercase tracking-wider">Call</span>
+</button>
+<button class="flex flex-col items-center justify-center gap-2 p-4 bg-primary-container dark:bg-[#344a5b] text-on-primary-container dark:text-[#cce6fb] rounded-xl active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined">mail</span>
+<span class="text-[10px] font-bold uppercase tracking-wider">Email</span>
+</button>
+<button class="flex flex-col items-center justify-center gap-2 p-4 bg-surface-container-highest dark:bg-[#44474a] text-on-surface dark:text-[#e1e2e4] rounded-xl active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined">chat_bubble</span>
+<span class="text-[10px] font-bold uppercase tracking-wider">SMS</span>
+</button>
+<button class="flex flex-col items-center justify-center gap-2 p-4 bg-surface-container-highest dark:bg-[#44474a] text-on-surface dark:text-[#e1e2e4] rounded-xl active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined">history_edu</span>
+<span class="text-[10px] font-bold uppercase tracking-wider">Log</span>
+</button>
+</section>
+<!-- Bento Grid: Details & Notes -->
+<section class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<!-- Contact Info -->
+<div class="bg-surface-container-lowest dark:bg-[#1a1c1e] p-6 rounded-3xl space-y-6">
+<div class="flex items-center justify-between">
+<h3 class="text-lg font-bold dark:text-[#e1e2e4]">Contact Details</h3>
+<span class="material-symbols-outlined text-outline-variant dark:text-[#8e9194]">contact_page</span>
+</div>
+<div class="space-y-4">
+<div class="flex items-start gap-4">
+<span class="material-symbols-outlined text-primary dark:text-[#a0c9e8] mt-1">location_on</span>
+<div>
+<p class="text-[10px] text-on-surface-variant dark:text-[#bfc8cc] font-bold uppercase tracking-widest">Address</p>
+<p class="text-sm font-medium dark:text-[#e1e2e4]">482 Greenwich St, Penthouse B<br/>New York, NY 10013</p>
+</div>
+</div>
+<div class="flex items-start gap-4">
+<span class="material-symbols-outlined text-primary dark:text-[#a0c9e8] mt-1">smartphone</span>
+<div>
+<p class="text-[10px] text-on-surface-variant dark:text-[#bfc8cc] font-bold uppercase tracking-widest">Phone</p>
+<p class="text-sm font-medium dark:text-[#e1e2e4]">+1 (212) 555-0198</p>
+</div>
+</div>
+<div class="flex gap-4 pt-2">
+<div class="w-8 h-8 rounded-full bg-surface-container-low dark:bg-[#2e3133] flex items-center justify-center text-primary-dim dark:text-[#a0c9e8]">
+<span class="material-symbols-outlined text-sm">alternate_email</span>
+</div>
+<div class="w-8 h-8 rounded-full bg-surface-container-low dark:bg-[#2e3133] flex items-center justify-center text-primary-dim dark:text-[#a0c9e8]">
+<span class="material-symbols-outlined text-sm">link</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Notes Section -->
+<div class="bg-surface-container-lowest dark:bg-[#1a1c1e] p-6 rounded-3xl flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-lg font-bold dark:text-[#e1e2e4]">Recent Notes</h3>
+<button class="text-primary dark:text-[#a0c9e8] font-bold text-xs uppercase tracking-widest">Add Note</button>
+</div>
+<div class="bg-surface-container-low/50 dark:bg-[#2e3133]/50 p-4 rounded-xl italic text-on-surface-variant dark:text-[#bfc8cc] text-sm leading-relaxed">
+                    "Client expressed high interest in properties with floor-to-ceiling windows and smart home integration. Budget is flexible for the right view."
+                </div>
+</div>
+<p class="text-[10px] text-outline-variant dark:text-[#8e9194] mt-4 font-medium uppercase tracking-tighter">Last edited 2h ago</p>
+</div>
+</section>
+<!-- Activity Timeline (The Editorial Style) -->
+<section class="space-y-6">
+<h3 class="text-2xl font-extrabold tracking-tight dark:text-[#e1e2e4]">Timeline</h3>
+<div class="relative space-y-8 pl-8 before:content-[''] before:absolute before:left-[11px] before:top-2 before:bottom-0 before:w-[2px] before:bg-surface-container-high dark:before:bg-[#2e3133]">
+<!-- Timeline Item 1 -->
+<div class="relative">
+<div class="absolute -left-8 top-1 w-6 h-6 rounded-full bg-primary dark:bg-[#a0c9e8] flex items-center justify-center ring-4 ring-surface dark:ring-[#111416]">
+<span class="material-symbols-outlined text-white dark:text-[#0b344a] text-[14px]" style="font-variation-settings: 'FILL' 1;">visibility</span>
+</div>
+<div class="space-y-1">
+<p class="text-sm font-semibold dark:text-[#e1e2e4]">Viewed 123 Maple St Listing</p>
+<p class="text-xs text-on-surface-variant dark:text-[#bfc8cc]">Visited property page 4 times in the last 24 hours.</p>
+<span class="text-[10px] font-bold text-outline-variant dark:text-[#8e9194] uppercase tracking-widest">Today, 10:45 AM</span>
+</div>
+</div>
+<!-- Timeline Item 2 -->
+<div class="relative">
+<div class="absolute -left-8 top-1 w-6 h-6 rounded-full bg-secondary dark:bg-[#b0d180] flex items-center justify-center ring-4 ring-surface dark:ring-[#111416]">
+<span class="material-symbols-outlined text-white dark:text-[#213600] text-[14px]">mail</span>
+</div>
+<div class="space-y-1">
+<p class="text-sm font-semibold dark:text-[#e1e2e4]">Sent Email Proposal</p>
+<p class="text-xs text-on-surface-variant dark:text-[#bfc8cc]">Detailed breakdown of closing costs and financing options.</p>
+<span class="text-[10px] font-bold text-outline-variant dark:text-[#8e9194] uppercase tracking-widest">Yesterday, 3:20 PM</span>
+</div>
+</div>
+<!-- Timeline Item 3 -->
+<div class="relative">
+<div class="absolute -left-8 top-1 w-6 h-6 rounded-full bg-surface-container-highest dark:bg-[#44474a] flex items-center justify-center ring-4 ring-surface dark:ring-[#111416]">
+<span class="material-symbols-outlined text-primary dark:text-[#a0c9e8] text-[14px]">call</span>
+</div>
+<div class="space-y-1">
+<p class="text-sm font-semibold dark:text-[#e1e2e4]">Follow-up Call</p>
+<p class="text-xs text-on-surface-variant dark:text-[#bfc8cc]">Discussed neighborhood safety and school districts.</p>
+<span class="text-[10px] font-bold text-outline-variant dark:text-[#8e9194] uppercase tracking-widest">Oct 24, 11:00 AM</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Task / Next Steps (Asymmetric Layout) -->
+<section class="bg-primary dark:bg-[#344a5b] text-on-primary dark:text-[#cce6fb] p-8 rounded-[2rem] shadow-2xl relative overflow-hidden">
+<div class="relative z-10 space-y-4">
+<span class="bg-white/20 dark:bg-black/20 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">Next Action</span>
+<h3 class="text-2xl font-bold leading-tight">Schedule Private Tour of Chelsea Lofts</h3>
+<button class="bg-white dark:bg-[#a0c9e8] text-primary dark:text-[#0b344a] px-6 py-3 rounded-full font-bold text-sm shadow-sm hover:opacity-90 transition-opacity">
+                Set Reminder
+            </button>
+</div>
+<!-- Decorative circle -->
+<div class="absolute -right-12 -bottom-12 w-48 h-48 bg-white/10 dark:bg-black/10 rounded-full blur-3xl"></div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-6 pt-3 bg-white/60 dark:bg-[#1a1c1e]/80 backdrop-blur-xl shadow-[0_-4px_24px_rgba(0,0,0,0.2)] z-50 rounded-t-3xl border-t border-black/5 dark:border-white/5">
+<div class="flex flex-col items-center justify-center text-[#596064] dark:text-[#bfc8cc] px-5 py-2 hover:opacity-80 transition-opacity">
+<span class="material-symbols-outlined">home</span>
+<span class="text-[11px] font-semibold Inter uppercase tracking-wider mt-1">Home</span>
+</div>
+<div class="flex flex-col items-center justify-center bg-[#dce4e8] dark:bg-[#344a5b] text-[#2c3437] dark:text-[#cce6fb] rounded-2xl px-5 py-2 transform scale-90 duration-150">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">group</span>
+<span class="text-[11px] font-semibold Inter uppercase tracking-wider mt-1">Leads</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#596064] dark:text-[#bfc8cc] px-5 py-2 hover:opacity-80 transition-opacity">
+<span class="material-symbols-outlined">domain</span>
+<span class="text-[11px] font-semibold Inter uppercase tracking-wider mt-1">Listings</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#596064] dark:text-[#bfc8cc] px-5 py-2 hover:opacity-80 transition-opacity">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-[11px] font-semibold Inter uppercase tracking-wider mt-1">Settings</span>
+</div>
+</nav>
+</body></html>

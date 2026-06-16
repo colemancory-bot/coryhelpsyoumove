@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>The Serene Professional - Lead Management</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-container-lowest": "#ffffff",
+              "surface-container-low": "#f0f4f7",
+              "secondary-container": "#d6eab5",
+              "on-error": "#fff7f6",
+              "primary-fixed": "#cce6fb",
+              "inverse-on-surface": "#9a9d9f",
+              "on-tertiary-container": "#40456c",
+              "surface-container": "#eaeff2",
+              "tertiary-fixed-dim": "#bcc1ef",
+              "on-tertiary-fixed-variant": "#494e76",
+              "tertiary-container": "#cacefe",
+              "secondary-fixed": "#d6eab5",
+              "outline": "#747c80",
+              "secondary": "#54653b",
+              "background": "#f7f9fb",
+              "surface": "#f7f9fb",
+              "on-tertiary-fixed": "#2c3157",
+              "on-primary-fixed": "#2a4253",
+              "outline-variant": "#acb3b7",
+              "surface-bright": "#f7f9fb",
+              "on-surface": "#2c3437",
+              "inverse-surface": "#0b0f10",
+              "surface-variant": "#dce4e8",
+              "primary-container": "#cce6fb",
+              "error": "#a83836",
+              "primary": "#4a6274",
+              "on-background": "#2c3437",
+              "on-tertiary": "#fbf8ff",
+              "primary-dim": "#3e5667",
+              "primary-fixed-dim": "#bed8ed",
+              "on-primary-container": "#3d5466",
+              "error-dim": "#67040d",
+              "on-secondary-fixed": "#35441e",
+              "tertiary-dim": "#4b5078",
+              "on-secondary-container": "#47572f",
+              "on-surface-variant": "#596064",
+              "surface-container-high": "#e3e9ed",
+              "error-container": "#fa746f",
+              "on-error-container": "#6e0a12",
+              "tertiary": "#575c85",
+              "inverse-primary": "#cce6fb",
+              "secondary-fixed-dim": "#c8dca8",
+              "on-secondary-fixed-variant": "#506138",
+              "on-primary-fixed-variant": "#465e70",
+              "surface-dim": "#d4dbdf",
+              "tertiary-fixed": "#cacefe",
+              "secondary-dim": "#485830",
+              "surface-container-highest": "#dce4e8",
+              "surface-tint": "#4a6274",
+              "on-primary": "#f5f9ff",
+              "on-secondary": "#efffd2"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3 { font-family: 'Manrope', sans-serif; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+<style>
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+</head>
+<body class="bg-background dark:bg-inverse-surface text-on-surface dark:text-surface-variant min-h-screen pb-32 transition-colors duration-300">
+<!-- Top App Bar -->
+<header class="sticky top-0 z-50 bg-[#f7f9fb] dark:bg-inverse-surface flex justify-between items-center w-full px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-container-highest dark:bg-primary-dim flex items-center justify-center overflow-hidden">
+<img alt="Agent Profile" class="w-full h-full object-cover" data-alt="Professional headshot of a real estate agent in a soft-lit modern office studio setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAVuSvs4tTe9cADhzsqFZMsa1qtNcflxWl5yOHszxxcRgnYIyjlHAO8o8roKmZE7X8SaF8n2FNCoUn88b1LQj6hOBB3fUb2XWBsNHz_8Jo5Gk7O4L7ODQC2ZrXMI61ROLJLhfyvNdfvyYEnfHlECfBSocKSDvrv1XAtdnCRRi--wpnh4D1WVxlAtmnhff5wSFP11tYAGVvujqVU7OBEnTJQOcE3RlRK7f3A0ChMf1WV8fNE5sqZrYeYcS2qatVOxKs5rGJh65KwW7qz"/>
+</div>
+<h1 class="text-xl font-extrabold text-[#4A6274] dark:text-primary-fixed-dim font-headline">The Serene Professional</h1>
+</div>
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#dce4e8]/50 dark:hover:bg-primary/20 transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined text-[#4A6274] dark:text-primary-fixed-dim">notifications</span>
+</button>
+</header>
+<main class="px-6 pt-4 max-w-2xl mx-auto">
+<!-- Page Headline -->
+<div class="mb-8">
+<h2 class="text-3xl font-bold font-headline tracking-tight text-on-surface dark:text-surface-bright">Leads Pipeline</h2>
+<p class="text-on-surface-variant dark:text-outline-variant text-sm mt-1">Manage your relationships with care and precision.</p>
+</div>
+<!-- Search Bar -->
+<div class="relative mb-6">
+<div class="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-outline dark:text-outline-variant">search</span>
+</div>
+<input class="w-full bg-surface-container-lowest dark:bg-on-surface/5 border-none rounded-xl py-4 pl-12 pr-4 shadow-sm focus:ring-2 focus:ring-primary/20 text-on-surface dark:text-surface-bright placeholder:text-outline-variant" placeholder="Search leads, sources, or notes..." type="text"/>
+</div>
+<!-- Filter Chips -->
+<div class="flex gap-2 overflow-x-auto pb-6 no-scrollbar">
+<button class="px-5 py-2 rounded-full bg-primary dark:bg-primary-fixed text-on-primary dark:text-on-primary-fixed text-sm font-semibold whitespace-nowrap shadow-sm">All</button>
+<button class="px-5 py-2 rounded-full bg-surface-container-high dark:bg-on-surface/10 text-on-surface-variant dark:text-surface-variant text-sm font-medium whitespace-nowrap hover:bg-surface-variant dark:hover:bg-on-surface/20 transition-colors">New</button>
+<button class="px-5 py-2 rounded-full bg-surface-container-high dark:bg-on-surface/10 text-on-surface-variant dark:text-surface-variant text-sm font-medium whitespace-nowrap hover:bg-surface-variant dark:hover:bg-on-surface/20 transition-colors">Hot</button>
+<button class="px-5 py-2 rounded-full bg-surface-container-high dark:bg-on-surface/10 text-on-surface-variant dark:text-surface-variant text-sm font-medium whitespace-nowrap hover:bg-surface-variant dark:hover:bg-on-surface/20 transition-colors">In-Progress</button>
+<button class="px-5 py-2 rounded-full bg-surface-container-high dark:bg-on-surface/10 text-on-surface-variant dark:text-surface-variant text-sm font-medium whitespace-nowrap hover:bg-surface-variant dark:hover:bg-on-surface/20 transition-colors">Closed</button>
+</div>
+<!-- Lead List -->
+<div class="space-y-3">
+<!-- Lead Card 1 -->
+<div class="bg-surface-container-lowest dark:bg-on-surface/5 p-5 rounded-2xl flex items-center justify-between group transition-all duration-200">
+<div class="flex gap-4 items-center">
+<div class="w-12 h-12 rounded-xl bg-tertiary-container dark:bg-tertiary-fixed flex items-center justify-center text-on-tertiary-container dark:text-on-tertiary-fixed font-bold text-lg">
+                    JS
+                </div>
+<div>
+<h3 class="font-bold text-on-surface dark:text-surface-bright leading-tight">Julianne Smith</h3>
+<div class="flex items-center gap-2 mt-1">
+<span class="text-xs font-medium text-on-surface-variant dark:text-outline-variant uppercase tracking-wider">Zillow</span>
+<span class="w-1 h-1 rounded-full bg-outline-variant"></span>
+<span class="text-xs text-outline dark:text-outline-variant italic">Called 2 hrs ago</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col items-end gap-2">
+<span class="px-3 py-1 rounded-full bg-tertiary-container dark:bg-tertiary-fixed-dim text-on-tertiary-container dark:text-on-tertiary-fixed-variant text-[10px] font-bold uppercase tracking-widest">Hot Deal</span>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-primary dark:group-hover:text-primary-fixed transition-colors">chevron_right</span>
+</div>
+</div>
+<!-- Lead Card 2 -->
+<div class="bg-surface-container-low dark:bg-on-surface/10 p-5 rounded-2xl flex items-center justify-between group transition-all duration-200">
+<div class="flex gap-4 items-center">
+<div class="w-12 h-12 rounded-xl bg-secondary-container dark:bg-secondary-fixed flex items-center justify-center text-on-secondary-container dark:text-on-secondary-fixed font-bold text-lg">
+                    MT
+                </div>
+<div>
+<h3 class="font-bold text-on-surface dark:text-surface-bright leading-tight">Marcus Thompson</h3>
+<div class="flex items-center gap-2 mt-1">
+<span class="text-xs font-medium text-on-surface-variant dark:text-outline-variant uppercase tracking-wider">Referral</span>
+<span class="w-1 h-1 rounded-full bg-outline-variant"></span>
+<span class="text-xs text-outline dark:text-outline-variant italic">Emailed yesterday</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col items-end gap-2">
+<span class="px-3 py-1 rounded-full bg-secondary-container dark:bg-secondary-fixed-dim text-on-secondary-container dark:text-on-secondary-fixed-variant text-[10px] font-bold uppercase tracking-widest">New</span>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-primary dark:group-hover:text-primary-fixed transition-colors">chevron_right</span>
+</div>
+</div>
+<!-- Lead Card 3 -->
+<div class="bg-surface-container-lowest dark:bg-on-surface/5 p-5 rounded-2xl flex items-center justify-between group transition-all duration-200">
+<div class="flex gap-4 items-center">
+<div class="w-12 h-12 rounded-xl bg-surface-container-highest dark:bg-on-surface/20 flex items-center justify-center text-primary dark:text-primary-fixed-dim font-bold text-lg">
+                    ER
+                </div>
+<div>
+<h3 class="font-bold text-on-surface dark:text-surface-bright leading-tight">Elena Rodriguez</h3>
+<div class="flex items-center gap-2 mt-1">
+<span class="text-xs font-medium text-on-surface-variant dark:text-outline-variant uppercase tracking-wider">Website</span>
+<span class="w-1 h-1 rounded-full bg-outline-variant"></span>
+<span class="text-xs text-outline dark:text-outline-variant italic">Last active 4d ago</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col items-end gap-2">
+<span class="px-3 py-1 rounded-full bg-primary-container dark:bg-primary-fixed-dim text-on-primary-container dark:text-on-primary-fixed-variant text-[10px] font-bold uppercase tracking-widest">In Progress</span>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-primary dark:group-hover:text-primary-fixed transition-colors">chevron_right</span>
+</div>
+</div>
+<!-- Lead Card 4 -->
+<div class="bg-surface-container-low dark:bg-on-surface/10 p-5 rounded-2xl flex items-center justify-between group transition-all duration-200">
+<div class="flex gap-4 items-center">
+<div class="w-12 h-12 rounded-xl bg-surface-container-highest dark:bg-on-surface/20 flex items-center justify-center text-primary dark:text-primary-fixed-dim font-bold text-lg">
+                    BB
+                </div>
+<div>
+<h3 class="font-bold text-on-surface dark:text-surface-bright leading-tight">Benjamin Brooks</h3>
+<div class="flex items-center gap-2 mt-1">
+<span class="text-xs font-medium text-on-surface-variant dark:text-outline-variant uppercase tracking-wider">Direct</span>
+<span class="w-1 h-1 rounded-full bg-outline-variant"></span>
+<span class="text-xs text-outline dark:text-outline-variant italic">Meeting scheduled</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col items-end gap-2">
+<span class="px-3 py-1 rounded-full bg-tertiary-container dark:bg-tertiary-fixed-dim text-on-tertiary-container dark:text-on-tertiary-fixed-variant text-[10px] font-bold uppercase tracking-widest">Hot Deal</span>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-primary dark:group-hover:text-primary-fixed transition-colors">chevron_right</span>
+</div>
+</div>
+<!-- Lead Card 5 -->
+<div class="bg-surface-container-lowest dark:bg-on-surface/5 p-5 rounded-2xl flex items-center justify-between group transition-all duration-200">
+<div class="flex gap-4 items-center">
+<div class="w-12 h-12 rounded-xl bg-secondary-container dark:bg-secondary-fixed flex items-center justify-center text-on-secondary-container dark:text-on-secondary-fixed font-bold text-lg">
+                    LC
+                </div>
+<div>
+<h3 class="font-bold text-on-surface dark:text-surface-bright leading-tight">Linda Chen</h3>
+<div class="flex items-center gap-2 mt-1">
+<span class="text-xs font-medium text-on-surface-variant dark:text-outline-variant uppercase tracking-wider">Instagram</span>
+<span class="w-1 h-1 rounded-full bg-outline-variant"></span>
+<span class="text-xs text-outline dark:text-outline-variant italic">Called 10m ago</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col items-end gap-2">
+<span class="px-3 py-1 rounded-full bg-secondary-container dark:bg-secondary-fixed-dim text-on-secondary-container dark:text-on-secondary-fixed-variant text-[10px] font-bold uppercase tracking-widest">New</span>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-primary dark:group-hover:text-primary-fixed transition-colors">chevron_right</span>
+</div>
+</div>
+</div>
+</main>
+<!-- FAB: Quick-add Lead -->
+<button class="fixed bottom-28 right-6 w-14 h-14 bg-primary dark:bg-primary-fixed text-on-primary dark:text-on-primary-fixed rounded-2xl shadow-[0_12px_24px_rgba(0,0,0,0.4)] flex items-center justify-center hover:bg-primary-dim dark:hover:bg-primary-fixed-dim transition-all active:scale-90 z-40">
+<span class="material-symbols-outlined text-3xl">person_add</span>
+</button>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-6 pt-3 bg-white/80 dark:bg-inverse-surface/80 backdrop-blur-xl z-50 rounded-t-3xl shadow-[0_-4px_24px_rgba(0,0,0,0.2)]">
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-5 py-2 hover:opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="text-[11px] font-semibold font-label uppercase tracking-wider mt-1">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-[#dce4e8] dark:bg-primary-fixed text-[#2c3437] dark:text-on-primary-fixed rounded-2xl px-5 py-2 transform scale-90 duration-150" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">group</span>
+<span class="text-[11px] font-semibold font-label uppercase tracking-wider mt-1">Leads</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-5 py-2 hover:opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined">domain</span>
+<span class="text-[11px] font-semibold font-label uppercase tracking-wider mt-1">Listings</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-5 py-2 hover:opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-[11px] font-semibold font-label uppercase tracking-wider mt-1">Settings</span>
+</a>
+</nav>
+</body></html>
