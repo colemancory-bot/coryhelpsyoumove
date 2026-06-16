@@ -454,6 +454,7 @@ const WNC_LAND_DEFAULTS = {
   per_bedroom: 0,
   per_bathroom: 0,
   per_garage_space: 0,
+  garage_oversize_per_sqft: 0, // land has no structures; without this, x * undefined = NaN poisons adj_garage
   per_year_age: 0,
 
   // Market
@@ -794,8 +795,11 @@ function calculateCompAdjustments(
   let totalAdj = 0;
   let grossAdj = 0;
   for (const val of Object.values(adjustments)) {
-    totalAdj += val;
-    grossAdj += Math.abs(val);
+    // Guard: a missing rate can make an adjustment NaN. Never let one bad value
+    // poison the whole result (NaN total -> NaN adjusted_price -> dropped -> blank CMA).
+    const v = Number.isFinite(val) ? val : 0;
+    totalAdj += v;
+    grossAdj += Math.abs(v);
   }
 
   const adjustedPrice = salePrice + totalAdj;
