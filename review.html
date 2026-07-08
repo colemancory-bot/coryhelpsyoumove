@@ -127,7 +127,7 @@ async function init(){
     var data = await rvFetch({action:'load',token:_token});
     if(!data.ok){ showError(data.error || 'This review link is no longer valid.'); return; }
     _requestData = data;
-    if(data.alreadySubmitted){ _reviewText = data.reviewText || ''; showThankYou(); return; }
+    if(data.alreadySubmitted){ _reviewText = data.reviewText || ''; _selectedRating = data.rating || 0; showThankYou(); return; }
     showStep1();
   } catch(e){ showError('Unable to load. Please try again later.'); }
 }
@@ -155,6 +155,7 @@ function showStep1(){
     s.onclick = function(){ selectRating(parseInt(this.getAttribute('data-val'))); };
     starsEl.appendChild(s);
   }
+  if(_selectedRating) selectRating(_selectedRating);
 }
 
 function selectRating(val){
@@ -184,6 +185,11 @@ function showStep2(){
     cc.textContent = ta.value.length;
     btn.disabled = ta.value.trim().length < 10;
   });
+  if(_reviewText){
+    ta.value = _reviewText;
+    cc.textContent = ta.value.length;
+    btn.disabled = ta.value.trim().length < 10;
+  }
   ta.focus();
 }
 
@@ -223,6 +229,7 @@ function showThankYou(){
           '<a class="rv-share-btn" href="'+ZILLOW_REVIEW_URL+'" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="#006AFF"><path d="M12 2L1 11h3v11h7v-6h2v6h7V11h3L12 2zm0 2.69L18 9.6V20h-3v-6H9v6H6V9.6l6-4.91z"/></svg><span>Zillow</span><span class="rv-arrow">&rarr;</span></a>' +
         '</div>' +
       '</div>' +
+      '<button class="rv-btn rv-btn-secondary" onclick="showStep1()">Edit my review</button>' +
       '<p style="color:var(--text-muted);font-size:0.75rem;margin-top:2rem">(828) 506-6413 | coryhelpsyoumove@gmail.com</p>' +
     '</div>';
   if (!document.getElementById('rvToast')) {

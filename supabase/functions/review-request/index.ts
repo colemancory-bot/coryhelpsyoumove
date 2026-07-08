@@ -251,7 +251,7 @@ async function handleSubmit(
   // Look up the review request
   const { data: request, error: lookupErr } = await supabase
     .from("review_requests")
-    .select("id, client_name, status")
+    .select("id, client_name, status, review_id")
     .eq("token", token)
     .single();
 
@@ -260,7 +260,41 @@ async function handleSubmit(
   }
 
   if (request.status !== "pending") {
-    return errorResponse("This review has already been submitted", 400);
+    // Resubmission: the reviewer may revise their own review. The new text
+    // replaces the old one and goes back through moderation (is_published
+    // resets to false even if the earlier version was approved).
+    if (!request.review_id) {
+      return errorResponse("This review has already been submitted", 400);
+    }
+
+    const { error: reviseErr } = await supabase
+      .from("reviews")
+      .update({
+        review_text: reviewText,
+        rating,
+        review_date: new Date().toISOString().split("T")[0],
+        is_published: false,
+      })
+      .eq("id", request.review_id);
+
+    if (reviseErr) {
+      console.error("[review-request] Review revise error:", reviseErr);
+      return errorResponse("Failed to update review", 500);
+    }
+
+    const { error: reqErr } = await supabase
+      .from("review_requests")
+      .update({
+        status: "submitted",
+        submitted_at: new Date().toISOString(),
+      })
+      .eq("id", request.id);
+
+    if (reqErr) {
+      console.error("[review-request] Request update error:", reqErr);
+    }
+
+    return jsonResponse({ ok: true, published: false, updated: true });
   }
 
   // All reviews land in the moderation queue (is_published: false) and only go
