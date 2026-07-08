@@ -151,7 +151,7 @@
         <button class="acct-oauth-btn acct-oauth-google" onclick="signInWithGoogle()"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg> Continue with Google</button>
         <button class="acct-oauth-btn acct-oauth-facebook" onclick="signInWithFacebook()"><svg viewBox="0 0 24 24" width="18" height="18" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg> Continue with Facebook</button>
       </div>
-      <div class="acct-or" style="margin:0.5rem 0">&mdash; or sign in with email &mdash;</div>
+      <div class="acct-or" style="margin:0.5rem 0">or sign in with email</div>
       <div class="mobile-acct-error" id="mobileLoginError" style="display:none"></div>
       <div class="mobile-acct-field">
         <input type="email" id="mobileLoginEmail" placeholder="Email address">
@@ -171,7 +171,7 @@
         <button class="acct-oauth-btn acct-oauth-google" onclick="signInWithGoogle()"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg> Continue with Google</button>
         <button class="acct-oauth-btn acct-oauth-facebook" onclick="signInWithFacebook()"><svg viewBox="0 0 24 24" width="18" height="18" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg> Continue with Facebook</button>
       </div>
-      <div class="acct-or" style="margin:0.5rem 0">&mdash; or sign up with email &mdash;</div>
+      <div class="acct-or" style="margin:0.5rem 0">or sign up with email</div>
       <div class="mobile-acct-error" id="mobileSignupError" style="display:none"></div>
       <div class="mobile-acct-field"><input type="email" id="mobileSignupEmail" placeholder="Email address"></div>
       <div class="mobile-acct-field"><input type="password" id="mobileSignupPass" placeholder="Create a password" minlength="6"></div>
@@ -302,9 +302,9 @@
             <div class="hp-quick-label">Quick Select</div>
             <div class="hp-presets">
               <button class="hp-preset" onclick="hpPreset(0,200000)">Under $200K</button>
-              <button class="hp-preset" onclick="hpPreset(200000,400000)">$200K – $400K</button>
-              <button class="hp-preset" onclick="hpPreset(400000,700000)">$400K – $700K</button>
-              <button class="hp-preset" onclick="hpPreset(700000,1000000)">$700K – $1M</button>
+              <button class="hp-preset" onclick="hpPreset(200000,400000)">$200K to $400K</button>
+              <button class="hp-preset" onclick="hpPreset(400000,700000)">$400K to $700K</button>
+              <button class="hp-preset" onclick="hpPreset(700000,1000000)">$700K to $1M</button>
               <button class="hp-preset" onclick="hpPreset(1000000,2000000)">$1M+</button>
               <button class="hp-preset" onclick="hpPreset(0,0)" style="color:var(--text-muted)">Reset</button>
             </div>
@@ -426,9 +426,9 @@
           <div class="hp-quick-label">Quick Select</div>
           <div class="hp-presets">
             <button class="hp-preset" onclick="hpPreset(0,200000)">Under $200K</button>
-            <button class="hp-preset" onclick="hpPreset(200000,400000)">$200K – $400K</button>
-            <button class="hp-preset" onclick="hpPreset(400000,700000)">$400K – $700K</button>
-            <button class="hp-preset" onclick="hpPreset(700000,1000000)">$700K – $1M</button>
+            <button class="hp-preset" onclick="hpPreset(200000,400000)">$200K to $400K</button>
+            <button class="hp-preset" onclick="hpPreset(400000,700000)">$400K to $700K</button>
+            <button class="hp-preset" onclick="hpPreset(700000,1000000)">$700K to $1M</button>
             <button class="hp-preset" onclick="hpPreset(1000000,2000000)">$1M+</button>
             <button class="hp-preset" onclick="hpPreset(0,0)" style="color:var(--text-muted)">Reset</button>
           </div>
@@ -456,7 +456,7 @@
   <div class="about-text reveal">
     <div class="section-label">About Cory</div>
     <h2 class="section-title">Honest Guidance.<br><em>Real Results.</em></h2>
-    <p>When you work with me, you get a broker who listens closely, communicates clearly, and follows through on every detail. You'll always know what's happening and why — with honest guidance through every step.</p>
+    <p>When you work with me, you get a broker who listens closely, communicates clearly, and follows through on every detail. You'll always know what's happening and why, with honest guidance through every step.</p>
     <p>Whether you're buying a mountain home, selling land, or investing in property across Western North Carolina, my approach is straightforward and client-focused. I handle the details so you can focus on your next move with confidence.</p>
     <div class="about-values">
       <div class="value-item"><svg class="value-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><div class="value-title">Local Expertise</div><div class="value-desc">Deep roots across Western NC.</div></div>
@@ -511,7 +511,7 @@
     <div class="service-card">
       <div class="service-num">02</div><div class="service-title">Buying a Home</div>
       <div class="service-desc">Your goals come first as we find the right property with clear communication and market expertise.</div>
-      <div class="service-step">Personalized property search & market analysis</div><div class="service-step">Loan pre-approval guidance</div><div class="service-step">Home tours — in person or via video chat</div><div class="service-step">Offer strategy, inspections & closing</div>
+      <div class="service-step">Personalized property search & market analysis</div><div class="service-step">Loan pre-approval guidance</div><div class="service-step">Home tours in person or via video chat</div><div class="service-step">Offer strategy, inspections & closing</div>
     </div>
     <div class="service-card">
       <div class="service-num">03</div><div class="service-title">Land & Investment</div>
@@ -601,7 +601,7 @@
         <div class="blog-card-body">
           <div class="blog-card-meta"><span><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Feb 2026</span><span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> 15 min read</span></div>
           <h3>8 Mountain Towns in Western NC: A Neighborhood-by-Neighborhood Guide</h3>
-          <p>From Waynesville's walkable downtown to Bryson City's river access — what makes each WNC community unique and what to expect when you visit.</p>
+          <p>From Waynesville's walkable downtown to Bryson City's river access: what makes each WNC community unique and what to expect when you visit.</p>
           <span class="blog-card-link">Read Article <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
         </div>
       </a>
@@ -621,7 +621,7 @@
         <div class="blog-card-body">
           <div class="blog-card-meta"><span><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Feb 2026</span><span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> 11 min read</span></div>
           <h3>How to Sell Land in Western North Carolina: A Step-by-Step Guide</h3>
-          <p>Selling mountain land is different from selling a home. From surveys to timber value to access roads — everything you need to know to get top dollar.</p>
+          <p>Selling mountain land is different from selling a home. From surveys to timber value to access roads, here is everything you need to know to get top dollar.</p>
           <span class="blog-card-link">Read Article <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
         </div>
       </a>
@@ -639,7 +639,7 @@
     <div class="cta-text reveal">
       <div class="section-label">Get in Touch</div>
       <h2 class="section-title">Let's Start Your<br><em>Next Chapter</em></h2>
-      <p>Whether you're ready to make a move or just starting to explore, I'm here to help. No pressure — just honest conversation about your real estate goals.</p>
+      <p>Whether you're ready to make a move or just starting to explore, I'm here to help. No pressure, just honest conversation about your real estate goals.</p>
       <div class="cta-info">
         <div class="cta-info-item"><div class="cta-info-icon"><svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg></div><div><div class="cta-info-label">Phone</div><div class="cta-info-value"><a href="tel:8285066413">(828) 506-6413</a></div></div></div>
         <div class="cta-info-item"><div class="cta-info-icon"><svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M22 6l-10 7L2 6"/></svg></div><div><div class="cta-info-label">Email</div><div class="cta-info-value"><a href="mailto:coryhelpsyoumove@gmail.com">coryhelpsyoumove@gmail.com</a></div></div></div>
@@ -669,7 +669,7 @@
 <section id="eventsSection" class="events-preview-section">
   <div class="section-label">What's Happening</div>
   <h2 class="events-preview-title">Discover Western NC</h2>
-  <p class="events-preview-sub">There's always something happening in these mountains — from weekly farmers markets to world-class festivals.</p>
+  <p class="events-preview-sub">There's always something happening in these mountains, from weekly farmers markets to world-class festivals.</p>
   <div class="events-preview-grid" id="eventsPreviewGrid">
     <div class="event-skeleton"><div class="sk-line"></div><div class="sk-line short"></div><div class="sk-line"></div></div>
     <div class="event-skeleton"><div class="sk-line"></div><div class="sk-line short"></div><div class="sk-line"></div></div>
@@ -686,7 +686,7 @@
   <div class="footer-inner">
     <div class="footer-brand">
       <div class="nav-logo"><img src="keller-williams-great-smokies-western-nc-real-estate.png" alt="Keller Williams Great Smokies Mountain Real Estate" class="nav-kw"> <div class="nav-divider"></div> <div class="nav-logo-text"><div class="nav-logo-name"><span>C</span>ory <span>C</span>oleman</div><div class="nav-logo-sub">Real Estate</div></div></div>
-      <p>Your trusted guide to real estate across Western North Carolina. From mountain homes to peaceful acreage — honest guidance and real results.</p>
+      <p>Your trusted guide to real estate across Western North Carolina. From mountain homes to peaceful acreage, honest guidance and real results.</p>
       <div class="footer-social">
         <a href="https://www.facebook.com/profile.php?id=61561909577942" target="_blank" aria-label="Facebook"><svg viewBox="0 0 24 24"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg></a>
         <a href="https://www.instagram.com/coryhelpsyoumove/" target="_blank" aria-label="Instagram"><svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg></a>
@@ -731,7 +731,7 @@
     <button class="chat-hbtn" id="chatPreviewClose" title="Close"><svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
   </div>
   <div class="chat-preview-body">
-    <div class="msg assistant"><div class="msg-bubble">Skip the filters. Tell me what you're after — I can dial in your search better than the big real estate sites. Are you searching for a home, land, investment property, or are you looking to sell?</div></div>
+    <div class="msg assistant"><div class="msg-bubble">Skip the filters. Tell me what you're after. I can dial in your search better than the big real estate sites. Are you searching for a home, land, investment property, or are you looking to sell?</div></div>
     <div class="quick-actions" id="previewChips">
       <button class="chip" data-preview-chip>I'm looking to buy</button>
       <button class="chip" data-preview-chip>I want to sell</button>
@@ -865,7 +865,7 @@
       <div class="corys-take-gated gated-wrap locked" id="gatedCorysTake" onclick="onGatedClick()">
         <div class="gated-prompt">
           <svg class="gated-prompt-icon" viewBox="0 0 24 24"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>
-          <div class="gated-prompt-text"><strong>Unlock Cory's Market Insights</strong> &mdash; Free</div>
+          <div class="gated-prompt-text"><strong>Unlock Cory's Market Insights</strong> (Free)</div>
           <div class="gated-prompt-sub">Click anywhere to unlock</div>
         </div>
         <div class="gated-content">
@@ -878,7 +878,7 @@
               <div class="corys-take-title">Cory's Take</div>
             </div>
             <div class="corys-take-insights" id="corysTakeInsights"></div>
-            <div class="corys-take-sig">— Cory Coleman, Keller Williams Great Smokies</div>
+            <div class="corys-take-sig">- Cory Coleman, Keller Williams Great Smokies</div>
           </div>
         </div>
       </div>
@@ -889,7 +889,7 @@
 
       <!-- Neighborhood Deep Dives (gated) -->
       <div class="gated-wrap locked" id="gatedNeighborhood" onclick="onGatedClick()">
-        <div class="gated-prompt"><svg class="gated-prompt-icon" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg><div class="gated-prompt-text"><strong>Unlock Neighborhood Details</strong> &mdash; Free</div><div class="gated-prompt-sub">Click anywhere to unlock</div></div>
+        <div class="gated-prompt"><svg class="gated-prompt-icon" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg><div class="gated-prompt-text"><strong>Unlock Neighborhood Details</strong> (Free)</div><div class="gated-prompt-sub">Click anywhere to unlock</div></div>
         <div class="gated-content">
           <div class="prop-section-label" style="margin-top:2.5rem">Neighborhood Details</div>
           <div class="neighborhood-dive" id="neighborhoodDive"></div>
@@ -898,7 +898,7 @@
 
       <!-- Distances & Drive Times (gated) -->
       <div class="gated-wrap locked" id="gatedDistances" onclick="onGatedClick()">
-        <div class="gated-prompt"><svg class="gated-prompt-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><div class="gated-prompt-text"><strong>Unlock Drive Times</strong> &mdash; Free</div><div class="gated-prompt-sub">Click anywhere to unlock</div></div>
+        <div class="gated-prompt"><svg class="gated-prompt-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><div class="gated-prompt-text"><strong>Unlock Drive Times</strong> (Free)</div><div class="gated-prompt-sub">Click anywhere to unlock</div></div>
         <div class="gated-content">
           <div class="prop-section-label" style="margin-top:2.5rem">Distances & Drive Times</div>
           <div class="prop-distances" id="propDistances"></div>
@@ -991,7 +991,7 @@
       <div class="gated-wrap locked" id="gatedCalc" onclick="onGatedClick()">
         <div class="gated-prompt">
           <svg class="gated-prompt-icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-          <div class="gated-prompt-text"><strong>Unlock Mortgage Estimates</strong> &mdash; Free</div>
+          <div class="gated-prompt-text"><strong>Unlock Mortgage Estimates</strong> (Free)</div>
           <div class="gated-prompt-sub">Click anywhere to unlock</div>
         </div>
         <div class="gated-content">
@@ -1135,14 +1135,14 @@
       </div>
       <button class="acct-submit" onclick="loginAcct()">Sign In</button>
       <div class="form-privacy"><svg viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Your information is never sold or rented. I use it only to help with your real estate needs. <a href="/privacy/" style="color:inherit;text-decoration:underline">Privacy Policy</a>.</div>
-      <div class="acct-or">— or —</div>
+      <div class="acct-or">or</div>
       <button class="acct-create-btn" onclick="showAcctSignup()">Create a Free Account</button>
     </div>
     <!-- SIGNUP VIEW (hidden by default) -->
     <div id="acctFormView" style="display:none">
       <div class="acct-modal-badge">Free Account</div>
       <h3>Unlock <em>Full Details</em></h3>
-      <div class="acct-modal-sub">Unlock mortgage calculators, restriction details, saved favorites, and more &mdash; completely free.</div>
+      <div class="acct-modal-sub">Unlock mortgage calculators, restriction details, saved favorites, and more. Completely free.</div>
       <div class="acct-error" id="acctSignupError" style="display:none"></div>
       <div class="acct-field">
         <label>Email Address</label>
@@ -1154,7 +1154,7 @@
         <div class="acct-pass-note">Minimum 6 characters</div>
       </div>
       <button class="acct-submit" onclick="submitAcct()">Continue</button>
-      <div class="acct-or">— or —</div>
+      <div class="acct-or">or</div>
       <div class="acct-login-link" onclick="showAcctLogin()">Already have an account? <strong>Sign in</strong></div>
     </div>
     <!-- COMPLETE ACCOUNT VIEW — Step 2: Name (shown after signup or smart login) -->
@@ -1289,9 +1289,9 @@
       <select id="srfPriceSelect" onchange="srApplyFilters()">
         <option value="">Any Price</option>
         <option value="0-200000">Under $200K</option>
-        <option value="200000-400000">$200K – $400K</option>
-        <option value="400000-700000">$400K – $700K</option>
-        <option value="700000-1000000">$700K – $1M</option>
+        <option value="200000-400000">$200K to $400K</option>
+        <option value="400000-700000">$400K to $700K</option>
+        <option value="700000-1000000">$700K to $1M</option>
         <option value="1000000-99999999">$1M+</option>
       </select>
     </div>
@@ -1490,8 +1490,8 @@
   <button class="auth-popup-close" onclick="dismissAuthPopup()">&times;</button>
   <img class="auth-popup-img" src="images/area-waynesville.webp" alt="Western NC mountain view" loading="lazy">
   <div class="auth-popup-badge">Welcome</div>
-  <h3 class="auth-popup-title">Unlock Premium Features &mdash; Free</h3>
-  <p class="auth-popup-sub">Save favorites, view mortgage estimates, and get personalized recommendations &mdash; completely free.</p>
+  <h3 class="auth-popup-title">Unlock Premium Features (Free)</h3>
+  <p class="auth-popup-sub">Save favorites, view mortgage estimates, and get personalized recommendations. Completely free.</p>
   <div class="auth-popup-btns">
     <button class="acct-oauth-btn acct-oauth-google auth-popup-google" onclick="dismissAuthPopup();signInWithGoogle()">
       <svg viewBox="0 0 24 24" width="18" height="18"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
@@ -1502,12 +1502,12 @@
       Continue with Facebook
     </button>
   </div>
-  <div class="auth-popup-or">&mdash; or &mdash;</div>
+  <div class="auth-popup-or">or</div>
   <button class="auth-popup-email" onclick="dismissAuthPopup();openAcctModal()">Sign in with email</button>
   <div class="social-proof social-proof-mini">
     <div class="social-proof-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
     <div class="social-proof-quote">&ldquo;We relied heavily on Cory and he delivered.&rdquo;</div>
-    <div class="social-proof-name">&mdash; Marie</div>
+    <div class="social-proof-name">- Marie</div>
   </div>
   <p class="auth-popup-privacy">Free account. No spam.</p>
 </div>
@@ -1522,7 +1522,7 @@
   <div class="social-proof social-proof-mini">
     <div class="social-proof-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
     <div class="social-proof-quote">&ldquo;We relied heavily on Cory and he delivered.&rdquo;</div>
-    <div class="social-proof-name">&mdash; Marie</div>
+    <div class="social-proof-name">- Marie</div>
   </div>
   <div class="auth-popup-btns">
     <button class="acct-oauth-btn acct-oauth-google auth-popup-google" onclick="dismissExitPopup();signInWithGoogle()">
@@ -1534,7 +1534,7 @@
       Continue with Facebook
     </button>
   </div>
-  <div class="auth-popup-or">&mdash; or &mdash;</div>
+  <div class="auth-popup-or">or</div>
   <button class="auth-popup-email" onclick="dismissExitPopup();openAcctModal()">Sign in with email</button>
   <p class="auth-popup-privacy">Free account. No spam.</p>
 </div>
