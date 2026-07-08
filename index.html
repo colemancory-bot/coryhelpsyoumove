@@ -88,14 +88,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Outfit:wght@200;300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=97">
-<link rel="preload" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.1.0/dist/maplibre-gl.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
-<noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.1.0/dist/maplibre-gl.css"></noscript>
-<script defer src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.1.0/dist/maplibre-gl.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
+<link rel="preload" href="images/hero-bg.webp" as="image" fetchpriority="high">
+<!-- maplibre-gl, turf, reCAPTCHA, and Google GSI are lazy-loaded by app.js on first use (map open / chat send / one-tap) to keep them off the critical path -->
 <script defer src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="https://www.google.com/recaptcha/api.js?render=6LcZ7WssAAAAAAfFNuMeWyKnQnRcc5a2kvS8yVdx"></script>
-<script src="https://accounts.google.com/gsi/client" defer></script>
 </head>
 <body>
 <div class="grain"></div>
@@ -762,7 +758,7 @@
 <!-- ═══════════════ SCRIPTS ═══════════════ -->
 <script defer src="social-image.js"></script>
 <script defer src="lead-extract.js?v=1"></script>
-<script defer src="app.js?v=107"></script>
+<script defer src="app.js?v=108"></script>
 
 
 </div>

@@ -9,6 +9,51 @@ var _srCollectionIds = [];
 function _log(){ if(_DEBUG) console.log.apply(console, arguments); }
 function _warn(){ if(_DEBUG) console.warn.apply(console, arguments); }
 
+// ═══ LAZY THIRD-PARTY LOADERS ═══
+// maplibre-gl / turf / reCAPTCHA / Google GSI are NOT in index.html anymore —
+// they cost ~1.1MB of JS on first paint and none are needed above the fold.
+// Each is injected on first use. Loaders are idempotent (promise cached).
+var _lazyScriptPromises = {};
+function _loadScriptOnce(src){
+  if(!_lazyScriptPromises[src]){
+    _lazyScriptPromises[src] = new Promise(function(resolve, reject){
+      var s = document.createElement('script');
+      s.src = src;
+      s.async = true;
+      s.onload = function(){ resolve(); };
+      s.onerror = function(){ delete _lazyScriptPromises[src]; reject(new Error('Failed to load ' + src)); };
+      document.head.appendChild(s);
+    });
+  }
+  return _lazyScriptPromises[src];
+}
+function ensureMapLibs(){
+  if(window.maplibregl && window.turf) return Promise.resolve();
+  if(!document.getElementById('maplibreCss')){
+    var l = document.createElement('link');
+    l.id = 'maplibreCss';
+    l.rel = 'stylesheet';
+    l.href = 'https://cdn.jsdelivr.net/npm/maplibre-gl@5.1.0/dist/maplibre-gl.css';
+    document.head.appendChild(l);
+  }
+  return Promise.all([
+    _loadScriptOnce('https://cdn.jsdelivr.net/npm/maplibre-gl@5.1.0/dist/maplibre-gl.js'),
+    _loadScriptOnce('https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js')
+  ]);
+}
+function ensureRecaptcha(){
+  if(window.grecaptcha && window.grecaptcha.execute) return Promise.resolve();
+  return _loadScriptOnce('https://www.google.com/recaptcha/api.js?render=6LcZ7WssAAAAAAfFNuMeWyKnQnRcc5a2kvS8yVdx').then(function(){
+    return new Promise(function(resolve){
+      if(window.grecaptcha && window.grecaptcha.ready){ grecaptcha.ready(resolve); } else { resolve(); }
+    });
+  });
+}
+function ensureGsi(){
+  if(window.google && window.google.accounts) return Promise.resolve();
+  return _loadScriptOnce('https://accounts.google.com/gsi/client');
+}
+
 // ═══ PROFILE CACHE — avoid repeated JSON.parse of localStorage ═══
 var _profileCache = null;
 function _getProfile(){ if(_profileCache) return _profileCache; try{ _profileCache=JSON.parse(localStorage.getItem('cc_profile')||'{}'); }catch(e){ _profileCache={}; } return _profileCache; }
@@ -2062,6 +2107,7 @@ function toggleChat(){
 
   // If closed → open
   chatOpen = true;
+  ensureRecaptcha().catch(function(){}); // warm up so first send doesn't wait on the script
   hideMobileCta();
   if(window.innerWidth <= 1024) _lockScroll();
   cp.classList.add('open');
@@ -2287,9 +2333,10 @@ async function sendMessage(){
   var limitMsg = checkRateLimit();
   if(limitMsg){ addMsg('assistant', limitMsg); return; }
 
-  // reCAPTCHA v3 token
+  // reCAPTCHA v3 token (script lazy-loaded on chat open; awaited here as fallback)
   var recapToken = null;
   try {
+    await ensureRecaptcha();
     if(typeof grecaptcha !== 'undefined'){
       recapToken = await grecaptcha.execute('6LcZ7WssAAAAAAfFNuMeWyKnQnRcc5a2kvS8yVdx', {action:'chat_message'});
     }
@@ -3522,29 +3569,31 @@ function openProp(listing, townName, sourceCardEl) {
   ];
   hlEl.innerHTML = hls.map(function(h){return '<div class="prop-highlight"><svg viewBox="0 0 24 24">'+h.icon+'</svg><div class="prop-highlight-title">'+h.title+'</div><div class="prop-highlight-desc">'+h.desc+'</div></div>'}).join('');
 
-  // Property map — MapLibre GL
+  // Property map — MapLibre GL (lazy-loaded on first property open)
   var mapContainer = document.getElementById('propMapContainer');
-  if(mapContainer && typeof maplibregl !== 'undefined') {
-    // Destroy previous map instance if any
-    if(window._propMap) { try { window._propMap.remove(); } catch(e){} window._propMap = null; }
-    mapContainer.innerHTML = '';
-    var mapLat = listing.lat || (TOWN_COORDS[townName] ? TOWN_COORDS[townName].lat : 35.38);
-    var mapLng = listing.lng || (TOWN_COORDS[townName] ? TOWN_COORDS[townName].lng : -83.18);
-    var zoom = (listing.lat && listing.lng) ? 15 : 12;
-    window._propMap = new maplibregl.Map({
-      container: mapContainer,
-      style: _srMapStyle(),
-      center: [mapLng, mapLat],
-      zoom: zoom,
-      interactive: true,
-      scrollZoom: false,
-      dragRotate: false,
-      pitchWithRotate: false,
-      attributionControl: true
-    });
-    new maplibregl.Marker({color:'#C4B08C'}).setLngLat([mapLng, mapLat]).addTo(window._propMap);
-    // Resize map after overlay animation completes
-    setTimeout(function(){ if(window._propMap) window._propMap.resize(); }, 400);
+  if(mapContainer) {
+    ensureMapLibs().then(function(){
+      // Destroy previous map instance if any
+      if(window._propMap) { try { window._propMap.remove(); } catch(e){} window._propMap = null; }
+      mapContainer.innerHTML = '';
+      var mapLat = listing.lat || (TOWN_COORDS[townName] ? TOWN_COORDS[townName].lat : 35.38);
+      var mapLng = listing.lng || (TOWN_COORDS[townName] ? TOWN_COORDS[townName].lng : -83.18);
+      var zoom = (listing.lat && listing.lng) ? 15 : 12;
+      window._propMap = new maplibregl.Map({
+        container: mapContainer,
+        style: _srMapStyle(),
+        center: [mapLng, mapLat],
+        zoom: zoom,
+        interactive: true,
+        scrollZoom: false,
+        dragRotate: false,
+        pitchWithRotate: false,
+        attributionControl: true
+      });
+      new maplibregl.Marker({color:'#C4B08C'}).setLngLat([mapLng, mapLat]).addTo(window._propMap);
+      // Resize map after overlay animation completes
+      setTimeout(function(){ if(window._propMap) window._propMap.resize(); }, 400);
+    }).catch(function(e){ _warn('[Map] libs failed to load:', e); });
   }
 
   // Mortgage calc
@@ -4761,15 +4810,20 @@ function openSearchResults(filters){
   overlay.querySelectorAll('.prop-toggle-sun').forEach(function(el){el.style.display = theme==='light'?'inline':'none'});
   overlay.querySelectorAll('.prop-toggle-moon').forEach(function(el){el.style.display = theme==='dark'?'inline':'none'});
 
-  // Initialize map if not yet
+  // Initialize map if not yet (maplibre/turf lazy-load on first open)
   setTimeout(function(){
-    if(!_srMap){
-      initSearchMap();
-    } else {
-      _srMap.resize();
-    }
-    srApplyFilters();
-    document.getElementById('srMapLoading').style.display = 'none';
+    ensureMapLibs().then(function(){
+      if(!_srMap){
+        initSearchMap();
+      } else {
+        _srMap.resize();
+      }
+    }).catch(function(e){
+      _warn('[Map] libs failed to load:', e);
+    }).then(function(){
+      srApplyFilters();
+      document.getElementById('srMapLoading').style.display = 'none';
+    });
   }, 100);
 }
 
@@ -7157,20 +7211,24 @@ document.documentElement.addEventListener('mouseleave', function(e){
 
 // --- Google One Tap ---
 function initGoogleOneTap(){
-  if(_acctLoggedIn || typeof google === 'undefined' || !google.accounts) return;
+  if(_acctLoggedIn) return;
   // Don't show if auth popup was recently dismissed (avoid double prompts)
   var dismissed = localStorage.getItem('cc_auth_popup_dismissed');
   if(dismissed && Date.now() - parseInt(dismissed,10) < 3600000) return; // 1hr cooldown after popup dismiss
-  try {
-    google.accounts.id.initialize({
-      client_id: '878118307539-5vujunbk1fgoh7ctijfdjhdui8sf33fk.apps.googleusercontent.com',
-      callback: handleGoogleOneTap,
-      use_fedcm_for_prompt: true,
-      auto_select: false,
-      cancel_on_tap_outside: true
-    });
-    google.accounts.id.prompt();
-  } catch(e) { _warn('[OneTap] Init error:', e); }
+  // GSI client is lazy-loaded here (kept off first paint)
+  ensureGsi().then(function(){
+    if(_acctLoggedIn || typeof google === 'undefined' || !google.accounts) return;
+    try {
+      google.accounts.id.initialize({
+        client_id: '878118307539-5vujunbk1fgoh7ctijfdjhdui8sf33fk.apps.googleusercontent.com',
+        callback: handleGoogleOneTap,
+        use_fedcm_for_prompt: true,
+        auto_select: false,
+        cancel_on_tap_outside: true
+      });
+      google.accounts.id.prompt();
+    } catch(e) { _warn('[OneTap] Init error:', e); }
+  }).catch(function(e){ _warn('[OneTap] GSI load error:', e); });
 }
 async function handleGoogleOneTap(response){
   if(!_sb || !response.credential) return;
