@@ -127,6 +127,7 @@ async function init(){
     var data = await rvFetch({action:'load',token:_token});
     if(!data.ok){ showError(data.error || 'This review link is no longer valid.'); return; }
     _requestData = data;
+    if(data.alreadySubmitted){ _reviewText = data.reviewText || ''; showThankYou(); return; }
     showStep1();
   } catch(e){ showError('Unable to load. Please try again later.'); }
 }

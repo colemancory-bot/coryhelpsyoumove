@@ -195,7 +195,9 @@ async function handleLoad(body: Record<string, string>): Promise<Response> {
 
   const { data: request, error } = await supabase
     .from("review_requests")
-    .select("client_name, property_address, town, status")
+    .select(
+      "client_name, property_address, town, status, reviews (review_text, rating)",
+    )
     .eq("token", token)
     .single();
 
@@ -204,7 +206,22 @@ async function handleLoad(body: Record<string, string>): Promise<Response> {
   }
 
   if (request.status !== "pending") {
-    return errorResponse("This review has already been submitted", 400);
+    // Already submitted — return the reviewer's own text so the page can show
+    // the thank-you / share screen again instead of a dead end. Submitting a
+    // second time is still blocked in handleSubmit.
+    const review = Array.isArray(request.reviews)
+      ? request.reviews[0]
+      : request.reviews;
+    return jsonResponse({
+      ok: true,
+      alreadySubmitted: true,
+      clientName: request.client_name,
+      propertyAddress: request.property_address,
+      town: request.town,
+      status: request.status,
+      reviewText: review?.review_text || "",
+      rating: review?.rating || 0,
+    });
   }
 
   return jsonResponse({
