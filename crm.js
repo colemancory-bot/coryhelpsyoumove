@@ -5341,18 +5341,24 @@ function renderReviewRequests(requests) {
   if (!requests.length) { el.innerHTML = '<p style="color:var(--text-muted);padding:1rem">No review requests sent yet.</p>'; return; }
   var html = '<table class="crm-table"><thead><tr><th>Client</th><th>Property</th><th>Status</th><th>Rating</th><th>Date</th><th>Actions</th></tr></thead><tbody>';
   requests.forEach(function(r) {
+    // The list API returns the review joined under r.reviews; every review
+    // needs manual approval (no auto-publish since the compliance rebuild).
+    var rev = Array.isArray(r.reviews) ? r.reviews[0] : (r.reviews || {});
+    var rating = rev.rating || 0;
+    var reviewText = rev.review_text || '';
+    var isPublished = !!rev.is_published;
     var statusLabel = r.status.charAt(0).toUpperCase() + r.status.slice(1);
-    if (r.status === 'submitted' && r.review_rating === 5) statusLabel = 'Published';
-    var statusClass = (statusLabel === 'Published' || r.status === 'approved') ? 'success' : r.status === 'rejected' ? 'error' : 'pending';
-    var stars = r.review_rating ? String.fromCharCode(9733).repeat(r.review_rating) + String.fromCharCode(9734).repeat(5 - r.review_rating) : '-';
+    if (isPublished) statusLabel = 'Published';
+    var statusClass = (isPublished || r.status === 'approved') ? 'success' : r.status === 'rejected' ? 'error' : 'pending';
+    var stars = rating ? String.fromCharCode(9733).repeat(rating) + String.fromCharCode(9734).repeat(5 - rating) : '-';
     var date = r.created_at ? new Date(r.created_at).toLocaleDateString() : '-';
     var actions = '';
-    if (r.status === 'submitted' && r.review_rating < 5 && r.review_id) {
+    if (r.review_id && isPublished) {
+      actions = '<button class="crm-btn-sm crm-btn-danger" onclick="rejectReview(\x27' + r.review_id + '\x27)">Unpublish</button>';
+    } else if (r.review_id) {
       actions = '<button class="crm-btn-sm crm-btn-success" onclick="approveReview(\x27' + r.review_id + '\x27)">Approve</button> <button class="crm-btn-sm crm-btn-danger" onclick="rejectReview(\x27' + r.review_id + '\x27)">Reject</button>';
     } else if (r.status === 'pending') {
       actions = '<span style="color:var(--text-muted);font-size:0.75rem">Awaiting response</span>';
-    } else if (statusLabel === 'Published') {
-      actions = '<span style="color:var(--green);font-size:0.75rem">Auto-published</span>';
     }
     html += '<tr><td><strong>' + (r.client_name||'') + '</strong><br><span style="font-size:0.7rem;color:var(--text-muted)">' + (r.client_email||'') + '</span></td>';
     html += '<td>' + (r.property_address||'-') + '<br><span style="font-size:0.7rem;color:var(--text-muted)">' + (r.town||'') + '</span></td>';
@@ -5360,8 +5366,8 @@ function renderReviewRequests(requests) {
     html += '<td style="color:#C4B08C">' + stars + '</td>';
     html += '<td style="font-size:0.75rem">' + date + '</td>';
     html += '<td>' + actions + '</td></tr>';
-    if (r.review_text) {
-      html += '<tr><td colspan="6" style="padding:0.5rem 1rem;background:var(--surface);font-size:0.8rem;color:var(--text-body);border-top:none;font-style:italic">' + r.review_text.substring(0,300) + (r.review_text.length>300?'...':'') + '</td></tr>';
+    if (reviewText) {
+      html += '<tr><td colspan="6" style="padding:0.5rem 1rem;background:var(--surface);font-size:0.8rem;color:var(--text-body);border-top:none;font-style:italic">' + esc(reviewText.substring(0,300)) + (reviewText.length>300?'...':'') + '</td></tr>';
     }
   });
   html += '</tbody></table>';
