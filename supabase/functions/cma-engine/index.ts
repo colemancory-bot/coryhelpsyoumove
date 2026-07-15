@@ -2928,14 +2928,43 @@ Return JSON:
         });
       }
 
+      // Fallback (deployed-bug guard): if EVERY comp was excluded above (all
+      // exceeded the 35% gross-adjustment threshold, were stale actives, or had
+      // non-positive adjusted prices), `included` is empty and the weighted mean
+      // below would return $0 — a live CMA on a hard-to-comp rural property would
+      // show a $0 valuation. Rather than that, fall back to the pre-Phase-1
+      // behavior: value on ALL comps with a positive adjusted price (trim extremes
+      // if 4+, same squared-curve weighting) and flag the number as low-confidence.
+      let valuationSet = included;
+      let fallbackReason: string | null = null;
+      let fallbackNote: string | null = null;
+      if (included.length === 0) {
+        const all: Array<{ price: number; grossPct: number; isClosed: boolean; completeness: number }> = [];
+        for (const r of results) {
+          if (!(r.adjusted_price > 0)) continue;
+          all.push({
+            price: r.adjusted_price,
+            grossPct: r.gross_adjustment_pct || 0,
+            isClosed: r.is_closed !== false,
+            completeness: typeof r.completeness === "number" ? r.completeness : 0,
+          });
+        }
+        if (all.length > 0) {
+          valuationSet = all;
+          fallbackReason = "all_comps_exceeded_thresholds";
+          fallbackNote =
+            "Every comparable exceeded the 35% gross-adjustment / stale-listing quality thresholds, so this valuation falls back to all available comps. Treat the number as low-confidence — this is a hard-to-comp property and the estimate rests on poorly matched sales.";
+        }
+      }
+
       let suggestedLow = 0;
       let suggestedHigh = 0;
       let suggestedPrice = 0;
 
-      if (included.length > 0) {
-        const sorted = included.slice().sort((a, b) => a.price - b.price);
+      if (valuationSet.length > 0) {
+        const sorted = valuationSet.slice().sort((a, b) => a.price - b.price);
         // Range: trim extremes if 4+ (same as before) — computed from the SAME
-        // included set so range and point value stay consistent.
+        // valuation set so range and point value stay consistent.
         const rangeSet = sorted.length >= 4 ? sorted.slice(1, -1) : sorted;
         suggestedLow = rangeSet[0].price;
         suggestedHigh = rangeSet[rangeSet.length - 1].price;
@@ -2946,7 +2975,7 @@ Return JSON:
         // Only comps inside the trimmed range contribute to the point value.
         let totalWeight = 0;
         let weightedSum = 0;
-        for (const item of included) {
+        for (const item of valuationSet) {
           if (item.price < suggestedLow || item.price > suggestedHigh) continue;
           const base = 1 / (1 + item.grossPct / 100);
           let w = base * base;
@@ -2970,6 +2999,7 @@ Return JSON:
           suggested_high: suggestedHigh,
           suggested_price: suggestedPrice,
           adjusted_prices: validPrices,
+          ...(fallbackReason ? { fallback: fallbackReason, fallback_note: fallbackNote } : {}),
         },
         paired_sales_used: Object.keys(pairedRates).length > 0,
       });
