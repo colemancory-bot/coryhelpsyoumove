@@ -31,6 +31,10 @@
 //   --dry-run         print counts + estimated runtime/cost, make no calls
 //   --counties A,B    override counties (default: Haywood,Jackson,Macon,Swain)
 //   --status S        closed | active | all  (default: all)
+//   --scope S         legacy | trimmed  (default: legacy). trimmed matches the
+//                     batch backfill scope (docs/cma-accuracy-plan.md); when set,
+//                     --status is ignored. Use with --dry-run for an exact
+//                     untagged trimmed-scope count.
 
 import { writeFileSync, mkdirSync, appendFileSync } from "node:fs";
 import { dirname } from "node:path";
@@ -54,6 +58,7 @@ const todayStr = new Date().toISOString().split("T")[0];
 const CFG = {
   counties: (args.counties || "Haywood,Jackson,Macon,Swain").split(",").map((s) => s.trim()).filter(Boolean),
   status: (args.status || "all").toLowerCase(), // closed | active | all
+  scope: (args.scope || "legacy").toLowerCase(), // legacy | trimmed
   limit: args.limit && args.limit !== "true" ? parseInt(args.limit, 10) : Infinity,
   dryRun: args["dry-run"] === "true" || args["dry-run"] === true,
   monthsClosed: 36,
@@ -95,6 +100,25 @@ async function restPaginate(pathNoRange, pageSize = 1000) {
 // ── Build the target set ──
 async function buildTargetKeys() {
   const cty = `county_or_parish=in.(${CFG.counties.join(",")})`;
+
+  // scope=trimmed matches the batch backfill exactly (docs/cma-accuracy-plan.md):
+  //   1. Closed, close_price not null, close_date >= now-12mo (all types)
+  //   2. Closed, close_price not null, property_type=Land, close_date 12-36mo
+  //   3. Active / Active Under Contract / Pending, property_type=Land
+  if (CFG.scope === "trimmed") {
+    const d12 = new Date(Date.now() - 365 * 86400000).toISOString().split("T")[0];
+    const d36 = new Date(Date.now() - 3 * 365 * 86400000).toISOString().split("T")[0];
+    const land = encodeURIComponent('"Active Under Contract"');
+    const orClause =
+      `or=(` +
+      `and(standard_status.eq.Closed,close_price.not.is.null,close_date.gte.${d12}),` +
+      `and(standard_status.eq.Closed,close_price.not.is.null,property_type.eq.Land,close_date.gte.${d36},close_date.lt.${d12}),` +
+      `and(standard_status.in.(Active,${land},Pending),property_type.eq.Land)` +
+      `)`;
+    const path = `/mls_listings?select=listing_key,standard_status&${cty}&${orClause}&order=listing_key.asc`;
+    return restPaginate(path);
+  }
+
   // status=closed uses plain AND filters; active/all use the clause above.
   let path;
   if (CFG.status === "closed") {
@@ -164,7 +188,7 @@ function fmtDuration(sec) {
 
 // ── Main ──
 async function main() {
-  console.error(`CMA feature-tag backfill: counties=${CFG.counties.join(",")} status=${CFG.status} limit=${CFG.limit === Infinity ? "∞" : CFG.limit}`);
+  console.error(`CMA feature-tag backfill: counties=${CFG.counties.join(",")} scope=${CFG.scope} status=${CFG.scope === "trimmed" ? "(ignored)" : CFG.status} limit=${CFG.limit === Infinity ? "∞" : CFG.limit}`);
   console.error("Deriving target set (paginating)...");
 
   const targetRows = await buildTargetKeys();
