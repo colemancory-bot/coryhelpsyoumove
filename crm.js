@@ -1758,13 +1758,29 @@ var CMA_RATES = {
   per_bathroom: 10000,
   per_garage_space: 8000,
   per_year_age: 500,
-  view_per_point: 25000,
-  water_per_point: 20000,
-  land_per_point: 8000,
-  road_noise_per_point: 7000,
-  privacy_per_point: 6000,
-  elevation_per_100ft: 2000,
-  condition_per_point: 20000,
+  // Mountain premiums are a PERCENT OF THE COMP'S EFFECTIVE SALE PRICE per rating
+  // point (F4), mirroring the engine (WNC_DEFAULTS / WNC_LAND_DEFAULTS). A flat
+  // $25K/view-pt swamped a cheap cabin or a small land parcel; scaling to the comp's
+  // price keeps a view point ~5.5% of a $450K home and ~10% of a small parcel.
+  // Residential %/pt reproduce the old flat dollars at the ~$450K median
+  // (25000/450000=5.5%, 20000/450000=4.4%, 8000/450000=1.8%, etc.).
+  view_pct_per_point: 0.055,
+  water_pct_per_point: 0.044,
+  land_pct_per_point: 0.018,
+  road_noise_pct_per_point: 0.015,
+  privacy_pct_per_point: 0.013,
+  condition_pct_per_point: 0.044,
+  elevation_per_100ft: 2000, // stays FLAT $/100ft (not price-proportional the same way)
+  // Land subjects use steeper %/pt (the feature often IS most of a raw parcel's value),
+  // from docs/land-cma-research.md premium ranges. Selected by cmaIsLandSubject().
+  land_pct: {
+    view_pct_per_point: 0.10,
+    water_pct_per_point: 0.08,
+    land_pct_per_point: 0.09,
+    road_noise_pct_per_point: 0.06,
+    privacy_pct_per_point: 0.04,
+    condition_pct_per_point: 0.044
+  },
   lot_tiers: [
     { upTo: 2, perAcre: 25000 },
     { upTo: 5, perAcre: 15000 },
@@ -1811,6 +1827,61 @@ function cmaEffectiveBaths(totalInteger, half) {
   var h = Number(half) || 0;
   var full = Math.max(0, t - h);
   return full + 0.5 * h;
+}
+
+// ── Mountain adjustment scaling (F4) ──
+// Mountain premiums (view/water/land/road/privacy/condition) are a PERCENT of the
+// comp's effective sale price, not a flat sum, so they stay proportional on cheap
+// properties and land. Elevation stays flat $/100ft. These mirror the engine exactly.
+function cmaIsLandSubject() {
+  var s = _cmaState.subject && _cmaState.subject.listing;
+  return !!s && String(s.property_type || '').toLowerCase() === 'land';
+}
+// %/point for a mountain adjustment key, picking land vs residential rates.
+function cmaMountainPct(adjKey, isLand) {
+  var res = {
+    adj_view: CMA_RATES.view_pct_per_point,
+    adj_water_features: CMA_RATES.water_pct_per_point,
+    adj_land_character: CMA_RATES.land_pct_per_point,
+    adj_road_noise: CMA_RATES.road_noise_pct_per_point,
+    adj_privacy: CMA_RATES.privacy_pct_per_point,
+    adj_condition: CMA_RATES.condition_pct_per_point
+  };
+  var land = {
+    adj_view: CMA_RATES.land_pct.view_pct_per_point,
+    adj_water_features: CMA_RATES.land_pct.water_pct_per_point,
+    adj_land_character: CMA_RATES.land_pct.land_pct_per_point,
+    adj_road_noise: CMA_RATES.land_pct.road_noise_pct_per_point,
+    adj_privacy: CMA_RATES.land_pct.privacy_pct_per_point,
+    adj_condition: CMA_RATES.land_pct.condition_pct_per_point
+  };
+  return (isLand ? land : res)[adjKey];
+}
+// The comp basis = the engine-computed effective sale price on that adjustment row.
+function cmaCompBasis(ci) {
+  var a = _cmaState.adjustments && _cmaState.adjustments[ci];
+  return (a && a.sale_price) || 0;
+}
+// Compute a mountain adjustment in dollars: (subRating - compRating) * pct * basis.
+// Returns 0 when the basis is missing (parity with the engine's MISSING DATA skip).
+function cmaMountainAdj(ci, adjKey, subRating, compRating) {
+  var basis = cmaCompBasis(ci);
+  if (!(basis > 0)) return 0;
+  var pct = cmaMountainPct(adjKey, cmaIsLandSubject());
+  if (pct == null) return 0;
+  return Math.round((subRating - compRating) * pct * basis);
+}
+// Dollars per slider notch (= per rating point) for a mountain key on a given comp.
+// Scales the slider range by comp price so one notch is ~pct of that comp's value
+// instead of a fixed sum that would be disproportionate for cheap/land parcels (F4).
+// Elevation keeps its flat $/100ft multiplier.
+function cmaMountainMultiplier(adjKey, ci) {
+  if (adjKey === 'adj_elevation') return CMA_RATES.elevation_per_100ft;
+  var pct = cmaMountainPct(adjKey, cmaIsLandSubject());
+  if (pct == null) return 10000; // fallback for unknown keys (parity with old default)
+  var basis = cmaCompBasis(ci);
+  if (!(basis > 0)) return 0;
+  return Math.round(pct * basis);
 }
 
 function cmaGetCompVal(ci, field) {
@@ -1863,23 +1934,23 @@ function cmaRecalcAdjFromValue(ci, adjKey) {
     }
     case 'adj_view': {
       var sv = sf.view_quality || 0, cv = cmaGetCompVal(ci, 'view_quality') || 0;
-      return (sv > 0 && cv > 0) ? Math.round((sv - cv) * r.view_per_point) : 0;
+      return (sv > 0 && cv > 0) ? cmaMountainAdj(ci, 'adj_view', sv, cv) : 0;
     }
     case 'adj_water_features': {
       var sv = sf.water_quality || 0, cv = cmaGetCompVal(ci, 'water_quality') || 0;
-      return (sv > 0 && cv > 0) ? Math.round((sv - cv) * r.water_per_point) : 0;
+      return (sv > 0 && cv > 0) ? cmaMountainAdj(ci, 'adj_water_features', sv, cv) : 0;
     }
     case 'adj_land_character': {
       var sv = sf.land_usability || 0, cv = cmaGetCompVal(ci, 'land_usability') || 0;
-      return (sv > 0 && cv > 0) ? Math.round((sv - cv) * r.land_per_point) : 0;
+      return (sv > 0 && cv > 0) ? cmaMountainAdj(ci, 'adj_land_character', sv, cv) : 0;
     }
     case 'adj_road_noise': {
       var sv = sf.road_noise || 0, cv = cmaGetCompVal(ci, 'road_noise') || 0;
-      return (sv > 0 && cv > 0) ? Math.round((sv - cv) * r.road_noise_per_point) : 0;
+      return (sv > 0 && cv > 0) ? cmaMountainAdj(ci, 'adj_road_noise', sv, cv) : 0;
     }
     case 'adj_privacy': {
       var sv = sf.privacy_rating || 0, cv = cmaGetCompVal(ci, 'privacy_rating') || 0;
-      return (sv > 0 && cv > 0) ? Math.round((sv - cv) * r.privacy_per_point) : 0;
+      return (sv > 0 && cv > 0) ? cmaMountainAdj(ci, 'adj_privacy', sv, cv) : 0;
     }
     case 'adj_elevation': {
       var sv = sf.elevation_ft || 0, cv = cmaGetCompVal(ci, 'elevation_ft') || 0;
@@ -2014,12 +2085,11 @@ function cmaInitConditionAdj() {
   var sf = _cmaState.subject.features || {};
   var subCond = sf.condition_rating || 0;
   if (!subCond) return;
-  var r = CMA_RATES;
   var changed = false;
   _cmaState.adjustments.forEach(function(a, i) {
     var compCond = (_cmaState.compConditions && _cmaState.compConditions[i] != null) ? _cmaState.compConditions[i] : 0;
     if (!compCond) return;
-    var adj = (subCond - compCond) * r.condition_per_point;
+    var adj = cmaMountainAdj(i, 'adj_condition', subCond, compCond);
     if (a.adjustments.adj_condition !== adj) {
       a.adjustments.adj_condition = adj;
       changed = true;
@@ -4083,12 +4153,10 @@ function cmaAdjInput(compIdx, key, value) {
 }
 
 function cmaSlider(compIdx, adjKey, adjVal, featKey, subjectFeats, compFeats) {
-  // Derive slider position from current dollar value, not raw feature diff
-  var multipliers = {
-    adj_view: 25000, adj_water_features: 20000, adj_land_character: 8000,
-    adj_road_noise: 7000, adj_privacy: 6000, adj_condition: 20000, adj_elevation: 2000
-  };
-  var mult = multipliers[adjKey] || 10000;
+  // Derive slider position from current dollar value, not raw feature diff.
+  // One notch = one rating point = pct-of-comp-price dollars (F4), so the slider
+  // range scales with the comp's value (elevation stays flat $/100ft).
+  var mult = cmaMountainMultiplier(adjKey, compIdx);
   var sliderVal = mult > 0 ? Math.round(adjVal / mult) : 0;
   sliderVal = Math.max(-2, Math.min(2, sliderVal));
   var labels = ['MW', 'W', 'S', 'B', 'MB'];
@@ -4114,11 +4182,8 @@ function cmaUpdateAdj(compIdx, key, value) {
 }
 
 function cmaSliderChange(compIdx, adjKey, sliderVal) {
-  var multipliers = {
-    adj_view: 25000, adj_water_features: 20000, adj_land_character: 8000,
-    adj_road_noise: 7000, adj_privacy: 6000, adj_condition: 20000, adj_elevation: 2000
-  };
-  var mult = multipliers[adjKey] || 10000;
+  // Notch -> dollars via the price-scaled per-point multiplier (F4).
+  var mult = cmaMountainMultiplier(adjKey, compIdx);
   var newVal = parseInt(sliderVal) * mult;
   var adj = _cmaState.adjustments[compIdx];
   if (!adj) return;
@@ -4184,9 +4249,8 @@ function cmaBindAdjustmentEvents() {
         // If there's a slider, sync it too
         var slider = cell.querySelector('.cma-slider[data-key="' + adjKey + '"]');
         if (slider) {
-          var multipliers = { adj_view: 25000, adj_water_features: 20000, adj_land_character: 8000, adj_road_noise: 7000, adj_privacy: 6000, adj_condition: 20000, adj_elevation: 2000 };
-          var mult = multipliers[adjKey] || 10000;
-          var sv = Math.max(-2, Math.min(2, Math.round(newAdj / mult)));
+          var mult = cmaMountainMultiplier(adjKey, compIdx);
+          var sv = mult > 0 ? Math.max(-2, Math.min(2, Math.round(newAdj / mult))) : 0;
           slider.value = sv;
           var ticks = cell.querySelectorAll('.cma-slider-tick');
           ticks.forEach(function(t, i) { t.classList.toggle('active', i - 2 === sv); });
@@ -4231,7 +4295,7 @@ function cmaBindAdjustmentEvents() {
       if (!_cmaState.compConditions) _cmaState.compConditions = {};
       _cmaState.compConditions[compIdx] = compCond;
       var subCond = (_cmaState.subject.features || {}).condition_rating || 0;
-      var newAdj = (subCond > 0 && compCond > 0) ? (subCond - compCond) * CMA_RATES.condition_per_point : 0;
+      var newAdj = (subCond > 0 && compCond > 0) ? cmaMountainAdj(compIdx, 'adj_condition', subCond, compCond) : 0;
       cmaUpdateAdj(compIdx, 'adj_condition', newAdj);
       // Sync the number input
       var cell = el.closest('.cma-grid-adj-cell');
@@ -4257,9 +4321,8 @@ function cmaBindAdjustmentEvents() {
       if (wrap) {
         var slider = wrap.querySelector('.cma-slider');
         if (slider) {
-          var multipliers = { adj_view: 25000, adj_water_features: 20000, adj_land_character: 8000, adj_road_noise: 7000, adj_privacy: 6000, adj_condition: 20000, adj_elevation: 2000 };
-          var mult = multipliers[adjKey] || 10000;
-          var sv = Math.max(-2, Math.min(2, Math.round(val / mult)));
+          var mult = cmaMountainMultiplier(adjKey, compIdx);
+          var sv = mult > 0 ? Math.max(-2, Math.min(2, Math.round(val / mult))) : 0;
           slider.value = sv;
           var ticks = wrap.querySelectorAll('.cma-slider-tick');
           ticks.forEach(function(t, i) { t.classList.toggle('active', i - 2 === sv); });
