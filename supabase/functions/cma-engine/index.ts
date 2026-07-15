@@ -427,14 +427,24 @@ const WNC_DEFAULTS = {
   per_garage_space: 8000,
   per_year_age: 500, // depreciation per year difference
 
-  // Mountain adjustments per rating point difference (1-5 scale)
-  view_per_point: 25000,
-  water_per_point: 20000,
-  land_per_point: 8000,
-  road_noise_per_point: 7000,
-  privacy_per_point: 6000,
-  elevation_per_100ft: 2000,
-  condition_per_point: 20000, // condition rating $/point (was hardcoded at the call site)
+  // Mountain adjustments as PERCENT OF COMP BASIS per rating-point difference (1-5
+  // scale), F4. Flat $/point rates blew up proportionally on cheap properties: a
+  // $25K/view-pt rate is ~5% of a $450K home but can EXCEED a $40K parcel's whole
+  // value, tripping the 35% gross-adjustment guardrail and thinning the comp set.
+  // Appraisal practice scales qualitative premiums proportionally, so each premium
+  // is now (subjRating - compRating) * pct * compBasis, where compBasis is the comp's
+  // effective sale price. These %/pt values are calibrated to REPRODUCE the prior flat
+  // dollars at the ~$450K residential median, so behavior at the median is unchanged
+  // and only behavior away from it becomes proportional:
+  //   view  25000/450000 = 5.5%   water 20000/450000 = 4.4%   condition 20000/450000 = 4.4%
+  //   land   8000/450000 = 1.8%   road   7000/450000 = 1.5%   privacy    6000/450000 = 1.3%
+  view_pct_per_point: 0.055,
+  water_pct_per_point: 0.044,
+  land_pct_per_point: 0.018,
+  road_noise_pct_per_point: 0.015,
+  privacy_pct_per_point: 0.013,
+  condition_pct_per_point: 0.044, // condition rating %/point (was hardcoded at the call site pre-Phase-1)
+  elevation_per_100ft: 2000, // stays FLAT $/100ft: elevation premium is not price-proportional the same way
 
   // Lot size: tiered marginal value (larger parcels = lower per-acre rate)
   // These define the marginal value of each acre within that tier
@@ -479,14 +489,25 @@ const WNC_LAND_DEFAULTS = {
     { upTo: Infinity, perAcre: 2000 }, // 50+ acres: bulk land
   ],
 
-  // Mountain adjustments per rating point (land values views/water more)
-  view_per_point: 20000, // Views matter MORE for land (buyer choosing build site)
-  water_per_point: 15000, // Creek frontage especially valuable
-  land_per_point: 12000, // Most critical: steep = unbuildable = huge discount
-  road_noise_per_point: 10000, // Road access quality matters more for raw land
-  privacy_per_point: 8000,
-  elevation_per_100ft: 2000,
-  condition_per_point: 20000, // condition rating $/point (rarely applies to raw land)
+  // Mountain adjustments as PERCENT OF COMP BASIS per rating-point difference (F4).
+  // Land premiums scale even more steeply than residential because on a raw parcel
+  // the qualitative feature often IS most of the value. Rates derived from the WNC
+  // premium ranges in docs/land-cma-research.md (per rating point, ~5-point scale):
+  //   view 10%/pt  — "Panoramic mountain views: 25-75%+ premium... unobstructed 75-100%"
+  //                  (single most compelling WNC feature); ~50% over a 5-pt spread.
+  //   water 8%/pt  — "Year-round creek: 25-50% premium; river frontage 25-75%."
+  //   land_usability 9%/pt — topography/buildability is decisive: steep (20-30%) =
+  //                  10-30% discount, >30% NC "unsuitable" for septic = often unbuildable.
+  //   road_noise 6%/pt — proxy for access quality; road access is the #1 land driver
+  //                  ("2-4x over landlocked", private gravel 10-20%, 4WD 30-50% discount).
+  //   privacy 4%/pt — screening/seclusion premium, smaller and more subjective.
+  view_pct_per_point: 0.10,
+  water_pct_per_point: 0.08,
+  land_pct_per_point: 0.09,
+  road_noise_pct_per_point: 0.06,
+  privacy_pct_per_point: 0.04,
+  condition_pct_per_point: 0.044, // rarely applies to raw land; matches residential %
+  elevation_per_100ft: 2000, // stays FLAT $/100ft (not price-proportional the same way)
 
   // Restriction adjustment: higher for land since restrictions directly limit land use
   unrestricted_premium_pct: 0.15, // 15% of lot value for land CMAs
@@ -969,46 +990,58 @@ function calculateCompAdjustments(
   // ── Mountain-Specific Adjustments ──
 
   if (subjectFeatures && compFeatures) {
+    // Percentage-of-basis mountain premiums (F4). basis = the comp's effective sale
+    // price (`salePrice` above — the same value used for the totals and the land
+    // list-to-sale adjustment). Each premium = (subjRating - compRating) * pct * basis,
+    // rounded. If the basis is <= 0 we can't scale, so we SKIP these adjustments (they'd
+    // all be $0 anyway, but a silent $0 is misleading) and emit a MISSING DATA warning.
+    // Elevation is exempt: it stays flat $/100ft and does not depend on the basis.
+    const basis = salePrice;
+    const basisOk = basis > 0;
+    if (!basisOk) {
+      warnings.push(`MISSING DATA: Comp ${compOrder + 1} has no sale/list price, so percentage-based mountain adjustments (view, water, land usability, road noise, privacy, condition) are omitted.`);
+    }
+
     // View quality
     const subView = subjectFeatures.view_quality || 0;
     const compView = compFeatures.view_quality || 0;
-    if (subView > 0 && compView > 0) {
-      adjustments.adj_view = (subView - compView) * rates.view_per_point;
+    if (basisOk && subView > 0 && compView > 0) {
+      adjustments.adj_view = Math.round((subView - compView) * rates.view_pct_per_point * basis);
     }
 
     // Water features
     const subWater = subjectFeatures.water_quality || 0;
     const compWater = compFeatures.water_quality || 0;
-    if (subWater > 0 && compWater > 0) {
+    if (basisOk && subWater > 0 && compWater > 0) {
       adjustments.adj_water_features =
-        (subWater - compWater) * rates.water_per_point;
+        Math.round((subWater - compWater) * rates.water_pct_per_point * basis);
     }
 
     // Land usability
     const subLand = subjectFeatures.land_usability || 0;
     const compLand = compFeatures.land_usability || 0;
-    if (subLand > 0 && compLand > 0) {
+    if (basisOk && subLand > 0 && compLand > 0) {
       adjustments.adj_land_character =
-        (subLand - compLand) * rates.land_per_point;
+        Math.round((subLand - compLand) * rates.land_pct_per_point * basis);
     }
 
     // Road noise
     const subRoad = subjectFeatures.road_noise || 0;
     const compRoad = compFeatures.road_noise || 0;
-    if (subRoad > 0 && compRoad > 0) {
+    if (basisOk && subRoad > 0 && compRoad > 0) {
       adjustments.adj_road_noise =
-        (subRoad - compRoad) * rates.road_noise_per_point;
+        Math.round((subRoad - compRoad) * rates.road_noise_pct_per_point * basis);
     }
 
     // Privacy
     const subPrivacy = subjectFeatures.privacy_rating || 0;
     const compPrivacy = compFeatures.privacy_rating || 0;
-    if (subPrivacy > 0 && compPrivacy > 0) {
+    if (basisOk && subPrivacy > 0 && compPrivacy > 0) {
       adjustments.adj_privacy =
-        (subPrivacy - compPrivacy) * rates.privacy_per_point;
+        Math.round((subPrivacy - compPrivacy) * rates.privacy_pct_per_point * basis);
     }
 
-    // Elevation
+    // Elevation (stays FLAT $/100ft — not price-proportional the same way)
     const subElev = subjectFeatures.elevation_ft || 0;
     const compElev = compFeatures.elevation_ft || 0;
     if (subElev > 0 && compElev > 0) {
@@ -1020,9 +1053,9 @@ function calculateCompAdjustments(
     // Condition
     const subCond = subjectFeatures.condition_rating || 0;
     const compCond = compFeatures.condition_rating || 0;
-    if (subCond > 0 && compCond > 0) {
-      // Condition adjustments are larger; rate lives in the rates objects now.
-      adjustments.adj_condition = (subCond - compCond) * rates.condition_per_point;
+    if (basisOk && subCond > 0 && compCond > 0) {
+      // Condition premium is a % of basis; rate lives in the rates objects (Phase 1).
+      adjustments.adj_condition = Math.round((subCond - compCond) * rates.condition_pct_per_point * basis);
     }
   }
 
@@ -2841,32 +2874,40 @@ Return JSON:
       // Look up paired sales data for this area (F10 partial): require >= 5 high-
       // confidence pairs per category, shrink the derived median toward the WNC
       // default (rate = (n*median + 5*default)/(n+5)), and ignore any category
-      // whose median is negative (sign-inconsistent = garbage). Also fixes the
-      // category -> rate-key mapping: feature_category is "view_quality" etc., but
-      // the rate keys are "view_per_point" etc., so the old cat+"_per_point" join
-      // produced keys that matched nothing and silently disabled paired sales.
+      // whose median is negative (sign-inconsistent = garbage). The rate keys are
+      // now PERCENTAGES ("view_pct_per_point" etc., F4), so the paired data — stored
+      // as dollar-per-point `derived_adjustment` — must be converted into percentage
+      // space before it can override a default. For each pair, pct = derived_adjustment
+      // / mean(price_a, price_b); we aggregate the median pct per category. Pairs are
+      // left stored as-is (dollars); the conversion happens here at read time.
       const CATEGORY_RATE_KEY: Record<string, string> = {
-        view_quality: "view_per_point",
-        water_quality: "water_per_point",
-        land_usability: "land_per_point",
-        road_noise: "road_noise_per_point",
-        privacy_rating: "privacy_per_point",
-        condition_rating: "condition_per_point",
+        view_quality: "view_pct_per_point",
+        water_quality: "water_pct_per_point",
+        land_usability: "land_pct_per_point",
+        road_noise: "road_noise_pct_per_point",
+        privacy_rating: "privacy_pct_per_point",
+        condition_rating: "condition_pct_per_point",
       };
       const { data: pairedSales } = await sb
         .from("cma_paired_sales")
-        .select("feature_category, derived_adjustment, confidence")
+        .select("feature_category, derived_adjustment, confidence, price_a, price_b")
         .eq("county", county)
         .eq("confidence", "high");
 
       const pairedRates: Record<string, number> = {};
       if (pairedSales && pairedSales.length > 0) {
         const defaults = isLandSubject ? WNC_LAND_DEFAULTS : WNC_DEFAULTS;
+        // Collect per-category PERCENTAGES: each pair contributes its dollar
+        // per-point adjustment divided by the mean of its two sale prices.
         const byCategory = new Map<string, number[]>();
         for (const ps of pairedSales) {
           const cat = ps.feature_category as string;
+          const meanPrice = ((Number(ps.price_a) || 0) + (Number(ps.price_b) || 0)) / 2;
+          if (!(meanPrice > 0)) continue; // no basis to convert against
+          const pct = (Number(ps.derived_adjustment) || 0) / meanPrice;
+          if (!Number.isFinite(pct)) continue;
           if (!byCategory.has(cat)) byCategory.set(cat, []);
-          byCategory.get(cat)!.push(ps.derived_adjustment as number);
+          byCategory.get(cat)!.push(pct);
         }
         for (const [cat, values] of byCategory) {
           const rateKey = CATEGORY_RATE_KEY[cat];
@@ -2878,7 +2919,8 @@ Return JSON:
           values.sort((a, b) => a - b);
           const median = values[Math.floor(values.length / 2)];
           if (median < 0) continue; // sign-inconsistent -> keep the default
-          pairedRates[rateKey] = Math.round((n * median + 5 * def) / (n + 5));
+          // Shrinkage toward the default PERCENTAGE with k=5.
+          pairedRates[rateKey] = (n * median + 5 * def) / (n + 5);
         }
       }
 
