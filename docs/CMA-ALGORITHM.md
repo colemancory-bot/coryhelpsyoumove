@@ -21,8 +21,10 @@ There are also **4 slider multiplier objects** in `crm.js` (search for `adj_view
 
 After changing rates in the engine, redeploy:
 ```
-npx supabase functions deploy cma-engine --no-verify-jwt
+npx supabase functions deploy cma-engine
 ```
+> Deploy WITHOUT `--no-verify-jwt`. The function runs with `verify_jwt=true` in
+> production; passing the flag would silently make it public.
 
 ---
 
@@ -38,12 +40,18 @@ A positive adjustment means the comp is inferior (missing something the subject 
 |----------|------|------|---------|
 | Living Area | $175 | per sqft | `(subject_sqft - comp_sqft) * 175` |
 | Bedrooms | $12,000 | per bedroom | `(subject_beds - comp_beds) * 12000` |
-| Bathrooms | $10,000 | per bathroom | `(subject_baths - comp_baths) * 10000` |
+| Bathrooms | $10,000 | per effective bath | `(subject_eff_baths - comp_eff_baths) * 10000` |
 | Garage | $8,000 | per space | `(subject_garage - comp_garage) * 8000` |
 | Year Built | $500 | per year | `(subject_year - comp_year) * 500` |
 
 ### Notes
 - **Living area** at $175/sqft is based on WNC median price per square foot for residential. For land CMAs this is $0.
+- **Bathrooms** use an *effective* count that discounts half baths to 0.5. Both feeds
+  (Canopy `mls-sync`, CSAR `navica-sync`) populate `BathroomsTotalInteger` and
+  `BathroomsHalf` independently. To avoid double-counting we read `BathroomsTotalInteger`
+  as a whole-room count (full and half rooms alike) and value each half bath at 0.5:
+  `effective = (total - half) + 0.5 * half`. Implemented as `effectiveBaths()` in the
+  engine and `cmaEffectiveBaths()` in `crm.js`.
 - **Garage** at $8K reflects WNC mountain market where garages are valued but not as premium as suburban markets.
 - **Year built** at $500/year is intentionally conservative. Age matters less in WNC where 1960s cabins and 2020 builds coexist. The condition rating (below) captures actual property condition.
 
@@ -57,7 +65,7 @@ These are the biggest value drivers in WNC mountain real estate. Each property g
 |----------|---------------|---------------------|---------|
 | View Quality | $25,000 | $125,000 | `(subject_rating - comp_rating) * 25000` |
 | Water Features | $20,000 | $100,000 | `(subject_rating - comp_rating) * 20000` |
-| Condition | $20,000 | $100,000 | `(subject_rating - comp_rating) * 20000` |
+| Condition | $20,000 | $100,000 | `(subject_rating - comp_rating) * condition_per_point` |
 | Land Usability | $8,000 | $40,000 | `(subject_rating - comp_rating) * 8000` |
 | Road Noise | $7,000 | $35,000 | `(subject_rating - comp_rating) * 7000` |
 | Privacy | $6,000 | $30,000 | `(subject_rating - comp_rating) * 6000` |
@@ -87,7 +95,7 @@ These are the biggest value drivers in WNC mountain real estate. Each property g
 
 - **Views are #1.** Long-range mountain views are the primary value driver in WNC. A 5-point spread at $25K = $125K, which matches market reality where breathtaking views add $100K-$150K.
 - **Water is #2.** National data shows river frontage at ~24% premium (Collateral Analytics). At $20K/point, the full spread is $100K, which is ~22% of a $450K median WNC home.
-- **Condition at $20K** reflects that a fully renovated home vs a fixer-upper can easily differ by $100K.
+- **Condition at $20K** reflects that a fully renovated home vs a fixer-upper can easily differ by $100K. The rate now lives in the rates objects as `condition_per_point` (engine `WNC_DEFAULTS`/`WNC_LAND_DEFAULTS`, client `CMA_RATES`), not hardcoded at the call site.
 
 ---
 
@@ -206,47 +214,77 @@ This means the manufactured subject is worth ~$71K less than the site-built comp
 
 ## Market Time Adjustment
 
-Applied when a comp's sale date differs significantly from the current market.
+Market-derived from our own closed sales, not a fixed rate. The old hardcoded
++0.3%/month assumed appreciation that post-Helene WNC did not have (median -2.5%,
+inventory +41%), so it inflated every aged comp in the wrong direction.
 
-**Rate:** 0.3% per month (approximately 3.6% annual appreciation)
+### How the index is built (`computeMarketIndex`)
+1. Pull closed sales for the comp's county over the 42 months before the as-of date.
+2. Per-sale metric: residential = `close_price / living_area`; land =
+   `close_price / tieredLotValue(acres)` (normalizes plattage).
+3. Bucket sales into calendar quarters. Each bucket needs >= 8 sales; thin buckets
+   merge forward into the next.
+4. Take the median per bucket, then smooth with a 2-bucket trailing average.
 
 ### Formula
 ```
-months_diff = months between comp close date and current date
-time_adjustment = comp_price * (months_diff * 0.003)
+factor = index(as-of quarter) / index(comp's sale quarter) - 1     (clamped to +/-25%)
+time_adjustment = round(comp_sale_price * factor)
 ```
 
-This is applied by the server-side engine, not the client-side grid.
+- The factor's sign can be **negative** (a declining market discounts old comps).
+- When the index is unavailable — fewer than 3 smoothed buckets, or the comp's /
+  as-of quarter is missing — the factor is `null` and the time adjustment is **$0**.
+  An appraiser never assumes drift; zero is the safe default, not +0.3%/mo.
+- Active/pending comps have no close date, so they never receive a time adjustment.
+- `monthly_appreciation_pct` remains in the rates objects for reference and manual
+  sliders, but is no longer used as the default.
+
+This is applied by the server-side engine, not the client-side grid. The client
+displays the engine's `adj_time` and does not recompute it locally.
 
 ---
 
 ## Valuation: Weighted Average
 
-After all adjustments are applied to each comp, the final CMA value uses **inverse-gross-adjustment weighting**. Comps with fewer total adjustments are considered more similar to the subject and get more weight.
+After all adjustments are applied to each comp, the final CMA value uses a weighted
+mean over an **included set** of comps.
 
-### Formula
+### Included set
+A comp contributes to the point value and the range only if:
+- its adjusted price is > 0,
+- its gross adjustments are <= 35% (comps over 35% are excluded but stay visible with a warning), and
+- it is not a stale active listing (> 365 days on market — kept as a ceiling reference only).
+
+### Weight formula
 ```
-For each comp:
-  gross_adjustment_pct = sum of absolute values of all adjustments / comp_price * 100
-  weight = 1 / (1 + gross_adjustment_pct / 100)
+base   = 1 / (1 + gross_adjustment_pct / 100)
+weight = base^2                         # squared penalty — heavily favors close comps
+         * (2 if sold else 1)           # sold comps outweigh active/pending listings 2:1
+         * (0.5 + 0.5 * completeness)   # completeness = fraction of the 6 mountain
+                                        # ratings present on the comp's feature tags
 
 weighted_price = sum(adjusted_price * weight) / sum(weight)
 ```
 
-### Example
-| Comp | Adjusted Price | Gross Adj % | Weight | Contribution |
-|------|---------------|-------------|--------|-------------|
-| Comp 1 | $480,000 | 8% | 0.926 | $444,480 |
-| Comp 2 | $510,000 | 15% | 0.870 | $443,700 |
-| Comp 3 | $465,000 | 22% | 0.820 | $381,300 |
-| Comp 4 | $495,000 | 5% | 0.952 | $471,240 |
+Only comps inside the trimmed range (see below) contribute to the weighted mean.
 
-Weighted Price = ($444,480 + $443,700 + $381,300 + $471,240) / (0.926 + 0.870 + 0.820 + 0.952) = **$487,100**
+### Range
+Sort the included set's adjusted prices; if 4+ comps, drop the single lowest and
+highest (trim extremes). The range low/high come from this same included set so the
+range and the point value stay consistent.
 
-The range uses the middle comps (excluding highest and lowest if 4+ comps).
-
-### Why Not Simple Average?
-A comp that needed $80K in adjustments is less reliable than one that only needed $10K. The weighting ensures the most similar comps have the most influence on the final value.
+### Why these rules
+- **Squared curve:** a comp at 25% gross used to get weight 0.80 vs 1.0 — too gentle.
+  Squared, it drops to ~0.64, so marginal comps stop dragging the number.
+- **35% exclusion:** an appraiser wouldn't lean on a comp needing a third of its price
+  in adjustments; it's shown but not counted.
+- **Sold 2x active:** appraisers treat listings as the ceiling of value, never as
+  primary evidence.
+- **Completeness factor:** previously an untagged comp showed fewer adjustments, so it
+  got a *lower* gross and therefore *more* weight — backwards. Down-weighting by tag
+  completeness fixes that. (Client-side recompute mirrors the squared curve and the
+  sold-2x rule but not the completeness factor, which needs the comp's tag data.)
 
 ---
 
@@ -264,6 +302,38 @@ When the property type is "Land" or has no living area, the engine uses differen
 | unrestricted_premium_pct | 10% | 15% |
 
 Land CMAs focus entirely on lot size, views, water, land usability, road noise, privacy, elevation, and restriction status. Structural features are ignored.
+
+### Active/pending land comps (list-to-sale ratio + staleness)
+Rural land sells sparsely and sits for a long time, so land CMAs include active,
+pending, and under-contract listings — but priced honestly, not at raw list price:
+
+- **List-to-sale ratio (`computeLandListToSaleRatio`).** Median of
+  `close_price / list_price` over closed Land sales in the comp's county in the
+  trailing 24 months. Fewer than 8 samples falls back to **0.90**. A non-closed land
+  comp whose price basis is its list price is multiplied by this ratio before any
+  adjustments, and the result is marked `price_basis: "list_adjusted"`.
+- **Staleness.** An active listing with > 365 days on market is overpriced by
+  definition; it gets a warning and is **excluded from the weighted mean** (shown as
+  a ceiling reference only).
+- **Sold vs active weighting.** In the weighted mean, sold comps get 2x the weight of
+  non-closed comps (see Weighted Average).
+
+---
+
+## Paired-Sales Calibration
+
+When enough high-confidence paired sales exist for a county, they refine the mountain
+feature rates. Rules (per feature category):
+
+- Require **>= 5** high-confidence pairs; fewer keeps the WNC default.
+- **Shrinkage** toward the default: `rate = (n * median + 5 * default) / (n + 5)`.
+  A handful of pairs nudges the rate; it takes many to move it far.
+- If the derived median is **negative** (sign-inconsistent — nonsensical for these
+  categories), the paired data is ignored and the default is used.
+- The `feature_category` values (`view_quality`, `water_quality`, `land_usability`,
+  `road_noise`, `privacy_rating`, `condition_rating`) map to the rate keys
+  (`view_per_point`, etc.) via an explicit table. (A prior `cat + "_per_point"` join
+  produced keys that matched nothing, silently disabling paired sales entirely.)
 
 ---
 
@@ -291,5 +361,5 @@ Every quarter, review these rates against recent sales data:
 - [ ] Update `version` field to current quarter (e.g., '2026-Q2')
 - [ ] Update both `crm.js` CMA_RATES and `cma-engine` WNC_DEFAULTS
 - [ ] Update the 4 slider multiplier objects in `crm.js` if mountain rates changed
-- [ ] Redeploy: `npx supabase functions deploy cma-engine --no-verify-jwt`
+- [ ] Redeploy: `npx supabase functions deploy cma-engine` (NOT `--no-verify-jwt`)
 - [ ] Update this document with new rates and the date
