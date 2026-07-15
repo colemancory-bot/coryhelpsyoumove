@@ -1802,6 +1802,17 @@ function cmaCalcLotValue(acres) {
   return Math.round(total);
 }
 
+// Effective bathroom count that discounts half baths to 0.5 (mirrors the engine's
+// effectiveBaths). BathroomsTotalInteger counts every bathroom room (full and half)
+// as a whole, so we split out the halves and value them at 0.5 each without
+// double-counting: effective = (total - half) full baths + 0.5*half.
+function cmaEffectiveBaths(totalInteger, half) {
+  var t = Number(totalInteger) || 0;
+  var h = Number(half) || 0;
+  var full = Math.max(0, t - h);
+  return full + 0.5 * h;
+}
+
 function cmaGetCompVal(ci, field) {
   if (_cmaState.compOverrides && _cmaState.compOverrides[ci] && _cmaState.compOverrides[ci][field] != null) {
     return _cmaState.compOverrides[ci][field];
@@ -1821,7 +1832,7 @@ function cmaRecalcAdjFromValue(ci, adjKey) {
   switch (adjKey) {
     case 'adj_living_area': return Math.round(((s.living_area || 0) - (cmaGetCompVal(ci, 'living_area') || 0)) * r.price_per_sqft);
     case 'adj_bedrooms': return Math.round(((s.bedrooms_total || 0) - (cmaGetCompVal(ci, 'bedrooms_total') || 0)) * r.per_bedroom);
-    case 'adj_bathrooms': return Math.round(((s.bathrooms_total_integer || 0) - (cmaGetCompVal(ci, 'bathrooms_total_integer') || 0)) * r.per_bathroom);
+    case 'adj_bathrooms': return Math.round((cmaEffectiveBaths(s.bathrooms_total_integer, s.bathrooms_half) - cmaEffectiveBaths(cmaGetCompVal(ci, 'bathrooms_total_integer'), cmaGetCompVal(ci, 'bathrooms_half'))) * r.per_bathroom);
     case 'adj_garage': return Math.round(((s.garage_spaces || 0) - (cmaGetCompVal(ci, 'garage_spaces') || 0)) * r.per_garage_space);
     case 'adj_year_built': {
       var sy = s.year_built || 0, cy = cmaGetCompVal(ci, 'year_built') || 0;
@@ -4297,28 +4308,41 @@ function cmaRecalcTotals(compIdx) {
   adj.warnings = [];
   if (adj.gross_adjustment_pct > 25) adj.warnings.push('Gross adjustments (' + adj.gross_adjustment_pct + '%) exceed 25%.');
   if (adj.net_adjustment_pct > 15) adj.warnings.push('Net adjustments (' + adj.net_adjustment_pct + '%) exceed 15%.');
-  // Recalc valuation using inverse-gross-adjustment weighting
-  // Comps with fewer adjustments are more reliable indicators of value
-  var validAdjs = _cmaState.adjustments.filter(function(a) { return a.adjusted_price > 0; });
-  if (validAdjs.length) {
-    var allPrices = validAdjs.map(function(a) { return a.adjusted_price; }).sort(function(a,b) { return a-b; });
-    // Weighted mean: weight = 1 / (1 + gross_adj_pct/100)
+  // Recalc valuation (mirrors the engine's weighted mean). Included set: positive
+  // adjusted price and gross adjustments <= 35% (comps over 35% are excluded from
+  // the average but stay visible in the grid). Weight curve is squared, and sold
+  // comps outweigh non-closed listings 2:1.
+  var included = [];
+  _cmaState.adjustments.forEach(function(a, i) {
+    if (!(a.adjusted_price > 0) || (a.gross_adjustment_pct || 0) > 35) return;
+    var comp = _cmaState.selectedComps[i];
+    var status = String((comp && comp.listing && comp.listing.standard_status) || 'Closed').toLowerCase();
+    included.push({ price: a.adjusted_price, grossPct: a.gross_adjustment_pct || 0, isClosed: status === 'closed' });
+  });
+  if (included.length) {
+    var allPrices = included.map(function(x) { return x.price; }).sort(function(a,b) { return a-b; });
+    // Range: trim extremes if 4+, computed from the same included set.
+    var rangeSet = allPrices.length >= 4 ? allPrices.slice(1, -1) : allPrices;
+    var rangeLow = rangeSet[0], rangeHigh = rangeSet[rangeSet.length - 1];
+    // Weighted mean over comps inside the trimmed range. weight = (1/(1+gross/100))^2,
+    // x2 for sold comps vs non-closed listings.
     var totalWeight = 0, weightedSum = 0;
-    validAdjs.forEach(function(a) {
-      var w = 1 / (1 + (a.gross_adjustment_pct || 0) / 100);
+    included.forEach(function(x) {
+      if (x.price < rangeLow || x.price > rangeHigh) return;
+      var base = 1 / (1 + x.grossPct / 100);
+      var w = base * base;
+      w *= x.isClosed ? 2 : 1;
       totalWeight += w;
-      weightedSum += a.adjusted_price * w;
+      weightedSum += x.price * w;
     });
     var weightedPrice = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : allPrices[Math.floor(allPrices.length / 2)];
-    // Range: use lowest and highest adjusted prices (trimmed if 4+)
-    var rangeSet = allPrices.length >= 4 ? allPrices.slice(1, -1) : allPrices;
     // Preserve a manually edited range so going back to Step 3 doesn't clobber
     // the agent's override. The center (suggested_price) always recomputes.
     var prev = _cmaState.valuation || {};
     var keepRange = prev.range_user_edited === true;
     _cmaState.valuation = {
-      suggested_low: keepRange ? prev.suggested_low : rangeSet[0],
-      suggested_high: keepRange ? prev.suggested_high : rangeSet[rangeSet.length - 1],
+      suggested_low: keepRange ? prev.suggested_low : rangeLow,
+      suggested_high: keepRange ? prev.suggested_high : rangeHigh,
       suggested_price: weightedPrice,
       range_user_edited: keepRange
     };
