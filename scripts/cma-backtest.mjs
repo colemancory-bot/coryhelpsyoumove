@@ -20,7 +20,7 @@
 //     --counties "Haywood,Jackson,Macon,Swain" --type all \
 //     --out docs/cma-backtest-baseline.md --raw scripts/output/backtest-<date>.json
 
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
 
 // ── CLI args ──
@@ -50,7 +50,21 @@ const CFG = {
   out: args.out || "docs/cma-backtest-baseline.md",
   raw: args.raw || `scripts/output/backtest-${todayStr}.json`,
   seed: parseInt(args.seed || "1234567", 10),
+  // Harness v2 subject filters (see docs/cma-backtest-phase1.md "harness v2"):
+  //   Only sample true comp-able subjects — property_type in (Residential, Land)
+  //   and BOTH coordinates present. Excludes "Commercial Sale" /
+  //   "Residential Income" and coordinate-less rows that the v1 harness bucketed
+  //   as "residential" and let distort the aggregates.
+  // --include-all-types is the escape hatch: restores v1 sampling (no type
+  //   restriction, no coordinate requirement) so old runs can be reproduced.
+  includeAllTypes: args["include-all-types"] === "true" || args["include-all-types"] === true,
+  // --recompute <raw.json>: recompute the full metrics tables from an existing
+  //   raw output WITHOUT calling the engine, applying the v2 subject filters.
+  recompute: typeof args.recompute === "string" && args.recompute !== "true" ? args.recompute : null,
 };
+
+// property_type values that count as valid comp-able subjects for v2 sampling.
+const VALID_SUBJECT_TYPES = new Set(["Residential", "Land"]);
 
 const SUPABASE_URL = process.env.SUPABASE_URL || "https://kzaabnnwjupjqvydiqlz.supabase.co";
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
@@ -167,9 +181,14 @@ async function fetchSubjects(county) {
   const floor = new Date(Date.now() - CFG.months * 30 * 86400000).toISOString().split("T")[0];
   // close_date window keeps the scan small (avoids statement timeouts on the 18k-row table).
   let path =
-    `/mls_listings?select=listing_key,full_address,county_or_parish,property_type,close_price,close_date,living_area,lot_size_acres` +
+    `/mls_listings?select=listing_key,full_address,county_or_parish,property_type,close_price,close_date,living_area,lot_size_acres,latitude,longitude` +
     `&standard_status=eq.Closed&close_price=gt.0&county_or_parish=eq.${encodeURIComponent(county)}` +
     `&close_date=gte.${floor}&order=close_date.desc&limit=5000`;
+  // v2 filters (skipped by --include-all-types): true comp-able subjects only.
+  if (!CFG.includeAllTypes) {
+    path += `&property_type=in.(${[...VALID_SUBJECT_TYPES].join(",")})`;
+    path += `&latitude=not.is.null&longitude=not.is.null`;
+  }
   let rows = await restGet(path);
   if (CFG.type === "land") rows = rows.filter((r) => (r.property_type || "").toLowerCase() === "land");
   else if (CFG.type === "residential") rows = rows.filter((r) => (r.property_type || "").toLowerCase() !== "land");
@@ -320,8 +339,72 @@ function buildReport(records, meta) {
   return md;
 }
 
+// ── Recompute mode (--recompute <raw.json>) ──
+// Recompute the metrics tables from an existing raw output WITHOUT calling the
+// engine, applying the v2 subject filters. Re-fetches each subject's real
+// property_type + coordinates by listing_key (the raw records only store the
+// bucketed residential/land label and no coords), then drops any subject whose
+// type isn't Residential/Land or that has a null coordinate.
+async function fetchListingMeta(keys) {
+  const meta = {};
+  for (let i = 0; i < keys.length; i += 200) {
+    const chunk = keys.slice(i, i + 200);
+    const inList = "(" + chunk.map((k) => `"${k}"`).join(",") + ")";
+    const rows = await restGet(
+      `/mls_listings?select=listing_key,property_type,latitude,longitude&listing_key=in.${encodeURIComponent(inList)}`
+    );
+    for (const r of rows) meta[r.listing_key] = r;
+  }
+  return meta;
+}
+
+async function recomputeMode(rawPath) {
+  const raw = JSON.parse(readFileSync(rawPath, "utf8"));
+  const records = raw.records || [];
+  const counties = (raw.config && raw.config.counties) || CFG.counties;
+  const keys = records.map((r) => r.listing_key);
+  console.error(`Recompute: ${rawPath} — ${records.length} records; re-fetching real type + coords...`);
+  const meta = await fetchListingMeta(keys);
+
+  const dropTypes = {};
+  let dropType = 0, dropCoord = 0, missing = 0;
+  const kept = [];
+  for (const rec of records) {
+    if (CFG.includeAllTypes) { kept.push(rec); continue; }
+    const m = meta[rec.listing_key];
+    if (!m) { missing++; continue; }
+    const okType = VALID_SUBJECT_TYPES.has(m.property_type);
+    const okCoord = m.latitude != null && m.longitude != null;
+    if (!okType) { dropType++; dropTypes[m.property_type] = (dropTypes[m.property_type] || 0) + 1; continue; }
+    if (!okCoord) { dropCoord++; continue; }
+    kept.push(rec);
+  }
+  console.error(
+    `  kept ${kept.length}/${records.length}  (dropped bad-type ${dropType} ${JSON.stringify(dropTypes)}, null-coord ${dropCoord}, missing-from-db ${missing})`
+  );
+
+  const H2 = "| Segment | N valued | N skipped | MdAPE | PPE10 | PPE20 | Bias | Med. gross adj |";
+  const SEP = "|---|---|---|---|---|---|---|---|";
+  const seg = (label, recs) => metricRow(label, metrics(recs));
+  let md = "";
+  md += `### Recompute (v2 filters) — ${rawPath}\n\n`;
+  md += `Kept **${kept.length}** of ${records.length} subjects (dropped ${dropType} non-Residential/Land, ${dropCoord} null-coordinate).\n\n`;
+  md += `${H2}\n${SEP}\n`;
+  md += `${seg("**Overall**", kept)}\n`;
+  for (const c of counties) md += `${seg(c, kept.filter((r) => r.county === c))}\n`;
+  for (const t of ["residential", "land"]) md += `${seg(t, kept.filter((r) => r.property_type === t))}\n`;
+  for (const b of ["<$300K", "$300–600K", ">$600K"]) md += `${seg(b, kept.filter((r) => r.price_band === b))}\n`;
+  console.log("\n" + md);
+  return { rawPath, kept: kept.length, of: records.length, md };
+}
+
 // ── Main ──
 async function main() {
+  if (CFG.recompute) {
+    await recomputeMode(CFG.recompute);
+    return;
+  }
+
   console.error(`CMA backtest: months=${CFG.months} perCounty=${CFG.perCounty} type=${CFG.type} requireTags=${CFG.requireTags}`);
   const rng = mulberry32(CFG.seed);
 

@@ -33,6 +33,49 @@ defaults (12 months, 40/county, Haywood/Jackson/Macon/Swain, type `all`), same s
 
 Positive bias = the engine overvalues.
 
+## Clean comparison (harness v2 filters)
+
+The table above is polluted by subjects the v1 harness never should have sampled:
+`Commercial Sale` rows bucketed as "residential" and coordinate-less rows with no
+geography to prune on (see "The one-outlier effect" below). The harness was rebuilt
+(`scripts/cma-backtest.mjs`, v2) to sample only `property_type in (Residential, Land)`
+with **both** coordinates present, and a `--recompute <raw.json>` mode re-scores the
+existing raw outputs under those same filters — no engine calls, so it's a true
+apples-to-apples reconciliation of the two prior runs. Both runs used the same seed,
+so they sampled the **same 153** clean subjects (dropped: 4 `Commercial Sale`, 3
+null-coordinate).
+
+**This is the authoritative baseline-vs-phase1 comparison.** (`N` shows valued; Phase 1
+leaves 5 subjects unvalued — the >35% gross-adjustment exclusion (F11c) removes every
+comp for those. That coverage trade is now guarded in the engine by the empty-included
+fallback, but these raw files predate it.)
+
+| Segment | N (base→P1) | MdAPE base→P1 | PPE10 base→P1 | PPE20 base→P1 | Bias base→P1 |
+|---|---|---|---|---|---|
+| **Overall** | 153→148 | 20.6% → 20.5% | 23.5% → 20.9% | 49.0% → 48.0% | +14.9% → +15.8% |
+| Haywood | 39→38 | 19.7% → 20.0% | 23.1% → 18.4% | 51.3% → 50.0% | +4.4% → +6.0% |
+| Jackson | 38→37 | 28.9% → 25.0% | 23.7% → 8.1% | 42.1% → 29.7% | +22.8% → +28.1% |
+| Macon | 38→37 | 19.5% → 16.8% | 23.7% → 29.7% | 50.0% → 56.8% | +17.0% → +18.5% |
+| Swain | 38→36 | 19.6% → 17.7% | 23.7% → 27.8% | 52.6% → 55.6% | +15.5% → +10.8% |
+| residential | 115→112 | 17.7% → 18.1% | 28.7% → 25.0% | 57.4% → 56.3% | +11.3% → +12.1% |
+| **land** | 38→36 | **43.3% → 35.6%** | 7.9% → 8.3% | 23.7% → 22.2% | +25.7% → +27.4% |
+| <$300K | 84→81 | 31.2% → 24.4% | 14.3% → 14.8% | 33.3% → 32.1% | +25.3% → +24.4% |
+| $300–600K | 56→54 | 12.7% → 16.2% | 35.7% → 31.5% | 69.6% → 66.7% | +5.7% → +7.8% |
+| >$600K | 13→13 | 17.7% → 16.5% | 30.8% → 15.4% | 61.5% → 69.2% | −13.5% → −4.2% |
+
+**Reading it:** with the Commercial artifact and coordinate-less rows removed, the
+headline **bias barely moves** (+14.9% → +15.8%, a single point — not the +5.5pt jump
+the polluted table showed) and **MdAPE is flat** (20.6% → 20.5%). The genuine wins are
+in the segments Phase 1 targeted: **land MdAPE drops 7.7 points** (43.3% → 35.6%, still
+the worst segment but much improved) and **cheap subjects improve** (<$300K MdAPE 31.2%
+→ 24.4%). The cost side is real too: overall PPE10 slips ~2.6 points and Phase 1 refuses
+to value 5 subjects it can no longer comp within 35%. Jackson remains the problem county
+(PPE10 collapses 23.7% → 8.1% as the >35% guard thins its already-mixed Sylva/Cashiers
+comp pool), which is exactly the submarket-tagging work Phase 2 is scoped to fix. Net:
+on clean numbers Phase 1 is a **correctness pass that measurably helped the worst
+segments and held the headline flat**, at a small coverage/PPE10 cost — a defensible
+trade, and better than the outlier-distorted headline made it look.
+
 ## The one-outlier effect (read this before the interpretation)
 
 The overall **bias** regression is dominated by a single subject the backtest
