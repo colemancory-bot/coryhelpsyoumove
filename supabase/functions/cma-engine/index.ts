@@ -146,7 +146,10 @@ function scoreComp(
   subject: ListingData,
   comp: ListingData,
   subjectFeatures: FeatureTags | null,
-  compFeatures: FeatureTags | null
+  compFeatures: FeatureTags | null,
+  // asOfMs: "value as of" timestamp for time-travel/backtesting. Defaults to
+  // Date.now() so live behavior is byte-for-byte identical when not supplied.
+  asOfMs: number = Date.now()
 ): { total: number; breakdown: Record<string, number> } {
   const scores: Record<string, number> = {};
 
@@ -261,7 +264,7 @@ function scoreComp(
   // Recency (weight: 0.10)
   if (comp.close_date) {
     const daysSinceSale = Math.floor(
-      (Date.now() - new Date(comp.close_date + "T00:00:00").getTime()) /
+      (asOfMs - new Date(comp.close_date + "T00:00:00").getTime()) /
         86400000
     );
     // Within 90 days = 1.0, 180 = 0.75, 365 = 0.5, 730+ = 0
@@ -289,7 +292,7 @@ function scoreComp(
   let subPrice = (subject.list_price || 0) as number;
   if (!subPrice && subject.close_price && subject.close_date) {
     const closeDateMs = new Date(subject.close_date + "T00:00:00").getTime();
-    const yearsSinceClose = (Date.now() - closeDateMs) / (365.25 * 86400000);
+    const yearsSinceClose = (asOfMs - closeDateMs) / (365.25 * 86400000);
     if (yearsSinceClose < 2) {
       subPrice = subject.close_price as number; // Recent sale, still relevant
     }
@@ -542,7 +545,10 @@ function calculateCompAdjustments(
   compFeatures: FeatureTags | null,
   compOrder: number,
   pairedSalesData: Record<string, number> | null,
-  sliderOverrides?: Record<string, number>
+  sliderOverrides?: Record<string, number>,
+  // asOfMs: "value as of" timestamp for time-travel/backtesting. Defaults to
+  // Date.now() so live behavior is byte-for-byte identical when not supplied.
+  asOfMs: number = Date.now()
 ): AdjustmentResult {
   const adjustments: Record<string, number> = {};
   const warnings: string[] = [];
@@ -769,7 +775,7 @@ function calculateCompAdjustments(
   // Time adjustment (months since comp sold)
   if (comp.close_date) {
     const monthsSinceSale =
-      (Date.now() - new Date(comp.close_date + "T00:00:00").getTime()) /
+      (asOfMs - new Date(comp.close_date + "T00:00:00").getTime()) /
       (30 * 86400000);
     if (monthsSinceSale > 1) {
       adjustments.adj_time = Math.round(
@@ -1902,9 +1908,17 @@ Deno.serve(async (req: Request) => {
 
       // Build comp query
       const isLandSubject = String(subject.property_type || "").toLowerCase() === "land";
+      // Time-travel/backtest support: value the subject as if today were `as_of_date`.
+      // asOfProvided gates the "past date" behaviors; when absent, asOfMs = Date.now()
+      // and every query/scoring path is byte-for-byte identical to live behavior.
+      const asOfDate = typeof body.as_of_date === "string" ? body.as_of_date : null;
+      const asOfProvided = !!asOfDate;
+      const asOfMs = asOfProvided
+        ? new Date(asOfDate + "T00:00:00").getTime()
+        : Date.now();
       const dateFloor =
         filters.min_close_date ||
-        new Date(Date.now() - (isLandSubject ? 1095 : 365) * 86400000).toISOString().split("T")[0];
+        new Date(asOfMs - (isLandSubject ? 1095 : 365) * 86400000).toISOString().split("T")[0];
       const maxDistance = filters.max_distance_miles || (isLogSubject ? 40 : 15);
 
       let compQuery = sb
@@ -1916,7 +1930,10 @@ Deno.serve(async (req: Request) => {
       // Land: sales are sparse and comparable parcels sit as listings for years, so
       // closed-only biases toward the few better-located lots that actually sold.
       // Include active/pending listings (priced via list_price downstream).
-      if (isLandSubject) {
+      // Backtest caveat: when as_of_date is provided we CANNOT reconstruct which
+      // listings were Active on that past date (current standard_status reflects
+      // today), so land backtests restrict to Closed comps only.
+      if (isLandSubject && !asOfProvided) {
         compQuery = compQuery
           .in("standard_status", ["Closed", "Active", "Active Under Contract", "Pending"])
           .or(`standard_status.neq.Closed,close_date.gte.${dateFloor}`);
@@ -1925,6 +1942,11 @@ Deno.serve(async (req: Request) => {
           .eq("standard_status", "Closed")
           .not("close_price", "is", null)
           .gte("close_date", dateFloor);
+      }
+      // Upper bound: a comp that closed after as_of_date did not exist as a sale
+      // yet, so it cannot inform value on that date.
+      if (asOfProvided) {
+        compQuery = compQuery.lte("close_date", asOfDate);
       }
 
       // Exclude subject if it's from DB
@@ -2026,7 +2048,8 @@ Deno.serve(async (req: Request) => {
           subject as ListingData,
           c,
           subjectTags || null,
-          cFeatures
+          cFeatures,
+          asOfMs
         );
         return {
           listing: c,
@@ -2130,8 +2153,15 @@ Deno.serve(async (req: Request) => {
 
       // Find comps (same logic as find-comps action)
       const isLandSubject = String(subject.property_type || "").toLowerCase() === "land";
+      // Time-travel/backtest support (see find-comps action for full rationale).
+      // asOfMs defaults to Date.now() so live behavior is unchanged when as_of_date absent.
+      const asOfDate = typeof body.as_of_date === "string" ? body.as_of_date : null;
+      const asOfProvided = !!asOfDate;
+      const asOfMs = asOfProvided
+        ? new Date(asOfDate + "T00:00:00").getTime()
+        : Date.now();
       const dateFloor = filters.min_close_date ||
-        new Date(Date.now() - (isLandSubject ? 1095 : 365) * 86400000).toISOString().split("T")[0];
+        new Date(asOfMs - (isLandSubject ? 1095 : 365) * 86400000).toISOString().split("T")[0];
       // Log subjects: widen radius to surface scarce log sales (appraisal practice: 10-40mi).
       const maxDistance = filters.max_distance_miles || (isLogSubject ? 40 : 15);
 
@@ -2140,7 +2170,9 @@ Deno.serve(async (req: Request) => {
         .select("listing_key, full_address, city, county_or_parish, property_type, property_sub_type, living_area, lot_size_acres, bedrooms_total, bathrooms_total_integer, year_built, garage_spaces, close_price, close_date, list_price, latitude, longitude, standard_status, stories, public_remarks, construction_materials")
         .limit(100);
       // Land: include active/pending listings, not just closed sales (see find-comps).
-      if (isLandSubject) {
+      // Backtest caveat: with as_of_date we cannot reconstruct past Active status,
+      // so land backtests restrict to Closed comps only (see find-comps action).
+      if (isLandSubject && !asOfProvided) {
         compQuery = compQuery
           .in("standard_status", ["Closed", "Active", "Active Under Contract", "Pending"])
           .or(`standard_status.neq.Closed,close_date.gte.${dateFloor}`);
@@ -2149,6 +2181,10 @@ Deno.serve(async (req: Request) => {
           .eq("standard_status", "Closed")
           .not("close_price", "is", null)
           .gte("close_date", dateFloor);
+      }
+      // Upper bound: comps that closed after as_of_date didn't exist as sales yet.
+      if (asOfProvided) {
+        compQuery = compQuery.lte("close_date", asOfDate);
       }
 
       if (listingKey) compQuery = compQuery.neq("listing_key", listingKey);
@@ -2206,7 +2242,7 @@ Deno.serve(async (req: Request) => {
       // Score and take top 10
       const scored = filteredComps.map((c: ListingData) => {
         const cFeatures = compTagMap.get(c.listing_key) || null;
-        const score = scoreComp(subject as ListingData, c, subjectTags || null, cFeatures);
+        const score = scoreComp(subject as ListingData, c, subjectTags || null, cFeatures, asOfMs);
         return {
           listing: c,
           features: cFeatures,
@@ -2435,6 +2471,13 @@ Return JSON:
       }>;
       const sliderStates = body.slider_states || {};
 
+      // Time-travel/backtest support: value the subject as if today were as_of_date.
+      // Defaults to Date.now() so the time adjustment is identical to live behavior
+      // when as_of_date is absent.
+      const asOfMs = typeof body.as_of_date === "string"
+        ? new Date(body.as_of_date + "T00:00:00").getTime()
+        : Date.now();
+
       if (!subjectData || !compsData) {
         return jsonResp(
           { error: "subject and comps required" },
@@ -2478,7 +2521,8 @@ Return JSON:
           comp.features,
           i,
           Object.keys(pairedRates).length > 0 ? pairedRates : null,
-          compSliders
+          compSliders,
+          asOfMs
         );
       });
 
