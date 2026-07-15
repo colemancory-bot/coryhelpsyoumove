@@ -499,6 +499,22 @@ const WNC_LAND_DEFAULTS = {
   garage_oversize_per_sqft: 0, // land has no structures; without this, x * undefined = NaN poisons adj_garage
   per_year_age: 0,
 
+  // Structural feature rates: N/A for land. The structural-feature block in
+  // calculateCompAdjustments is gated on !isLand, so these should never be read for a
+  // land subject. They are declared here anyway as explicit zeros for defense-in-depth:
+  // a missing key would dereference to undefined and poison an adjustment with NaN, or
+  // (as with outbuilding_tier_values) throw on undefined[tier]. Same rationale as the
+  // garage_oversize_per_sqft comment above.
+  pool_inground: 0,
+  pool_above_ground: 0,
+  basement_finished_per_sqft: 0,
+  basement_partial: 0,
+  basement_unfinished: 0,
+  fireplace_value: 0,
+  fireplace_stone_premium: 0,
+  covered_outdoor_per_sqft: 0,
+  outbuilding_tier_values: [0, 0, 0, 0] as number[],
+
   // Market
   monthly_appreciation_pct: 0.3,
 };
@@ -872,8 +888,12 @@ function calculateCompAdjustments(
   }
 
   // ── Structural Feature Adjustments ──
-
-  if (subjectFeatures && compFeatures) {
+  // Land CMAs ignore structural features entirely (see docs/CMA-ALGORITHM.md
+  // § "Land CMA Differences"). WNC_LAND_DEFAULTS intentionally omits the residential
+  // structural rate keys, so this block MUST be gated on !isLand — otherwise a land
+  // subject/comp carrying structural tags dereferences undefined rate keys
+  // (e.g. rates.outbuilding_tier_values[tier] on undefined) and 500s.
+  if (!isLand && subjectFeatures && compFeatures) {
     // Pool (WNC: neutral to slightly negative due to short season, maintenance)
     const subPool = subjectFeatures.has_pool as boolean || false;
     const compPool = compFeatures.has_pool as boolean || false;
