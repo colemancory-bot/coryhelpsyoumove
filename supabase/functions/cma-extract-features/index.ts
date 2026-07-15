@@ -19,7 +19,7 @@ const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
-const EXTRACTION_MODEL = "claude-sonnet-4-20250514";
+const EXTRACTION_MODEL = "claude-sonnet-5";
 const REQUEST_DELAY_MS = 800; // Delay between Claude API calls
 
 const corsHeaders = {
@@ -299,7 +299,11 @@ async function extractFeatures(
     },
     body: JSON.stringify({
       model: EXTRACTION_MODEL,
-      max_tokens: 1200,
+      max_tokens: 1800,
+      // Sonnet 5 runs adaptive thinking by default when `thinking` is omitted,
+      // which would prepend a `thinking` block to the response content array.
+      // This extraction wants fast, deterministic JSON, so disable thinking.
+      thinking: { type: "disabled" },
       system: SYSTEM_PROMPT,
       messages: [
         {
@@ -317,7 +321,12 @@ async function extractFeatures(
   }
 
   const data = await response.json();
-  const text = data?.content?.[0]?.text || "";
+  // Find the first text block rather than assuming index 0. On Sonnet 5 the
+  // content array can lead with a non-text block (e.g. a thinking block), so a
+  // hardcoded content[0].text would read undefined or garbage.
+  const contentBlocks = Array.isArray(data?.content) ? data.content : [];
+  const text =
+    contentBlocks.find((b: Record<string, unknown>) => b?.type === "text")?.text || "";
 
   // Parse JSON from Claude's response
   try {
