@@ -448,10 +448,38 @@ function buildTagRecord(
   };
 }
 
-// ── Shared: extract + elevation + upsert for one listing (realtime path) ──
-// Used by extract-single, backfill, and extract-new.
+// ── Shared: idempotent write of a backfill (agent_id IS NULL) tag row ──
+// The agent_id IS NULL scope is guarded by a PARTIAL unique index
+// (uq_cma_feature_tags_listing_no_agent, migration 20260715000001). Postgres can't
+// infer a partial index as an ON CONFLICT arbiter unless the statement carries the
+// index predicate (`WHERE agent_id IS NULL`), which PostgREST does not emit — so a
+// plain `.upsert(tagRecord, { onConflict: "listing_key" })` 400s with 42P10, and
+// `onConflict: "listing_key,agent_id"` never dedups (SQL treats NULLs as distinct,
+// which is exactly the bug that let 1,169 duplicates accumulate). Emulate the upsert:
+// INSERT, and on a unique-violation (23505) UPDATE the existing backfill row in place.
+// Idempotent and race-safe — a concurrent writer that loses the insert race falls
+// through to the update instead of creating a second row or erroring.
 type SbClient = ReturnType<typeof createClient>;
 
+async function upsertTagNoAgent(
+  sb: SbClient,
+  tagRecord: Record<string, unknown>
+): Promise<{ ok: boolean; error?: string }> {
+  const ins = await sb.from("cma_feature_tags").insert(tagRecord);
+  if (!ins.error) return { ok: true };
+  // deno-lint-ignore no-explicit-any
+  if ((ins.error as any).code !== "23505") return { ok: false, error: ins.error.message };
+  const upd = await sb
+    .from("cma_feature_tags")
+    .update(tagRecord)
+    .eq("listing_key", tagRecord.listing_key as string)
+    .is("agent_id", null);
+  if (upd.error) return { ok: false, error: upd.error.message };
+  return { ok: true };
+}
+
+// ── Shared: extract + elevation + upsert for one listing (realtime path) ──
+// Used by extract-single, backfill, and extract-new.
 async function extractAndUpsert(
   sb: SbClient,
   listing: Record<string, unknown>
@@ -468,12 +496,7 @@ async function extractAndUpsert(
   }
 
   const tagRecord = buildTagRecord(listing.listing_key as string, features, elevation);
-  const { error } = await sb
-    .from("cma_feature_tags")
-    .upsert(tagRecord, { onConflict: "listing_key,agent_id" });
-
-  if (error) return { ok: false, error: error.message };
-  return { ok: true };
+  return upsertTagNoAgent(sb, tagRecord);
 }
 
 // ── Trimmed-scope selection (shared by batch-submit and extract-new) ──
@@ -1070,12 +1093,16 @@ Deno.serve(async (req: Request) => {
             );
           }
           const tagRecord = buildTagRecord(key, features, elevation);
-          const { error: upErr } = await sb
-            .from("cma_feature_tags")
-            .upsert(tagRecord, { onConflict: "listing_key,agent_id" });
-          if (upErr) {
+          // Idempotent, race-safe write. The `tagged` pre-check above already skips
+          // custom_ids that have a tag row, so this normally INSERTs; the 23505->update
+          // branch inside the helper only fires if a concurrent invocation (e.g. a
+          // client-abort retry) races the same key — which is exactly the failure mode
+          // that produced the 1,169 duplicates before the partial unique index existed.
+          const res = await upsertTagNoAgent(sb, tagRecord);
+          if (!res.ok) {
             failed++;
             failedIds.push(key);
+            console.error(`Ingest ${key} write failed:`, res.error);
           } else {
             ingested++;
           }
