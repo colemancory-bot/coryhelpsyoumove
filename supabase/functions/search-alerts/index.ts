@@ -26,6 +26,41 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// Saved searches store AREA keys (the values of the location checkboxes in
+// #srfLocDropdown), not city names. Several areas cover multiple cities, so
+// querying `city IN (areaKeys)` silently misses most of their inventory: a
+// saved "Cashiers" search would match only listings whose city is literally
+// Cashiers and drop Highlands, Sapphire, Glenville and Scaly Mountain, and an
+// "Asheville" search would miss 12 of its 13 cities. app.js expands areas via
+// AREA_CITIES before it queries; this must do the same.
+//
+// Keep in sync with AREA_CITIES in app.js (around line 4574).
+const AREA_CITIES: Record<string, string[]> = {
+  "Waynesville": ["Waynesville"],
+  "Sylva": ["Sylva"],
+  "Maggie Valley": ["Maggie Valley"],
+  "Bryson City": ["Bryson City"],
+  "Cashiers": ["Cashiers", "Highlands", "Sapphire", "Glenville", "Scaly Mountain"],
+  "Franklin": ["Franklin", "Franklin City Limits", "Otto"],
+  "Dillsboro": ["Dillsboro"],
+  "Cullowhee": ["Cullowhee", "Webster", "Tuckasegee"],
+  "Asheville": [
+    "Asheville", "Arden", "Black Mountain", "Candler", "Enka", "Fairview",
+    "Fletcher", "Leicester", "Mars Hill", "Montreat", "Swannanoa",
+    "Weaverville", "Woodfin",
+  ],
+};
+
+function expandAreasToCities(areas: string[]): string[] {
+  const cities: string[] = [];
+  for (const area of areas) {
+    for (const city of AREA_CITIES[area] || [area]) {
+      if (cities.indexOf(city) === -1) cities.push(city);
+    }
+  }
+  return cities;
+}
+
 interface SavedSearch {
   id: string;
   user_id: string;
@@ -70,9 +105,17 @@ Deno.serve(async (req: Request) => {
           .eq("mlg_can_view", true)
           .gte("created_at", since);
 
-        // Apply saved filters
+        // Apply saved filters.
+        //
+        // Note: `restrictions` and `textQuery` are stored on the saved search
+        // but not applied here. The restrictions filter lives in the SQL
+        // function mls_compute_restrictions() used by the search_listings RPC,
+        // and reimplementing it in TypeScript would risk the two drifting
+        // apart. The effect is that an alert can be slightly broader than the
+        // saved search, never narrower, so a subscriber sees a few extra
+        // listings rather than missing the ones they asked for.
         if (filters.locations && Array.isArray(filters.locations) && filters.locations.length > 0) {
-          query = query.in("city", filters.locations as string[]);
+          query = query.in("city", expandAreasToCities(filters.locations as string[]));
         }
         if (filters.type) {
           query = query.eq("property_type", filters.type as string);
@@ -102,7 +145,7 @@ Deno.serve(async (req: Request) => {
           if (profile?.email && RESEND_API_KEY) {
             const listingList = matches
               .slice(0, 5)
-              .map((l) => `<li style="margin-bottom:8px"><strong>${l.full_address}</strong>, ${l.city} — $${(l.list_price || 0).toLocaleString()}</li>`)
+              .map((l) => `<li style="margin-bottom:8px"><strong>${l.full_address}</strong>, ${l.city}, $${(l.list_price || 0).toLocaleString()}</li>`)
               .join("");
 
             const moreText = matches.length > 5 ? `<p style="color:#666;font-size:14px">...and ${matches.length - 5} more</p>` : "";
@@ -129,7 +172,7 @@ Deno.serve(async (req: Request) => {
                       <a href="https://coryhelpsyoumove.com" style="display: inline-block; background: #C4B08C; color: #0C0B09; text-decoration: none; padding: 12px 32px; border-radius: 8px; font-size: 14px; font-weight: 600;">View All Matches</a>
                     </div>
                     <div style="text-align: center; font-size: 12px; color: #999; margin-top: 24px;">
-                      <p>CoryHelpsYouMove.com &mdash; Western NC Real Estate</p>
+                      <p>CoryHelpsYouMove.com | Western NC Real Estate</p>
                     </div>
                   </div>
                 `,
@@ -210,7 +253,7 @@ Deno.serve(async (req: Request) => {
                     <a href="https://coryhelpsyoumove.com/?p=${encodeURIComponent(sub.property_key)}" style="display: inline-block; background: #C4B08C; color: #0C0B09; text-decoration: none; padding: 12px 32px; border-radius: 8px; font-size: 14px; font-weight: 600;">View Property</a>
                   </div>
                   <div style="text-align: center; font-size: 12px; color: #999; margin-top: 24px;">
-                    <p>CoryHelpsYouMove.com &mdash; Western NC Real Estate</p>
+                    <p>CoryHelpsYouMove.com | Western NC Real Estate</p>
                   </div>
                 </div>
               `,
