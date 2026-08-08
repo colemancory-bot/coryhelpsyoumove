@@ -466,6 +466,7 @@ if(_isTownPage){
       '<div class="sr-filter-chip" id="srfPrice"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg><select id="srfPriceSelect" onchange="srApplyFilters()"><option value="">Any Price</option><option value="0-200000">Under $200K</option><option value="200000-400000">$200K – $400K</option><option value="400000-700000">$400K – $700K</option><option value="700000-1000000">$700K – $1M</option><option value="1000000-99999999">$1M+</option></select></div>' +
       '<div class="sr-filter-chip" id="srfBeds"><select id="srfBedsSelect" onchange="srApplyFilters()"><option value="">Any Beds</option><option value="2">2+ Beds</option><option value="3">3+ Beds</option><option value="4">4+ Beds</option><option value="5">5+ Beds</option></select></div>' +
       '<div class="sr-filter-chip" id="srfBaths"><select id="srfBathsSelect" onchange="srApplyFilters()"><option value="">Any Baths</option><option value="1">1+ Bath</option><option value="2">2+ Baths</option><option value="3">3+ Baths</option><option value="4">4+ Baths</option></select></div>' +
+      '<div class="sr-filter-chip" id="srfLot"><svg viewBox="0 0 24 24"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 3v18"/></svg><select id="srfLotSelect" onchange="srApplyFilters()"><option value="">Any Lot Size</option><option value="0-0.5">Under 1/2 Acre</option><option value="0.5-1">1/2 to 1 Acre</option><option value="1-3">1 to 3 Acres</option><option value="3-5">3 to 5 Acres</option><option value="5-10">5 to 10 Acres</option><option value="10-25">10 to 25 Acres</option><option value="25-">25+ Acres</option></select></div>' +
       '<div class="sr-filter-chip sr-restrict-gated" id="srfRestrict" onclick="if(!_acctLoggedIn){event.preventDefault();event.stopPropagation();openAcctModal();}"><select id="srfRestrictSelect" onchange="srApplyFilters()" class="sr-restrict-select" disabled><option value="">Any Restrictions</option><option value="unrestricted">Unrestricted</option><option value="restricted">Restrictions</option></select><div class="restrict-lock-overlay" id="srRestrictOverlay"><span>Create account to filter</span></div></div>' +
       '<button class="sr-filter-clear" id="srfClear" onclick="srClearFilters()">Clear All</button>' +
     '</div>' +
@@ -2606,6 +2607,7 @@ function heroSearch(){
     price: document.getElementById('hsPrice').value || '',
     beds: document.getElementById('hsBeds').value || '',
     baths: document.getElementById('hsBaths').value || '',
+    lot: ((document.getElementById('hsLot')||{}).value) || '',
     restrictions: document.getElementById('hsRestrict').value || '',
     query: ((document.getElementById('hsTextQuery')||{}).value||'').trim()
   };
@@ -4693,6 +4695,7 @@ function openSearchResults(filters){
   var priceSel = document.getElementById('srfPriceSelect');
   var bedsSel = document.getElementById('srfBedsSelect');
   var bathsSel = document.getElementById('srfBathsSelect');
+  var lotSel = document.getElementById('srfLotSelect');
   var restrictSel = document.getElementById('srfRestrictSelect');
 
   // Set location multi-select
@@ -4732,6 +4735,7 @@ function openSearchResults(filters){
 
   bedsSel.value = filters.beds || '';
   bathsSel.value = filters.baths || '';
+  if(lotSel) lotSel.value = filters.lot || '';
   restrictSel.value = filters.restrictions || '';
 
   // Set text query in search overlay
@@ -5269,6 +5273,7 @@ function srApplyFilters(){
   var price = document.getElementById('srfPriceSelect').value;
   var beds = document.getElementById('srfBedsSelect').value;
   var baths = document.getElementById('srfBathsSelect').value;
+  var lot = (document.getElementById('srfLotSelect')||{}).value || '';
   var restrict = document.getElementById('srfRestrictSelect').value;
   var textQuery = ((document.getElementById('srfTextQuery')||{}).value||'').trim().toLowerCase();
   var sortEl = document.getElementById('srSort');
@@ -5308,7 +5313,7 @@ function srApplyFilters(){
   }
 
   // Collection mode: show only curated properties when filters are all defaults
-  if(_srCollectionMode && !type && !price && !beds && !baths && !restrict && !textQuery && selectedAreas.length === 0){
+  if(_srCollectionMode && !type && !price && !beds && !baths && !lot && !restrict && !textQuery && selectedAreas.length === 0){
     var collectionResults = [];
     _srCollectionIds.forEach(function(id){
       var match = _findListingById(id);
@@ -5361,6 +5366,7 @@ function srApplyFilters(){
   if(price) params.set('price',price);
   if(beds) params.set('beds',beds);
   if(baths) params.set('baths',baths);
+  if(lot) params.set('lot',lot);
   if(restrict) params.set('restrictions',restrict);
   var hashStr = '#search' + (params.toString() ? '?' + params.toString() : '');
   history.replaceState({page:'search'},'',hashStr);
@@ -5389,6 +5395,15 @@ function srApplyFilters(){
     rpcMinPrice = parseInt(_pp[0], 10);
     rpcMaxPrice = parseInt(_pp[1], 10);
   }
+  // Lot size band, e.g. '1-3' → 1 to 3 acres, '25-' → 25 acres and up.
+  // An empty half means unbounded on that side, so parseFloat('') → NaN → null.
+  var rpcMinAcres = null, rpcMaxAcres = null;
+  if(lot) {
+    var _lp = lot.split('-');
+    var _lo = parseFloat(_lp[0]), _hi = parseFloat(_lp[1]);
+    if(!isNaN(_lo) && _lo > 0) rpcMinAcres = _lo;
+    if(!isNaN(_hi)) rpcMaxAcres = _hi;
+  }
   // 'daysOnMarket-asc' → {key:'daysOnMarket', dir:'asc'}; 'relevance' → relevance
   var rpcSortKey = 'daysOnMarket', rpcSortDir = 'asc';
   if(sort === 'relevance') {
@@ -5409,7 +5424,9 @@ function srApplyFilters(){
     p_text_query:    textQuery || null,
     p_sort_key:      rpcSortKey,
     p_sort_dir:      rpcSortDir,
-    p_limit:         1000
+    p_limit:         1000,
+    p_min_acres:     rpcMinAcres,
+    p_max_acres:     rpcMaxAcres
   };
 
   // Sequence guard — fast typing in the text input fires srApplyFilters per
@@ -6226,6 +6243,8 @@ function srClearFilters(){
   document.getElementById('srfPriceSelect').value = '';
   document.getElementById('srfBedsSelect').value = '';
   document.getElementById('srfBathsSelect').value = '';
+  var lotSel = document.getElementById('srfLotSelect');
+  if(lotSel) lotSel.value = '';
   document.getElementById('srfRestrictSelect').value = '';
   var srText = document.getElementById('srfTextQuery');
   if(srText) srText.value = '';
@@ -6402,6 +6421,7 @@ function srdUpdateBar() {
   if (document.getElementById('srfPriceSelect').value) n++;
   if (document.getElementById('srfBedsSelect').value) n++;
   if (document.getElementById('srfBathsSelect').value) n++;
+  if ((document.getElementById('srfLotSelect')||{}).value) n++;
   if (document.getElementById('srfRestrictSelect').value) n++;
   var badge = document.getElementById('srdBadge');
   if (badge) { badge.textContent = n; badge.classList.toggle('visible', n > 0); }
@@ -6414,6 +6434,8 @@ function srdUpdateBar() {
     var pv = document.getElementById('srfPriceSelect');
     parts.push(pv.options[pv.selectedIndex].textContent);
   }
+  var lv = document.getElementById('srfLotSelect');
+  if (lv && lv.value) parts.push(lv.options[lv.selectedIndex].textContent);
   var summary = document.getElementById('srdBarSummary');
   if (summary) summary.textContent = parts.join(' \u00b7 ');
 }
@@ -6446,9 +6468,10 @@ async function saveCurrentSearch() {
   var price = document.getElementById('srfPriceSelect') ? document.getElementById('srfPriceSelect').value : '';
   var beds = document.getElementById('srfBedsSelect') ? document.getElementById('srfBedsSelect').value : '';
   var baths = document.getElementById('srfBathsSelect') ? document.getElementById('srfBathsSelect').value : '';
+  var lot = document.getElementById('srfLotSelect') ? document.getElementById('srfLotSelect').value : '';
   var restrict = document.getElementById('srfRestrictSelect') ? document.getElementById('srfRestrictSelect').value : '';
   var textQuery = document.getElementById('srfTextQuery') ? document.getElementById('srfTextQuery').value : '';
-  var filters = {locations: locations, type: type, price: price, beds: beds, baths: baths, restrictions: restrict, textQuery: textQuery};
+  var filters = {locations: locations, type: type, price: price, beds: beds, baths: baths, lot: lot, restrictions: restrict, textQuery: textQuery};
   // Build name
   var parts = [];
   if(locations.length && locations.length <= 3) parts.push(locations.join(', '));
@@ -6462,6 +6485,10 @@ async function saveCurrentSearch() {
   }
   if(beds) parts.push(beds + '+ beds');
   if(baths) parts.push(baths + '+ baths');
+  if(lot) {
+    var ls = document.getElementById('srfLotSelect');
+    if(ls) parts.push(ls.options[ls.selectedIndex].textContent);
+  }
   if(textQuery) parts.push('"' + textQuery + '"');
   var searchName = parts.join(', ') || 'Custom Search';
   var btn = document.getElementById('srSaveSearchBtn');
