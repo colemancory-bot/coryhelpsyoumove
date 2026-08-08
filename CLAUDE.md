@@ -419,9 +419,33 @@ Every page added to this site MUST have:
 - [ ] All images: descriptive alt text with relevant keywords
 - [ ] Below-fold images: `loading="lazy"`
 - [ ] Images hosted locally (no external URLs like Unsplash)
-- [ ] Internal links to 2-3 related pages
+- [ ] Internal links to 2-3 related pages (links **out** of the new page)
+- [ ] **Inbound links from at least 2 existing pages** (links **into** the new page) — see below
 - [ ] Entry added to `sitemap.xml` with `<lastmod>` date
 - [ ] H1 > H2 > H3 heading hierarchy (one H1 per page)
+- [ ] `node scripts/check-orphan-pages.js` passes
+
+### Inbound Links Are Not Optional (learned the hard way, 2026-08-08)
+
+A sitemap entry is **not a discovery path**. On 2026-08-08 we found 14 live pages sitting in GSC as "Discovered - currently not indexed" with **Last crawled: N/A**, four months after launch. All were in `sitemap.xml`, all were technically perfect. URL Inspection showed why:
+
+```
+Discovery
+  Sitemaps        https://coryhelpsyoumove.com/sitemap.xml
+  Referring page  https://coryhelpsyoumove.com/sitemap.xml
+```
+
+Referring page = the sitemap. The ten keyword landing pages only linked to *each other*, so Googlebot had no path in from an indexed page and never spent crawl budget on them. On a low-authority domain, sitemap-only discovery does not get you crawled.
+
+**Where inbound links go:**
+- **Town-specific landing pages** → the "Popular \<Town\> Searches" block (`class="town-listings"`) on the matching `towns/*.html`
+- **Any keyword landing page** → the "Popular Searches" block (`id="popular-searches"`) on `index.html` — the homepage is the highest-authority page on the site
+- **Blog posts** → a card in `blog/index.html` **plus** contextual links from 1-2 related existing posts
+- Nav/footer links count, but Google discounts boilerplate. Contextual in-body links from indexed pages are what move the needle.
+
+**Enforcement:** `scripts/check-orphan-pages.js` builds the internal link graph and fails if any `sitemap.xml` page has fewer than 2 distinct inbound links. Run it before every commit that adds a page. `--list` prints the full graph.
+
+**Note:** `_generate-pages.js` at the repo root is untracked, stale, and would revert the April 2026 title rewrites if run. Town pages are hand-edited. Do not run it.
 
 ---
 
