@@ -59,6 +59,36 @@ async function mustWaitMlsGrid(): Promise<void> {
   _lastMlsGridCallAt = Date.now();
 }
 
+// Lot size normalization.
+//
+// Canopy reports lot size three different ways depending on the listing:
+// LotSizeAcres, LotSizeArea paired with LotSizeUnits, or LotSizeSquareFeet.
+// The primary sync paths already collapse all three into lot_size_acres, which
+// is why no row in the table has square footage without acreage. The
+// mini-backfill path for closed listings did not, so a Canopy comp reporting
+// LotSizeArea + LotSizeUnits landed with a NULL lot_size_acres. Closed comps
+// feed the CMA engine, where lot size is a primary driver on land valuations.
+//
+// These two helpers exist so every write path shares one definition and cannot
+// drift apart again.
+function normalizeLotAcres(record: Record<string, unknown>): number | null {
+  const acres = record.LotSizeAcres as number | undefined;
+  if (acres) return acres;
+  const area = record.LotSizeArea as number | undefined;
+  if (record.LotSizeUnits === "Acres" && area) return area;
+  const sqft = record.LotSizeSquareFeet as number | undefined;
+  if (sqft) return sqft / 43560;
+  return null;
+}
+
+function normalizeLotSquareFeet(record: Record<string, unknown>): number | null {
+  const sqft = record.LotSizeSquareFeet as number | undefined;
+  if (sqft) return sqft;
+  const area = record.LotSizeArea as number | undefined;
+  if (record.LotSizeUnits === "Acres" && area) return area * 43560;
+  return null;
+}
+
 // Max records per OData page
 const PAGE_SIZE = 200;
 
@@ -492,8 +522,8 @@ async function syncProperties(
         living_area: record.LivingArea || record.AboveGradeFinishedArea || record.BuildingAreaTotal || null,
         living_area_range: record.LivingAreaRange || "",
         living_area_units: record.LivingAreaUnits || "Square Feet",
-        lot_size_acres: record.LotSizeAcres || (record.LotSizeUnits === "Acres" && record.LotSizeArea ? record.LotSizeArea : null) || (record.LotSizeSquareFeet ? record.LotSizeSquareFeet / 43560 : null),
-        lot_size_square_feet: record.LotSizeSquareFeet || (record.LotSizeUnits === "Acres" && record.LotSizeArea ? record.LotSizeArea * 43560 : null),
+        lot_size_acres: normalizeLotAcres(record),
+        lot_size_square_feet: normalizeLotSquareFeet(record),
         year_built: record.YearBuilt || null,
         stories: record.Stories || null,
         garage_spaces: record.GarageSpaces || 0,
@@ -1118,8 +1148,8 @@ Deno.serve(async (req) => {
         living_area: record.LivingArea || record.AboveGradeFinishedArea || record.BuildingAreaTotal || null,
         living_area_range: record.LivingAreaRange || "",
         living_area_units: record.LivingAreaUnits || "Square Feet",
-        lot_size_acres: record.LotSizeAcres || (record.LotSizeUnits === "Acres" && record.LotSizeArea ? record.LotSizeArea : null) || (record.LotSizeSquareFeet ? record.LotSizeSquareFeet / 43560 : null),
-        lot_size_square_feet: record.LotSizeSquareFeet || (record.LotSizeUnits === "Acres" && record.LotSizeArea ? record.LotSizeArea * 43560 : null),
+        lot_size_acres: normalizeLotAcres(record),
+        lot_size_square_feet: normalizeLotSquareFeet(record),
         year_built: record.YearBuilt || null,
         stories: record.Stories || null,
         garage_spaces: record.GarageSpaces || 0,
@@ -1186,7 +1216,7 @@ Deno.serve(async (req) => {
           longitude: longitude,
           publicRemarks: record.PublicRemarks || "",
           yearBuilt: record.YearBuilt || null,
-          lotSizeAcres: record.LotSizeAcres || null,
+          lotSizeAcres: normalizeLotAcres(record),
         }),
       };
 
@@ -1327,8 +1357,8 @@ Deno.serve(async (req) => {
             bathrooms_total_integer: record.BathroomsTotalInteger || 0,
             bathrooms_half: record.BathroomsHalf || 0,
             living_area: record.LivingArea || record.AboveGradeFinishedArea || record.BuildingAreaTotal || null,
-            lot_size_acres: record.LotSizeAcres || null,
-            lot_size_square_feet: record.LotSizeSquareFeet || null,
+            lot_size_acres: normalizeLotAcres(record),
+            lot_size_square_feet: normalizeLotSquareFeet(record),
             year_built: record.YearBuilt || null,
             stories: record.Stories || null,
             garage_spaces: record.GarageSpaces || 0,
@@ -1950,8 +1980,8 @@ Deno.serve(async (req) => {
             living_area: record.LivingArea || record.AboveGradeFinishedArea || record.BuildingAreaTotal || null,
             living_area_range: record.LivingAreaRange || "",
             living_area_units: record.LivingAreaUnits || "Square Feet",
-            lot_size_acres: record.LotSizeAcres || (record.LotSizeUnits === "Acres" && record.LotSizeArea ? record.LotSizeArea : null) || (record.LotSizeSquareFeet ? record.LotSizeSquareFeet / 43560 : null),
-            lot_size_square_feet: record.LotSizeSquareFeet || (record.LotSizeUnits === "Acres" && record.LotSizeArea ? record.LotSizeArea * 43560 : null),
+            lot_size_acres: normalizeLotAcres(record),
+            lot_size_square_feet: normalizeLotSquareFeet(record),
             year_built: record.YearBuilt || null,
             stories: record.Stories || null,
             garage_spaces: record.GarageSpaces || 0,
