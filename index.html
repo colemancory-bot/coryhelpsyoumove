@@ -333,6 +333,19 @@
             <option value="4">4+</option>
           </select>
         </div>
+        <div class="hs-field" id="hsLotField">
+          <span class="hs-label">Lot Size</span>
+          <select class="hs-select" id="hsLot">
+            <option value="">Any</option>
+            <option value="0-0.5">Under 1/2 Acre</option>
+            <option value="0.5-1">1/2 to 1 Acre</option>
+            <option value="1-3">1 to 3 Acres</option>
+            <option value="3-5">3 to 5 Acres</option>
+            <option value="5-10">5 to 10 Acres</option>
+            <option value="10-25">10 to 25 Acres</option>
+            <option value="25-">25+ Acres</option>
+          </select>
+        </div>
         <div class="hs-field hs-restrict-gated" id="hsRestrictField" onclick="if(!_acctLoggedIn){event.preventDefault();event.stopPropagation();openAcctModal();}">
           <span class="hs-label">Restrictions</span>
           <select class="hs-select hs-restrict-select" id="hsRestrict" disabled>
@@ -484,6 +497,23 @@
     <a href="towns/franklin.html" class="area-card reveal"><img src="images/area-franklin.webp" alt="Franklin NC downtown clock tower garden Macon County Western North Carolina" loading="lazy"><div class="area-overlay"><div class="area-name">Franklin</div><div class="area-county">Macon County</div></div></a>
     <a href="towns/dillsboro.html" class="area-card reveal"><img src="images/area-dillsboro.webp" alt="Dillsboro NC artisan village shops and flowers Jackson County Western North Carolina" loading="lazy"><div class="area-overlay"><div class="area-name">Dillsboro</div><div class="area-county">Jackson County</div></div></a>
     <a href="towns/cullowhee.html" class="area-card reveal"><img src="images/area-cullowhee.webp" alt="Cullowhee NC Western Carolina University campus clock tower Jackson County Western North Carolina" loading="lazy"><div class="area-overlay"><div class="area-name">Cullowhee</div><div class="area-county">Jackson County</div></div></a>
+  </div>
+</section>
+
+<!-- ═══════════════ POPULAR SEARCHES ═══════════════ -->
+<section class="popular-searches" id="popular-searches" style="max-width:1100px;margin:0 auto;padding:3rem 1.5rem 0">
+  <div class="reveal"><div class="section-label">Popular Searches</div><h2 class="section-title">Browse by <em>Price, Land, and Property Type</em></h2></div>
+  <div class="reveal" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0.75rem;margin-top:1.75rem">
+    <a href="homes-for-sale-sylva-nc-under-300k.html" style="display:block;padding:1rem 1.25rem;border:1px solid var(--border);background:var(--bg-warm);text-decoration:none;color:var(--cream);font-size:0.95rem">Sylva Homes Under $300K</a>
+    <a href="homes-for-sale-waynesville-nc-under-400k.html" style="display:block;padding:1rem 1.25rem;border:1px solid var(--border);background:var(--bg-warm);text-decoration:none;color:var(--cream);font-size:0.95rem">Waynesville Homes Under $400K</a>
+    <a href="homes-for-sale-cashiers-nc-under-500k.html" style="display:block;padding:1rem 1.25rem;border:1px solid var(--border);background:var(--bg-warm);text-decoration:none;color:var(--cream);font-size:0.95rem">Cashiers Homes Under $500K</a>
+    <a href="waynesville-nc-homes-with-acreage.html" style="display:block;padding:1rem 1.25rem;border:1px solid var(--border);background:var(--bg-warm);text-decoration:none;color:var(--cream);font-size:0.95rem">Waynesville Homes With Acreage</a>
+    <a href="jackson-county-nc-land-for-sale.html" style="display:block;padding:1rem 1.25rem;border:1px solid var(--border);background:var(--bg-warm);text-decoration:none;color:var(--cream);font-size:0.95rem">Jackson County Land for Sale</a>
+    <a href="unrestricted-land-for-sale-franklin-nc.html" style="display:block;padding:1rem 1.25rem;border:1px solid var(--border);background:var(--bg-warm);text-decoration:none;color:var(--cream);font-size:0.95rem">Unrestricted Land in Franklin</a>
+    <a href="cabins-for-sale-maggie-valley-nc.html" style="display:block;padding:1rem 1.25rem;border:1px solid var(--border);background:var(--bg-warm);text-decoration:none;color:var(--cream);font-size:0.95rem">Maggie Valley Cabins for Sale</a>
+    <a href="mountain-cabins-bryson-city-nc.html" style="display:block;padding:1rem 1.25rem;border:1px solid var(--border);background:var(--bg-warm);text-decoration:none;color:var(--cream);font-size:0.95rem">Bryson City Mountain Cabins</a>
+    <a href="gated-communities-cashiers-nc.html" style="display:block;padding:1rem 1.25rem;border:1px solid var(--border);background:var(--bg-warm);text-decoration:none;color:var(--cream);font-size:0.95rem">Gated Communities in Cashiers</a>
+    <a href="cullowhee-nc-rental-investment-property.html" style="display:block;padding:1rem 1.25rem;border:1px solid var(--border);background:var(--bg-warm);text-decoration:none;color:var(--cream);font-size:0.95rem">Cullowhee Rental Investment Property</a>
   </div>
 </section>
 
@@ -1311,6 +1341,18 @@
         <option value="2">2+ Baths</option>
         <option value="3">3+ Baths</option>
         <option value="4">4+ Baths</option>
+      </select>
+    </div>
+    <div class="sr-filter-chip" id="srfLot">
+      <select id="srfLotSelect" onchange="srApplyFilters()">
+        <option value="">Any Lot Size</option>
+        <option value="0-0.5">Under 1/2 Acre</option>
+        <option value="0.5-1">1/2 to 1 Acre</option>
+        <option value="1-3">1 to 3 Acres</option>
+        <option value="3-5">3 to 5 Acres</option>
+        <option value="5-10">5 to 10 Acres</option>
+        <option value="10-25">10 to 25 Acres</option>
+        <option value="25-">25+ Acres</option>
       </select>
     </div>
     <div class="sr-filter-chip sr-restrict-gated" id="srfRestrict" onclick="if(!_acctLoggedIn){event.preventDefault();event.stopPropagation();openAcctModal();}">
