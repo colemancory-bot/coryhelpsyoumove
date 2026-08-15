@@ -333,18 +333,34 @@
             <option value="4">4+</option>
           </select>
         </div>
-        <div class="hs-field" id="hsLotField">
+        <div class="hs-field hp-field" id="hlField">
           <span class="hs-label">Lot Size</span>
-          <select class="hs-select" id="hsLot">
-            <option value="">Any</option>
-            <option value="0-0.5">Under 1/2 Acre</option>
-            <option value="0.5-1">1/2 to 1 Acre</option>
-            <option value="1-3">1 to 3 Acres</option>
-            <option value="3-5">3 to 5 Acres</option>
-            <option value="5-10">5 to 10 Acres</option>
-            <option value="10-25">10 to 25 Acres</option>
-            <option value="25-">25+ Acres</option>
-          </select>
+          <div class="hp-trigger" id="hlTrigger" onclick="hlMobileTap()">
+            <span class="hp-placeholder" id="hlTriggerText">Any Lot Size</span>
+          </div>
+          <!-- Desktop: hover popover -->
+          <div class="hp-pop" id="hlPop">
+            <div class="hp-pop-inner">
+            <div class="hp-pop-label">Set Your Lot Size</div>
+            <div class="hp-pop-slider ps-wrap" id="ps-lot-hero">
+              <div class="ps-display" id="psd-lot-hero"></div>
+              <div class="ps-track" id="pst-lot-hero"><div class="ps-fill" id="psf-lot-hero"></div><div class="ps-thumb idle" id="psa-lot-hero"></div><div class="ps-thumb idle" id="psb-lot-hero"></div></div>
+              <div class="ps-ticks"><span>0</span><span>1 ac</span><span>5 ac</span><span>15 ac</span><span>25+ ac</span></div>
+            </div>
+            <div class="hp-quick-label">Quick Select</div>
+            <div class="hp-presets">
+              <button class="hp-preset" data-val="0-0.5" onclick="hlPreset(this)">Under 1/2 Acre</button>
+              <button class="hp-preset" data-val="0.5-1" onclick="hlPreset(this)">1/2 to 1 Acre</button>
+              <button class="hp-preset" data-val="1-3" onclick="hlPreset(this)">1 to 3 Acres</button>
+              <button class="hp-preset" data-val="3-5" onclick="hlPreset(this)">3 to 5 Acres</button>
+              <button class="hp-preset" data-val="5-10" onclick="hlPreset(this)">5 to 10 Acres</button>
+              <button class="hp-preset" data-val="10-25" onclick="hlPreset(this)">10 to 25 Acres</button>
+              <button class="hp-preset" data-val="25-" onclick="hlPreset(this)">25+ Acres</button>
+              <button class="hp-preset" data-val="" onclick="hlPreset(this)" style="color:var(--text-muted)">Reset</button>
+            </div>
+            </div>
+          </div>
+          <input type="hidden" id="hsLot" value="">
         </div>
         <div class="hs-field hs-restrict-gated" id="hsRestrictField" onclick="if(!_acctLoggedIn){event.preventDefault();event.stopPropagation();openAcctModal();}">
           <span class="hs-label">Restrictions</span>
@@ -446,6 +462,29 @@
             <button class="hp-preset" onclick="hpPreset(0,0)" style="color:var(--text-muted)">Reset</button>
           </div>
           <button class="hp-sheet-done" onclick="hpCloseSheet()">Done</button>
+        </div>
+        <!-- Mobile: lot size bottom sheet -->
+        <div class="hp-overlay" id="hlOverlay" onclick="hlCloseSheet()"></div>
+        <div class="hp-sheet" id="hlSheet">
+          <div class="hp-sheet-handle"></div>
+          <div class="hp-pop-label">Set Your Lot Size</div>
+          <div class="hp-pop-slider ps-wrap" id="ps-lot-hero-m">
+            <div class="ps-display" id="psd-lot-hero-m"></div>
+            <div class="ps-track" id="pst-lot-hero-m"><div class="ps-fill" id="psf-lot-hero-m"></div><div class="ps-thumb idle" id="psa-lot-hero-m"></div><div class="ps-thumb idle" id="psb-lot-hero-m"></div></div>
+            <div class="ps-ticks"><span>0</span><span>1 ac</span><span>5 ac</span><span>15 ac</span><span>25+ ac</span></div>
+          </div>
+          <div class="hp-quick-label">Quick Select</div>
+          <div class="hp-presets">
+            <button class="hp-preset" data-val="0-0.5" onclick="hlPreset(this)">Under 1/2 Acre</button>
+            <button class="hp-preset" data-val="0.5-1" onclick="hlPreset(this)">1/2 to 1 Acre</button>
+            <button class="hp-preset" data-val="1-3" onclick="hlPreset(this)">1 to 3 Acres</button>
+            <button class="hp-preset" data-val="3-5" onclick="hlPreset(this)">3 to 5 Acres</button>
+            <button class="hp-preset" data-val="5-10" onclick="hlPreset(this)">5 to 10 Acres</button>
+            <button class="hp-preset" data-val="10-25" onclick="hlPreset(this)">10 to 25 Acres</button>
+            <button class="hp-preset" data-val="25-" onclick="hlPreset(this)">25+ Acres</button>
+            <button class="hp-preset" data-val="" onclick="hlPreset(this)" style="color:var(--text-muted)">Reset</button>
+          </div>
+          <button class="hp-sheet-done" onclick="hlCloseSheet()">Done</button>
         </div>
 </section>
 

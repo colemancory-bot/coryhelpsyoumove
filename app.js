@@ -2758,24 +2758,43 @@ document.querySelectorAll('.area-card').forEach(function(card){
 });
 
 
-// ═══ PRICE RANGE SLIDER ═══
+// ═══ RANGE SLIDERS (price + lot size) ═══
+// One engine, two scales. Ids prefixed 'lot-' get the acreage scale and write
+// to #hsLot; everything else keeps the original linear price scale.
 var PS_MAX=2000000,PS_STEP=25000;
 function fmtP(v){if(v<=0)return'$0';if(v>=PS_MAX)return'$2M+';if(v>=1000000)return'$'+(v/1000000).toFixed(v%1000000?1:0)+'M';return'$'+(v/1000)+'K'}
+// Acreage is non-linear on purpose: most searches live under 5 acres, so the
+// track gives quarter-acre resolution at the low end and coarser steps above.
+// Four equal visual segments (0-1, 1-5, 5-15, 15-25) so the ticks line up.
+var LOT_MAX=25;
+var LOT_STOPS=[0,0.25,0.5,0.75,1,2,3,4,5,7.5,10,12.5,15,17.5,20,22.5,25];
+function fmtA(v){var n=Math.round(v*100)/100;return(n%1===0?n.toFixed(0):''+n)}
 
 function initSlider(id){
   var wrap=document.getElementById('ps-'+id);
   if(!wrap||wrap._init)return;wrap._init=true;
+  var isLot=id.indexOf('lot-')===0;
   var track=document.getElementById('pst-'+id);
   var fill=document.getElementById('psf-'+id);
   var tA=document.getElementById('psa-'+id);
   var tB=document.getElementById('psb-'+id);
   var disp=document.getElementById('psd-'+id);
-  var hidden=document.getElementById((id==='hero'||id==='hero-m')?'hsPrice':'tps-price-'+id);
+  var hidden=document.getElementById(isLot?'hsLot':((id==='hero'||id==='hero-m')?'hsPrice':'tps-price-'+id));
   if(!track||!tA||!tB)return;
   var vals=[0,0],moved=[false,false];
 
-  function pctOf(v){return(v/PS_MAX)*100}
-  function valAt(pct){return Math.round((pct*PS_MAX)/PS_STEP)*PS_STEP}
+  function pctOf(v){
+    if(isLot){
+      var i=LOT_STOPS.indexOf(v);
+      if(i<0){i=0;for(var k=1;k<LOT_STOPS.length;k++){if(Math.abs(LOT_STOPS[k]-v)<Math.abs(LOT_STOPS[i]-v))i=k}}
+      return(i/(LOT_STOPS.length-1))*100;
+    }
+    return(v/PS_MAX)*100;
+  }
+  function valAt(pct){
+    if(isLot)return LOT_STOPS[Math.round(pct*(LOT_STOPS.length-1))];
+    return Math.round((pct*PS_MAX)/PS_STEP)*PS_STEP;
+  }
 
   function render(){
     var a=vals[0],b=vals[1],lo=Math.min(a,b),hi=Math.max(a,b);
@@ -2789,6 +2808,15 @@ function initSlider(id){
     var anyMoved=moved[0]||moved[1];
     if(!anyMoved){disp.textContent='';if(hidden)hidden.value='';return}
     if(lo===0&&hi===0){disp.textContent='';if(hidden)hidden.value='';return}
+    if(isLot){
+      // Hidden value matches the legacy select format: "min-max" in acres,
+      // open-ended max as "min-" (e.g. "25-"), which srApplyFilters already parses.
+      if(lo===0&&hi>=LOT_MAX){disp.textContent='';if(hidden)hidden.value=''}
+      else if(lo===0&&hi>0){disp.textContent='Up to '+fmtA(hi)+' ac';if(hidden)hidden.value='0-'+hi}
+      else if(hi>=LOT_MAX||lo===hi){disp.textContent=fmtA(lo)+'+ ac';if(hidden)hidden.value=lo+'-'}
+      else{disp.textContent=fmtA(lo)+' — '+fmtA(hi)+' ac';if(hidden)hidden.value=lo+'-'+hi}
+      return;
+    }
     if(lo===0&&hi>0){disp.textContent='Up to '+fmtP(hi);if(hidden)hidden.value='0-'+hi}
     else if(lo>0&&lo===hi){disp.textContent=fmtP(lo)+'+';if(hidden)hidden.value=lo+'-'+PS_MAX}
     else if(lo>0){disp.textContent=fmtP(lo)+' — '+fmtP(hi);if(hidden)hidden.value=lo+'-'+hi}
@@ -2852,7 +2880,7 @@ function initSlider(id){
   render();
 }
 
-setTimeout(function(){initSlider('hero')},100);
+setTimeout(function(){initSlider('hero');initSlider('lot-hero')},100);
 
 
 // ═══ HERO PRICE POPOVER ═══
@@ -2866,16 +2894,17 @@ function hpMobileTap(){
 }
 // Pin popover open during any mousedown inside it (prevents close during slider drag)
 (function(){
-  var pop=document.getElementById('hpPop');
-  if(!pop)return;
-  pop.addEventListener('mousedown',function(){pop.classList.add('pinned')},true);
-  pop.addEventListener('touchstart',function(){pop.classList.add('pinned')},true);
-  document.addEventListener('mouseup',function(){
-    setTimeout(function(){if(pop)pop.classList.remove('pinned')},400);
+  ['hpPop','hlPop'].forEach(function(pid){
+    var pop=document.getElementById(pid);
+    if(!pop)return;
+    pop.addEventListener('mousedown',function(){pop.classList.add('pinned')},true);
+    pop.addEventListener('touchstart',function(){pop.classList.add('pinned')},true);
   });
-  document.addEventListener('touchend',function(){
-    setTimeout(function(){if(pop)pop.classList.remove('pinned')},400);
-  });
+  function unpinAll(){
+    setTimeout(function(){document.querySelectorAll('.hp-pop.pinned').forEach(function(p){p.classList.remove('pinned')})},400);
+  }
+  document.addEventListener('mouseup',unpinAll);
+  document.addEventListener('touchend',unpinAll);
 })();
 function hpCloseSheet(){
   document.getElementById('hpOverlay').classList.remove('open');
@@ -2915,29 +2944,72 @@ function hpPreset(lo,hi){
   var mDisp=document.getElementById('psd-hero-m');if(mDisp)mDisp.textContent=label;
 }
 
-// Override hero slider render to update trigger text
+// ═══ HERO LOT SIZE POPOVER ═══
+// Mirrors the price popover: hover popover on desktop, bottom sheet on mobile.
+var hlMobileInit=false;
+function hlMobileTap(){
+  if(window.innerWidth<=768){
+    document.getElementById('hlOverlay').classList.add('open');
+    document.getElementById('hlSheet').classList.add('open');
+    if(!hlMobileInit){initSlider('lot-hero-m');hlMobileInit=true;}
+  }
+}
+function hlCloseSheet(){
+  document.getElementById('hlOverlay').classList.remove('open');
+  document.getElementById('hlSheet').classList.remove('open');
+  var mDisp=document.getElementById('psd-lot-hero-m');
+  if(mDisp&&mDisp.textContent){
+    document.getElementById('hlTriggerText').textContent=mDisp.textContent;
+    document.getElementById('hlTriggerText').className='hp-val';
+  }
+}
+function hlPreset(el){
+  var val=el.dataset.val||'';
+  var hidden=document.getElementById('hsLot');
+  document.querySelectorAll('#hlPop .hp-preset,#hlSheet .hp-preset').forEach(function(b){b.classList.remove('active')});
+  if(!val){
+    // Reset
+    if(hidden)hidden.value='';
+    document.getElementById('hlTriggerText').textContent='Any Lot Size';
+    document.getElementById('hlTriggerText').className='hp-placeholder';
+    var w=document.getElementById('ps-lot-hero');if(w&&w._reset)w._reset();
+    var wm=document.getElementById('ps-lot-hero-m');if(wm&&wm._reset)wm._reset();
+    return;
+  }
+  if(hidden)hidden.value=val;
+  var label=el.textContent;
+  document.getElementById('hlTriggerText').textContent=label;
+  document.getElementById('hlTriggerText').className='hp-val';
+  el.classList.add('active');
+  var dDisp=document.getElementById('psd-lot-hero');if(dDisp)dDisp.textContent=label;
+  var mDispL=document.getElementById('psd-lot-hero-m');if(mDispL)mDispL.textContent=label;
+}
+
+// Override hero slider render to update trigger text (price + lot fields)
 var _origInitSlider=initSlider;
+var _psSyncMap={
+  'hero':{trig:'hpTriggerText',hidden:'hsPrice',ph:'Any Price'},
+  'hero-m':{trig:'hpTriggerText',hidden:'hsPrice',ph:'Any Price'},
+  'lot-hero':{trig:'hlTriggerText',hidden:'hsLot',ph:'Any Lot Size'},
+  'lot-hero-m':{trig:'hlTriggerText',hidden:'hsLot',ph:'Any Lot Size'}
+};
 initSlider=function(id){
   _origInitSlider(id);
-  if(id==='hero'||id==='hero-m'){
-    // Patch the slider to sync trigger text on drag
-    var wrap=document.getElementById('ps-'+id);
-    if(!wrap)return;
-    var track=document.getElementById('pst-'+id);
-    if(!track)return;
-    var origMouseDown=null;
+  var m=_psSyncMap[id];
+  if(m){
     // Use MutationObserver on display element to sync
     var disp=document.getElementById('psd-'+id);
     if(disp){
       var obs=new MutationObserver(function(){
         var txt=disp.textContent;
-        var trigTxt=document.getElementById('hpTriggerText');
-        var hidden=document.getElementById('hsPrice');
+        var trigTxt=document.getElementById(m.trig);
+        var hidden=document.getElementById(m.hidden);
+        if(!trigTxt)return;
         if(txt){
           trigTxt.textContent=txt;
           trigTxt.className='hp-val';
         }else{
-          trigTxt.textContent='Any Price';
+          trigTxt.textContent=m.ph;
           trigTxt.className='hp-placeholder';
           if(hidden)hidden.value='';
         }
@@ -4735,7 +4807,31 @@ function openSearchResults(filters){
 
   bedsSel.value = filters.beds || '';
   bathsSel.value = filters.baths || '';
-  if(lotSel) lotSel.value = filters.lot || '';
+
+  // Lot: slider values may not match a dropdown option — add a custom one (same shim as price)
+  if(lotSel) {
+    var lotVal = filters.lot || '';
+    var existingLot = lotSel.querySelector('option[data-custom]');
+    if(existingLot) existingLot.remove();
+    if(lotVal) {
+      lotSel.value = lotVal;
+      if(lotSel.value !== lotVal) {
+        var lp = lotVal.split('-');
+        var llo = parseFloat(lp[0]), lhi = parseFloat(lp[1]);
+        var fmtAc = function(v){ var n = Math.round(v*100)/100; return (n%1===0?n.toFixed(0):''+n); };
+        var lotLabel = isNaN(lhi) ? fmtAc(llo) + '+ ac'
+          : (llo === 0 ? 'Up to ' + fmtAc(lhi) + ' ac' : fmtAc(llo) + ' – ' + fmtAc(lhi) + ' ac');
+        var lopt = document.createElement('option');
+        lopt.value = lotVal;
+        lopt.textContent = lotLabel;
+        lopt.setAttribute('data-custom', '1');
+        lotSel.appendChild(lopt);
+        lotSel.value = lotVal;
+      }
+    } else {
+      lotSel.value = '';
+    }
+  }
   restrictSel.value = filters.restrictions || '';
 
   // Set text query in search overlay
