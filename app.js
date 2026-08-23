@@ -5723,7 +5723,7 @@ function srRenderCards(results){
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY },
           body: JSON.stringify({ action: 'backfill-media', limit: Math.min(newKeys.length, 10) })
-        }).catch(function(){});
+        }).catch(function(err){ _warn('[Media] backfill trigger failed:', err); });
       }
     }
   })();
@@ -6882,7 +6882,7 @@ async function initSupabaseAuth() {
             }
             // Open pending property if user was gated (skip during smart signup flow)
             if(!_smartSignupInProgress) _openPendingProp();
-          }).catch(function(){});
+          }).catch(function(err){ _warn('[OAuth] profile handling failed:', err); });
           // Close mobile menu if open (user just logged in via hamburger)
           closeMobile();
         }
@@ -7658,7 +7658,7 @@ async function completeAcctSetup() {
   var email = (document.getElementById('acctCompleteEmail').textContent || '').trim();
   try {
     if(_sb && _currentUser) {
-      await _sb.from('profiles').insert({ id: _currentUser.id, first_name: first, last_name: last, email: email, phone: phone });
+      await _sb.from('profiles').upsert({ id: _currentUser.id, first_name: first, last_name: last, email: email, phone: phone }, { onConflict: 'id' });
       var leadData = { first_name: first, last_name: last, email: email, phone: phone, source: 'smart_signup', message: 'Account created via smart login flow' };
       if(!_chatLeadPushed && typeof convHistory !== 'undefined' && convHistory && convHistory.length > 0){
         var transcript = buildChatTranscript();
@@ -7712,7 +7712,7 @@ async function saveOAuthPhone() {
       // Re-push to FUB with phone
       _pushToFUB({ first_name: cached.firstName || '', last_name: cached.lastName || '', email: cached.email || '', phone: phone, source: 'oauth_phone_added', message: 'Added phone number after OAuth signup' });
       // Update lead record
-      _sb.from('leads').update({ phone: phone }).eq('email', cached.email || '').then(function(){}).catch(function(){});
+      _sb.from('leads').update({ phone: phone }).eq('email', cached.email || '').then(function(){}).catch(function(err){ _warn('[Lead] insert failed:', err); });
     }
   } catch(e) { _warn('[OAuthPhone] Save error:', e); }
   btn.textContent = 'Save'; btn.disabled = false;
@@ -7758,7 +7758,7 @@ async function mobileCompleteSignup() {
   var email = (document.getElementById('mobileCompleteEmail').textContent || '').trim();
   try {
     if(_sb && _currentUser) {
-      await _sb.from('profiles').insert({ id: _currentUser.id, first_name: first, last_name: last, email: email, phone: phone });
+      await _sb.from('profiles').upsert({ id: _currentUser.id, first_name: first, last_name: last, email: email, phone: phone }, { onConflict: 'id' });
       var leadData = { first_name: first, last_name: last, email: email, phone: phone, source: 'smart_signup_mobile', message: 'Account created via smart login flow (mobile)' };
       if(!_chatLeadPushed && typeof convHistory !== 'undefined' && convHistory && convHistory.length > 0){
         var transcript = buildChatTranscript();
@@ -7766,7 +7766,7 @@ async function mobileCompleteSignup() {
       }
       _sb.from('leads').insert(leadData)
         .then(function(){ _chatLeadPushed = true; _pushToFUB(leadData); })
-        .catch(function(){});
+        .catch(function(err){ _warn('[Lead] insert failed:', err); });
     }
     _acctLoggedIn = true;
     _smartSignupInProgress = false;
@@ -7882,10 +7882,10 @@ async function _handleOAuthProfile(session){
     var avatar=meta.avatar_url||meta.picture||'';
     var provider=meta.iss||session.user.app_metadata.provider||'oauth';
     // Create profile
-    await _sb.from('profiles').insert({id:session.user.id,first_name:first,last_name:last,email:email,phone:''});
+    await _sb.from('profiles').upsert({id:session.user.id,first_name:first,last_name:last,email:email,phone:''},{onConflict:'id'});
     // Create lead + push to Follow-Up Boss
     var leadData={first_name:first,last_name:last,email:email,phone:'',source:'oauth_'+provider,message:'Signed in via '+provider};
-    _sb.from('leads').insert(leadData).then(function(){_pushToFUB(leadData)}).catch(function(){});
+    _sb.from('leads').insert(leadData).then(function(){_pushToFUB(leadData)}).catch(function(err){ _warn('[Lead] insert failed:', err); });
     // Cache profile locally
     try{localStorage.setItem('cc_profile',JSON.stringify({firstName:first,lastName:last,email:email,phone:'',avatar:avatar}))}catch(e){}
     // Flag new OAuth user for phone prompt
