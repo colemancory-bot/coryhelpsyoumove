@@ -425,6 +425,32 @@ Every page added to this site MUST have:
 - [ ] H1 > H2 > H3 heading hierarchy (one H1 per page)
 - [ ] `node scripts/check-orphan-pages.js` passes
 
+### Bump the cache buster when you change app.js or styles.css (learned 2026-08-27)
+
+Every page references these with a version query: `app.js?v=108`, `styles.css?v=108`.
+`Cache-Control` on those files is `max-age=14400`, so **a fix that does not bump
+`?v=` does not reach anyone who has visited before, for four hours.**
+
+This was learned by shipping the `?listing=` deep-link fix (PR #112) without
+bumping it. The live `app.js` on GitHub Pages contained the fix, `curl` confirmed
+it, and the site still opened the wrong property in a real browser because the
+cached HTML was still asking for `app.js?v=107`.
+
+The version numbers had also drifted: `index.html` was on `app.js?v=107` /
+`styles.css?v=103` while the other 18 pages were still on `v=103` / `v=97`, so
+town and keyword landing pages were serving older JS and CSS than the homepage.
+Everything is on `v=108` now. **Bump all of them together, to the same number.**
+
+```bash
+# after editing app.js or styles.css
+grep -rno 'app\.js?v=[0-9]*\|styles\.css?v=[0-9]*' --include=*.html . | awk -F: '{print $3}' | sort | uniq -c
+```
+
+Verifying a deploy: `curl` bypasses the browser cache and will happily tell you
+the fix is live while every real visitor still runs the old file. Load the page
+with a throwaway query param (`?cb=123`) and check the actual `<script src>` in
+the DOM before believing it shipped.
+
 ### Inbound Links Are Not Optional (learned the hard way, 2026-08-08)
 
 A sitemap entry is **not a discovery path**. On 2026-08-08 we found 14 live pages sitting in GSC as "Discovered - currently not indexed" with **Last crawled: N/A**, four months after launch. All were in `sitemap.xml`, all were technically perfect. URL Inspection showed why:
