@@ -231,9 +231,13 @@ async function notify(
   }
 
   // --- text, by way of the CRM -------------------------------------------
-  // AFK Broker texts and emails Cory on intake, so this is the SMS path. The
-  // payload carries the same email every time, so AFK threads repeat saves onto
-  // the existing contact instead of inventing a new person per save.
+  // AFK Broker texts and emails Cory on intake, so this is the SMS path. It
+  // confirms delivery in its reply: {"duplicate":false,"notified":{"sms":true,
+  // "email":true}}.
+  //
+  // external_id is the (user, property) pair, which is what AFK dedupes on. One
+  // save produces one text; re-sending the same save is answered with
+  // {"duplicate":true} and no second alert, which is the behaviour we want.
   if (AFK_URL && AFK_SECRET) {
     const total = others.length + 1;
     const summary =
@@ -256,7 +260,11 @@ async function notify(
         created_at: new Date().toISOString(),
       }),
     }).catch(() => null);
+    // Keep AFK's reply, not just the status. A 200 only means AFK accepted the
+    // payload; it does not prove AFK turned it into a text, and that difference
+    // is invisible without the body.
     results.afk = r ? r.status : "request failed";
+    if (r) results.afk_body = (await r.text().catch(() => "")).slice(0, 400);
   } else {
     results.afk = "skipped: AFK not configured";
   }
