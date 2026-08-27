@@ -9548,6 +9548,28 @@ if(MLS_GRID.enabled) {
 }
 
 // Find a listing by mlsId, listingKey, address slug, or address|city fallback
+// Bounded retry for ?listing= deep links. Gives the full data set a few seconds
+// to arrive, then clears the loading overlay and says so, rather than spinning
+// forever on a listing the visitor is never going to be allowed to see.
+var _deepLinkAttempts = 0;
+var DEEP_LINK_MAX_ATTEMPTS = 5;
+function _deepLinkRetry(listingId, delay) {
+  _deepLinkAttempts++;
+  if (_deepLinkAttempts < DEEP_LINK_MAX_ATTEMPTS) {
+    // Allow the direct fetch to run again on the next pass.
+    window._deepLinkDirectFetched = false;
+    setTimeout(function(){ _checkPropDeepLink(); }, delay || 2000);
+    return;
+  }
+  var loadEl = document.getElementById('deepLinkLoading');
+  if (loadEl) loadEl.remove();
+  _warn('[DeepLink] Gave up resolving listing:', listingId);
+  if (typeof showToast === 'function') {
+    showToast('That property is no longer available. Showing current listings instead.', 'error');
+  }
+  try { history.replaceState(null, '', window.location.pathname); } catch(e) {}
+}
+
 function _findListingById(id) {
   if(!id) return null;
   for(var i = 0; i < ALL_LISTINGS.length; i++){
@@ -9610,15 +9632,34 @@ function _checkPropDeepLink(){
           document.body.appendChild(loadDiv);
         }
         var q = _sb.from('mls_listings').select('listing_id,listing_key,list_price,full_address,city,property_type,property_sub_type,bedrooms_total,bathrooms_total_integer,living_area,living_area_range,lot_size_acres,lot_size_square_feet,standard_status,public_remarks,list_agent_full_name,list_office_name,list_office_phone,attribution_contact,originating_system_name,restrictions,days_on_market,latitude,longitude').eq('mlg_can_view', true).limit(1);
-        if (listingId.match(/^[A-Z]{2,4}\d+$/i)) {
+        // An MLS id is any run of letters and digits with no separators; an
+        // address slug always contains dashes. The old test was
+        // /^[A-Z]{2,4}\d+$/i, which matched Canopy's CAR3170114 but NOT the
+        // 2,711 CSAR ids, every one of which is pure digits (26048301), nor the
+        // 44 Canopy ids shaped like CARNCM576730. Those all fell through to the
+        // slug branch, produced no filter at all, and the unfiltered query then
+        // returned an arbitrary listing, so the link opened the wrong house.
+        var isMlsId = /^[A-Za-z0-9]+$/.test(listingId);
+        var haveFilter = false;
+        if (isMlsId) {
           q = q.eq('listing_id', listingId);
+          haveFilter = true;
         } else {
           // Address slug: convert dashes back to search pattern
           var words = listingId.replace(/-nc$/, '').split('-').filter(function(w){ return w.length > 1; });
           if (words.length >= 2) {
             q = q.ilike('full_address', '%' + words.slice(0, -1).join('%') + '%');
             q = q.ilike('city', '%' + words[words.length - 1] + '%');
+            haveFilter = true;
           }
+        }
+        // Never run this query unfiltered. Opening a random property is worse
+        // than showing nothing, because it looks like it worked.
+        if (!haveFilter) {
+          var loadElBad = document.getElementById('deepLinkLoading');
+          if (loadElBad) loadElBad.remove();
+          _warn('[DeepLink] Unrecognised listing reference:', listingId);
+          return;
         }
         q.then(function(res) {
           if (res.data && res.data.length > 0 && !window._deepLinkHandled) {
@@ -9639,15 +9680,19 @@ function _checkPropDeepLink(){
               openProp(mapped, mapped.city || '');
             });
           } else {
-            // Not found, keep retrying in case full data loads
-            setTimeout(function(){ _checkPropDeepLink(); }, 2000);
+            // Not found. Retry a bounded number of times in case the full data
+            // set is still loading, then give up. This used to retry forever,
+            // which left the full-screen "Loading property details..." spinner
+            // up permanently for any link to a listing anon cannot see, e.g. one
+            // that has since sold or expired.
+            _deepLinkRetry(listingId);
           }
         }).catch(function() {
-          setTimeout(function(){ _checkPropDeepLink(); }, 2000);
+          _deepLinkRetry(listingId);
         });
       } else {
         // Supabase not ready, retry
-        setTimeout(function(){ _checkPropDeepLink(); }, 1000);
+        _deepLinkRetry(listingId, 1000);
       }
       return;
     }
