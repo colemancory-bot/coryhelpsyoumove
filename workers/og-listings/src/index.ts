@@ -76,8 +76,14 @@ async function lookupListing(slug: string, env: Env): Promise<Record<string, unk
   };
 
   let query: string;
-  if (/^[A-Z]{2,4}\d+$/i.test(slug)) {
-    // MLS-id form, e.g. CAR4363291
+  // An MLS id is any run of letters and digits with no separators; an address
+  // slug always contains dashes. The old test was /^[A-Z]{2,4}\d+$/i, which
+  // matched Canopy's CAR4363291 but NOT the 2,711 CSAR ids, every one of which
+  // is pure digits (26048301), nor the 44 Canopy ids shaped like CARNCM576730.
+  // Those fell through to the slug branch, failed its words.length < 2 guard,
+  // and every CSAR share link fell back to the generic site card.
+  if (/^[A-Za-z0-9]+$/.test(slug)) {
+    // MLS-id form, e.g. CAR4363291 or 26048301
     query = root + "/rest/v1/mls_listings?listing_id=eq." + encodeURIComponent(slug) + "&" + SELECT;
   } else {
     // Address-slug form, e.g. 14-winter-woods-drive-asheville-nc
