@@ -654,6 +654,14 @@ textarea.form-input{resize:vertical;min-height:100px}
 .quick-actions{display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:0.3rem;animation:msgIn 0.3s cubic-bezier(0.16,1,0.3,1) 0.15s both}
 .chip{padding:0.4rem 0.85rem;font-size:0.7rem;color:var(--gold);border:1px solid var(--border-hover);background:transparent;transition:all 0.3s;font-family:'Outfit',sans-serif}
 .chip:hover{background:var(--gold);color:var(--bg);border-color:var(--gold)}
+/* Inline sign-in offer shown in chat on search intent (app.js renderChatAuthCard).
+   Sits below the results chips, never in front of them. */
+.chat-auth-card{box-sizing:border-box;max-width:100%;display:flex;flex-direction:column;align-items:flex-start;gap:0.55rem;margin-top:0.65rem;padding:0.85rem 0.9rem;border:1px solid var(--border-hover);border-radius:10px;background:rgba(196,176,140,0.06);animation:msgIn 0.35s cubic-bezier(0.16,1,0.3,1) 0.1s both}
+.chat-auth-label{font-family:'Outfit',sans-serif;font-size:0.75rem;line-height:1.45;color:var(--cream);opacity:0.9}
+.chat-auth-gbtn{min-height:40px;max-width:100%;overflow:hidden;display:flex;align-items:center;color-scheme:light}
+.chat-auth-alt{padding:0;font-size:0.7rem;font-family:'Outfit',sans-serif;color:var(--gold);background:none;border:none;border-bottom:1px solid transparent;cursor:pointer;transition:border-color 0.3s}
+.chat-auth-alt:hover{border-bottom-color:var(--gold)}
+@media (max-width:480px){.chat-auth-card{padding:0.7rem 0.75rem}.chat-auth-label{font-size:0.72rem}}
 .chat-input-area{padding:0.85rem 1.25rem;border-top:1px solid var(--border);background:var(--bg-card);flex-shrink:0}
 .chat-input-wrap{display:flex;align-items:flex-end;gap:0.6rem}
 .chat-input{flex:1;padding:0.65rem 0.85rem;background:var(--surface);border:1px solid var(--border);color:var(--cream);font-family:'Outfit',sans-serif;font-size:0.82rem;font-weight:300;resize:none;outline:none;min-height:38px;max-height:100px;line-height:1.5;transition:border-color 0.3s}

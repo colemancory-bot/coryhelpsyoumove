@@ -1796,9 +1796,13 @@ function _saveChatState(){
       history: convHistory,
       ts: Date.now(),
       leadPushed: _chatLeadPushed || false,
-      previewDismissed: _chatPreviewDismissed || false
+      previewDismissed: _chatPreviewDismissed || false,
+      searchCount: _chatSearchCount || 0,
+      searchIntents: _chatSearchIntents || [],
+      authCardShown: _chatAuthCardShown || false
     }));
   }catch(e){}
+  _syncChatToServer();
 }
 function _loadChatState(){
   try{
@@ -1815,6 +1819,75 @@ function _clearChatState(){
 
 // Restore conversation history from localStorage (flags restored at their declaration sites)
 var _savedChatState = _loadChatState();
+
+// --- Search-intent capture state ---
+// _chatSearchCount / _chatSearchIntents track the machine-readable
+// [SEARCH:{...}] commands the bot emits. They survive a page navigation via
+// _saveChatState so a visitor who chats on the homepage, clicks through to a
+// town page, and searches again is treated as the same escalating session.
+var _chatSearchCount   = (_savedChatState && _savedChatState.searchCount) || 0;
+var _chatSearchIntents = (_savedChatState && _savedChatState.searchIntents) || [];
+var _chatAuthCardShown = (_savedChatState && _savedChatState.authCardShown) || false;
+
+// --- Server-side conversation storage ---
+// Before this, the only copy of a chat lived in this visitor's localStorage on
+// a 30 minute TTL. A conversation only reached the database if
+// extractLeadFromConversation found a name AND an email-or-phone in it, so
+// every browsing conversation was thrown away when the tab closed. Those are
+// the useful ones: they show what people actually ask for.
+//
+// One row per tab, upserted on session_id as the conversation grows.
+var _chatSessionId = (function(){
+  try{
+    var k = sessionStorage.getItem('cc_chat_sid');
+    if(!k){
+      k = (window.crypto && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : 'x' + Date.now() + '-' + Math.random().toString(36).slice(2);
+      sessionStorage.setItem('cc_chat_sid', k);
+    }
+    return k;
+  }catch(e){ return null; }
+})();
+var _chatSyncTimer = null;
+var _chatSyncFailed = false;
+
+function _syncChatToServer(){
+  if(!_sb || !_chatSessionId || _chatSyncFailed) return;
+  if(typeof convHistory === 'undefined' || !convHistory || !convHistory.length) return;
+  clearTimeout(_chatSyncTimer);
+  // Debounced so a fast exchange writes once, not once per keystroke-driven save.
+  _chatSyncTimer = setTimeout(function(){
+    var lead = (typeof extractLeadFromConversation === 'function')
+      ? extractLeadFromConversation(convHistory)
+      : {first_name:'',last_name:'',email:'',phone:''};
+    var nm = [lead.first_name, lead.last_name].filter(Boolean).join(' ');
+    // Via RPC, not a table upsert. PostgREST upsert issues INSERT ... ON CONFLICT
+    // DO UPDATE, which RLS rejects here even with permissive INSERT and UPDATE
+    // policies; the SECURITY DEFINER function is also narrower, since anon has
+    // no direct write access to the table at all.
+    _sb.rpc('chat_conversation_upsert', {
+      p_session_id:     _chatSessionId,
+      p_transcript:     buildChatTranscript() || '',
+      p_message_count:  convHistory.length,
+      p_search_intents: _chatSearchIntents || [],
+      p_lead_captured:  !!_chatLeadPushed,
+      p_contact_email:  lead.email || null,
+      p_contact_phone:  lead.phone || null,
+      p_contact_name:   nm || null,
+      p_page_url:       location.href,
+      p_referrer:       document.referrer || null,
+      p_journey:        (window._leadJourney || null),
+      p_user_agent:     navigator.userAgent
+    })
+      .then(function(r){
+        // Latch off on failure. A rejected write will keep being rejected, and
+        // retrying on every message would be a request per keystroke burst.
+        if(r && r.error){ _chatSyncFailed = true; _warn('[Chat] Sync failed:', r.error); }
+      })
+      .catch(function(e){ _chatSyncFailed = true; _warn('[Chat] Sync failed:', e); });
+  }, 1500);
+}
 let chatOpen=false,isTyping=false,convHistory=(_savedChatState && _savedChatState.history && _savedChatState.history.length > 0) ? _savedChatState.history : [];
 
 // --- Rate limiting ---
@@ -2335,13 +2408,18 @@ async function sendMessage(){
     tryPushChatLead();
     // Trigger search if bot detected search intent
     if(searchFilters){
+      _chatSearchCount++;
+      _chatSearchIntents.push(searchFilters);
+      // Capped so a long session cannot bloat the localStorage payload or the
+      // stored jsonb. The most recent searches are the ones worth keeping.
+      if(_chatSearchIntents.length > 25) _chatSearchIntents = _chatSearchIntents.slice(-25);
+      _saveChatState();
       setTimeout(function(){
-        var chips = ['View Results'];
-        if(_acctLoggedIn) chips.push('Save This Search');
-        else chips.push('Save Search (create account)');
         var c = document.getElementById('chatMessages');
         var cw = document.createElement('div');
         cw.className='quick-actions';
+        var chips = ['View Results'];
+        if(_acctLoggedIn) chips.push('Save This Search');
         chips.forEach(function(ch){
           var b = document.createElement('button');
           b.className='chip';
@@ -2350,18 +2428,27 @@ async function sendMessage(){
             if(ch === 'View Results'){
               openSearchResults(searchFilters);
               toggleChat();
-            } else if(ch === 'Save This Search' && _acctLoggedIn){
+              cw.remove();
+            } else {
               saveSearchFromChat(searchFilters);
               b.textContent='Saved!';b.style.background='var(--green)';b.disabled=true;
-            } else {
-              openAcctModal();
-              window._pendingSaveSearch = searchFilters;
             }
-            if(ch === 'View Results') cw.remove();
           };
           cw.appendChild(b);
         });
         c.appendChild(cw);
+        // The sign-in ask goes BELOW the results chip, never in front of it. A
+        // visitor who asked the bot to find something gets the results either
+        // way; the offer to save the search is an offer, not a toll gate.
+        if(!_acctLoggedIn){
+          if(_chatAuthCardShown && _chatSearchCount >= 2){
+            // Second search and they passed on the inline card. Two stated
+            // searches is real intent, so spend the One Tap prompt here.
+            initGoogleOneTap();
+          } else {
+            renderChatAuthCard(c, searchFilters);
+          }
+        }
         c.scrollTop = c.scrollHeight;
       }, 300);
     }
@@ -2397,6 +2484,91 @@ async function saveSearchFromChat(filters) {
   } catch(e) {
     _warn('[Chat] Save search error:', e);
     addMsg('assistant', 'Had trouble saving that search. You can still view the results though!');
+  }
+}
+
+// --- Inline sign-in offer, shown on search intent ---
+// This fires when a signed-out visitor asks the bot to find something, which is
+// the highest-intent moment in the session: they have said out loud what they
+// want. The ask is attached to a benefit rather than a wall, and the benefit is
+// finally real -- saved-search alert emails only started actually sending on
+// 2026-08-08, when the search-alerts cron was scheduled.
+//
+// A rendered Google button rather than google.accounts.id.prompt(): the prompt
+// is subject to Google's own FedCM suppression and to this site's 1hr
+// cc_auth_popup_dismissed cooldown, so it is often unavailable at exactly this
+// moment. A button the visitor clicks has neither restriction, and it works for
+// someone who dismissed One Tap earlier in the session.
+function renderChatAuthCard(container, filters){
+  if(_acctLoggedIn || !container) return;
+  if(_chatAuthCardShown) return;   // one card per conversation; re-asking is nagging
+  _chatAuthCardShown = true;
+  _saveChatState();
+
+  var card = document.createElement('div');
+  card.className = 'chat-auth-card';
+
+  var label = document.createElement('div');
+  label.className = 'chat-auth-label';
+  label.textContent = 'Want me to email you when new listings match this?';
+  card.appendChild(label);
+
+  var btnHost = document.createElement('div');
+  btnHost.className = 'chat-auth-gbtn';
+  card.appendChild(btnHost);
+
+  var alt = document.createElement('button');
+  alt.className = 'chat-auth-alt';
+  alt.textContent = 'Use email instead';
+  alt.onclick = function(){
+    window._pendingSaveSearch = filters;
+    openAcctModal();
+  };
+  card.appendChild(alt);
+  container.appendChild(card);
+
+  // The Google button is an iframe that lands a beat after renderButton returns
+  // and grows the card, so the caller's scrollTop is already stale by the time
+  // the card reaches full height and the button ends up hidden behind the input
+  // bar. Re-scroll as it settles.
+  var keepAtBottom = function(){ container.scrollTop = container.scrollHeight; };
+  keepAtBottom();
+  setTimeout(keepAtBottom, 150);
+  setTimeout(keepAtBottom, 600);
+  if(typeof ResizeObserver === 'function'){
+    var ro = new ResizeObserver(keepAtBottom);
+    ro.observe(card);
+    setTimeout(function(){ ro.disconnect(); }, 3000);
+  }
+
+  // Stashed so the search saves itself the moment auth lands, whichever path
+  // they take. Consumed by the updateAcctUI wrapper below.
+  window._pendingSaveSearch = filters;
+
+  if(_ensureGsiInit()){
+    try{
+      // filled_blue is the loudest of Google's three permitted themes and reads
+      // as a foreign object against this palette. filled_black sits inside the
+      // dark theme; outline is the one that works on the cream background.
+      var _lightMode = document.documentElement.getAttribute('data-theme') === 'light';
+      google.accounts.id.renderButton(btnHost, {
+        theme: _lightMode ? 'outline' : 'filled_black',
+        size: 'large', shape: 'pill',
+        text: 'continue_with', width: 240
+      });
+    }catch(e){
+      _warn('[Chat] Google button render failed:', e);
+      btnHost.remove();
+      alt.textContent = 'Save this search';
+    }
+  } else {
+    // GSI script blocked or still loading. The email path is the whole offer.
+    btnHost.remove();
+    alt.textContent = 'Save this search';
+  }
+
+  if(typeof gtag === 'function'){
+    gtag('event', 'sign_up_prompt', {method: 'chat_search_intent'});
   }
 }
 
@@ -7279,21 +7451,38 @@ document.documentElement.addEventListener('mouseleave', function(e){
 });
 
 // --- Google One Tap ---
-function initGoogleOneTap(){
-  if(_acctLoggedIn || typeof google === 'undefined' || !google.accounts) return;
-  // Don't show if auth popup was recently dismissed (avoid double prompts)
-  var dismissed = localStorage.getItem('cc_auth_popup_dismissed');
-  if(dismissed && Date.now() - parseInt(dismissed,10) < 3600000) return; // 1hr cooldown after popup dismiss
-  try {
+var GSI_CLIENT_ID = '878118307539-5vujunbk1fgoh7ctijfdjhdui8sf33fk.apps.googleusercontent.com';
+var _gsiInitialized = false;
+
+// Initialize the GSI library WITHOUT prompting. Split out of initGoogleOneTap so
+// the chat can render an inline Google button (renderChatAuthCard) without
+// spending the One Tap prompt. Google suppresses the prompt after it has been
+// dismissed a couple of times per browser, and the prompt is the scarce
+// resource here; initialize() is not.
+function _ensureGsiInit(){
+  if(_gsiInitialized) return true;
+  if(typeof google === 'undefined' || !google.accounts || !google.accounts.id) return false;
+  try{
     google.accounts.id.initialize({
-      client_id: '878118307539-5vujunbk1fgoh7ctijfdjhdui8sf33fk.apps.googleusercontent.com',
+      client_id: GSI_CLIENT_ID,
       callback: handleGoogleOneTap,
       use_fedcm_for_prompt: true,
       auto_select: false,
       cancel_on_tap_outside: true
     });
-    google.accounts.id.prompt();
-  } catch(e) { _warn('[OneTap] Init error:', e); }
+    _gsiInitialized = true;
+    return true;
+  }catch(e){ _warn('[OneTap] Init error:', e); return false; }
+}
+
+function initGoogleOneTap(){
+  if(_acctLoggedIn) return;
+  // Don't show if auth popup was recently dismissed (avoid double prompts)
+  var dismissed = localStorage.getItem('cc_auth_popup_dismissed');
+  if(dismissed && Date.now() - parseInt(dismissed,10) < 3600000) return; // 1hr cooldown after popup dismiss
+  if(!_ensureGsiInit()) return;
+  try{ google.accounts.id.prompt(); }
+  catch(e){ _warn('[OneTap] Prompt error:', e); }
 }
 async function handleGoogleOneTap(response){
   if(!_sb || !response.credential) return;
@@ -7310,9 +7499,20 @@ async function handleGoogleOneTap(response){
     _log('[OneTap] Success');
   } catch(e) { console.error('[OneTap] Error:', e); }
 }
-// Initialize Google One Tap after a delay (let auth state settle first)
+// Deliberately NOT auto-firing One Tap on page load.
+//
+// This used to run 3.5s after every page load, before the visitor had done
+// anything. Google then applies its own suppression, so the prompt was
+// routinely unavailable later in the session at the moments that actually
+// convert: the 40% scroll popup, the 4-view property gate, and the search
+// intent card in the chat. The prompt was being spent on someone who had just
+// landed and had shown no intent at all.
+//
+// One Tap now fires only on intent: after the auth popup is dismissed
+// (dismissAuthPopup), and on a signed-out visitor's second chat search.
+// Pre-warm the library so those paths are instant, but do not prompt.
 setTimeout(function(){
-  if(!_acctLoggedIn) initGoogleOneTap();
+  if(!_acctLoggedIn) _ensureGsiInit();
 }, 3500);
 
 // --- Account UI update ---
