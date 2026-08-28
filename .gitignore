@@ -38,3 +38,6 @@ marketing/*-print.pdf
 
 # Node (if added later)
 node_modules/
+
+# Backtest raw output (regenerate from scripts/cma-backtest.mjs)
+scripts/output/

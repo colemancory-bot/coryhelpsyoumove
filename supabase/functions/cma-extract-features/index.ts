@@ -7,6 +7,16 @@
 //   { "action": "extract-single", "listing_key": "..." }
 //   { "action": "backfill", "limit": 25 }
 //   { "action": "stats" }
+//   { "action": "extract-new", "limit": 60 }                     realtime, trimmed scope (weekly cron)
+//   { "action": "batch-submit", "scope": "trimmed", "limit": 1000 } Message Batches API, 50% cost
+//   { "action": "batch-status", "batch_id"?: "..." }             poll Anthropic + update tracking
+//   { "action": "batch-ingest", "batch_id"?: "...", "limit": 100 } stream results .jsonl → upsert
+//
+// Batch backfill trimmed scope (4 counties: Haywood, Jackson, Macon, Swain):
+//   1. Closed, close_price not null, close_date >= now-12mo (all property types)
+//   2. Closed, close_price not null, property_type=Land, close_date in [now-36mo, now-12mo)
+//   3. status in (Active, Active Under Contract, Pending), property_type=Land
+//   minus listing_keys already in cma_feature_tags.
 //
 // Env vars required:
 //   ANTHROPIC_API_KEY           - Claude API key
@@ -19,8 +29,23 @@ const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
-const EXTRACTION_MODEL = "claude-sonnet-4-20250514";
+const EXTRACTION_MODEL = "claude-sonnet-5";
 const REQUEST_DELAY_MS = 800; // Delay between Claude API calls
+const EXTRACTION_MAX_TOKENS = 1800;
+const ANTHROPIC_VERSION = "2023-06-01";
+const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
+const ANTHROPIC_BATCHES_URL = "https://api.anthropic.com/v1/messages/batches";
+
+// Counties in the CMA comp universe (trimmed backfill scope).
+const CMA_COUNTIES = ["Haywood", "Jackson", "Macon", "Swain"];
+
+function anthropicHeaders(): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    "x-api-key": ANTHROPIC_API_KEY,
+    "anthropic-version": ANTHROPIC_VERSION,
+  };
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -177,10 +202,10 @@ If a feature cannot be determined from the listing data, use your best judgment 
 For land listings with no structure, set condition_rating to null and condition_notes to "Vacant land".
 For residential listings, set land-only fields (timber_quality, buildable_sites, subdivision_potential) to null unless clearly relevant.`;
 
-// Extract features for a single listing
-async function extractFeatures(
-  listing: Record<string, unknown>
-): Promise<Record<string, unknown> | null> {
+// Build the property-context user prompt from a listing row.
+// SHARED by extract-single (realtime) and batch-submit so the two paths never
+// diverge — one prompt-builder, one place to change field mappings.
+function buildPropertyContext(listing: Record<string, unknown>): string {
   const remarks = (listing.public_remarks as string) || "";
   const privateRemarks = (listing.private_remarks as string) || "";
   const rawData = (listing.raw_data as Record<string, unknown>) || {};
@@ -289,39 +314,38 @@ async function extractFeatures(
     .filter(Boolean)
     .join("\n");
 
-  // Call Claude API
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: EXTRACTION_MODEL,
-      max_tokens: 1200,
-      system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: `Analyze this Western NC mountain property and extract features:\n\n${propertyContext}`,
-        },
-      ],
-    }),
-  });
+  return propertyContext;
+}
 
-  if (!response.ok) {
-    const errText = await response.text();
-    console.error(`Claude API error ${response.status}: ${errText}`);
-    return null;
-  }
+// Build the exact Messages-API request params for a listing. This single object
+// is used verbatim by extract-single (POST /v1/messages) and by batch-submit
+// (as the `params` of each batch request) so both paths share model / system /
+// user-content / thinking / max_tokens with no copy-paste divergence.
+function buildRequestParams(listing: Record<string, unknown>): Record<string, unknown> {
+  const propertyContext = buildPropertyContext(listing);
+  return {
+    model: EXTRACTION_MODEL,
+    max_tokens: EXTRACTION_MAX_TOKENS,
+    // Sonnet 5 runs adaptive thinking by default when `thinking` is omitted,
+    // which would prepend a `thinking` block to the response content array.
+    // This extraction wants fast, deterministic JSON, so disable thinking.
+    thinking: { type: "disabled" },
+    system: SYSTEM_PROMPT,
+    messages: [
+      {
+        role: "user",
+        content: `Analyze this Western NC mountain property and extract features:\n\n${propertyContext}`,
+      },
+    ],
+  };
+}
 
-  const data = await response.json();
-  const text = data?.content?.[0]?.text || "";
-
-  // Parse JSON from Claude's response
+// Parse the feature JSON out of a Claude text block. Shared by extract-single
+// (realtime response) and batch-ingest (result .jsonl). Tolerant of markdown
+// code fences: the regex grabs the first {...} object regardless of surrounding
+// prose or ```json fences.
+function parseExtractionText(text: string): Record<string, unknown> | null {
   try {
-    // Extract JSON from response (handle markdown code blocks)
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       console.error("No JSON found in Claude response:", text.slice(0, 200));
@@ -335,6 +359,36 @@ async function extractFeatures(
     console.error("Failed to parse Claude response:", e, text.slice(0, 200));
     return null;
   }
+}
+
+// Pull the first text block from a Messages-API response/result content array.
+// On Sonnet 5 the array can lead with a non-text block (e.g. a thinking block),
+// so a hardcoded content[0].text would read undefined or garbage.
+function firstTextBlock(content: unknown): string {
+  const blocks = Array.isArray(content) ? content : [];
+  return (
+    blocks.find((b: Record<string, unknown>) => b?.type === "text")?.text || ""
+  );
+}
+
+// Extract features for a single listing (realtime path).
+async function extractFeatures(
+  listing: Record<string, unknown>
+): Promise<Record<string, unknown> | null> {
+  const response = await fetch(ANTHROPIC_MESSAGES_URL, {
+    method: "POST",
+    headers: anthropicHeaders(),
+    body: JSON.stringify(buildRequestParams(listing)),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    console.error(`Claude API error ${response.status}: ${errText}`);
+    return null;
+  }
+
+  const data = await response.json();
+  return parseExtractionText(firstTextBlock(data?.content));
 }
 
 // Build the tag record from extracted features (shared by single + backfill)
@@ -394,6 +448,207 @@ function buildTagRecord(
   };
 }
 
+// ── Shared: idempotent write of a backfill (agent_id IS NULL) tag row ──
+// The agent_id IS NULL scope is guarded by a PARTIAL unique index
+// (uq_cma_feature_tags_listing_no_agent, migration 20260715000001). Postgres can't
+// infer a partial index as an ON CONFLICT arbiter unless the statement carries the
+// index predicate (`WHERE agent_id IS NULL`), which PostgREST does not emit — so a
+// plain `.upsert(tagRecord, { onConflict: "listing_key" })` 400s with 42P10, and
+// `onConflict: "listing_key,agent_id"` never dedups (SQL treats NULLs as distinct,
+// which is exactly the bug that let 1,169 duplicates accumulate). Emulate the upsert:
+// INSERT, and on a unique-violation (23505) UPDATE the existing backfill row in place.
+// Idempotent and race-safe — a concurrent writer that loses the insert race falls
+// through to the update instead of creating a second row or erroring.
+type SbClient = ReturnType<typeof createClient>;
+
+async function upsertTagNoAgent(
+  sb: SbClient,
+  tagRecord: Record<string, unknown>
+): Promise<{ ok: boolean; error?: string }> {
+  const ins = await sb.from("cma_feature_tags").insert(tagRecord);
+  if (!ins.error) return { ok: true };
+  // deno-lint-ignore no-explicit-any
+  if ((ins.error as any).code !== "23505") return { ok: false, error: ins.error.message };
+  const upd = await sb
+    .from("cma_feature_tags")
+    .update(tagRecord)
+    .eq("listing_key", tagRecord.listing_key as string)
+    .is("agent_id", null);
+  if (upd.error) return { ok: false, error: upd.error.message };
+  return { ok: true };
+}
+
+// ── Shared: extract + elevation + upsert for one listing (realtime path) ──
+// Used by extract-single, backfill, and extract-new.
+async function extractAndUpsert(
+  sb: SbClient,
+  listing: Record<string, unknown>
+): Promise<{ ok: boolean; error?: string }> {
+  const features = await extractFeatures(listing);
+  if (!features) return { ok: false, error: "extraction failed" };
+
+  let elevation: number | null = null;
+  if (listing.latitude && listing.longitude) {
+    elevation = await getElevation(
+      parseFloat(listing.latitude as string),
+      parseFloat(listing.longitude as string)
+    );
+  }
+
+  const tagRecord = buildTagRecord(listing.listing_key as string, features, elevation);
+  return upsertTagNoAgent(sb, tagRecord);
+}
+
+// ── Trimmed-scope selection (shared by batch-submit and extract-new) ──
+// Returns fresh query-builder factories per branch so each can be paginated.
+// scope "trimmed" (default):
+//   1. Closed, close_price not null, close_date >= now-12mo  (all property types)
+//   2. Closed, close_price not null, property_type=Land, close_date in [now-36mo, now-12mo)
+//   3. status in (Active, Active Under Contract, Pending), property_type=Land
+// scope "all": every Closed-with-price OR Active/AUC/Pending row in the 4 counties.
+function scopeBranches(scope: string): Array<(sb: SbClient) => unknown> {
+  const now = Date.now();
+  const d12 = new Date(now - 365 * 86400000).toISOString().split("T")[0];
+  const d36 = new Date(now - 3 * 365 * 86400000).toISOString().split("T")[0];
+  const activeStatuses = ["Active", "Active Under Contract", "Pending"];
+
+  if (scope === "all") {
+    return [
+      (sb) =>
+        sb
+          .from("mls_listings")
+          .select("listing_key")
+          .in("county_or_parish", CMA_COUNTIES)
+          .eq("standard_status", "Closed")
+          .not("close_price", "is", null),
+      (sb) =>
+        sb
+          .from("mls_listings")
+          .select("listing_key")
+          .in("county_or_parish", CMA_COUNTIES)
+          .in("standard_status", activeStatuses),
+    ];
+  }
+
+  // trimmed
+  return [
+    (sb) =>
+      sb
+        .from("mls_listings")
+        .select("listing_key")
+        .in("county_or_parish", CMA_COUNTIES)
+        .eq("standard_status", "Closed")
+        .not("close_price", "is", null)
+        .gte("close_date", d12),
+    (sb) =>
+      sb
+        .from("mls_listings")
+        .select("listing_key")
+        .in("county_or_parish", CMA_COUNTIES)
+        .eq("standard_status", "Closed")
+        .not("close_price", "is", null)
+        .eq("property_type", "Land")
+        .gte("close_date", d36)
+        .lt("close_date", d12),
+    (sb) =>
+      sb
+        .from("mls_listings")
+        .select("listing_key")
+        .in("county_or_parish", CMA_COUNTIES)
+        .in("standard_status", activeStatuses)
+        .eq("property_type", "Land"),
+  ];
+}
+
+// Paginate a select("listing_key") query (PostgREST caps at 1000/page).
+async function fetchAllKeys(
+  sb: SbClient,
+  factory: (sb: SbClient) => unknown
+): Promise<string[]> {
+  const keys: string[] = [];
+  const pageSize = 1000;
+  for (let from = 0; ; from += pageSize) {
+    // deno-lint-ignore no-explicit-any
+    const q = factory(sb) as any;
+    const { data, error } = await q.range(from, from + pageSize - 1);
+    if (error) throw new Error(error.message);
+    if (!data || data.length === 0) break;
+    for (const r of data) keys.push(r.listing_key);
+    if (data.length < pageSize) break;
+  }
+  return keys;
+}
+
+// All in-scope listing_keys that are NOT yet in cma_feature_tags, optionally
+// also excluding a supplied set (e.g. keys already sitting in open batches).
+async function getUntaggedScopeKeys(
+  sb: SbClient,
+  scope: string,
+  exclude?: Set<string>
+): Promise<string[]> {
+  const seen = new Set<string>();
+  for (const factory of scopeBranches(scope)) {
+    const ks = await fetchAllKeys(sb, factory);
+    for (const k of ks) seen.add(k);
+  }
+
+  // Subtract already-tagged keys (paginated).
+  const tagged = new Set<string>();
+  const pageSize = 1000;
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await sb
+      .from("cma_feature_tags")
+      .select("listing_key")
+      .range(from, from + pageSize - 1);
+    if (error) throw new Error(error.message);
+    if (!data || data.length === 0) break;
+    for (const r of data) tagged.add(r.listing_key as string);
+    if (data.length < pageSize) break;
+  }
+
+  const untagged: string[] = [];
+  for (const k of seen) {
+    if (tagged.has(k)) continue;
+    if (exclude && exclude.has(k)) continue;
+    untagged.push(k);
+  }
+  untagged.sort();
+  return untagged;
+}
+
+// Fetch full listing rows (select *) for a set of keys, chunked to keep the
+// PostgREST `in` list a sane size. select("*") matches extract-single exactly.
+async function fetchListingsByKeys(
+  sb: SbClient,
+  keys: string[]
+): Promise<Array<Record<string, unknown>>> {
+  const out: Array<Record<string, unknown>> = [];
+  const chunk = 200;
+  for (let i = 0; i < keys.length; i += chunk) {
+    const slice = keys.slice(i, i + chunk);
+    const { data, error } = await sb
+      .from("mls_listings")
+      .select("*")
+      .in("listing_key", slice);
+    if (error) throw new Error(error.message);
+    if (data) out.push(...(data as Array<Record<string, unknown>>));
+  }
+  return out;
+}
+
+// Keys already submitted in any tracked batch (so batch-submit never resubmits).
+async function getSubmittedKeys(sb: SbClient): Promise<Set<string>> {
+  const set = new Set<string>();
+  const { data, error } = await sb
+    .from("cma_extract_batches")
+    .select("submitted_keys");
+  if (error) throw new Error(error.message);
+  for (const row of data || []) {
+    for (const k of (row.submitted_keys as string[]) || []) set.add(k);
+  }
+  return set;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -450,41 +705,17 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      // Extract features
-      const features = await extractFeatures(listing);
-      if (!features) {
+      // Extract + elevation + upsert (shared realtime path)
+      const res = await extractAndUpsert(sb, listing);
+      if (!res.ok) {
         return new Response(
-          JSON.stringify({ error: "Feature extraction failed" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      // Get elevation if we have coordinates
-      let elevation: number | null = null;
-      if (listing.latitude && listing.longitude) {
-        elevation = await getElevation(
-          parseFloat(listing.latitude),
-          parseFloat(listing.longitude)
-        );
-      }
-
-      // Upsert feature tags
-      const tagRecord = buildTagRecord(listingKey, features, elevation);
-
-      const { error: upsertErr } = await sb
-        .from("cma_feature_tags")
-        .upsert(tagRecord, { onConflict: "listing_key,agent_id" });
-
-      if (upsertErr) {
-        console.error("Upsert error:", upsertErr);
-        return new Response(
-          JSON.stringify({ error: "Failed to save features", detail: upsertErr.message }),
+          JSON.stringify({ error: "Feature extraction failed", detail: res.error }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
       return new Response(
-        JSON.stringify({ ok: true, listing_key: listingKey, features: tagRecord }),
+        JSON.stringify({ ok: true, listing_key: listingKey }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -545,32 +776,9 @@ Deno.serve(async (req: Request) => {
 
       for (const listing of untagged) {
         try {
-          const features = await extractFeatures(listing);
-          if (!features) {
-            errors.push(`${listing.listing_key}: extraction failed`);
-            continue;
-          }
-
-          // Get elevation
-          let elevation: number | null = null;
-          if (listing.latitude && listing.longitude) {
-            elevation = await getElevation(
-              parseFloat(listing.latitude as string),
-              parseFloat(listing.longitude as string)
-            );
-          }
-
-          const tagRecord = buildTagRecord(listing.listing_key as string, features, elevation);
-
-          const { error: upsertErr } = await sb
-            .from("cma_feature_tags")
-            .upsert(tagRecord, { onConflict: "listing_key,agent_id" });
-
-          if (upsertErr) {
-            errors.push(`${listing.listing_key}: upsert failed - ${upsertErr.message}`);
-          } else {
-            extracted++;
-          }
+          const res = await extractAndUpsert(sb, listing);
+          if (res.ok) extracted++;
+          else errors.push(`${listing.listing_key}: ${res.error}`);
         } catch (e) {
           errors.push(`${listing.listing_key}: ${(e as Error).message}`);
         }
@@ -585,6 +793,354 @@ Deno.serve(async (req: Request) => {
           extracted,
           attempted: untagged.length,
           errors: errors.length ? errors : undefined,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── Action: extract-new (weekly cron — realtime extraction of new listings) ──
+    if (action === "extract-new") {
+      const limit = Math.max(1, body.limit || 60);
+      const untagged = await getUntaggedScopeKeys(sb, "trimmed");
+      const target = untagged.slice(0, limit);
+
+      if (target.length === 0) {
+        return new Response(
+          JSON.stringify({ ok: true, extracted: 0, remaining: 0, message: "No untagged trimmed-scope listings" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const listings = await fetchListingsByKeys(sb, target);
+      let extracted = 0;
+      const errors: string[] = [];
+
+      for (const listing of listings) {
+        try {
+          const res = await extractAndUpsert(sb, listing);
+          if (res.ok) extracted++;
+          else errors.push(`${listing.listing_key}: ${res.error}`);
+        } catch (e) {
+          errors.push(`${listing.listing_key}: ${(e as Error).message}`);
+        }
+        await new Promise((r) => setTimeout(r, REQUEST_DELAY_MS));
+      }
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          extracted,
+          attempted: target.length,
+          remaining: untagged.length - extracted,
+          errors: errors.length ? errors : undefined,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── Action: batch-submit (Message Batches API — 50% cost) ──
+    if (action === "batch-submit") {
+      const scope = body.scope === "all" ? "all" : "trimmed";
+      const limit = Math.max(1, body.limit || 1000);
+      const CHUNK = 800; // stay well under the 100k-request / 256MB batch limits
+
+      // Exclude keys already sitting in tracked batches so we never resubmit.
+      const alreadySubmitted = await getSubmittedKeys(sb);
+      const untagged = await getUntaggedScopeKeys(sb, scope, alreadySubmitted);
+      const target = untagged.slice(0, limit);
+
+      if (target.length === 0) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            scope,
+            untagged_total: untagged.length,
+            submitted: 0,
+            batches: [],
+            message: "Nothing untagged left to submit",
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Fetch full rows and build one batch request per listing.
+      const listings = await fetchListingsByKeys(sb, target);
+      const requests = listings.map((l) => ({
+        custom_id: l.listing_key as string,
+        params: buildRequestParams(l),
+      }));
+
+      const created: Array<{ batch_id: string; count: number }> = [];
+      for (let i = 0; i < requests.length; i += CHUNK) {
+        const chunk = requests.slice(i, i + CHUNK);
+        const resp = await fetch(ANTHROPIC_BATCHES_URL, {
+          method: "POST",
+          headers: anthropicHeaders(),
+          body: JSON.stringify({ requests: chunk }),
+        });
+        if (!resp.ok) {
+          const errText = await resp.text();
+          return new Response(
+            JSON.stringify({
+              error: "Batch submit failed",
+              status: resp.status,
+              detail: errText.slice(0, 500),
+              created_so_far: created,
+            }),
+            { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        const batch = await resp.json();
+        const submittedKeys = chunk.map((c) => c.custom_id);
+        const { error: insErr } = await sb.from("cma_extract_batches").insert({
+          batch_id: batch.id,
+          submitted_count: chunk.length,
+          submitted_keys: submittedKeys,
+          status: batch.processing_status || "in_progress",
+        });
+        if (insErr) console.error("Tracking insert error:", insErr.message);
+        created.push({ batch_id: batch.id, count: chunk.length });
+      }
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          scope,
+          untagged_total: untagged.length,
+          submitted: target.length,
+          batches: created,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── Action: batch-status ──
+    if (action === "batch-status") {
+      let q = sb.from("cma_extract_batches").select("*");
+      if (body.batch_id) q = q.eq("batch_id", body.batch_id);
+      else q = q.neq("status", "ingested");
+      const { data: rows, error: rowsErr } = await q;
+      if (rowsErr) {
+        return new Response(
+          JSON.stringify({ error: "Tracking query failed", detail: rowsErr.message }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const out: Array<Record<string, unknown>> = [];
+      for (const row of rows || []) {
+        const resp = await fetch(`${ANTHROPIC_BATCHES_URL}/${row.batch_id}`, {
+          headers: anthropicHeaders(),
+        });
+        if (!resp.ok) {
+          out.push({ batch_id: row.batch_id, error: (await resp.text()).slice(0, 300) });
+          continue;
+        }
+        const b = await resp.json();
+        // Don't clobber a local 'ingested' marker with Anthropic's 'ended'.
+        const newStatus = row.status === "ingested" ? "ingested" : b.processing_status;
+        await sb
+          .from("cma_extract_batches")
+          .update({
+            status: newStatus,
+            request_counts: b.request_counts || {},
+            updated_at: new Date().toISOString(),
+          })
+          .eq("batch_id", row.batch_id);
+        out.push({
+          batch_id: row.batch_id,
+          processing_status: b.processing_status,
+          request_counts: b.request_counts,
+          results_url: b.results_url || null,
+        });
+      }
+
+      return new Response(
+        JSON.stringify({ ok: true, batches: out }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── Action: batch-ingest (stream results .jsonl, upsert, resume-safe) ──
+    if (action === "batch-ingest") {
+      const limit = Math.max(1, body.limit || 100);
+
+      // Pick a batch: explicit body.batch_id, else the earliest ended, not-yet-
+      // fully-ingested tracked batch.
+      let batchId: string | null = body.batch_id || null;
+      if (!batchId) {
+        const { data: rows } = await sb
+          .from("cma_extract_batches")
+          .select("*")
+          .neq("status", "ingested")
+          .order("created_at", { ascending: true });
+        for (const r of rows || []) {
+          const resp = await fetch(`${ANTHROPIC_BATCHES_URL}/${r.batch_id}`, {
+            headers: anthropicHeaders(),
+          });
+          if (!resp.ok) continue;
+          const b = await resp.json();
+          if (b.processing_status === "ended") {
+            batchId = r.batch_id as string;
+            break;
+          }
+        }
+        if (!batchId) {
+          return new Response(
+            JSON.stringify({ ok: true, ingested: 0, failed: 0, remaining: 0, message: "No ended batch to ingest" }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+
+      // Get the batch to find the results_url.
+      const bresp = await fetch(`${ANTHROPIC_BATCHES_URL}/${batchId}`, {
+        headers: anthropicHeaders(),
+      });
+      if (!bresp.ok) {
+        return new Response(
+          JSON.stringify({ error: "Batch fetch failed", detail: (await bresp.text()).slice(0, 300) }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const batch = await bresp.json();
+      if (batch.processing_status !== "ended") {
+        return new Response(
+          JSON.stringify({ ok: false, batch_id: batchId, processing_status: batch.processing_status, message: "Batch not ended yet" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (!batch.results_url) {
+        return new Response(
+          JSON.stringify({ error: "Batch has no results_url", batch_id: batchId }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Stream + parse the results .jsonl.
+      const rres = await fetch(batch.results_url, { headers: anthropicHeaders() });
+      if (!rres.ok) {
+        return new Response(
+          JSON.stringify({ error: "Results fetch failed", detail: (await rres.text()).slice(0, 300) }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const txt = await rres.text();
+      const results = txt
+        .split("\n")
+        .filter(Boolean)
+        .map((l) => JSON.parse(l));
+
+      const succeeded = results.filter(
+        (r) => r?.result?.type === "succeeded"
+      );
+      const erroredIds = results
+        .filter((r) => r?.result?.type !== "succeeded")
+        .map((r) => r.custom_id);
+      if (erroredIds.length) {
+        console.error(`Batch ${batchId} non-succeeded custom_ids:`, erroredIds.slice(0, 50));
+      }
+
+      // Skip keys already tagged (resume-safe cursor = cma_feature_tags itself).
+      const succeededKeys = succeeded.map((r) => r.custom_id as string);
+      const tagged = new Set<string>();
+      const cch = 300;
+      for (let i = 0; i < succeededKeys.length; i += cch) {
+        const slice = succeededKeys.slice(i, i + cch);
+        const { data } = await sb
+          .from("cma_feature_tags")
+          .select("listing_key")
+          .in("listing_key", slice);
+        for (const t of data || []) tagged.add(t.listing_key as string);
+      }
+
+      const pending = succeeded.filter((r) => !tagged.has(r.custom_id as string));
+      const toProcess = pending.slice(0, limit);
+
+      // Fetch coords for elevation lookups.
+      const coordMap = new Map<string, { lat: unknown; lng: unknown }>();
+      const pkeys = toProcess.map((r) => r.custom_id as string);
+      for (let i = 0; i < pkeys.length; i += cch) {
+        const slice = pkeys.slice(i, i + cch);
+        const { data } = await sb
+          .from("mls_listings")
+          .select("listing_key, latitude, longitude")
+          .in("listing_key", slice);
+        for (const l of data || [])
+          coordMap.set(l.listing_key as string, { lat: l.latitude, lng: l.longitude });
+      }
+
+      let ingested = 0;
+      let failed = 0;
+      const failedIds: string[] = [];
+
+      for (const r of toProcess) {
+        const key = r.custom_id as string;
+        try {
+          const text = firstTextBlock(r.result?.message?.content);
+          const features = parseExtractionText(text);
+          if (!features) {
+            failed++;
+            failedIds.push(key);
+            continue;
+          }
+          let elevation: number | null = null;
+          const c = coordMap.get(key);
+          if (c && c.lat && c.lng) {
+            elevation = await getElevation(
+              parseFloat(c.lat as string),
+              parseFloat(c.lng as string)
+            );
+          }
+          const tagRecord = buildTagRecord(key, features, elevation);
+          // Idempotent, race-safe write. The `tagged` pre-check above already skips
+          // custom_ids that have a tag row, so this normally INSERTs; the 23505->update
+          // branch inside the helper only fires if a concurrent invocation (e.g. a
+          // client-abort retry) races the same key — which is exactly the failure mode
+          // that produced the 1,169 duplicates before the partial unique index existed.
+          const res = await upsertTagNoAgent(sb, tagRecord);
+          if (!res.ok) {
+            failed++;
+            failedIds.push(key);
+            console.error(`Ingest ${key} write failed:`, res.error);
+          } else {
+            ingested++;
+          }
+        } catch (e) {
+          failed++;
+          failedIds.push(key);
+          console.error(`Ingest ${key} failed:`, (e as Error).message);
+        }
+      }
+
+      const remaining = pending.length - ingested;
+
+      // Mark fully ingested when every succeeded result is now tagged.
+      const { data: batchRow } = await sb
+        .from("cma_extract_batches")
+        .select("ingested_count")
+        .eq("batch_id", batchId)
+        .maybeSingle();
+      const prevIngested = (batchRow?.ingested_count as number) || 0;
+      await sb
+        .from("cma_extract_batches")
+        .update({
+          ingested_count: prevIngested + ingested,
+          status: remaining <= 0 ? "ingested" : "ended",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("batch_id", batchId);
+
+      if (failedIds.length) console.error(`Batch ${batchId} ingest failures:`, failedIds);
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          batch_id: batchId,
+          ingested,
+          failed,
+          remaining,
+          errored_in_batch: erroredIds.length,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );

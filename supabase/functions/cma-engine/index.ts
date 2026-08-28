@@ -53,6 +53,9 @@ interface ListingData {
   lot_size_acres?: number;
   bedrooms_total?: number;
   bathrooms_total_integer?: number;
+  bathrooms_half?: number;
+  days_on_market?: number;
+  list_date?: string;
   year_built?: number;
   garage_spaces?: number;
   close_price?: number;
@@ -107,6 +110,37 @@ function distanceMiles(
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// Apply a lat/lng bounding-box prefilter to a comp query. Rows with NULL
+// coordinates are KEPT (they can't be boxed out and the precise post-query
+// distance filter keeps them too). maxDistance is in miles; 1 deg lat ~= 69 mi,
+// 1 deg lng ~= 69*cos(lat) mi. A 0.05 deg pad (~3.5 mi) absorbs the approximation.
+// deno-lint-ignore no-explicit-any
+function applyBoundingBox(query: any, lat: number, lng: number, maxDistance: number): any {
+  const latDelta = maxDistance / 69 + 0.05;
+  const cosLat = Math.cos((lat * Math.PI) / 180);
+  const safeCos = Math.abs(cosLat) < 0.01 ? 0.01 : cosLat;
+  const lngDelta = maxDistance / (69 * safeCos) + 0.05;
+  const latLo = lat - latDelta, latHi = lat + latDelta;
+  const lngLo = lng - lngDelta, lngHi = lng + lngDelta;
+  // Two AND-combined .or() groups: keep null-coordinate rows OR rows inside the box.
+  return query
+    .or(`latitude.is.null,and(latitude.gte.${latLo},latitude.lte.${latHi})`)
+    .or(`longitude.is.null,and(longitude.gte.${lngLo},longitude.lte.${lngHi})`);
+}
+
+// Effective bathroom count that discounts half baths to 0.5.
+// RESO semantics vary by feed, but both Canopy (mls-sync) and CSAR (navica-sync)
+// populate BathroomsTotalInteger and BathroomsHalf independently from the feed.
+// Safest non-double-counting reading: BathroomsTotalInteger counts every bathroom
+// room (full AND half) as a whole number, so we split out the halves and value
+// them at 0.5 each: effective = (total - half) full baths + 0.5*half.
+function effectiveBaths(totalInteger: unknown, half: unknown): number {
+  const t = Number(totalInteger) || 0;
+  const h = Number(half) || 0;
+  const full = Math.max(0, t - h);
+  return full + 0.5 * h;
+}
+
 // ── Construction type resolution (shared by scoreComp and comp selection) ──
 function isFactoryConstruction(t: string): boolean { return ["manufactured", "modular", "mobile_home"].includes(t); }
 function isMobileHomeConstruction(t: string): boolean { return t === "mobile_home"; }
@@ -146,7 +180,10 @@ function scoreComp(
   subject: ListingData,
   comp: ListingData,
   subjectFeatures: FeatureTags | null,
-  compFeatures: FeatureTags | null
+  compFeatures: FeatureTags | null,
+  // asOfMs: "value as of" timestamp for time-travel/backtesting. Defaults to
+  // Date.now() so live behavior is byte-for-byte identical when not supplied.
+  asOfMs: number = Date.now()
 ): { total: number; breakdown: Record<string, number> } {
   const scores: Record<string, number> = {};
 
@@ -261,7 +298,7 @@ function scoreComp(
   // Recency (weight: 0.10)
   if (comp.close_date) {
     const daysSinceSale = Math.floor(
-      (Date.now() - new Date(comp.close_date + "T00:00:00").getTime()) /
+      (asOfMs - new Date(comp.close_date + "T00:00:00").getTime()) /
         86400000
     );
     // Within 90 days = 1.0, 180 = 0.75, 365 = 0.5, 730+ = 0
@@ -275,8 +312,8 @@ function scoreComp(
     (subject.bedrooms_total || 0) - (comp.bedrooms_total || 0)
   );
   const bathDiff = Math.abs(
-    (subject.bathrooms_total_integer || 0) -
-      (comp.bathrooms_total_integer || 0)
+    effectiveBaths(subject.bathrooms_total_integer, subject.bathrooms_half) -
+      effectiveBaths(comp.bathrooms_total_integer, comp.bathrooms_half)
   );
   scores.bedbath_match = Math.max(0, 1 - (bedDiff + bathDiff) / 6);
 
@@ -289,7 +326,7 @@ function scoreComp(
   let subPrice = (subject.list_price || 0) as number;
   if (!subPrice && subject.close_price && subject.close_date) {
     const closeDateMs = new Date(subject.close_date + "T00:00:00").getTime();
-    const yearsSinceClose = (Date.now() - closeDateMs) / (365.25 * 86400000);
+    const yearsSinceClose = (asOfMs - closeDateMs) / (365.25 * 86400000);
     if (yearsSinceClose < 2) {
       subPrice = subject.close_price as number; // Recent sale, still relevant
     }
@@ -354,8 +391,11 @@ function scoreComp(
 function detectPriceOutliers(
   comps: Array<{ listing: ListingData; [key: string]: unknown }>
 ): Set<string> {
+  // Use close_price when present, else list_price, so active land comps (which
+  // carry only a list price) participate in outlier detection instead of being
+  // invisible to it (F5).
   const prices = comps
-    .map((c) => (c.listing.close_price || 0) as number)
+    .map((c) => (c.listing.close_price || c.listing.list_price || 0) as number)
     .filter((p) => p > 0);
   if (prices.length < 4) return new Set(); // Need enough data for meaningful detection
 
@@ -364,7 +404,7 @@ function detectPriceOutliers(
 
   const outlierKeys = new Set<string>();
   for (const c of comps) {
-    const price = (c.listing.close_price || 0) as number;
+    const price = (c.listing.close_price || c.listing.list_price || 0) as number;
     if (price <= 0) continue;
     if (price > median * 2 || price < median * 0.5) {
       outlierKeys.add(c.listing.listing_key);
@@ -387,13 +427,24 @@ const WNC_DEFAULTS = {
   per_garage_space: 8000,
   per_year_age: 500, // depreciation per year difference
 
-  // Mountain adjustments per rating point difference (1-5 scale)
-  view_per_point: 25000,
-  water_per_point: 20000,
-  land_per_point: 8000,
-  road_noise_per_point: 7000,
-  privacy_per_point: 6000,
-  elevation_per_100ft: 2000,
+  // Mountain adjustments as PERCENT OF COMP BASIS per rating-point difference (1-5
+  // scale), F4. Flat $/point rates blew up proportionally on cheap properties: a
+  // $25K/view-pt rate is ~5% of a $450K home but can EXCEED a $40K parcel's whole
+  // value, tripping the 35% gross-adjustment guardrail and thinning the comp set.
+  // Appraisal practice scales qualitative premiums proportionally, so each premium
+  // is now (subjRating - compRating) * pct * compBasis, where compBasis is the comp's
+  // effective sale price. These %/pt values are calibrated to REPRODUCE the prior flat
+  // dollars at the ~$450K residential median, so behavior at the median is unchanged
+  // and only behavior away from it becomes proportional:
+  //   view  25000/450000 = 5.5%   water 20000/450000 = 4.4%   condition 20000/450000 = 4.4%
+  //   land   8000/450000 = 1.8%   road   7000/450000 = 1.5%   privacy    6000/450000 = 1.3%
+  view_pct_per_point: 0.055,
+  water_pct_per_point: 0.044,
+  land_pct_per_point: 0.018,
+  road_noise_pct_per_point: 0.015,
+  privacy_pct_per_point: 0.013,
+  condition_pct_per_point: 0.044, // condition rating %/point (was hardcoded at the call site pre-Phase-1)
+  elevation_per_100ft: 2000, // stays FLAT $/100ft: elevation premium is not price-proportional the same way
 
   // Lot size: tiered marginal value (larger parcels = lower per-acre rate)
   // These define the marginal value of each acre within that tier
@@ -438,13 +489,25 @@ const WNC_LAND_DEFAULTS = {
     { upTo: Infinity, perAcre: 2000 }, // 50+ acres: bulk land
   ],
 
-  // Mountain adjustments per rating point (land values views/water more)
-  view_per_point: 20000, // Views matter MORE for land (buyer choosing build site)
-  water_per_point: 15000, // Creek frontage especially valuable
-  land_per_point: 12000, // Most critical: steep = unbuildable = huge discount
-  road_noise_per_point: 10000, // Road access quality matters more for raw land
-  privacy_per_point: 8000,
-  elevation_per_100ft: 2000,
+  // Mountain adjustments as PERCENT OF COMP BASIS per rating-point difference (F4).
+  // Land premiums scale even more steeply than residential because on a raw parcel
+  // the qualitative feature often IS most of the value. Rates derived from the WNC
+  // premium ranges in docs/land-cma-research.md (per rating point, ~5-point scale):
+  //   view 10%/pt  — "Panoramic mountain views: 25-75%+ premium... unobstructed 75-100%"
+  //                  (single most compelling WNC feature); ~50% over a 5-pt spread.
+  //   water 8%/pt  — "Year-round creek: 25-50% premium; river frontage 25-75%."
+  //   land_usability 9%/pt — topography/buildability is decisive: steep (20-30%) =
+  //                  10-30% discount, >30% NC "unsuitable" for septic = often unbuildable.
+  //   road_noise 6%/pt — proxy for access quality; road access is the #1 land driver
+  //                  ("2-4x over landlocked", private gravel 10-20%, 4WD 30-50% discount).
+  //   privacy 4%/pt — screening/seclusion premium, smaller and more subjective.
+  view_pct_per_point: 0.10,
+  water_pct_per_point: 0.08,
+  land_pct_per_point: 0.09,
+  road_noise_pct_per_point: 0.06,
+  privacy_pct_per_point: 0.04,
+  condition_pct_per_point: 0.044, // rarely applies to raw land; matches residential %
+  elevation_per_100ft: 2000, // stays FLAT $/100ft (not price-proportional the same way)
 
   // Restriction adjustment: higher for land since restrictions directly limit land use
   unrestricted_premium_pct: 0.15, // 15% of lot value for land CMAs
@@ -456,6 +519,22 @@ const WNC_LAND_DEFAULTS = {
   per_garage_space: 0,
   garage_oversize_per_sqft: 0, // land has no structures; without this, x * undefined = NaN poisons adj_garage
   per_year_age: 0,
+
+  // Structural feature rates: N/A for land. The structural-feature block in
+  // calculateCompAdjustments is gated on !isLand, so these should never be read for a
+  // land subject. They are declared here anyway as explicit zeros for defense-in-depth:
+  // a missing key would dereference to undefined and poison an adjustment with NaN, or
+  // (as with outbuilding_tier_values) throw on undefined[tier]. Same rationale as the
+  // garage_oversize_per_sqft comment above.
+  pool_inground: 0,
+  pool_above_ground: 0,
+  basement_finished_per_sqft: 0,
+  basement_partial: 0,
+  basement_unfinished: 0,
+  fireplace_value: 0,
+  fireplace_stone_premium: 0,
+  covered_outdoor_per_sqft: 0,
+  outbuilding_tier_values: [0, 0, 0, 0] as number[],
 
   // Market
   monthly_appreciation_pct: 0.3,
@@ -475,6 +554,167 @@ function tieredLotValue(acres: number, tiers: Array<{upTo: number; perAcre: numb
     prevCap = tier.upTo;
   }
   return total;
+}
+
+function medianOf(nums: number[]): number {
+  if (!nums.length) return 0;
+  const s = nums.slice().sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+// ── Market-derived time adjustment (F2) ──
+// Build a quarterly price index from our own closed sales and return a
+// monthsFactor(compCloseMs) that gives the % change between the comp's sale
+// quarter and the as-of quarter. Replaces the hardcoded +0.3%/month, which
+// assumed appreciation that post-Helene WNC did not have. When data is thin the
+// factor is null, meaning ZERO time adjustment (an appraiser never assumes drift).
+//   - metric: residential = median close_price/living_area; land = median
+//     close_price/tieredLotValue(acres) (normalizes plattage).
+//   - buckets: calendar quarters, >= 8 sales each (thin buckets merge forward),
+//     smoothed with a 2-bucket trailing average.
+//   - factor clamped to +/-25% total; null when either bucket is missing or the
+//     smoothed series has < 3 buckets.
+interface MarketIndex { factor: (compCloseMs: number) => number | null; }
+// deno-lint-ignore no-explicit-any
+async function computeMarketIndex(sb: any, county: string, isLand: boolean, asOfMs: number): Promise<MarketIndex> {
+  const nullIndex: MarketIndex = { factor: () => null };
+  if (!county) return nullIndex;
+  const startD = new Date(asOfMs);
+  startD.setMonth(startD.getMonth() - 42);
+  const startStr = startD.toISOString().split("T")[0];
+  const endStr = new Date(asOfMs).toISOString().split("T")[0];
+
+  let q = sb
+    .from("mls_listings")
+    .select("close_price, close_date, living_area, lot_size_acres")
+    .eq("standard_status", "Closed")
+    .eq("county_or_parish", county)
+    .gt("close_price", 0)
+    .gte("close_date", startStr)
+    .lte("close_date", endStr)
+    .order("close_date", { ascending: true })
+    .limit(2000);
+  q = isLand
+    ? q.eq("property_type", "Land").gt("lot_size_acres", 0)
+    : q.neq("property_type", "Land").gt("living_area", 0);
+
+  const { data, error } = await q;
+  if (error || !data || data.length === 0) return nullIndex;
+
+  const qIndex = (ms: number): number => {
+    const d = new Date(ms);
+    return d.getUTCFullYear() * 4 + Math.floor(d.getUTCMonth() / 3);
+  };
+  const landTiers = WNC_LAND_DEFAULTS.lot_tiers;
+
+  const byQ = new Map<number, number[]>();
+  for (const r of data as Array<Record<string, unknown>>) {
+    const price = Number(r.close_price) || 0;
+    if (price <= 0 || !r.close_date) continue;
+    let metric: number;
+    if (isLand) {
+      const lv = tieredLotValue(Number(r.lot_size_acres) || 0, landTiers);
+      if (lv <= 0) continue;
+      metric = price / lv;
+    } else {
+      const la = Number(r.living_area) || 0;
+      if (la <= 0) continue;
+      metric = price / la;
+    }
+    const qi = qIndex(new Date((r.close_date as string) + "T00:00:00").getTime());
+    if (!byQ.has(qi)) byQ.set(qi, []);
+    byQ.get(qi)!.push(metric);
+  }
+  if (byQ.size === 0) return nullIndex;
+
+  const qis = [...byQ.keys()].sort((a, b) => a - b);
+  const minQ = qis[0], maxQ = qis[qis.length - 1];
+
+  // Contiguous quarter buckets; merge any bucket with < 8 sales into the next.
+  const raw: Array<{ qStart: number; qEnd: number; values: number[] }> = [];
+  for (let qi = minQ; qi <= maxQ; qi++) {
+    raw.push({ qStart: qi, qEnd: qi, values: (byQ.get(qi) || []).slice() });
+  }
+  const merged: Array<{ qStart: number; qEnd: number; values: number[] }> = [];
+  let carry: { qStart: number; qEnd: number; values: number[] } | null = null;
+  for (let i = 0; i < raw.length; i++) {
+    let b = raw[i];
+    if (carry) { b = { qStart: carry.qStart, qEnd: b.qEnd, values: carry.values.concat(b.values) }; carry = null; }
+    if (b.values.length < 8 && i < raw.length - 1) { carry = b; continue; }
+    merged.push(b);
+  }
+  if (carry) {
+    if (merged.length) {
+      const last = merged[merged.length - 1];
+      last.qEnd = carry.qEnd;
+      last.values = last.values.concat(carry.values);
+    } else {
+      merged.push(carry);
+    }
+  }
+  const usable = merged.filter((b) => b.values.length >= 8);
+  const base = (usable.length ? usable : merged).map((b) => ({ qStart: b.qStart, qEnd: b.qEnd, idx: medianOf(b.values) }));
+  if (base.length < 3) return nullIndex;
+
+  // 2-bucket trailing-average smoothing.
+  const smoothed = base.map((s, i) => {
+    const prev = i > 0 ? base[i - 1].idx : s.idx;
+    return { qStart: s.qStart, qEnd: s.qEnd, idx: (s.idx + prev) / 2 };
+  });
+
+  const findBucket = (qi: number) => {
+    for (const s of smoothed) if (qi >= s.qStart && qi <= s.qEnd) return s;
+    return null;
+  };
+  const firstB = smoothed[0], lastB = smoothed[smoothed.length - 1];
+  const asOfQi = qIndex(asOfMs);
+  // As-of usually sits at/after the newest data; clamp it to the latest bucket
+  // (the "current" market level) rather than nulling out every comp.
+  let asOfBucket = findBucket(asOfQi);
+  if (!asOfBucket) asOfBucket = asOfQi > lastB.qEnd ? lastB : (asOfQi < firstB.qStart ? firstB : lastB);
+
+  return {
+    factor: (compCloseMs: number): number | null => {
+      if (!asOfBucket || !asOfBucket.idx) return null;
+      const cb = findBucket(qIndex(compCloseMs));
+      if (!cb || !cb.idx) return null;
+      let f = asOfBucket.idx / cb.idx - 1;
+      if (f > 0.25) f = 0.25;
+      if (f < -0.25) f = -0.25;
+      return f;
+    },
+  };
+}
+
+// Rolling county land list-to-sale ratio (F7): median(close_price/list_price)
+// over closed Land sales in the last 24 months. Active land is priced at raw
+// list price, but rural land closes below ask; this discounts it. Fallback 0.90
+// when fewer than 8 closed samples exist.
+// deno-lint-ignore no-explicit-any
+async function computeLandListToSaleRatio(sb: any, county: string, asOfMs: number): Promise<number> {
+  if (!county) return 0.90;
+  const startD = new Date(asOfMs);
+  startD.setMonth(startD.getMonth() - 24);
+  const startStr = startD.toISOString().split("T")[0];
+  const endStr = new Date(asOfMs).toISOString().split("T")[0];
+  const { data } = await sb
+    .from("mls_listings")
+    .select("close_price, list_price")
+    .eq("standard_status", "Closed")
+    .eq("county_or_parish", county)
+    .eq("property_type", "Land")
+    .gt("close_price", 0)
+    .gt("list_price", 0)
+    .gte("close_date", startStr)
+    .lte("close_date", endStr)
+    .order("close_date", { ascending: false })
+    .limit(2000);
+  const ratios = ((data || []) as Array<Record<string, unknown>>)
+    .map((r) => (Number(r.close_price) || 0) / (Number(r.list_price) || 1))
+    .filter((x) => x > 0 && x < 3 && Number.isFinite(x));
+  if (ratios.length < 8) return 0.90;
+  return medianOf(ratios);
 }
 
 // Detect whether a property is restricted or unrestricted from MLS data + AI features
@@ -533,6 +773,11 @@ interface AdjustmentResult {
   net_adjustment_pct: number;
   warnings: string[];
   ai_suggested: Record<string, number>;
+  price_basis?: string; // "close" | "list" | "list_adjusted"
+  list_to_sale_ratio?: number | null;
+  completeness?: number; // fraction (0-1) of the 6 mountain ratings present on the comp
+  is_closed?: boolean;
+  is_stale_active?: boolean;
 }
 
 function calculateCompAdjustments(
@@ -542,11 +787,45 @@ function calculateCompAdjustments(
   compFeatures: FeatureTags | null,
   compOrder: number,
   pairedSalesData: Record<string, number> | null,
-  sliderOverrides?: Record<string, number>
+  sliderOverrides?: Record<string, number>,
+  // asOfMs: "value as of" timestamp for time-travel/backtesting. Defaults to
+  // Date.now() so live behavior is byte-for-byte identical when not supplied.
+  asOfMs: number = Date.now(),
+  // timeFactor: market-derived appreciation factor for this comp (F2). null =>
+  // apply zero time adjustment (no assumed drift). undefined preserves legacy
+  // behavior for any caller that doesn't supply it.
+  timeFactor?: number | null,
+  // listToSaleRatio: county land list-to-sale ratio (F7). Applied to non-closed
+  // land comps whose price basis is list_price. undefined/null => no discount.
+  listToSaleRatio?: number | null
 ): AdjustmentResult {
   const adjustments: Record<string, number> = {};
   const warnings: string[] = [];
-  const salePrice = comp.close_price || comp.list_price || 0;
+
+  // Price basis (F7): closed comps use close_price. Non-closed comps (Active/
+  // Pending/AUC) carry only a list price; rural land closes below ask, so we
+  // discount the list price by the county list-to-sale ratio and mark the basis.
+  const compStatus = String(comp.standard_status || "").toLowerCase();
+  const isClosedComp = compStatus === "closed";
+  let salePrice = comp.close_price || comp.list_price || 0;
+  let priceBasis: string = comp.close_price ? "close" : (comp.list_price ? "list" : "close");
+  let appliedRatio: number | null = null;
+  if (!isClosedComp && !comp.close_price && (comp.list_price || 0) > 0 &&
+      typeof listToSaleRatio === "number" && listToSaleRatio > 0) {
+    salePrice = Math.round((comp.list_price as number) * listToSaleRatio);
+    priceBasis = "list_adjusted";
+    appliedRatio = listToSaleRatio;
+  }
+
+  // Staleness (F7): an active listing sitting > 365 days is overpriced by
+  // definition. Warn here; the valuation step excludes it from the weighted mean.
+  const compDom = Number(comp.days_on_market) || 0;
+  const isStaleActive = !isClosedComp && compDom > 365;
+  if (isStaleActive) {
+    warnings.push(
+      `Comp ${compOrder + 1} has been listed ${compDom} days (>365). Stale active listing; excluded from the valuation average and shown as a ceiling reference only.`
+    );
+  }
 
   // Use land rates for land CMAs, standard for residential
   const isLand = (subject.property_type || "").toLowerCase() === "land";
@@ -607,11 +886,11 @@ function calculateCompAdjustments(
     adjustments.adj_bedrooms = (subBeds - compBeds) * rates.per_bedroom;
   }
 
-  // Bathrooms
-  const subBaths = subject.bathrooms_total_integer || 0;
-  const compBaths = comp.bathrooms_total_integer || 0;
+  // Bathrooms (half baths valued at 0.5 of a full bath; see effectiveBaths)
+  const subBaths = effectiveBaths(subject.bathrooms_total_integer, subject.bathrooms_half);
+  const compBaths = effectiveBaths(comp.bathrooms_total_integer, comp.bathrooms_half);
   if (subBaths > 0 && compBaths > 0) {
-    adjustments.adj_bathrooms = (subBaths - compBaths) * rates.per_bathroom;
+    adjustments.adj_bathrooms = Math.round((subBaths - compBaths) * rates.per_bathroom);
   }
 
   // Garage (enhanced: base rate per space + oversize premium)
@@ -630,8 +909,12 @@ function calculateCompAdjustments(
   }
 
   // ── Structural Feature Adjustments ──
-
-  if (subjectFeatures && compFeatures) {
+  // Land CMAs ignore structural features entirely (see docs/CMA-ALGORITHM.md
+  // § "Land CMA Differences"). WNC_LAND_DEFAULTS intentionally omits the residential
+  // structural rate keys, so this block MUST be gated on !isLand — otherwise a land
+  // subject/comp carrying structural tags dereferences undefined rate keys
+  // (e.g. rates.outbuilding_tier_values[tier] on undefined) and 500s.
+  if (!isLand && subjectFeatures && compFeatures) {
     // Pool (WNC: neutral to slightly negative due to short season, maintenance)
     const subPool = subjectFeatures.has_pool as boolean || false;
     const compPool = compFeatures.has_pool as boolean || false;
@@ -707,46 +990,58 @@ function calculateCompAdjustments(
   // ── Mountain-Specific Adjustments ──
 
   if (subjectFeatures && compFeatures) {
+    // Percentage-of-basis mountain premiums (F4). basis = the comp's effective sale
+    // price (`salePrice` above — the same value used for the totals and the land
+    // list-to-sale adjustment). Each premium = (subjRating - compRating) * pct * basis,
+    // rounded. If the basis is <= 0 we can't scale, so we SKIP these adjustments (they'd
+    // all be $0 anyway, but a silent $0 is misleading) and emit a MISSING DATA warning.
+    // Elevation is exempt: it stays flat $/100ft and does not depend on the basis.
+    const basis = salePrice;
+    const basisOk = basis > 0;
+    if (!basisOk) {
+      warnings.push(`MISSING DATA: Comp ${compOrder + 1} has no sale/list price, so percentage-based mountain adjustments (view, water, land usability, road noise, privacy, condition) are omitted.`);
+    }
+
     // View quality
     const subView = subjectFeatures.view_quality || 0;
     const compView = compFeatures.view_quality || 0;
-    if (subView > 0 && compView > 0) {
-      adjustments.adj_view = (subView - compView) * rates.view_per_point;
+    if (basisOk && subView > 0 && compView > 0) {
+      adjustments.adj_view = Math.round((subView - compView) * rates.view_pct_per_point * basis);
     }
 
     // Water features
     const subWater = subjectFeatures.water_quality || 0;
     const compWater = compFeatures.water_quality || 0;
-    if (subWater > 0 && compWater > 0) {
+    if (basisOk && subWater > 0 && compWater > 0) {
       adjustments.adj_water_features =
-        (subWater - compWater) * rates.water_per_point;
+        Math.round((subWater - compWater) * rates.water_pct_per_point * basis);
     }
 
     // Land usability
     const subLand = subjectFeatures.land_usability || 0;
     const compLand = compFeatures.land_usability || 0;
-    if (subLand > 0 && compLand > 0) {
+    if (basisOk && subLand > 0 && compLand > 0) {
       adjustments.adj_land_character =
-        (subLand - compLand) * rates.land_per_point;
+        Math.round((subLand - compLand) * rates.land_pct_per_point * basis);
     }
 
     // Road noise
     const subRoad = subjectFeatures.road_noise || 0;
     const compRoad = compFeatures.road_noise || 0;
-    if (subRoad > 0 && compRoad > 0) {
+    if (basisOk && subRoad > 0 && compRoad > 0) {
       adjustments.adj_road_noise =
-        (subRoad - compRoad) * rates.road_noise_per_point;
+        Math.round((subRoad - compRoad) * rates.road_noise_pct_per_point * basis);
     }
 
     // Privacy
     const subPrivacy = subjectFeatures.privacy_rating || 0;
     const compPrivacy = compFeatures.privacy_rating || 0;
-    if (subPrivacy > 0 && compPrivacy > 0) {
+    if (basisOk && subPrivacy > 0 && compPrivacy > 0) {
       adjustments.adj_privacy =
-        (subPrivacy - compPrivacy) * rates.privacy_per_point;
+        Math.round((subPrivacy - compPrivacy) * rates.privacy_pct_per_point * basis);
     }
 
-    // Elevation
+    // Elevation (stays FLAT $/100ft — not price-proportional the same way)
     const subElev = subjectFeatures.elevation_ft || 0;
     const compElev = compFeatures.elevation_ft || 0;
     if (subElev > 0 && compElev > 0) {
@@ -758,24 +1053,53 @@ function calculateCompAdjustments(
     // Condition
     const subCond = subjectFeatures.condition_rating || 0;
     const compCond = compFeatures.condition_rating || 0;
-    if (subCond > 0 && compCond > 0) {
-      // Condition adjustments are larger: roughly $20K per point
-      adjustments.adj_condition = (subCond - compCond) * 20000;
+    if (basisOk && subCond > 0 && compCond > 0) {
+      // Condition premium is a % of basis; rate lives in the rates objects (Phase 1).
+      adjustments.adj_condition = Math.round((subCond - compCond) * rates.condition_pct_per_point * basis);
     }
   }
 
+  // ── Missing-rating warnings + data completeness (F9) ──
+  // Each mountain adjustment above fires only when BOTH sides have a rating > 0.
+  // A silently-omitted adjustment made an untagged comp look "cleaner" (fewer
+  // adjustments -> lower gross -> MORE weight), which is backwards. Warn on every
+  // one-sided rating and compute a completeness fraction the valuation step uses
+  // to DOWN-weight thinly-tagged comps.
+  const ratingCats: Array<[string, keyof FeatureTags]> = [
+    ["view", "view_quality"],
+    ["water", "water_quality"],
+    ["land usability", "land_usability"],
+    ["road noise", "road_noise"],
+    ["privacy", "privacy_rating"],
+    ["condition", "condition_rating"],
+  ];
+  let ratingsPresentOnComp = 0;
+  if (!compFeatures) {
+    warnings.push(`Comp ${compOrder + 1} has no feature extraction; mountain adjustments omitted.`);
+  } else {
+    for (const [label, key] of ratingCats) {
+      const sv = Number((subjectFeatures || {})[key]) || 0;
+      const cv = Number(compFeatures[key]) || 0;
+      if (cv > 0) ratingsPresentOnComp++;
+      if ((sv > 0) !== (cv > 0)) {
+        const missingSide = sv > 0 ? "comp" : "subject";
+        warnings.push(`${label} rating missing on ${missingSide}; ${label} adjustment omitted for comp ${compOrder + 1}.`);
+      }
+    }
+  }
+  const completeness = compFeatures ? ratingsPresentOnComp / ratingCats.length : 0;
+
   // ── Market Adjustments ──
 
-  // Time adjustment (months since comp sold)
-  if (comp.close_date) {
-    const monthsSinceSale =
-      (Date.now() - new Date(comp.close_date + "T00:00:00").getTime()) /
-      (30 * 86400000);
-    if (monthsSinceSale > 1) {
-      adjustments.adj_time = Math.round(
-        salePrice * (rates.monthly_appreciation_pct / 100) * monthsSinceSale
-      );
-    }
+  // Time adjustment (F2): market-derived. timeFactor is index(as-of quarter) /
+  // index(comp's sale quarter) - 1, clamped to +/-25%. When it's null/undefined
+  // (thin data, or an active comp with no close_date) we apply ZERO adjustment —
+  // an appraiser never assumes appreciation. The legacy monthly_appreciation_pct
+  // is retained in the rates objects for manual sliders/reference only.
+  if (comp.close_date && typeof timeFactor === "number" && Number.isFinite(timeFactor)) {
+    adjustments.adj_time = Math.round(salePrice * timeFactor);
+  } else {
+    adjustments.adj_time = 0;
   }
 
   // Concessions (if sale price vs close price differ, or from data)
@@ -842,6 +1166,11 @@ function calculateCompAdjustments(
     net_adjustment_pct: Math.round(netPct * 10) / 10,
     warnings,
     ai_suggested: { ...adjustments }, // Preserve AI suggestions before overrides
+    price_basis: priceBasis,
+    list_to_sale_ratio: appliedRatio,
+    completeness,
+    is_closed: isClosedComp,
+    is_stale_active: isStaleActive,
   };
 }
 
@@ -1902,21 +2231,35 @@ Deno.serve(async (req: Request) => {
 
       // Build comp query
       const isLandSubject = String(subject.property_type || "").toLowerCase() === "land";
+      // Time-travel/backtest support: value the subject as if today were `as_of_date`.
+      // asOfProvided gates the "past date" behaviors; when absent, asOfMs = Date.now()
+      // and every query/scoring path is byte-for-byte identical to live behavior.
+      const asOfDate = typeof body.as_of_date === "string" ? body.as_of_date : null;
+      const asOfProvided = !!asOfDate;
+      const asOfMs = asOfProvided
+        ? new Date(asOfDate + "T00:00:00").getTime()
+        : Date.now();
       const dateFloor =
         filters.min_close_date ||
-        new Date(Date.now() - (isLandSubject ? 1095 : 365) * 86400000).toISOString().split("T")[0];
+        new Date(asOfMs - (isLandSubject ? 1095 : 365) * 86400000).toISOString().split("T")[0];
       const maxDistance = filters.max_distance_miles || (isLogSubject ? 40 : 15);
 
       let compQuery = sb
         .from("mls_listings")
         .select(
-          "listing_key, full_address, city, county_or_parish, property_type, property_sub_type, living_area, lot_size_acres, bedrooms_total, bathrooms_total_integer, year_built, garage_spaces, close_price, close_date, list_price, latitude, longitude, standard_status, stories, public_remarks, construction_materials"
+          "listing_key, full_address, city, county_or_parish, property_type, property_sub_type, living_area, lot_size_acres, bedrooms_total, bathrooms_total_integer, bathrooms_half, year_built, garage_spaces, close_price, close_date, list_price, days_on_market, list_date, latitude, longitude, standard_status, stories, public_remarks, construction_materials"
         )
-        .limit(100);
+        // Deterministic ordering + a higher cap so the distance filter (which runs
+        // AFTER this query) sees the newest sales, not an arbitrary 100 rows (F6).
+        .order("close_date", { ascending: false, nullsFirst: false })
+        .limit(400);
       // Land: sales are sparse and comparable parcels sit as listings for years, so
       // closed-only biases toward the few better-located lots that actually sold.
       // Include active/pending listings (priced via list_price downstream).
-      if (isLandSubject) {
+      // Backtest caveat: when as_of_date is provided we CANNOT reconstruct which
+      // listings were Active on that past date (current standard_status reflects
+      // today), so land backtests restrict to Closed comps only.
+      if (isLandSubject && !asOfProvided) {
         compQuery = compQuery
           .in("standard_status", ["Closed", "Active", "Active Under Contract", "Pending"])
           .or(`standard_status.neq.Closed,close_date.gte.${dateFloor}`);
@@ -1925,6 +2268,11 @@ Deno.serve(async (req: Request) => {
           .eq("standard_status", "Closed")
           .not("close_price", "is", null)
           .gte("close_date", dateFloor);
+      }
+      // Upper bound: a comp that closed after as_of_date did not exist as a sale
+      // yet, so it cannot inform value on that date.
+      if (asOfProvided) {
+        compQuery = compQuery.lte("close_date", asOfDate);
       }
 
       // Exclude subject if it's from DB
@@ -1962,6 +2310,13 @@ Deno.serve(async (req: Request) => {
         }
       }
 
+      // Bounding-box prefilter (F6): narrows the candidate pool to the subject's
+      // vicinity BEFORE the .limit(400), so nearby comps aren't crowded out by
+      // distant same-county sales. Null-coordinate rows are kept (see helper).
+      if (subject.latitude && subject.longitude) {
+        compQuery = applyBoundingBox(compQuery, subject.latitude as number, subject.longitude as number, maxDistance);
+      }
+
       const { data: rawComps, error: compErr } = await compQuery;
       if (compErr) {
         return jsonResp(
@@ -1992,6 +2347,29 @@ Deno.serve(async (req: Request) => {
             ) <= maxDistance
           );
         });
+      }
+
+      // Price-segment guard (F5 partial): appraisers confine comps to the subject's
+      // market segment. Price similarity is only a 0.10 scoring weight — too weak to
+      // stop a $335K subject drawing $2.9M comps. When the subject has an anchor
+      // price, drop candidates priced > 2.5x or < 0.4x it, but only if >= 6 survive.
+      {
+        let anchorPrice = (subject.list_price as number) || 0;
+        if (!anchorPrice && subject.close_price && subject.close_date) {
+          const yrs = (asOfMs - new Date((subject.close_date as string) + "T00:00:00").getTime()) / (365.25 * 86400000);
+          if (yrs < 2) anchorPrice = subject.close_price as number;
+        }
+        if (anchorPrice > 0) {
+          const inSeg = filteredComps.filter((c) => {
+            const p = (c.close_price || c.list_price || 0) as number;
+            return p > 0 && p <= anchorPrice * 2.5 && p >= anchorPrice * 0.4;
+          });
+          if (inSeg.length >= 6) {
+            filteredComps = inSeg;
+          } else {
+            console.log(`[find-comps] price-segment guard skipped: only ${inSeg.length} of ${filteredComps.length} comps in segment (anchor $${Math.round(anchorPrice).toLocaleString()})`);
+          }
+        }
       }
 
       // Land: drop gross $/acre outliers (dev tracts, bulk lots) so they don't sit among rural lots
@@ -2026,7 +2404,8 @@ Deno.serve(async (req: Request) => {
           subject as ListingData,
           c,
           subjectTags || null,
-          cFeatures
+          cFeatures,
+          asOfMs
         );
         return {
           listing: c,
@@ -2130,17 +2509,28 @@ Deno.serve(async (req: Request) => {
 
       // Find comps (same logic as find-comps action)
       const isLandSubject = String(subject.property_type || "").toLowerCase() === "land";
+      // Time-travel/backtest support (see find-comps action for full rationale).
+      // asOfMs defaults to Date.now() so live behavior is unchanged when as_of_date absent.
+      const asOfDate = typeof body.as_of_date === "string" ? body.as_of_date : null;
+      const asOfProvided = !!asOfDate;
+      const asOfMs = asOfProvided
+        ? new Date(asOfDate + "T00:00:00").getTime()
+        : Date.now();
       const dateFloor = filters.min_close_date ||
-        new Date(Date.now() - (isLandSubject ? 1095 : 365) * 86400000).toISOString().split("T")[0];
+        new Date(asOfMs - (isLandSubject ? 1095 : 365) * 86400000).toISOString().split("T")[0];
       // Log subjects: widen radius to surface scarce log sales (appraisal practice: 10-40mi).
       const maxDistance = filters.max_distance_miles || (isLogSubject ? 40 : 15);
 
       let compQuery = sb
         .from("mls_listings")
-        .select("listing_key, full_address, city, county_or_parish, property_type, property_sub_type, living_area, lot_size_acres, bedrooms_total, bathrooms_total_integer, year_built, garage_spaces, close_price, close_date, list_price, latitude, longitude, standard_status, stories, public_remarks, construction_materials")
-        .limit(100);
+        .select("listing_key, full_address, city, county_or_parish, property_type, property_sub_type, living_area, lot_size_acres, bedrooms_total, bathrooms_total_integer, bathrooms_half, year_built, garage_spaces, close_price, close_date, list_price, days_on_market, list_date, latitude, longitude, standard_status, stories, public_remarks, construction_materials")
+        // Deterministic ordering + higher cap so nearby comps aren't crowded out (F6).
+        .order("close_date", { ascending: false, nullsFirst: false })
+        .limit(400);
       // Land: include active/pending listings, not just closed sales (see find-comps).
-      if (isLandSubject) {
+      // Backtest caveat: with as_of_date we cannot reconstruct past Active status,
+      // so land backtests restrict to Closed comps only (see find-comps action).
+      if (isLandSubject && !asOfProvided) {
         compQuery = compQuery
           .in("standard_status", ["Closed", "Active", "Active Under Contract", "Pending"])
           .or(`standard_status.neq.Closed,close_date.gte.${dateFloor}`);
@@ -2149,6 +2539,10 @@ Deno.serve(async (req: Request) => {
           .eq("standard_status", "Closed")
           .not("close_price", "is", null)
           .gte("close_date", dateFloor);
+      }
+      // Upper bound: comps that closed after as_of_date didn't exist as sales yet.
+      if (asOfProvided) {
+        compQuery = compQuery.lte("close_date", asOfDate);
       }
 
       if (listingKey) compQuery = compQuery.neq("listing_key", listingKey);
@@ -2166,6 +2560,11 @@ Deno.serve(async (req: Request) => {
         compQuery = compQuery.eq("city", filters.city);
       }
 
+      // Bounding-box prefilter (F6): see find-comps for rationale.
+      if (subject.latitude && subject.longitude) {
+        compQuery = applyBoundingBox(compQuery, subject.latitude as number, subject.longitude as number, maxDistance);
+      }
+
       const { data: rawComps, error: compErr } = await compQuery;
       if (compErr) return jsonResp({ error: "Comp query failed", detail: compErr.message }, 500);
       if (!rawComps || rawComps.length === 0) {
@@ -2179,6 +2578,26 @@ Deno.serve(async (req: Request) => {
           if (!c.latitude || !c.longitude) return true;
           return distanceMiles(subject.latitude!, subject.longitude!, c.latitude!, c.longitude!) <= maxDistance;
         });
+      }
+
+      // Price-segment guard (F5 partial): see find-comps for rationale.
+      {
+        let anchorPrice = (subject.list_price as number) || 0;
+        if (!anchorPrice && subject.close_price && subject.close_date) {
+          const yrs = (asOfMs - new Date((subject.close_date as string) + "T00:00:00").getTime()) / (365.25 * 86400000);
+          if (yrs < 2) anchorPrice = subject.close_price as number;
+        }
+        if (anchorPrice > 0) {
+          const inSeg = filteredComps.filter((c) => {
+            const p = (c.close_price || c.list_price || 0) as number;
+            return p > 0 && p <= anchorPrice * 2.5 && p >= anchorPrice * 0.4;
+          });
+          if (inSeg.length >= 6) {
+            filteredComps = inSeg;
+          } else {
+            console.log(`[auto-select] price-segment guard skipped: only ${inSeg.length} of ${filteredComps.length} comps in segment`);
+          }
+        }
       }
 
       // Land: drop gross $/acre outliers (dev tracts, bulk lots) so they don't sit among rural lots
@@ -2206,7 +2625,7 @@ Deno.serve(async (req: Request) => {
       // Score and take top 10
       const scored = filteredComps.map((c: ListingData) => {
         const cFeatures = compTagMap.get(c.listing_key) || null;
-        const score = scoreComp(subject as ListingData, c, subjectTags || null, cFeatures);
+        const score = scoreComp(subject as ListingData, c, subjectTags || null, cFeatures, asOfMs);
         return {
           listing: c,
           features: cFeatures,
@@ -2435,6 +2854,13 @@ Return JSON:
       }>;
       const sliderStates = body.slider_states || {};
 
+      // Time-travel/backtest support: value the subject as if today were as_of_date.
+      // Defaults to Date.now() so the time adjustment is identical to live behavior
+      // when as_of_date is absent.
+      const asOfMs = typeof body.as_of_date === "string"
+        ? new Date(body.as_of_date + "T00:00:00").getTime()
+        : Date.now();
+
       if (!subjectData || !compsData) {
         return jsonResp(
           { error: "subject and comps required" },
@@ -2442,81 +2868,190 @@ Return JSON:
         );
       }
 
-      // Look up paired sales data for this area
+      const isLandSubject = String(subjectData.listing.property_type || "").toLowerCase() === "land";
       const county = subjectData.listing.county_or_parish || "";
+
+      // Look up paired sales data for this area (F10 partial): require >= 5 high-
+      // confidence pairs per category, shrink the derived median toward the WNC
+      // default (rate = (n*median + 5*default)/(n+5)), and ignore any category
+      // whose median is negative (sign-inconsistent = garbage). The rate keys are
+      // now PERCENTAGES ("view_pct_per_point" etc., F4), so the paired data — stored
+      // as dollar-per-point `derived_adjustment` — must be converted into percentage
+      // space before it can override a default. For each pair, pct = derived_adjustment
+      // / mean(price_a, price_b); we aggregate the median pct per category. Pairs are
+      // left stored as-is (dollars); the conversion happens here at read time.
+      const CATEGORY_RATE_KEY: Record<string, string> = {
+        view_quality: "view_pct_per_point",
+        water_quality: "water_pct_per_point",
+        land_usability: "land_pct_per_point",
+        road_noise: "road_noise_pct_per_point",
+        privacy_rating: "privacy_pct_per_point",
+        condition_rating: "condition_pct_per_point",
+      };
       const { data: pairedSales } = await sb
         .from("cma_paired_sales")
-        .select("feature_category, derived_adjustment, confidence")
+        .select("feature_category, derived_adjustment, confidence, price_a, price_b")
         .eq("county", county)
         .eq("confidence", "high");
 
-      // Build rates from paired sales
       const pairedRates: Record<string, number> = {};
       if (pairedSales && pairedSales.length > 0) {
+        const defaults = isLandSubject ? WNC_LAND_DEFAULTS : WNC_DEFAULTS;
+        // Collect per-category PERCENTAGES: each pair contributes its dollar
+        // per-point adjustment divided by the mean of its two sale prices.
         const byCategory = new Map<string, number[]>();
         for (const ps of pairedSales) {
           const cat = ps.feature_category as string;
+          const meanPrice = ((Number(ps.price_a) || 0) + (Number(ps.price_b) || 0)) / 2;
+          if (!(meanPrice > 0)) continue; // no basis to convert against
+          const pct = (Number(ps.derived_adjustment) || 0) / meanPrice;
+          if (!Number.isFinite(pct)) continue;
           if (!byCategory.has(cat)) byCategory.set(cat, []);
-          byCategory.get(cat)!.push(ps.derived_adjustment as number);
+          byCategory.get(cat)!.push(pct);
         }
-        // Use median of high-confidence paired sales
         for (const [cat, values] of byCategory) {
+          const rateKey = CATEGORY_RATE_KEY[cat];
+          if (!rateKey) continue;
+          const def = (defaults as Record<string, number>)[rateKey];
+          if (typeof def !== "number") continue;
+          const n = values.length;
+          if (n < 5) continue; // too few pairs to trust
           values.sort((a, b) => a - b);
           const median = values[Math.floor(values.length / 2)];
-          const rateKey = cat + "_per_point";
-          pairedRates[rateKey] = Math.abs(median);
+          if (median < 0) continue; // sign-inconsistent -> keep the default
+          // Shrinkage toward the default PERCENTAGE with k=5.
+          pairedRates[rateKey] = (n * median + 5 * def) / (n + 5);
         }
       }
 
-      // Calculate adjustments for each comp
-      const results = compsData.map((comp, i) => {
+      // Request-scoped caches (F2/F7): the market index and land list-to-sale
+      // ratio are per-county; comps are usually the subject's county, so this is
+      // 1-2 DB queries per request. Keyed by county (+isLand for the index).
+      const indexCache = new Map<string, MarketIndex>();
+      const ratioCache = new Map<string, number>();
+      async function getIndex(cty: string): Promise<MarketIndex> {
+        const key = cty + "|" + isLandSubject;
+        if (!indexCache.has(key)) {
+          indexCache.set(key, await computeMarketIndex(sb, cty, isLandSubject, asOfMs));
+        }
+        return indexCache.get(key)!;
+      }
+      async function getRatio(cty: string): Promise<number> {
+        if (!ratioCache.has(cty)) {
+          ratioCache.set(cty, await computeLandListToSaleRatio(sb, cty, asOfMs));
+        }
+        return ratioCache.get(cty)!;
+      }
+
+      // Calculate adjustments for each comp (sequential because time factor /
+      // ratio lookups are async and cached).
+      const results: AdjustmentResult[] = [];
+      for (let i = 0; i < compsData.length; i++) {
+        const comp = compsData[i];
         const compSliders = sliderStates[comp.listing.listing_key] || {};
-        return calculateCompAdjustments(
+        const compCounty = comp.listing.county_or_parish || county;
+        const idx = await getIndex(compCounty);
+        const compCloseMs = comp.listing.close_date
+          ? new Date(comp.listing.close_date + "T00:00:00").getTime()
+          : null;
+        const timeFactor = compCloseMs != null ? idx.factor(compCloseMs) : null;
+        const listToSaleRatio = isLandSubject ? await getRatio(compCounty) : null;
+        results.push(calculateCompAdjustments(
           subjectData.listing,
           comp.listing,
           subjectData.features,
           comp.features,
           i,
           Object.keys(pairedRates).length > 0 ? pairedRates : null,
-          compSliders
-        );
-      });
+          compSliders,
+          asOfMs,
+          timeFactor,
+          listToSaleRatio
+        ));
+      }
 
-      // Calculate suggested price range from adjusted prices
-      const adjustedPrices = results.map((r) => r.adjusted_price);
-      const validPrices = adjustedPrices.filter((p) => p > 0);
+      // ── Valuation weighted mean ──
+      // Build the INCLUDED set: positive adjusted price, gross adjustments <= 35%
+      // (F11c), and not a stale active listing (F7). Excluded comps stay in the
+      // returned `results` (visible with warnings) but don't inform the number.
+      const included: Array<{ price: number; grossPct: number; isClosed: boolean; completeness: number }> = [];
+      for (const r of results) {
+        if (!(r.adjusted_price > 0)) continue;
+        if ((r.gross_adjustment_pct || 0) > 35) {
+          r.warnings.push(`Excluded from the valuation average: gross adjustments (${r.gross_adjustment_pct}%) exceed 35%. Shown for reference only.`);
+          continue;
+        }
+        if (r.is_stale_active) continue; // > 365-day active listing (already warned)
+        included.push({
+          price: r.adjusted_price,
+          grossPct: r.gross_adjustment_pct || 0,
+          isClosed: r.is_closed !== false,
+          completeness: typeof r.completeness === "number" ? r.completeness : 0,
+        });
+      }
+
+      // Fallback (deployed-bug guard): if EVERY comp was excluded above (all
+      // exceeded the 35% gross-adjustment threshold, were stale actives, or had
+      // non-positive adjusted prices), `included` is empty and the weighted mean
+      // below would return $0 — a live CMA on a hard-to-comp rural property would
+      // show a $0 valuation. Rather than that, fall back to the pre-Phase-1
+      // behavior: value on ALL comps with a positive adjusted price (trim extremes
+      // if 4+, same squared-curve weighting) and flag the number as low-confidence.
+      let valuationSet = included;
+      let fallbackReason: string | null = null;
+      let fallbackNote: string | null = null;
+      if (included.length === 0) {
+        const all: Array<{ price: number; grossPct: number; isClosed: boolean; completeness: number }> = [];
+        for (const r of results) {
+          if (!(r.adjusted_price > 0)) continue;
+          all.push({
+            price: r.adjusted_price,
+            grossPct: r.gross_adjustment_pct || 0,
+            isClosed: r.is_closed !== false,
+            completeness: typeof r.completeness === "number" ? r.completeness : 0,
+          });
+        }
+        if (all.length > 0) {
+          valuationSet = all;
+          fallbackReason = "all_comps_exceeded_thresholds";
+          fallbackNote =
+            "Every comparable exceeded the 35% gross-adjustment / stale-listing quality thresholds, so this valuation falls back to all available comps. Treat the number as low-confidence — this is a hard-to-comp property and the estimate rests on poorly matched sales.";
+        }
+      }
 
       let suggestedLow = 0;
       let suggestedHigh = 0;
       let suggestedPrice = 0;
 
-      if (validPrices.length > 0) {
-        validPrices.sort((a, b) => a - b);
-        // Range: trim extremes if we have 4+ comps
-        const rangeSet =
-          validPrices.length >= 4
-            ? validPrices.slice(1, -1)
-            : validPrices;
-        suggestedLow = rangeSet[0];
-        suggestedHigh = rangeSet[rangeSet.length - 1];
+      if (valuationSet.length > 0) {
+        const sorted = valuationSet.slice().sort((a, b) => a.price - b.price);
+        // Range: trim extremes if 4+ (same as before) — computed from the SAME
+        // valuation set so range and point value stay consistent.
+        const rangeSet = sorted.length >= 4 ? sorted.slice(1, -1) : sorted;
+        suggestedLow = rangeSet[0].price;
+        suggestedHigh = rangeSet[rangeSet.length - 1].price;
 
-        // Weighted mean: comps with fewer gross adjustments weigh more
-        // Weight = 1 / (1 + gross_adj_pct/100). Only the comps INSIDE the trimmed
-        // range count, so a single outlier the range already trimmed (e.g. a
-        // development tract among rural lots) can't balloon the suggested price.
+        // Weight = (1/(1+gross/100))^2  [squared penalty, F11c]
+        //   x 2 for sold comps vs non-closed  [F7]
+        //   x (0.5 + 0.5*completeness)  [thinly-tagged comps down-weighted, F9]
+        // Only comps inside the trimmed range contribute to the point value.
         let totalWeight = 0;
         let weightedSum = 0;
-        for (const r of results) {
-          if (r.adjusted_price >= suggestedLow && r.adjusted_price <= suggestedHigh) {
-            const w = 1 / (1 + (r.gross_adjustment_pct || 0) / 100);
-            totalWeight += w;
-            weightedSum += r.adjusted_price * w;
-          }
+        for (const item of valuationSet) {
+          if (item.price < suggestedLow || item.price > suggestedHigh) continue;
+          const base = 1 / (1 + item.grossPct / 100);
+          let w = base * base;
+          w *= item.isClosed ? 2 : 1;
+          w *= 0.5 + 0.5 * item.completeness;
+          totalWeight += w;
+          weightedSum += item.price * w;
         }
         suggestedPrice = totalWeight > 0
           ? Math.round(weightedSum / totalWeight)
-          : Math.round(rangeSet.reduce((s, v) => s + v, 0) / rangeSet.length);
+          : Math.round(rangeSet.reduce((s, v) => s + v.price, 0) / rangeSet.length);
       }
+
+      const validPrices = results.map((r) => r.adjusted_price).filter((p) => p > 0).sort((a, b) => a - b);
 
       return jsonResp({
         ok: true,
@@ -2526,6 +3061,7 @@ Return JSON:
           suggested_high: suggestedHigh,
           suggested_price: suggestedPrice,
           adjusted_prices: validPrices,
+          ...(fallbackReason ? { fallback: fallbackReason, fallback_note: fallbackNote } : {}),
         },
         paired_sales_used: Object.keys(pairedRates).length > 0,
       });
