@@ -68,7 +68,7 @@ Spending zero effort here is a deliverable, not a gap:
 - After every closing, send the review link via the already-rebuilt `review.html` flow. Ask for an honest review; **let clients write their own words** (no town names/keywords coaching — that's the violation the flow was rebuilt to avoid).
 - What moves the needle: **volume + recency + authenticity** of native Google reviews with text. Steady trickle > burst.
 - Respond to every review (normal, human responses — not keyword-stuffed).
-- *Open question for Cory: realistic monthly closing volume → realistic review cadence. This is the lever most likely to close the gap vs. the established KW competitors (Candy Wood, Sundog) noted in CLAUDE.md.*
+- *Open question for Cory: realistic monthly closing volume → realistic review cadence. This is the lever most likely to close the gap vs. the established KW competitors (Candy Wood, Sundog) noted in `docs/seo-fixes-log.md` (section 9).*
 
 **1.3 — Keep publishing non-commodity local expertise.** *(Owner: Cory + me. Impact: Google's #1 named AI lever AND #1 local-AI on-page factor.)*
 - Stay on the existing content calendar (2 posts/mo + monthly town-page refresh + quarterly market update).
@@ -104,7 +104,7 @@ Spending zero effort here is a deliverable, not a gap:
 ### Tier 4 — Forward-looking (low priority, speculative)
 
 **4.1 — Publishing cadence feeds "information agents."** The quarterly-market-update / fresh-data habit already positions the site for the summer-2026 monitoring agents. No new work — just keep timestamps accurate and data factual.
-**4.2 — Off-Google engines (ChatGPT/Perplexity).** Google's "it's just SEO" guidance is scoped to Google. Off-Google engines may weight brand mentions/links more. The lever there is the same backlink/citation work already in CLAUDE.md (chambers, local press, WCU) plus being mentioned around the web — not on-site gimmicks.
+**4.2 — Off-Google engines (ChatGPT/Perplexity).** Google's "it's just SEO" guidance is scoped to Google. Off-Google engines may weight brand mentions/links more. The lever there is the same backlink/citation work already in `docs/seo-strategy.md` (chambers, local press, WCU) plus being mentioned around the web — not on-site gimmicks.
 
 ---
 
