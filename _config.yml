@@ -13,6 +13,7 @@ exclude:
   - package.json
   - package-lock.json
   - README.md
+  - CLAUDE.md
   # Jekyll build defaults (kept so overriding `exclude` doesn't republish them):
   - node_modules/
   - vendor/
